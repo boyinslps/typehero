@@ -1,0 +1,97 @@
+rules_version = '2';
+
+// ═══════════════════════════════════════════════════════════════
+//  打字勇者（game.html）Firestore 安全規則
+//
+//  貼上位置：Firebase 主控台 → Firestore Database → 規則 → 全部取代 → 發布
+//  專案：school-4c9bf
+//
+//  重要：這份規則同時保留了舊站 index (2).html 用的 competition / scores，
+//        直接整份取代即可，舊站不會壞掉。
+// ═══════════════════════════════════════════════════════════════
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── 舊站「班級打字挑戰賽」使用（維持原本行為，不要動）──
+    match /competition/{doc} {
+      allow read, write: if request.auth != null;
+    }
+    match /scores/{doc} {
+      allow read, write: if request.auth != null;
+    }
+
+    // ── 打字勇者：全班共用設定（時間、難度、模式、班級清單）──
+    match /mg_config/{doc} {
+      allow read:  if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // ── 打字勇者：開戰狀態（教師按開始/結束時寫入）──
+    match /mg_round/{doc} {
+      allow read:  if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // ── 打字勇者：題庫（9 池，教師編輯後存回）──
+    match /mg_bank/{doc} {
+      allow read:  if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // ── 打字勇者：成績（文件 ID = 班級_姓名）──
+    match /mg_scores/{doc} {
+      allow read:   if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
+      allow delete: if request.auth != null;
+    }
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+//  ⚠ 這份規則的安全等級說明（請看完再決定）
+//
+//  上面寫的是「只要通過匿名登入就能讀寫」。這跟你原本舊站的規則是
+//  同一個等級，好處是全班馬上能用、不用管帳號；代價是：
+//
+//    • 任何知道這個網址的人都能寫入成績、改題庫、開始/結束比賽
+//    • 學生若懂一點技術，可以用瀏覽器主控台改自己的傷害
+//    • 不同班級之間的成績沒有互相隔離
+//
+//  以校內打字練習來說，這通常是可以接受的。但如果你在意上面幾點，
+//  下面是「加強版」：學生只能寫自己那一筆成績，題庫與比賽控制
+//  只有老師（用 Firebase Authentication 建一個 email 帳號）能寫。
+//  要用的話，把上面 mg_* 的四段換成下面這四段，並把 TEACHER_UID
+//  換成你的老師帳號 UID（Firebase 主控台 → Authentication → 使用者）。
+//
+//  function isTeacher() {
+//    return request.auth != null && request.auth.uid == 'TEACHER_UID';
+//  }
+//  match /mg_config/{doc} {
+//    allow read: if request.auth != null;
+//    allow write: if isTeacher();
+//  }
+//  match /mg_round/{doc} {
+//    allow read: if request.auth != null;
+//    allow write: if isTeacher();
+//  }
+//  match /mg_bank/{doc} {
+//    allow read: if request.auth != null;
+//    allow write: if isTeacher();
+//  }
+//  match /mg_scores/{doc} {
+//    allow read: if request.auth != null;
+//    allow write: if isTeacher();
+//    // 學生只能寫自己那一筆，且傷害要在合理範圍
+//    allow create, update: if request.auth != null
+//      && request.resource.data.damage is number
+//      && request.resource.data.damage >= 0
+//      && request.resource.data.damage <= 500000;
+//    allow delete: if isTeacher();
+//  }
+//
+//  註：加強版仍然擋不住「學生改自己的傷害數字」，只是加了上限。
+//      要完全防作弊需要伺服器端驗證，那超出這個單檔網頁的範圍。
+// ═══════════════════════════════════════════════════════════════

@@ -1,0 +1,30 @@
+# ═══════════════════════════════════════════════════════════
+#  絕對不要進版控的東西
+#  （Google OAuth 的 client_secret + refresh_token 等於帳號的
+#    長期存取權，一旦推上 GitHub 就算刪掉也已經外洩）
+# ═══════════════════════════════════════════════════════════
+*client_secret*.json
+client_secret*.apps.googleusercontent.com.json
+token.json
+token_*.json
+credentials.json
+service-account*.json
+*.pem
+*.key
+*.p12
+.env
+.env.*
+
+# ── 作業系統 / 編輯器 ──
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
+# ── 暫存與測試產物 ──
+_test_*.html
+*.tmp
+*.bak
+node_modules/
