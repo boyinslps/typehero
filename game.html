@@ -158,6 +158,42 @@ body{
 .st-wrong .zy-bpmf{color:#b04a3c}
 .st-wrong{background:rgba(192,57,43,.2)}
 
+/* ══════════ 營地：三欄橫排、不捲動 ══════════ */
+#screen-lobby:not(.hidden){display:flex;flex-direction:column;height:100dvh;
+  padding:14px 20px 16px;gap:10px;max-width:1400px;margin:0 auto}
+#lobby-weapon-rack{flex:1 1 auto;min-height:0;
+  display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.weapon.wcol{flex-direction:column;justify-content:center;text-align:center;
+  gap:10px;padding:18px 14px;height:100%}
+.weapon.wcol .weapon-ico{width:70px;height:70px}
+.weapon.wcol .weapon-txt{width:100%}
+.weapon-long{display:block;font-size:14.5px;color:var(--dim2);margin-top:8px;
+  line-height:1.6}
+@media (max-height:720px){
+  .weapon.wcol{padding:12px 10px;gap:6px}
+  .weapon.wcol .weapon-ico{width:54px;height:54px}
+  .weapon-name{font-size:20px} .weapon-sub{font-size:14px}
+  .weapon-long{font-size:13px;margin-top:5px}
+}
+
+/* ══════════ 結算畫面：滿版、不捲動 ══════════ */
+#screen-result:not(.hidden){display:flex;flex-direction:column;height:100dvh;
+  padding:12px 20px 14px;gap:10px}
+#res-mid{flex:1 1 auto;min-height:0;display:grid;
+  grid-template-columns:minmax(300px,1fr) minmax(320px,1.05fr);gap:12px}
+#res-mid > *{min-height:0;display:flex;flex-direction:column}
+#c-rank{flex:1 1 auto;min-height:0;overflow-y:auto}
+#result-card{overflow-y:auto}
+.rank-row{display:flex;align-items:center;justify-content:space-between;
+  padding:7px 12px;border-radius:7px;background:var(--panel2);
+  border:2px solid transparent}
+.rank-row.me{background:rgba(232,182,76,.16);border-color:var(--gold)}
+.rank-no{font-family:ui-monospace,Consolas,monospace;font-weight:900;
+  width:34px;color:var(--dim)}
+.rank-row.me .rank-no{color:var(--gold)}
+.deco-line{text-align:center;color:var(--line2);font-family:ui-monospace,Consolas,monospace;
+  white-space:pre;line-height:1;font-size:13px;letter-spacing:-.5px}
+
 /* ══════════ 武器卡：選取只換邊框與底色，不蓋住文字 ══════════ */
 .weapon{cursor:pointer;border:2px solid var(--line);border-radius:9px;
         background:var(--panel2);transition:border-color .14s,background .14s;
@@ -228,7 +264,7 @@ kbd{font-family:ui-monospace,Consolas,monospace;font-size:14px;padding:3px 8px;
 input,select,textarea{color:var(--ink)}
 select option{background:var(--panel2);color:var(--ink)}
 .divider{height:2px;background:var(--line)}
-#screen-login,#screen-lobby{max-height:100dvh;overflow-y:auto}
+#screen-login{max-height:100dvh;overflow-y:auto}
 </style>
 </head>
 <body>
@@ -278,29 +314,33 @@ select option{background:var(--panel2);color:var(--ink)}
   <p id="login-err" class="text-base mt-3 hidden" style="color:#e5705f"></p>
 </section>
 
-<!-- ══════════ 2. 營地：選裝備 ══════════ -->
-<section id="screen-lobby" class="hidden fade-in max-w-2xl mx-auto mt-6 px-4 pb-6">
-  <div class="panel p-6 mb-4 text-center">
-    <h2 class="text-2xl font-black mb-1">在營地待命中</h2>
-    <p class="text-base mb-4" style="color:var(--dim)">等老師開戰，先把裝備挑好</p>
-    <div id="lobby-who" class="panel-flat p-4"></div>
+<!-- ══════════ 2. 營地：三欄橫排、不捲動 ══════════ -->
+<section id="screen-lobby" class="hidden fade-in">
+  <div class="panel px-5 py-3 flex flex-wrap items-center justify-between gap-3">
+    <div id="lobby-who" class="font-black text-2xl"></div>
+    <div class="flex items-center gap-4">
+      <span class="text-base" style="color:var(--dim)">在營地待命中・等老師開戰</span>
+      <span id="lobby-sub" class="text-sm" style="color:#e5705f"></span>
+      <button id="btn-teacher-lobby" class="btn btn-ghost text-sm px-3 py-2" style="color:var(--dim)">
+        <span class="ico-slot" data-ico="gear" data-ico-size="16"></span></button>
+    </div>
   </div>
 
-  <div class="panel p-6 mb-4">
-    <h3 class="font-black text-2xl mb-1">選擇武器</h3>
-    <p class="text-base mb-4" style="color:var(--dim)">
-      進戰場後<b style="color:var(--gold)">不能更換</b></p>
-    <div id="lobby-weapon-rack" class="space-y-3 mb-6"></div>
+  <div class="flex items-baseline gap-3 px-1">
+    <h3 class="font-black text-2xl">選擇武器</h3>
+    <span class="text-base" style="color:var(--dim)">
+      進戰場後<b style="color:var(--gold)">不能更換</b></span>
+  </div>
+  <div id="lobby-weapon-rack"></div>
 
-    <div class="divider mb-5"></div>
-
-    <h3 class="font-black text-2xl mb-1">選擇難度</h3>
-    <p class="text-base mb-3" style="color:var(--dim)">越高越難，傷害也越高</p>
-    <div id="lobby-quality-rack" class="grid grid-cols-3 gap-3"></div>
-    <p id="lobby-quality-desc" class="text-base mt-4 leading-relaxed" style="color:var(--dim)"></p>
+  <div class="panel px-5 py-3.5 flex flex-wrap items-center gap-x-6 gap-y-3">
+    <h3 class="font-black text-2xl">難度</h3>
+    <div id="lobby-quality-rack" class="flex gap-3"></div>
+    <p id="lobby-quality-desc" class="text-base flex-1 min-w-[240px]"
+       style="color:var(--dim)"></p>
   </div>
 
-  <button id="btn-practice" class="btn btn-ghost w-full py-4 text-lg">
+  <button id="btn-practice" class="btn btn-ghost w-full py-3.5 text-lg">
     <span class="ico-slot" data-ico="target" data-ico-size="20"></span>先自己練習（不計分）</button>
 </section>
 
@@ -429,75 +469,74 @@ select option{background:var(--panel2);color:var(--ink)}
   </div>
 </section>
 
-<!-- ══════════ 5. 結算：左個人、右排行 ══════════ -->
-<section id="screen-result" class="hidden fixed inset-0 z-[75] overflow-y-auto scrolly"
-         style="background:rgba(16,13,9,.97)">
-  <div class="max-w-5xl mx-auto p-4 py-7">
+<!-- ══════════ 5. 結算：滿版、不捲動 ══════════ -->
+<section id="screen-result" class="hidden">
 
-    <div class="panel p-5 mb-4 flex flex-wrap items-center justify-center gap-x-10 gap-y-3 text-center">
-      <div>
-        <div class="mono text-3xl font-black" style="color:var(--gold)" id="c-total">0</div>
-        <div class="label">全班總傷害</div></div>
-      <div>
-        <div class="mono text-3xl font-black" style="color:var(--gr)" id="c-kills">0</div>
-        <div class="label">擊倒怪獸</div></div>
-      <div>
-        <div class="mono text-3xl font-black" id="c-players">0</div>
-        <div class="label">參戰人數</div></div>
-      <div class="w-full md:w-auto md:max-w-sm text-lg font-bold px-3"
-           style="color:var(--gold)" id="c-verdict"></div>
-    </div>
+  <!-- 全班戰果 -->
+  <div class="panel px-5 py-3 flex flex-wrap items-center justify-center gap-x-9 gap-y-2 text-center">
+    <div>
+      <div class="mono text-3xl font-black leading-none" style="color:var(--gold)" id="c-total">0</div>
+      <div class="label">全班總傷害</div></div>
+    <div>
+      <div class="mono text-3xl font-black leading-none" style="color:var(--gr)" id="c-kills">0</div>
+      <div class="label">擊倒 BOSS</div></div>
+    <div>
+      <div class="mono text-3xl font-black leading-none" id="c-players">0</div>
+      <div class="label">參戰人數</div></div>
+    <div class="text-lg font-bold px-2" style="color:var(--gold)" id="c-verdict"></div>
+  </div>
 
-    <div class="grid md:grid-cols-2 gap-4 items-start">
-      <div id="result-card" class="panel p-6 text-center pop-in">
-        <p class="label mb-1"><span id="r-class"></span></p>
-        <h2 class="text-2xl font-black mb-3" id="r-name">勇者</h2>
-        <pre id="r-rank-art" class="mono text-sm leading-tight mb-2" style="color:var(--gold)"></pre>
-        <h3 class="text-3xl font-black mb-2" id="r-title">見習生</h3>
-        <p class="text-base mb-5 px-2 leading-relaxed" style="color:var(--dim)" id="r-quote"></p>
+  <div id="res-mid">
+    <!-- 左：個人成績 -->
+    <div id="result-card" class="panel p-5 text-center">
+      <p class="label"><span id="r-class"></span></p>
+      <h2 class="text-2xl font-black mb-1" id="r-name">勇者</h2>
+      <pre id="r-rank-art" class="mono text-xs leading-tight my-1"
+           style="color:var(--gold)"></pre>
+      <h3 class="text-2xl font-black" id="r-title">見習生</h3>
+      <p class="text-sm mb-3 px-2 leading-relaxed" style="color:var(--dim)" id="r-quote"></p>
 
-        <div class="p-4 rounded-xl mb-4"
-             style="background:var(--panel2);border:2px solid var(--gold)">
-          <div class="label mb-1">本場總傷害</div>
-          <div class="mono text-5xl font-black leading-none" style="color:var(--gold)" id="r-damage">0</div>
-        </div>
-
-        <div class="grid grid-cols-3 gap-2 mb-2">
-          <div class="panel-flat p-3"><div class="label" style="font-size:13px">正確字數</div>
-            <div class="mono text-xl font-black" id="r-words">0</div></div>
-          <div class="panel-flat p-3"><div class="label" style="font-size:13px">正確率</div>
-            <div class="mono text-xl font-black" style="color:var(--gr)"><span id="r-acc">0</span>%</div></div>
-          <div class="panel-flat p-3"><div class="label" style="font-size:13px">WPM</div>
-            <div class="mono text-xl font-black" style="color:var(--mp)" id="r-wpm">0</div></div>
-        </div>
-        <div class="grid grid-cols-3 gap-2 mb-4">
-          <div class="panel-flat p-3"><div class="label" style="font-size:13px">最高連擊</div>
-            <div class="mono text-xl font-black" id="r-combo">0</div></div>
-          <div class="panel-flat p-3"><div class="label" style="font-size:13px">完美攻擊</div>
-            <div class="mono text-xl font-black" style="color:#ffd66b" id="r-perfect">0</div></div>
-          <div class="panel-flat p-3"><div class="label" style="font-size:13px">個人擊倒</div>
-            <div class="mono text-xl font-black" id="r-kills">0</div></div>
-        </div>
-
-        <div id="r-weapon-breakdown" class="mb-4"></div>
-        <p id="r-record" class="text-base font-bold mb-3 hidden"></p>
-        <button id="btn-save-img" class="btn btn-ghost w-full py-3 text-base">
-          <span class="ico-slot" data-ico="camera" data-ico-size="18"></span>存成圖片</button>
+      <div class="p-3 rounded-xl mb-3"
+           style="background:var(--panel2);border:2px solid var(--gold)">
+        <div class="label">本場總傷害</div>
+        <div class="mono text-4xl font-black leading-none" style="color:var(--gold)" id="r-damage">0</div>
       </div>
 
-      <div class="space-y-4">
-        <div class="panel p-5">
-          <div class="font-black text-xl mb-3">班內傷害排行　前 10 名</div>
-          <div id="c-rank" class="space-y-2"></div>
-        </div>
-        <div class="panel p-5">
-          <div class="font-black text-xl mb-3">跨班排行</div>
-          <div id="c-classrank" class="space-y-2"></div>
-        </div>
+      <div class="grid grid-cols-3 gap-2 mb-2">
+        <div class="panel-flat p-2"><div class="label" style="font-size:12px">正確字數</div>
+          <div class="mono text-lg font-black" id="r-words">0</div></div>
+        <div class="panel-flat p-2"><div class="label" style="font-size:12px">正確率</div>
+          <div class="mono text-lg font-black" style="color:var(--gr)"><span id="r-acc">0</span>%</div></div>
+        <div class="panel-flat p-2"><div class="label" style="font-size:12px">每分鐘字</div>
+          <div class="mono text-lg font-black" style="color:var(--mp)" id="r-wpm">0</div></div>
       </div>
+      <div class="grid grid-cols-3 gap-2 mb-3">
+        <div class="panel-flat p-2"><div class="label" style="font-size:12px">最高連擊</div>
+          <div class="mono text-lg font-black" id="r-combo">0</div></div>
+        <div class="panel-flat p-2"><div class="label" style="font-size:12px">完美攻擊</div>
+          <div class="mono text-lg font-black" style="color:#ffd66b" id="r-perfect">0</div></div>
+        <div class="panel-flat p-2"><div class="label" style="font-size:12px">個人擊倒</div>
+          <div class="mono text-lg font-black" id="r-kills">0</div></div>
+      </div>
+
+      <div id="r-weapon-breakdown" class="mb-2"></div>
+      <p id="r-record" class="text-base font-bold hidden"></p>
     </div>
 
-    <button id="btn-back-lobby" class="btn btn-ghost w-full mt-4 py-3 text-base">
+    <!-- 右：排行榜 -->
+    <div class="panel p-5">
+      <div class="font-black text-xl mb-1">班內傷害排行</div>
+      <pre class="deco-line mb-2" id="deco-1"></pre>
+      <div id="c-rank" class="space-y-1.5 scrolly pr-1"></div>
+      <div class="font-black text-lg mt-3 mb-2">跨班排行</div>
+      <div id="c-classrank" class="space-y-1.5"></div>
+    </div>
+  </div>
+
+  <div class="flex gap-3">
+    <button id="btn-save-img" class="btn btn-ghost flex-1 py-3 text-base">
+      <span class="ico-slot" data-ico="camera" data-ico-size="18"></span>存成圖片</button>
+    <button id="btn-back-lobby" class="btn btn-gold flex-1 py-3 text-base">
       <span class="ico-slot" data-ico="back" data-ico-size="18"></span>回營地</button>
   </div>
 </section>
@@ -1359,17 +1398,17 @@ const QUALITY_ORDER = ['normal','fine','legend'];
 
 /* ── 勇者階級（依個人總傷害）───────────────────────────── */
 const RANKS = [
-  { min:0,      title:'見習生',   art:"  .---.  \n |  ·  | \n  '---'  ",
+  { min:0,      title:'見習生',   art:"   ___\n  / . \\\n  \\___/",
     quote:'第一次上戰場，能站著撐完就很棒了！先把每個鍵的位置找熟，傷害自然會長出來。' },
-  { min:160,    title:'冒險者',   art:"  .---.  \n | /_\\ | \n  '---'  ",
+  { min:160,    title:'冒險者',   art:"   ___\n  / ^ \\\n  \\___/\n   \\_/",
     quote:'已經打得有模有樣了。試著多用一點精良品質的題目，傷害會跳一大階。' },
-  { min:360,   title:'銅級勇者', art:"  .===.  \n | (C) | \n  '==='  ",
+  { min:360,   title:'銅級勇者', art:"  .=====.\n  | [#] |\n  '====='\n   \\___/",
     quote:'速度跟準確度都上軌道了！挑一把最順手的武器專精下去，你會更強。' },
-  { min:640,   title:'銀級勇者', art:" .=====. \n | ⟨S⟩ | \n '====='  ",
+  { min:640,   title:'銀級勇者', art:"  .=====.\n  | \\*/ |\n  '====='\n  /_\\ /_\\",
     quote:'班上的主力輸出。試著用匕首把連擊拉高，或用弓箭賭全對暴擊。' },
-  { min:1000,  title:'金級勇者', art:" .=====. \n |«⟨G⟩»| \n '====='  ",
+  { min:1000,  title:'金級勇者', art:" \\ .=====. /\n =| \\*_*/ |=\n / '=====' \\\n   /__\\/__\\",
     quote:'太強了！你一個人的傷害就抵得上好幾位同學，是全班的關鍵戰力。' },
-  { min:1500, title:'傳說勇者', art:" \\ .===. / \n ⟨«⟨★⟩»⟩ \n / '===' \\ ",
+  { min:1500, title:'傳說勇者', art:"\\\\\\ .=====. ///\n \\\\=| \\***/ |=//\n //  '====='  \\\\\n    /__\\ /__\\\n       \\*/",
     quote:'傳說級的手速與精準度。全班能推倒幾隻怪，很大一部分要感謝你。' }
 ];
 
@@ -2189,9 +2228,11 @@ function doLogin() {
 }
 
 function gotoLobby() {
+  show('app-header', false);                 // 營地也是滿版，不需要標題列
   show('screen-lobby', true); show('screen-game', false);
   show('screen-result', false); show('screen-boss', false);
-  show('app-header', true);
+  const ls = $('lobby-sub');
+  if (ls) ls.textContent = ONLINE ? '' : '離線・成績不會上傳';
 }
 
 /* ══════════════ 營地：裝備選擇 ══════════════
@@ -2215,15 +2256,15 @@ function buildWeaponRack() {
   WEAPON_ORDER.forEach(k => {
     const w = WEAPONS[k];
     const el = document.createElement('button');
-    el.className = 'weapon';
+    el.className = 'weapon wcol';
     el.dataset.w = k;
-    el.style.color = w.raw;
-    el.innerHTML = `
-      <span class="weapon-ico">${ico(w.icon, 24)}</span>
-      <span class="weapon-txt">
-        <span class="weapon-name">${w.name}</span>
-        <span class="weapon-sub block">${w.blurb}</span>
-      </span>`;
+    el.innerHTML =
+      '<span class="weapon-ico" style="color:' + w.raw + '">' + ico(w.icon, 34) + '</span>' +
+      '<span class="weapon-txt">' +
+        '<span class="weapon-name">' + w.name + '</span>' +
+        '<span class="weapon-sub block">' + w.blurb + '</span>' +
+        '<span class="weapon-long">' + w.long + '</span>' +
+      '</span>';
     el.addEventListener('click', () => selectWeapon(k));
     rack.appendChild(el);
   });
@@ -2804,15 +2845,15 @@ function showResult(data, killed) {
   /* 班內前 10（自己若在 10 名外，補一列） */
   const mine = [...data.mine].sort((a, b) => (b.damage || 0) - (a.damage || 0));
   const myIdx = mine.findIndex(r => r.id === ME.docId);
-  const rowHtml = (r, i) => {
-    const me = r.id === ME.docId;
-    return `<div class="flex items-center justify-between px-2.5 py-2 rounded-lg"
-      style="background:${me ? 'rgba(245,196,81,.14)' : 'var(--panel2)'};
-             border:1px solid ${me ? 'var(--gold)' : 'transparent'}">
-      <span class="text-sm truncate flex items-center gap-2">${rankBadge(i)}
-        <span class="truncate">${r.name || ''}${me ? ' <small style="color:var(--gold)">(你)</small>' : ''}</span></span>
-      <span class="mono text-sm font-black flex-none ml-2"
-            style="color:var(--gold)">${fmt(r.damage || 0)}</span></div>`;
+  const rowHtml = (row, i) => {
+    const me = row.id === ME.docId;
+    return '<div class="rank-row' + (me ? ' me' : '') + '">' +
+      '<span class="flex items-center gap-2 truncate">' +
+        '<span class="rank-no">' + (i + 1) + '</span>' +
+        '<span class="truncate text-base">' + (row.name || '') +
+          (me ? ' <small style="color:var(--gold)">(你)</small>' : '') + '</span></span>' +
+      '<span class="mono font-black flex-none ml-2" style="color:var(--gold)">' +
+        fmt(row.damage || 0) + '</span></div>';
   };
   let html = mine.slice(0, 10).map(rowHtml).join('');
   if (myIdx >= 10) {
@@ -2829,21 +2870,24 @@ function showResult(data, killed) {
     byClass[c].total += r.damage || 0; byClass[c].n++;
   });
   $('c-classrank').innerHTML = Object.entries(byClass)
-    .sort((a, b) => b[1].total - a[1].total)
+    .sort((x, y) => y[1].total - x[1].total)
+    .slice(0, 5)
     .map(([name, v], i) => {
       const me = name === ME.className;
       const k = applyDamage(makeBossRun(CFG.difficulty), v.total).kills;
-      return `<div class="flex items-center justify-between px-2.5 py-2 rounded-lg"
-        style="background:${me ? 'rgba(245,196,81,.14)' : 'var(--panel2)'};
-               border:1px solid ${me ? 'var(--gold)' : 'transparent'}">
-        <span class="text-sm truncate flex items-center gap-2">${rankBadge(i)}
-          <span class="truncate">${name}</span>
-          <small style="color:var(--dim2)">${v.n}人</small></span>
-        <span class="text-right flex-none ml-2">
-          <span class="mono text-sm font-black" style="color:var(--gold)">${fmt(v.total)}</span>
-          <small style="color:var(--dim2)" class="ml-1">擊倒 ${k}</small></span></div>`;
-    }).join('') || '<p class="text-xs" style="color:var(--dim)">還沒有紀錄</p>';
+      return '<div class="rank-row' + (me ? ' me' : '') + '">' +
+        '<span class="flex items-center gap-2 truncate">' +
+          '<span class="rank-no">' + (i + 1) + '</span>' +
+          '<span class="truncate">' + name + '</span>' +
+          '<small style="color:var(--dim2)">' + v.n + '人</small></span>' +
+        '<span class="flex-none ml-2"><span class="mono font-black" ' +
+          'style="color:var(--gold)">' + fmt(v.total) + '</span>' +
+          '<small style="color:var(--dim2)" class="ml-2">擊倒 ' + k + '</small></span></div>';
+    }).join('') || '<p class="text-sm" style="color:var(--dim)">還沒有紀錄</p>';
 
+  // 裝飾分隔線
+  const dl = $('deco-1');
+  if (dl) dl.textContent = '=====<>=========<>=====';
   show('screen-result', true);
 }
 
@@ -2910,6 +2954,7 @@ function wireEvents() {
   const openAuth = () => { show('auth-modal', true); $('auth-pw').focus(); };
   $('btn-teacher').addEventListener('click', openAuth);
   $('btn-teacher-game').addEventListener('click', openAuth);
+  $('btn-teacher-lobby').addEventListener('click', openAuth);
   $('auth-cancel').addEventListener('click', () => show('auth-modal', false));
   $('auth-pw').addEventListener('keydown', e => { if (e.key === 'Enter') tryAuth(); });
   $('auth-ok').addEventListener('click', tryAuth);
