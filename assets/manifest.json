@@ -1,0 +1,85 @@
+{
+  "說明": "改這裡的檔名或數值就能換美術。怪獸順序＝出場順序，hp 是難度 1.0 時的血量。",
+  "monsters": [
+    {
+      "file": "1-slime.txt",
+      "name": "史萊姆",
+      "hp": 30000,
+      "color": "#7dffb0",
+      "tag": "黏答答的果凍生物"
+    },
+    {
+      "file": "2-bat.txt",
+      "name": "大蝙蝠",
+      "hp": 60000,
+      "color": "#b98cff",
+      "tag": "從洞穴深處竄出的夜行者"
+    },
+    {
+      "file": "3-goblin.txt",
+      "name": "哥布林戰士",
+      "hp": 120000,
+      "color": "#8fd14f",
+      "tag": "成群結隊、手持鏽刀"
+    },
+    {
+      "file": "4-skeleton.txt",
+      "name": "骷髏騎士",
+      "hp": 200000,
+      "color": "#dfe6ff",
+      "tag": "不死的守墓者，鎧甲已鏽"
+    },
+    {
+      "file": "5-golem.txt",
+      "name": "石魔像",
+      "hp": 320000,
+      "color": "#c9a06a",
+      "tag": "古代遺跡的巨大守衛"
+    },
+    {
+      "file": "6-dragon.txt",
+      "name": "火焰惡龍",
+      "hp": 500000,
+      "color": "#ff8a3d",
+      "tag": "吐息足以熔化鋼鐵"
+    },
+    {
+      "file": "7-demonlord.txt",
+      "name": "混沌魔王",
+      "hp": 800000,
+      "color": "#ff4d6d",
+      "tag": "最終的支配者，全班之敵"
+    }
+  ],
+  "weapons": {
+    "staff": {
+      "file": "staff.txt",
+      "name": "法杖"
+    },
+    "bow": {
+      "file": "bow.txt",
+      "name": "弓箭"
+    },
+    "dagger": {
+      "file": "dagger.txt",
+      "name": "匕首"
+    }
+  },
+  "fx": {
+    "staff": [
+      "staff-1.txt",
+      "staff-2.txt",
+      "staff-3.txt"
+    ],
+    "bow": [
+      "bow-1.txt",
+      "bow-2.txt",
+      "bow-3.txt"
+    ],
+    "dagger": [
+      "dagger-1.txt",
+      "dagger-2.txt",
+      "dagger-3.txt"
+    ]
+  }
+}

@@ -10,33 +10,54 @@
 <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
 <style>
 :root{
-  --ink:#e8e6f0; --dim:#8b87a8; --panel:#1b1830; --panel2:#241f3d;
-  --line:#3a3358; --gold:#f5c451; --hp:#e0455e; --mp:#4fa8e8;
+  --ink:#e9e7f2; --dim:#8b87a8; --dim2:#6b6788;
+  --bg:#0d0b18; --panel:#191630; --panel2:#221d3b; --panel3:#2b2549;
+  --line:#332c54; --line2:#443b6b;
+  --gold:#f5c451; --gold2:#ffb340; --hp:#e0455e; --mp:#5fb8ff; --gr:#4ade80;
+  --staff:#a78bfa; --bow:#5fb8ff; --dagger:#ff9f6b;
+  --r:14px;
 }
+*{scrollbar-width:thin;scrollbar-color:var(--line2) transparent}
 body{
-  background:#0f0d1c;
-  background-image:radial-gradient(circle at 20% 10%,#241f3d 0,transparent 45%),
-                   radial-gradient(circle at 80% 80%,#1d2340 0,transparent 45%);
+  background:var(--bg);
+  background-image:
+    radial-gradient(ellipse 80% 50% at 20% -5%, rgba(72,54,140,.38), transparent 60%),
+    radial-gradient(ellipse 70% 50% at 85% 100%, rgba(30,66,120,.32), transparent 60%);
+  background-attachment:fixed;
   color:var(--ink);
   font-family:"Noto Sans TC","Microsoft JhengHei",ui-sans-serif,system-ui,sans-serif;
-  min-height:100vh;
+  min-height:100vh; -webkit-font-smoothing:antialiased;
 }
-.panel{background:rgba(27,24,48,.82);border:1px solid var(--line);
-       border-radius:14px;backdrop-filter:blur(6px)}
-.mono{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace}
+.panel{background:linear-gradient(180deg,rgba(30,26,56,.86),rgba(23,20,44,.86));
+       border:1px solid var(--line);border-radius:var(--r);
+       backdrop-filter:blur(8px);box-shadow:0 1px 0 rgba(255,255,255,.04) inset}
+.panel-flat{background:var(--panel2);border:1px solid var(--line);border-radius:var(--r)}
+.mono{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace;
+      font-variant-numeric:tabular-nums}
+.label{font-size:11px;letter-spacing:.06em;color:var(--dim);text-transform:none}
+
+/* ============ SVG 圖示 ============ */
+.ico{display:inline-block;vertical-align:-.18em;flex:none}
+[data-ico],.ico-slot{display:inline-flex;align-items:center;justify-content:center}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.5em;
+     border-radius:11px;font-weight:800;transition:transform .12s,filter .12s,background .12s}
+.btn:hover{filter:brightness(1.08)} .btn:active{transform:translateY(1px)}
+.btn-gold{background:linear-gradient(135deg,var(--gold),var(--gold2));color:#20182c}
+.btn-ghost{border:1px solid var(--line2);color:var(--ink);background:transparent}
+.btn-ghost:hover{background:var(--panel3)}
 
 /* ============ 怪獸 ASCII 舞台 ============ */
 #monster-art{
   font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;
   white-space:pre; line-height:1.02; font-size:13px; letter-spacing:0;
-  text-align:center; text-shadow:0 0 14px currentColor;
-  transition:transform .09s, filter .09s;
+  text-align:center; text-shadow:0 0 16px currentColor, 0 0 42px currentColor;
+  transition:transform .09s, filter .09s; margin:0;
 }
-@media (max-width:640px){ #monster-art{font-size:9px} }
-.mon-idle{animation:monIdle 3.4s ease-in-out infinite}
-@keyframes monIdle{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
-.mon-hit{animation:monHit .34s steps(2) 3}
-@keyframes monHit{0%{filter:brightness(4) saturate(0);transform:translateX(-9px)}
+@media (max-width:700px){ #monster-art{font-size:8.5px} }
+.mon-idle{animation:monIdle 3.6s ease-in-out infinite}
+@keyframes monIdle{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+.mon-hit{animation:monHit .32s steps(2) 3}
+@keyframes monHit{0%{filter:brightness(4) saturate(.2);transform:translateX(-9px)}
                   100%{filter:none;transform:translateX(9px)}}
 .mon-die{animation:monDie .9s ease-in forwards}
 @keyframes monDie{0%{opacity:1;transform:scale(1) rotate(0)}
@@ -45,321 +66,452 @@ body{
 @keyframes shake{0%,100%{transform:translate(0)}
   20%{transform:translate(-7px,3px)}40%{transform:translate(6px,-4px)}
   60%{transform:translate(-5px,-2px)}80%{transform:translate(4px,3px)}}
+#monster-slot::after{content:"";position:absolute;left:50%;bottom:6px;
+  width:min(62%,340px);height:16px;transform:translateX(-50%);
+  background:radial-gradient(ellipse,rgba(0,0,0,.55),transparent 70%);pointer-events:none}
 
 /* ============ 注音排版：注音直排於漢字右側 ============ */
 .zy{display:inline-flex;align-items:flex-start;vertical-align:top;
-    margin:0 .1em;padding:0 .04em;border-radius:4px;
+    margin:0 .18em;padding:.10em .14em;border-radius:7px;
     transition:background-color .12s,color .12s}
 .zy-han{font-size:1em;line-height:1.12}
 .zy-bpmf{display:grid;grid-template-columns:auto auto;
-         font-size:.46em;line-height:1.05;margin-left:.1em;
+         font-size:.46em;line-height:1.06;margin-left:.1em;
          font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif}
 .zy-syms{grid-column:1;display:flex;flex-direction:column;align-items:center}
 .zy-tone{grid-column:2;align-self:end;padding-left:.06em;line-height:1;font-weight:700}
-.zy-light{line-height:.8}                       /* 輕聲點置於符號欄最上方 */
-.zy-pad{visibility:hidden}                       /* 標點符號佔位，維持基線 */
+.zy-light{line-height:.8}                        /* 輕聲點置於符號欄最上方 */
 
 /* 打字判定狀態 */
 .st-pending .zy-han{color:#6f6a90}
 .st-pending .zy-bpmf{color:#565175}
-.st-current{background:rgba(245,196,81,.18);box-shadow:0 0 0 2px var(--gold) inset}
-.st-correct .zy-han{color:#4ade80}
+/* 外側陰影而非 inset —— inset 會畫在元素內側，剛好蓋住貼右邊的注音 */
+.st-current{background:rgba(245,196,81,.22);box-shadow:0 0 0 2px var(--gold);
+            border-radius:7px;position:relative;z-index:2}
+.st-correct .zy-han{color:var(--gr)}
 .st-correct .zy-bpmf{color:#2f9c5c}
 .st-wrong .zy-han{color:#ff6b81}
 .st-wrong .zy-bpmf{color:#c4415a}
-.st-wrong{background:rgba(255,107,129,.14)}
+.st-wrong{background:rgba(255,107,129,.16)}
 
-/* ============ 武器架 ============ */
-.weapon{cursor:pointer;border:2px solid var(--line);border-radius:12px;
-        background:rgba(36,31,61,.7);transition:all .16s;position:relative;overflow:hidden}
-.weapon:hover{border-color:var(--gold);transform:translateX(-4px)}
-.weapon.sel{border-color:var(--gold);background:rgba(245,196,81,.12);
-            box-shadow:0 0 18px rgba(245,196,81,.28)}
-.weapon-art{font-family:ui-monospace,Consolas,monospace;white-space:pre;
-            font-size:11px;line-height:1.1;letter-spacing:0}
-.q-normal{color:#c9c6db} .q-fine{color:#5fb8ff} .q-legend{color:#ffb340}
-.q-chip{font-size:11px;padding:1px 7px;border-radius:99px;border:1px solid currentColor}
+/* ============ 武器卡 ============ */
+.weapon{cursor:pointer;border:1.5px solid var(--line);border-radius:12px;
+        background:var(--panel2);transition:all .16s;position:relative;overflow:hidden;
+        display:flex;align-items:center;gap:10px;padding:11px 12px;width:100%;text-align:left}
+.weapon::before{content:"";position:absolute;inset:0;opacity:0;transition:opacity .16s;
+        background:linear-gradient(100deg,currentColor,transparent 62%)}
+.weapon:hover{border-color:var(--line2);background:var(--panel3)}
+.weapon.sel{border-color:currentColor;background:var(--panel3);
+            box-shadow:0 0 0 1px currentColor, 0 6px 20px -8px currentColor}
+.weapon.sel::before{opacity:.13}
+.weapon-ico{width:40px;height:40px;border-radius:10px;flex:none;
+        display:grid;place-items:center;background:rgba(255,255,255,.05);
+        border:1px solid var(--line2);position:relative;z-index:1}
+.weapon.sel .weapon-ico{background:rgba(255,255,255,.13);border-color:currentColor}
+.weapon-txt{position:relative;z-index:1;min-width:0}
+.weapon-name{font-weight:900;font-size:14px;color:var(--ink)}
+.weapon-sub{font-size:11px;color:var(--dim);margin-top:1px}
+
+/* 品質 */
+.qbtn{cursor:pointer;border:1.5px solid var(--line);border-radius:10px;padding:7px 4px;
+      background:var(--panel2);font-weight:900;font-size:12.5px;transition:all .14s}
+.qbtn:hover{background:var(--panel3)}
+.qbtn.sel{border-color:currentColor;background:currentColor;color:#1a1630;
+          box-shadow:0 4px 16px -6px currentColor}
+.q-chip{font-size:11px;padding:2px 9px;border-radius:99px;border:1px solid currentColor;
+        display:inline-flex;align-items:center;gap:5px;font-weight:700}
+
+/* ============ 第一人稱戰鬥舞台（無邊框）============ */
+#stage{position:relative;min-height:56vh;overflow:hidden;
+       border-radius:18px;isolation:isolate}
+#stage::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(ellipse 60% 45% at 50% 42%, rgba(120,90,200,.16), transparent 70%),
+    linear-gradient(180deg, transparent 55%, rgba(9,8,18,.55) 100%)}
+#stage > *{position:relative;z-index:1}
+
+/* 怪獸上方的血條組（參考第一人稱 RPG 的擺法）*/
+.mon-hud{width:min(420px,72%);margin:0 auto}
+
+/* 左下角第一人稱武器 */
+#vm-wrap{position:absolute;left:-4px;bottom:-8px;z-index:2;pointer-events:none}
+#viewmodel{margin:0;
+  font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;
+  white-space:pre;line-height:1.02;font-size:12.5px;
+  text-shadow:0 0 10px currentColor, 0 0 26px currentColor;
+  transform-origin:12% 92%}
+@media (max-width:700px){ #viewmodel{font-size:8px} }
+.vm-staff{animation:vmCast .42s ease-out}
+@keyframes vmCast{0%{transform:none}
+  30%{transform:translate(14px,-18px) rotate(-9deg) scale(1.04)}
+  100%{transform:none}}
+.vm-bow{animation:vmShoot .34s ease-out}
+@keyframes vmShoot{0%{transform:none}
+  25%{transform:translate(-16px,6px) scale(.97)}
+  60%{transform:translate(8px,-4px)}
+  100%{transform:none}}
+.vm-dagger{animation:vmSlash .3s ease-out}
+@keyframes vmSlash{0%{transform:none}
+  35%{transform:translate(46px,-40px) rotate(-22deg)}
+  100%{transform:none}}
+
+/* 右側低調 HUD：正確率／每分鐘字（直式，不搶戲）*/
+#hud-right{position:absolute;right:10px;top:50%;transform:translateY(-50%);z-index:2;
+  display:flex;flex-direction:column;gap:18px;pointer-events:none;opacity:.5}
+.hud-item{display:flex;flex-direction:column;align-items:flex-end;line-height:1}
+.hud-val{font-family:ui-monospace,Consolas,monospace;font-variant-numeric:tabular-nums;
+  font-size:17px;font-weight:800;color:var(--ink)}
+.hud-key{font-size:9.5px;letter-spacing:.14em;color:var(--dim);margin-top:3px;
+  writing-mode:vertical-rl;text-orientation:upright}
+@media (max-width:700px){ #hud-right{opacity:.4;gap:12px} .hud-val{font-size:14px} }
+
+/* 右下角討伐進度 */
+#mon-track{position:absolute;right:12px;bottom:14px;z-index:2;
+  display:flex;align-items:center;gap:6px}
+
+/* 連擊指示（貼在武器上方，只有連擊時才出現）*/
+#combo-tag{padding-left:20px;margin-bottom:2px;height:20px;
+  font-weight:900;font-size:15px;color:var(--gold);white-space:nowrap;
+  text-shadow:0 0 12px rgba(245,196,81,.8)}
+
+/* ============ ASCII 攻擊特效 ============ */
+.fx{position:absolute;z-index:3;pointer-events:none;
+    font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;
+    white-space:pre;line-height:1.05;font-size:15px;font-weight:700;
+    text-shadow:0 0 12px currentColor, 0 0 30px currentColor}
+@media (max-width:700px){ .fx{font-size:10px} }
+.fx-fly{animation:fxFly .5s cubic-bezier(.2,.6,.4,1) forwards}
+@keyframes fxFly{0%{opacity:0;transform:translate(-190px,120px) scale(.55)}
+  25%{opacity:1}
+  75%{opacity:1;transform:translate(0,0) scale(1)}
+  100%{opacity:0;transform:translate(46px,-14px) scale(1.18)}}
+.fx-cut{animation:fxCut .38s ease-out forwards}
+@keyframes fxCut{0%{opacity:0;transform:translate(-40px,26px) scale(.7) rotate(-8deg)}
+  30%{opacity:1;transform:translate(0,0) scale(1.05) rotate(0)}
+  100%{opacity:0;transform:translate(26px,-16px) scale(1.3)}}
 
 /* ============ 傷害數字 ============ */
-.dmg-pop{position:absolute;font-weight:900;pointer-events:none;
-         text-shadow:0 2px 8px rgba(0,0,0,.8);animation:dmgFly 1.1s ease-out forwards}
-@keyframes dmgFly{0%{opacity:0;transform:translate(-50%,10px) scale(.5)}
-  18%{opacity:1;transform:translate(-50%,-14px) scale(1.25)}
-  40%{transform:translate(-50%,-26px) scale(1)}
-  100%{opacity:0;transform:translate(-50%,-84px) scale(.9)}}
-.crit{color:#ffd34d}.normal-dmg{color:#fff}.combo-dmg{color:#7dffb0}
-
-/* 攻擊軌跡 */
-.slash{position:absolute;pointer-events:none;font-family:monospace;
-       font-size:34px;color:var(--gold);animation:slashGo .42s ease-out forwards}
-@keyframes slashGo{0%{opacity:0;transform:translateX(180px) scale(.4)}
-  35%{opacity:1}100%{opacity:0;transform:translateX(-40px) scale(1.6)}}
-
 /* 血條 */
-.hpbar{height:20px;background:#2a2440;border:1px solid var(--line);
+.hpbar{height:20px;background:#221d3b;border:1px solid var(--line);
        border-radius:99px;overflow:hidden;position:relative}
 .hpfill{height:100%;background:linear-gradient(90deg,#ff5470,#e0455e);
-        transition:width .45s cubic-bezier(.2,.9,.3,1)}
-.hpghost{position:absolute;inset:0;height:100%;background:rgba(255,255,255,.28);
-         transition:width .9s ease .3s}
+        transition:width .45s cubic-bezier(.2,.9,.3,1);position:relative;z-index:2}
+.hpghost{position:absolute;inset:0;height:100%;background:rgba(255,255,255,.3);
+         transition:width .9s ease .3s;z-index:1}
 
+/* 討伐進度點 */
+.mon-dot{width:9px;height:9px;border-radius:99px;background:var(--line2);
+         transition:all .3s;position:relative;flex:none}
+.mon-dot.dead{background:var(--gr);box-shadow:0 0 8px rgba(74,222,128,.55)}
+.mon-dot.cur{width:26px;background:var(--gold);box-shadow:0 0 10px rgba(245,196,81,.6)}
+
+/* 統計列 */
+.stat-row{display:flex;justify-content:space-between;align-items:baseline;
+          padding:7px 0;border-bottom:1px solid rgba(255,255,255,.045)}
+.stat-row:last-child{border-bottom:0}
 .combo-flame{animation:flame .6s ease-in-out infinite alternate}
-@keyframes flame{from{text-shadow:0 0 6px #ff8a3d}to{text-shadow:0 0 20px #ffd34d}}
+@keyframes flame{from{text-shadow:0 0 6px #ff8a3d}to{text-shadow:0 0 22px #ffd34d}}
+
 .pop-in{animation:popIn .45s cubic-bezier(.175,.885,.32,1.275) both}
 @keyframes popIn{0%{transform:scale(.85);opacity:0}100%{transform:scale(1);opacity:1}}
 .fade-in{animation:fadeIn .5s both}
 @keyframes fadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 #type-input{caret-color:var(--gold)}
-.scrolly::-webkit-scrollbar{width:8px}
-.scrolly::-webkit-scrollbar-thumb{background:var(--line);border-radius:9px}
+#type-input:focus{border-color:var(--gold)!important;box-shadow:0 0 0 3px rgba(245,196,81,.13)}
+.scrolly::-webkit-scrollbar{width:8px;height:8px}
+.scrolly::-webkit-scrollbar-thumb{background:var(--line2);border-radius:9px}
+.scrolly::-webkit-scrollbar-track{background:transparent}
+kbd{font-family:ui-monospace,Consolas,monospace;font-size:10.5px;padding:1.5px 5px;
+    border-radius:4px;background:var(--panel3);border:1px solid var(--line2);
+    box-shadow:0 1.5px 0 var(--line2)}
+input,select,textarea{color:var(--ink)}
+select option{background:var(--panel2);color:var(--ink)}
+.divider{height:1px;background:linear-gradient(90deg,transparent,var(--line2),transparent)}
 </style>
 </head>
 <body>
-<div class="max-w-7xl mx-auto p-3 md:p-6">
+<div class="max-w-7xl mx-auto p-3 md:p-5">
 
 <!-- ══════════ 頁首 ══════════ -->
 <header class="flex items-center justify-between mb-4 gap-3">
-  <div class="flex items-center gap-3">
-    <span class="text-3xl">⚔️</span>
-    <div>
-      <h1 class="text-xl md:text-2xl font-black tracking-wide">打字勇者 · 全班討伐戰</h1>
-      <p id="hdr-sub" class="text-xs" style="color:var(--dim)">連線中…</p>
+  <div class="flex items-center gap-3 min-w-0">
+    <span class="ico-slot" style="color:var(--gold)" data-ico="swords" data-ico-size="28"></span>
+    <div class="min-w-0">
+      <h1 class="text-base md:text-lg font-black tracking-wide leading-tight">打字勇者 · 全班討伐戰</h1>
+      <p id="hdr-sub" class="text-xs truncate" style="color:var(--dim)">連線中…</p>
     </div>
   </div>
-  <div class="flex items-center gap-3">
+  <div class="flex items-center gap-3 flex-none">
+    <div id="hdr-stats" class="hidden text-right leading-none mr-1">
+      <div class="mono text-xl font-black" style="color:var(--gold)" id="st-damage">0</div>
+      <div class="label" style="font-size:10px">傷害</div>
+    </div>
     <div id="hdr-timer" class="mono text-3xl font-black hidden" style="color:var(--gold)">--:--</div>
-    <button id="btn-teacher" class="text-xs px-3 py-2 rounded-lg border"
-            style="border-color:var(--line);color:var(--dim)">⚙️ 教師</button>
+    <button id="btn-teacher" class="btn btn-ghost text-xs px-3 py-2" style="color:var(--dim)">
+      <span class="ico-slot" data-ico="gear" data-ico-size="15"></span>教師</button>
   </div>
 </header>
 
 <!-- ══════════ 1. 登入 ══════════ -->
-<section id="screen-login" class="panel p-8 md:p-12 max-w-lg mx-auto mt-8 text-center fade-in">
-  <div class="text-5xl mb-4">🗡️</div>
-  <h2 class="text-2xl font-black mb-1">勇者，報上名來</h2>
-  <p class="text-sm mb-7" style="color:var(--dim)">全班一起討伐怪獸，你的每一次攻擊都算進班級總傷害</p>
+<section id="screen-login" class="panel p-7 md:p-10 max-w-md mx-auto mt-6 text-center fade-in">
+  <div class="mx-auto mb-4 grid place-items-center rounded-2xl"
+       style="width:64px;height:64px;background:var(--panel3);border:1px solid var(--line2);color:var(--gold)">
+    <span class="ico-slot" data-ico="user" data-ico-size="32"></span>
+  </div>
+  <h2 class="text-xl font-black mb-1">勇者，報上名來</h2>
+  <p class="text-xs mb-6 leading-relaxed" style="color:var(--dim)">
+    全班一起討伐怪獸，你的每一次攻擊都算進班級總傷害</p>
 
-  <label class="block text-left text-xs mb-1" style="color:var(--dim)">班級</label>
-  <div class="flex gap-2 mb-4">
-    <select id="in-grade" class="w-28 p-3 rounded-lg bg-transparent border text-center font-bold"
-            style="border-color:var(--line)"></select>
-    <select id="in-class" class="flex-1 p-3 rounded-lg bg-transparent border text-center font-bold"
-            style="border-color:var(--line)"></select>
+  <label class="label block text-left mb-1.5">班級</label>
+  <div class="flex gap-2 mb-3.5">
+    <select id="in-grade" class="w-28 p-2.5 rounded-lg panel-flat text-center font-bold text-sm"></select>
+    <select id="in-class" class="flex-1 p-2.5 rounded-lg panel-flat text-center font-bold text-sm"></select>
   </div>
 
-  <label class="block text-left text-xs mb-1" style="color:var(--dim)">座號（可留空）</label>
-  <input id="in-seat" type="number" min="1" max="60" placeholder="例：12"
-         class="w-full p-3 rounded-lg bg-transparent border mb-4 text-center font-bold"
-         style="border-color:var(--line)">
-
-  <label class="block text-left text-xs mb-1" style="color:var(--dim)">姓名</label>
-  <input id="in-name" type="text" maxlength="10" placeholder="請輸入姓名"
-         class="w-full p-3 rounded-lg bg-transparent border mb-6 text-center text-lg font-bold"
-         style="border-color:var(--line)">
-
-  <button id="btn-enter" class="w-full py-4 rounded-xl font-black text-lg text-slate-900"
-          style="background:linear-gradient(90deg,#f5c451,#ffb340)">🚪 進入戰場</button>
-  <p id="login-err" class="text-xs mt-3 hidden" style="color:var(--hp)"></p>
-</section>
-
-<!-- ══════════ 2. 等待室 ══════════ -->
-<section id="screen-lobby" class="panel p-10 max-w-lg mx-auto mt-8 text-center hidden fade-in">
-  <div class="text-5xl mb-4 mon-idle">🏕️</div>
-  <h2 class="text-xl font-black mb-2">在營地待命中…</h2>
-  <p class="text-sm mb-6" style="color:var(--dim)">等老師宣布開戰。趁現在先熟悉一下武器！</p>
-  <div id="lobby-who" class="panel p-4 mb-6 text-sm"></div>
-  <button id="btn-practice" class="mt-2 w-full py-3 rounded-xl font-bold border"
-          style="border-color:var(--line)">🎯 自由練習（不計分）</button>
-</section>
-
-<!-- ══════════ 3. 遊戲主畫面 ══════════ -->
-<section id="screen-game" class="hidden">
-  <div class="grid grid-cols-12 gap-4">
-
-    <!-- 左：戰鬥狀態 -->
-    <aside class="col-span-12 lg:col-span-3 order-2 lg:order-1 space-y-3">
-      <div class="panel p-4">
-        <div class="text-xs mb-3" style="color:var(--dim)">本場戰績</div>
-        <div class="flex justify-between items-baseline mb-2">
-          <span class="text-xs" style="color:var(--dim)">累積傷害</span>
-          <span id="st-damage" class="mono text-2xl font-black" style="color:var(--gold)">0</span>
-        </div>
-        <div class="flex justify-between items-baseline mb-2">
-          <span class="text-xs" style="color:var(--dim)">連擊</span>
-          <span id="st-combo" class="mono text-xl font-black">0</span>
-        </div>
-        <div class="flex justify-between items-baseline mb-2">
-          <span class="text-xs" style="color:var(--dim)">正確率</span>
-          <span id="st-acc" class="mono text-xl font-black" style="color:#4ade80">100%</span>
-        </div>
-        <div class="flex justify-between items-baseline">
-          <span class="text-xs" style="color:var(--dim)">速度 WPM</span>
-          <span id="st-wpm" class="mono text-xl font-black" style="color:var(--mp)">0</span>
-        </div>
-      </div>
-      <div class="panel p-4">
-        <div class="text-xs mb-2" style="color:var(--dim)">討伐進度</div>
-        <div class="text-sm font-bold mb-1">已擊倒 <span id="kill-n">0</span> 隻</div>
-        <div id="st-monlist" class="text-xs leading-relaxed scrolly max-h-40 overflow-y-auto"
-             style="color:var(--dim)"></div>
-      </div>
-      <div id="practice-flag" class="panel p-3 text-center text-xs hidden" style="color:var(--gold)">
-        🎯 練習模式：成績不會上傳
-      </div>
-    </aside>
-
-    <!-- 中：怪獸 + 題目 -->
-    <main class="col-span-12 lg:col-span-6 order-1 lg:order-2">
-      <div class="panel p-4 md:p-6 relative overflow-hidden" id="battle-stage">
-        <div class="flex items-center justify-between mb-1">
-          <div>
-            <span id="mon-name" class="font-black text-lg">史萊姆</span>
-            <span id="mon-lv" class="text-xs ml-2 px-2 py-1 rounded"
-                  style="background:var(--panel2);color:var(--dim)">第 1 隻</span>
-          </div>
-          <span id="mon-hptext" class="mono text-sm" style="color:var(--dim)">0 / 0</span>
-        </div>
-        <div class="hpbar mb-4">
-          <div class="hpghost" id="mon-hpghost" style="width:100%"></div>
-          <div class="hpfill" id="mon-hpfill" style="width:100%"></div>
-        </div>
-
-        <div class="flex items-center justify-center min-h-[190px] md:min-h-[230px] relative"
-             id="monster-slot">
-          <pre id="monster-art" class="mon-idle"></pre>
-        </div>
-
-        <div class="mt-3 pt-4" style="border-top:1px dashed var(--line)">
-          <div class="flex items-center justify-between mb-2">
-            <div class="text-xs flex items-center gap-2">
-              <span id="q-weapon-chip" class="q-chip">🔮 法杖</span>
-              <span id="q-quality-chip" class="q-chip q-normal">普通</span>
-            </div>
-            <span id="q-hint" class="text-xs" style="color:var(--dim)"></span>
-          </div>
-
-          <div id="q-text" class="min-h-[80px] p-4 rounded-xl text-2xl md:text-3xl leading-[2.6]"
-               style="background:rgba(15,13,28,.6);border:1px solid var(--line)"></div>
-
-          <div class="flex gap-2 mt-3">
-            <input id="type-input" type="text" autocomplete="off" autocapitalize="off"
-                   spellcheck="false" placeholder="在這裡輸入…"
-                   class="flex-1 p-3 rounded-xl bg-transparent border text-xl"
-                   style="border-color:var(--line)">
-            <button id="btn-attack" class="px-6 rounded-xl font-black text-slate-900 text-lg"
-                    style="background:linear-gradient(90deg,#f5c451,#ffb340)">攻擊</button>
-          </div>
-          <p class="text-[11px] mt-2" style="color:var(--dim)">
-            按 <kbd class="px-1 rounded" style="background:var(--panel2)">Enter</kbd> 送出攻擊
-            ・按 <kbd class="px-1 rounded" style="background:var(--panel2)">Tab</kbd> 換武器
-            ・按 <kbd class="px-1 rounded" style="background:var(--panel2)">Esc</kbd> 跳過此題（連擊歸零）
-          </p>
-        </div>
-      </div>
-    </main>
-
-    <!-- 右：武器架 -->
-    <aside class="col-span-12 lg:col-span-3 order-3 space-y-3">
-      <div class="panel p-3">
-        <div class="text-xs mb-2" style="color:var(--dim)">武器（點擊切換）</div>
-        <div id="weapon-rack" class="space-y-2"></div>
-      </div>
-      <div class="panel p-3">
-        <div class="text-xs mb-2" style="color:var(--dim)">品質（越高越難、傷害越高）</div>
-        <div id="quality-rack" class="grid grid-cols-3 gap-2"></div>
-        <p id="quality-desc" class="text-[11px] mt-2 leading-relaxed" style="color:var(--dim)"></p>
-      </div>
-    </aside>
+  <div class="flex gap-2 mb-5">
+    <div class="w-28">
+      <label class="label block text-left mb-1.5">座號</label>
+      <input id="in-seat" type="number" min="1" max="60" placeholder="選填"
+             class="w-full p-2.5 rounded-lg panel-flat text-center font-bold text-sm">
+    </div>
+    <div class="flex-1">
+      <label class="label block text-left mb-1.5">姓名</label>
+      <input id="in-name" type="text" maxlength="10" placeholder="請輸入姓名"
+             class="w-full p-2.5 rounded-lg panel-flat text-center font-bold">
+    </div>
   </div>
+
+  <button id="btn-enter" class="btn btn-gold w-full py-3.5 text-base">
+    <span class="ico-slot" data-ico="door" data-ico-size="19"></span>進入戰場</button>
+  <p id="login-err" class="text-xs mt-3 hidden" style="color:#ff8a9c"></p>
 </section>
 
-<!-- ══════════ 4. 個人結算 ══════════ -->
-<section id="screen-result" class="hidden fixed inset-0 z-[70] overflow-y-auto scrolly"
-         style="background:rgba(9,8,18,.92)">
-  <div class="max-w-lg mx-auto p-4 py-10">
-    <div id="result-card" class="panel p-8 text-center pop-in">
-      <p class="text-xs mb-1" style="color:var(--dim)"><span id="r-class"></span></p>
-      <h2 class="text-2xl font-black mb-4" id="r-name">勇者</h2>
-      <pre id="r-rank-art" class="mono text-xs leading-tight mb-2" style="color:var(--gold)"></pre>
-      <h3 class="text-3xl font-black mb-1" id="r-title">見習生</h3>
-      <p class="text-xs mb-6 px-4 leading-relaxed" style="color:var(--dim)" id="r-quote"></p>
+<!-- ══════════ 2. 營地：選裝備 ＋ 等開戰 ══════════ -->
+<section id="screen-lobby" class="hidden fade-in max-w-xl mx-auto mt-6">
+  <div class="panel p-5 mb-3 text-center">
+    <div class="mx-auto mb-3 grid place-items-center rounded-2xl mon-idle"
+         style="width:54px;height:54px;background:var(--panel3);border:1px solid var(--line2);color:var(--gold)">
+      <span class="ico-slot" data-ico="tent" data-ico-size="28"></span>
+    </div>
+    <h2 class="text-lg font-black mb-1">在營地待命中</h2>
+    <p class="text-xs mb-4" style="color:var(--dim)">等老師宣布開戰。先把裝備挑好！</p>
+    <div id="lobby-who" class="panel-flat p-3 text-sm"></div>
+  </div>
 
-      <div class="p-4 rounded-xl mb-5" style="background:rgba(245,196,81,.1)">
-        <div class="text-xs mb-1" style="color:var(--dim)">本場總傷害</div>
-        <div class="mono text-5xl font-black" style="color:var(--gold)" id="r-damage">0</div>
+  <!-- 裝備選擇：出發前決定，戰鬥中不能換 -->
+  <div class="panel p-5 mb-3">
+    <div class="flex items-center gap-2 mb-1">
+      <span class="ico-slot" style="color:var(--gold)" data-ico="swords" data-ico-size="17"></span>
+      <h3 class="font-black text-sm">選擇武器</h3>
+    </div>
+    <p class="text-xs mb-3.5" style="color:var(--dim)">
+      進戰場後就<b style="color:var(--gold)">不能更換</b>，想清楚再出發</p>
+    <div id="lobby-weapon-rack" class="space-y-2 mb-4"></div>
+
+    <div class="divider mb-4"></div>
+
+    <div class="flex items-center gap-2 mb-1">
+      <span class="ico-slot" style="color:var(--gold)" data-ico="sparkle" data-ico-size="17"></span>
+      <h3 class="font-black text-sm">選擇品質</h3>
+    </div>
+    <p class="text-xs mb-3" style="color:var(--dim)">品質越高，題目越難、單題傷害越高</p>
+    <div id="lobby-quality-rack" class="grid grid-cols-3 gap-2"></div>
+    <p id="lobby-quality-desc" class="text-xs mt-2.5 leading-relaxed" style="color:var(--dim2)"></p>
+
+    <div class="panel-flat p-3.5 mt-4">
+      <div class="label mb-2">你的出戰配置</div>
+      <div id="lobby-loadout" class="flex items-center gap-2.5"></div>
+    </div>
+  </div>
+
+  <button id="btn-practice" class="btn btn-ghost w-full py-3 text-sm">
+    <span class="ico-slot" data-ico="target" data-ico-size="17"></span>先自己練習（不計分）</button>
+</section>
+
+<!-- ══════════ 3. 遊戲主畫面：第一人稱、無邊框 ══════════ -->
+<section id="screen-game" class="hidden max-w-4xl mx-auto">
+
+  <!-- 戰鬥舞台 -->
+  <div id="stage">
+    <!-- 怪獸上方的名牌與血條 -->
+    <div class="mon-hud pt-3">
+      <div class="flex items-center justify-center gap-2 mb-1.5">
+        <span id="mon-lv" class="text-[10px] px-2 py-0.5 rounded-full"
+              style="background:rgba(9,8,18,.6);color:var(--dim)">第 1 隻</span>
+        <span id="mon-name" class="font-black text-base">史萊姆</span>
       </div>
-
-      <div class="grid grid-cols-3 gap-2 mb-3 text-center">
-        <div class="p-3 rounded-xl" style="background:var(--panel2)">
-          <div class="text-[11px]" style="color:var(--dim)">正確字數</div>
-          <div class="mono text-xl font-black" id="r-words">0</div></div>
-        <div class="p-3 rounded-xl" style="background:var(--panel2)">
-          <div class="text-[11px]" style="color:var(--dim)">正確率</div>
-          <div class="mono text-xl font-black" style="color:#4ade80"><span id="r-acc">0</span>%</div></div>
-        <div class="p-3 rounded-xl" style="background:var(--panel2)">
-          <div class="text-[11px]" style="color:var(--dim)">WPM</div>
-          <div class="mono text-xl font-black" style="color:var(--mp)" id="r-wpm">0</div></div>
+      <div class="hpbar">
+        <div class="hpghost" id="mon-hpghost" style="width:100%"></div>
+        <div class="hpfill" id="mon-hpfill" style="width:100%"></div>
       </div>
-      <div class="grid grid-cols-3 gap-2 mb-5 text-center">
-        <div class="p-3 rounded-xl" style="background:var(--panel2)">
-          <div class="text-[11px]" style="color:var(--dim)">最高連擊</div>
-          <div class="mono text-xl font-black" id="r-combo">0</div></div>
-        <div class="p-3 rounded-xl" style="background:var(--panel2)">
-          <div class="text-[11px]" style="color:var(--dim)">完美攻擊</div>
-          <div class="mono text-xl font-black" style="color:#ffd34d" id="r-perfect">0</div></div>
-        <div class="p-3 rounded-xl" style="background:var(--panel2)">
-          <div class="text-[11px]" style="color:var(--dim)">擊倒</div>
-          <div class="mono text-xl font-black" id="r-kills">0</div></div>
+      <div id="mon-hptext" class="mono text-[11px] text-center mt-1"
+           style="color:var(--dim)">0 / 0</div>
+    </div>
+
+    <!-- 怪獸 -->
+    <div class="flex items-center justify-center relative"
+         style="min-height:230px" id="monster-slot">
+      <pre id="monster-art" class="mon-idle"></pre>
+    </div>
+
+    <!-- 左下角：第一人稱武器 -->
+    <div id="vm-wrap">
+      <div id="combo-tag"></div>
+      <pre id="viewmodel"></pre>
+    </div>
+
+    <!-- 右側：低調的正確率／速度 -->
+    <div id="hud-right">
+      <div class="hud-item">
+        <span class="hud-val" id="st-acc">100%</span>
+        <span class="hud-key">正確率</span>
       </div>
-
-      <div id="r-weapon-breakdown" class="text-left text-xs space-y-2 mb-5"></div>
-      <p id="r-record" class="text-sm font-bold mb-4 hidden"></p>
-
-      <div class="flex gap-2">
-        <button id="btn-save-img" class="flex-1 py-3 rounded-xl font-bold border"
-                style="border-color:var(--line)">📸 存成圖片</button>
-        <button id="btn-to-class" class="flex-1 py-3 rounded-xl font-black text-slate-900"
-                style="background:linear-gradient(90deg,#f5c451,#ffb340)">🏆 看全班戰果</button>
+      <div class="hud-item">
+        <span class="hud-val" id="st-wpm">0</span>
+        <span class="hud-key">每分鐘字</span>
       </div>
     </div>
+
+    <!-- 右下角：討伐進度 -->
+    <div id="mon-track"></div>
+  </div>
+
+  <!-- 下半部：題目 + 大輸入區 -->
+  <div class="mt-1">
+    <div class="flex items-center justify-center gap-2 mb-2.5">
+      <span id="q-weapon-chip" class="q-chip"></span>
+      <span id="q-quality-chip" class="q-chip"></span>
+    </div>
+
+    <div id="q-text" class="min-h-[96px] px-5 py-4 rounded-2xl text-center
+                            text-[26px] md:text-[32px] leading-[2.6]"
+         style="background:rgba(9,8,18,.5)"></div>
+
+    <div class="flex gap-2.5 mt-3">
+      <input id="type-input" type="text" autocomplete="off" autocapitalize="off"
+             spellcheck="false" placeholder="在這裡輸入…"
+             class="flex-1 px-6 rounded-2xl text-center"
+             style="height:76px;font-size:30px;font-weight:800;
+                    background:rgba(255,255,255,.05);border:2px solid var(--line2)">
+      <button id="btn-attack" class="btn btn-gold px-8 text-lg" style="height:76px">攻擊</button>
+    </div>
+    <p class="text-[11px] mt-2.5 flex flex-wrap gap-x-4 gap-y-1 justify-center"
+       style="color:var(--dim2)">
+      <span><kbd>Enter</kbd> 送出攻擊</span>
+      <span><kbd>Esc</kbd> 跳過此題（連擊歸零）</span>
+      <span id="practice-flag" class="hidden" style="color:var(--gold)">練習模式：成績不會上傳</span>
+    </p>
   </div>
 </section>
 
-<!-- ══════════ 5. 全班結算 ══════════ -->
-<section id="screen-class" class="hidden fixed inset-0 z-[75] overflow-y-auto scrolly"
-         style="background:rgba(9,8,18,.95)">
-  <div class="max-w-3xl mx-auto p-4 py-10">
-    <div class="text-center mb-6">
-      <h2 class="text-3xl font-black mb-1">全班討伐結算</h2>
-      <p id="c-classname" class="text-sm" style="color:var(--dim)"></p>
+<!-- ══════════ 4. 全班討伐動畫（結算前先播）══════════ -->
+<section id="screen-boss" class="hidden fixed inset-0 z-[72] overflow-hidden"
+         style="background:radial-gradient(ellipse at 50% 40%,#1a1430,#08070f 70%)">
+  <div class="h-full flex flex-col items-center justify-center p-4">
+    <p id="boss-caption" class="label mb-2">全班戰力集結中…</p>
+    <div class="mono font-black leading-none mb-1"
+         style="color:var(--gold);font-size:clamp(38px,8vw,76px)" id="boss-total">0</div>
+    <p class="label mb-5">全班總傷害</p>
+
+    <div id="boss-stage" class="relative flex items-center justify-center w-full"
+         style="min-height:270px">
+      <pre id="boss-art" class="mon-idle"></pre>
     </div>
 
-    <div class="panel p-6 mb-4 text-center">
-      <div class="text-xs mb-1" style="color:var(--dim)">全班總傷害</div>
-      <div class="mono text-6xl font-black mb-1" style="color:var(--gold)" id="c-total">0</div>
-      <div class="text-xs" style="color:var(--dim)">參戰 <span id="c-players">0</span> 人</div>
-    </div>
-
-    <div class="panel p-5 mb-4">
-      <div class="text-sm font-bold mb-3">討伐紀錄</div>
-      <div id="c-monsters" class="space-y-3"></div>
-      <div id="c-verdict" class="mt-4 p-4 rounded-xl text-center font-black text-lg"
-           style="background:rgba(245,196,81,.12);color:var(--gold)"></div>
-    </div>
-
-    <div class="grid md:grid-cols-2 gap-4">
-      <div class="panel p-5">
-        <div class="text-sm font-bold mb-3">🏅 班內排行</div>
-        <div id="c-rank" class="space-y-2"></div>
+    <div class="w-full" style="max-width:520px">
+      <div class="flex items-center justify-between mb-1.5">
+        <span id="boss-name" class="font-black"></span>
+        <span id="boss-hptext" class="mono text-xs" style="color:var(--dim)"></span>
       </div>
-      <div class="panel p-5">
-        <div class="text-sm font-bold mb-3">🏫 跨班排行</div>
-        <div id="c-classrank" class="space-y-2"></div>
+      <div class="hpbar" style="height:24px">
+        <div class="hpghost" id="boss-hpghost" style="width:100%"></div>
+        <div class="hpfill"  id="boss-hpfill"  style="width:100%"></div>
+      </div>
+      <div id="boss-track" class="flex items-center justify-center gap-1.5 mt-4"></div>
+    </div>
+
+    <button id="boss-skip" class="btn btn-ghost mt-7 px-6 py-2.5 text-sm">跳過動畫</button>
+  </div>
+</section>
+
+<!-- ══════════ 5. 結算：左個人、右排行 ══════════ -->
+<section id="screen-result" class="hidden fixed inset-0 z-[75] overflow-y-auto scrolly"
+         style="background:rgba(9,8,18,.96)">
+  <div class="max-w-5xl mx-auto p-4 py-7">
+
+    <!-- 全班戰果條 -->
+    <div class="panel p-4 mb-4 flex flex-wrap items-center justify-center gap-x-8 gap-y-2 text-center">
+      <div>
+        <div class="mono text-2xl font-black" style="color:var(--gold)" id="c-total">0</div>
+        <div class="label">全班總傷害</div></div>
+      <div>
+        <div class="mono text-2xl font-black" style="color:var(--gr)" id="c-kills">0</div>
+        <div class="label">擊倒怪獸</div></div>
+      <div>
+        <div class="mono text-2xl font-black" id="c-players">0</div>
+        <div class="label">參戰人數</div></div>
+      <div class="w-full md:w-auto md:max-w-sm text-sm font-bold px-3"
+           style="color:var(--gold)" id="c-verdict"></div>
+    </div>
+
+    <div class="grid md:grid-cols-2 gap-4 items-start">
+
+      <!-- 左：個人成績 -->
+      <div id="result-card" class="panel p-6 text-center pop-in">
+        <p class="label mb-1"><span id="r-class"></span></p>
+        <h2 class="text-xl font-black mb-3" id="r-name">勇者</h2>
+        <pre id="r-rank-art" class="mono text-xs leading-tight mb-2" style="color:var(--gold)"></pre>
+        <h3 class="text-2xl font-black mb-1.5" id="r-title">見習生</h3>
+        <p class="text-xs mb-5 px-2 leading-relaxed" style="color:var(--dim)" id="r-quote"></p>
+
+        <div class="p-4 rounded-xl mb-4"
+             style="background:rgba(245,196,81,.09);border:1px solid rgba(245,196,81,.22)">
+          <div class="label mb-1">本場總傷害</div>
+          <div class="mono text-4xl font-black leading-none" style="color:var(--gold)" id="r-damage">0</div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2 mb-2">
+          <div class="panel-flat p-2.5"><div class="label mb-1">正確字數</div>
+            <div class="mono text-base font-black" id="r-words">0</div></div>
+          <div class="panel-flat p-2.5"><div class="label mb-1">正確率</div>
+            <div class="mono text-base font-black" style="color:var(--gr)"><span id="r-acc">0</span>%</div></div>
+          <div class="panel-flat p-2.5"><div class="label mb-1">WPM</div>
+            <div class="mono text-base font-black" style="color:var(--mp)" id="r-wpm">0</div></div>
+        </div>
+        <div class="grid grid-cols-3 gap-2 mb-4">
+          <div class="panel-flat p-2.5"><div class="label mb-1">最高連擊</div>
+            <div class="mono text-base font-black" id="r-combo">0</div></div>
+          <div class="panel-flat p-2.5"><div class="label mb-1">完美攻擊</div>
+            <div class="mono text-base font-black" style="color:#ffd34d" id="r-perfect">0</div></div>
+          <div class="panel-flat p-2.5"><div class="label mb-1">個人擊倒</div>
+            <div class="mono text-base font-black" id="r-kills">0</div></div>
+        </div>
+
+        <div id="r-weapon-breakdown" class="mb-4"></div>
+        <p id="r-record" class="text-sm font-bold mb-3 hidden"></p>
+        <button id="btn-save-img" class="btn btn-ghost w-full py-2.5 text-sm">
+          <span class="ico-slot" data-ico="camera" data-ico-size="16"></span>存成圖片</button>
+      </div>
+
+      <!-- 右：排行榜 -->
+      <div class="space-y-4">
+        <div class="panel p-5">
+          <div class="flex items-center gap-2 mb-3">
+            <span class="ico-slot" style="color:var(--gold)" data-ico="medal" data-ico-size="17"></span>
+            <span class="font-black text-sm">班內傷害排行　前 10 名</span></div>
+          <div id="c-rank" class="space-y-1.5"></div>
+        </div>
+        <div class="panel p-5">
+          <div class="flex items-center gap-2 mb-3">
+            <span class="ico-slot" style="color:var(--mp)" data-ico="school" data-ico-size="17"></span>
+            <span class="font-black text-sm">跨班排行</span></div>
+          <div id="c-classrank" class="space-y-1.5"></div>
+        </div>
       </div>
     </div>
 
-    <button id="btn-back-lobby" class="w-full mt-5 py-3 rounded-xl font-bold border"
-            style="border-color:var(--line)">← 回營地</button>
+    <button id="btn-back-lobby" class="btn btn-ghost w-full mt-4 py-3 text-sm">
+      <span class="ico-slot" data-ico="back" data-ico-size="17"></span>回營地</button>
   </div>
 </section>
 </div>
@@ -368,7 +520,7 @@ body{
 <div id="auth-modal" class="hidden fixed inset-0 z-[85] flex items-center justify-center p-4"
      style="background:rgba(9,8,18,.85)">
   <div class="panel p-6 w-full max-w-sm">
-    <h2 class="text-lg font-black mb-4">🔒 教師驗證</h2>
+    <h2 class="text-lg font-black mb-4 flex items-center gap-2"><span class="ico-slot" data-ico="lock" data-ico-size="17"></span>教師驗證</h2>
     <input id="auth-pw" type="password" placeholder="輸入密碼"
            class="w-full p-3 rounded-lg bg-transparent border mb-4" style="border-color:var(--line)">
     <div class="flex gap-2">
@@ -385,16 +537,16 @@ body{
      style="background:rgba(9,8,18,.95)">
   <div class="max-w-5xl mx-auto p-4 py-8">
     <div class="flex items-center justify-between mb-5">
-      <h2 class="text-2xl font-black">⚙️ 教師控制台</h2>
+      <h2 class="text-2xl font-black flex items-center gap-2"><span class="ico-slot" data-ico="gear" data-ico-size="22"></span>教師控制台</h2>
       <button id="tc-close" class="px-4 py-2 rounded-lg border text-sm"
               style="border-color:var(--line)">關閉</button>
     </div>
 
     <div class="flex gap-2 mb-5 flex-wrap" id="tc-tabs">
-      <button data-tab="battle"  class="tc-tab px-4 py-2 rounded-lg text-sm font-bold">🎮 比賽控制</button>
-      <button data-tab="bank"    class="tc-tab px-4 py-2 rounded-lg text-sm font-bold">📚 題庫編輯</button>
-      <button data-tab="proof"   class="tc-tab px-4 py-2 rounded-lg text-sm font-bold">🔍 注音校對台</button>
-      <button data-tab="scores"  class="tc-tab px-4 py-2 rounded-lg text-sm font-bold">📊 成績管理</button>
+      <button data-tab="battle"  class="tc-tab px-4 py-2 rounded-lg text-sm font-bold"><span class="inline-flex items-center gap-1.5"><span class="ico-slot" data-ico="play" data-ico-size="14"></span>比賽控制</span></button>
+      <button data-tab="bank"    class="tc-tab px-4 py-2 rounded-lg text-sm font-bold"><span class="inline-flex items-center gap-1.5"><span class="ico-slot" data-ico="book" data-ico-size="14"></span>題庫編輯</span></button>
+      <button data-tab="proof"   class="tc-tab px-4 py-2 rounded-lg text-sm font-bold"><span class="inline-flex items-center gap-1.5"><span class="ico-slot" data-ico="search" data-ico-size="14"></span>注音校對台</span></button>
+      <button data-tab="scores"  class="tc-tab px-4 py-2 rounded-lg text-sm font-bold"><span class="inline-flex items-center gap-1.5"><span class="ico-slot" data-ico="chart" data-ico-size="14"></span>成績管理</span></button>
     </div>
 
     <!-- ── 分頁：比賽控制 ── -->
@@ -403,12 +555,12 @@ body{
         <div id="tc-state-banner" class="p-4 rounded-xl mb-5 text-center font-black text-lg"></div>
         <div class="flex gap-3 mb-5">
           <button id="tc-start" class="flex-1 py-4 rounded-xl font-black text-lg text-slate-900"
-                  style="background:linear-gradient(90deg,#4ade80,#22c55e)">▶ 開始比賽（全班同步）</button>
+                  style="background:linear-gradient(90deg,#4ade80,#22c55e)"><span class="inline-flex items-center gap-2"><span class="ico-slot" data-ico="play" data-ico-size="18"></span>開始比賽（全班同步）</span></button>
           <button id="tc-stop" class="flex-1 py-4 rounded-xl font-black text-lg"
-                  style="background:rgba(224,69,94,.2);border:1px solid var(--hp);color:#ff8a9c">■ 結束比賽</button>
+                  style="background:rgba(224,69,94,.2);border:1px solid var(--hp);color:#ff8a9c"><span class="inline-flex items-center gap-2"><span class="ico-slot" data-ico="stop" data-ico-size="18"></span>結束比賽</span></button>
         </div>
         <button id="tc-reset-round" class="w-full py-2 rounded-lg text-sm border mb-2"
-                style="border-color:var(--line)">↺ 回到營地（清除開戰狀態，不刪成績）</button>
+                style="border-color:var(--line)"><span class="inline-flex items-center gap-2"><span class="ico-slot" data-ico="reset" data-ico-size="15"></span>回到營地（清除開戰狀態，不刪成績）</span></button>
       </div>
 
       <div class="panel p-6 grid md:grid-cols-2 gap-5">
@@ -472,9 +624,9 @@ body{
                   style="border-color:var(--line)" spellcheck="false"></textarea>
         <div class="flex gap-2 mt-3">
           <button id="bank-restore" class="flex-1 py-2 rounded-lg text-sm border"
-                  style="border-color:var(--line)">↺ 還原此池為內建預設</button>
+                  style="border-color:var(--line)"><span class="inline-flex items-center gap-2"><span class="ico-slot" data-ico="reset" data-ico-size="14"></span>還原此池為內建預設</span></button>
           <button id="bank-save" class="flex-1 py-2 rounded-lg text-sm font-black text-slate-900"
-                  style="background:var(--gold)">💾 儲存此池</button>
+                  style="background:var(--gold)"><span class="inline-flex items-center gap-2"><span class="ico-slot" data-ico="save" data-ico-size="14"></span>儲存此池</span></button>
         </div>
         <p id="bank-msg" class="text-xs mt-2"></p>
       </div>
@@ -495,7 +647,7 @@ body{
             <button id="proof-only-poly" class="px-3 py-2 rounded-lg text-xs border"
                     style="border-color:var(--line)">只看破音字</button>
             <button id="proof-export" class="px-3 py-2 rounded-lg text-xs border"
-                    style="border-color:var(--line)">📊 匯出校對表</button>
+                    style="border-color:var(--line)"><span class="inline-flex items-center gap-1.5"><span class="ico-slot" data-ico="chart" data-ico-size="14"></span>匯出校對表</span></button>
           </div>
         </div>
         <div class="flex gap-4 text-xs mb-4 flex-wrap" style="color:var(--dim)">
@@ -506,7 +658,7 @@ body{
         </div>
         <div id="proof-list" class="scrolly max-h-[26rem] overflow-y-auto space-y-4 pr-1"></div>
         <button id="proof-save" class="w-full mt-4 py-3 rounded-xl font-black text-slate-900"
-                style="background:var(--gold)">💾 儲存所有注音修正</button>
+                style="background:var(--gold)"><span class="inline-flex items-center gap-2"><span class="ico-slot" data-ico="save" data-ico-size="16"></span>儲存所有注音修正</span></button>
         <p id="proof-msg" class="text-xs mt-2"></p>
       </div>
     </div>
@@ -518,9 +670,9 @@ body{
           <select id="sc-filter" class="p-2 rounded-lg bg-transparent border text-sm"
                   style="border-color:var(--line)"><option value="">全部班級</option></select>
           <button id="sc-refresh" class="px-3 py-2 rounded-lg text-sm border"
-                  style="border-color:var(--line)">🔄 重新整理</button>
+                  style="border-color:var(--line)"><span class="inline-flex items-center gap-1.5"><span class="ico-slot" data-ico="reset" data-ico-size="14"></span>重新整理</span></button>
           <button id="sc-export" class="px-3 py-2 rounded-lg text-sm font-bold"
-                  style="background:rgba(74,222,128,.15);border:1px solid #4ade80;color:#4ade80">📊 匯出 Excel</button>
+                  style="background:rgba(74,222,128,.15);border:1px solid #4ade80;color:#4ade80"><span class="inline-flex items-center gap-1.5"><span class="ico-slot" data-ico="chart" data-ico-size="14"></span>匯出 Excel</span></button>
         </div>
         <div id="sc-table" class="scrolly max-h-[24rem] overflow-y-auto text-sm"></div>
       </div>
@@ -528,7 +680,7 @@ body{
         <p class="text-sm font-bold mb-2" style="color:#ff8a9c">危險操作</p>
         <button id="sc-clear" class="w-full py-3 rounded-xl font-bold"
                 style="background:rgba(224,69,94,.15);border:1px solid var(--hp);color:#ff8a9c">
-          🗑️ 清空所有成績紀錄</button>
+          <span class="inline-flex items-center gap-2"><span class="ico-slot" data-ico="trash" data-ico-size="16"></span>清空所有成績紀錄</span></button>
         <p class="text-[11px] mt-2" style="color:var(--dim)">無法復原，請先匯出 Excel 備份</p>
       </div>
     </div>
@@ -546,6 +698,136 @@ import { getFirestore, doc, collection, setDoc, getDoc, getDocs, deleteDoc,
          onSnapshot, query, orderBy, where, serverTimestamp }
   from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
+/* ══════════════════════════════════════════════════════════════
+   SVG 圖示系統
+   全部 24×24 viewBox、stroke 用 currentColor，所以顏色跟著文字走。
+   不用 emoji 的原因：各作業系統字形版本不同，Windows 10 就缺 🪄。
+   ══════════════════════════════════════════════════════════════ */
+
+const ICONS = {
+  /* ── 武器（實心＋線條混合，尺寸放大時仍清楚）── */
+  staff: `<path d="M6.5 20.5 15 12" stroke-width="2.2"/>
+          <path d="M13.2 10.2 16 7.4"/>
+          <circle cx="17.4" cy="6" r="3.1" fill="currentColor" fill-opacity=".22"/>
+          <circle cx="17.4" cy="6" r="3.1"/>
+          <path d="M17.4 3.4v5.2M14.8 6h5.2" stroke-width="1.1" opacity=".8"/>
+          <path d="M6.9 17.9 9 20" stroke-width="1.4" opacity=".6"/>`,
+
+  bow:   `<path d="M17.5 3.2A13 13 0 0 1 17.5 20.8"/>
+          <path d="M17.5 3.2 5.8 12l11.7 8.8" stroke-dasharray="0" stroke-width="1.1" opacity=".75"/>
+          <path d="M4 20 15 9" stroke-width="1.9"/>
+          <path d="M15.6 8.4 18 6M11.5 12.5l2.6 2.6M12.6 11.4 10 8.8"/>
+          <path d="M4 20v-3.2M4 20h3.2" stroke-width="1.4"/>`,
+
+  dagger:`<path d="M12 2.6 15 9v6H9V9z" fill="currentColor" fill-opacity=".18"/>
+          <path d="M12 2.6 15 9v6H9V9z"/>
+          <path d="M6.6 15.4h10.8"/>
+          <path d="M12 15.4v5.9"/>
+          <path d="M10.3 21.3h3.4"/>`,
+
+  /* ── 介面 ── */
+  swords:`<path d="M3.5 3.5h3l9.2 9.2-3 3L3.5 6.5z" fill="currentColor" fill-opacity=".16"/>
+          <path d="M3.5 3.5h3l9.2 9.2-3 3L3.5 6.5z"/>
+          <path d="M20.5 3.5h-3l-3.4 3.4 3 3L20.5 6.5z"/>
+          <path d="M14.4 14.4 20.5 20.5M9.6 14.4 3.5 20.5"/>`,
+  gear:  `<circle cx="12" cy="12" r="3.1"/>
+          <path d="M19.5 14.4a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.11a1.7 1.7 0 0 0-1.1-1.56 1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.04H3a2 2 0 1 1 0-4h.11a1.7 1.7 0 0 0 1.56-1.1 1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.56V3a2 2 0 1 1 4 0v.11a1.7 1.7 0 0 0 1.04 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.56 1H21a2 2 0 1 1 0 4h-.11a1.7 1.7 0 0 0-1.56 1.04z"/>`,
+  lock:  `<rect x="4.5" y="10.5" width="15" height="10" rx="2"/>
+          <path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/>
+          <circle cx="12" cy="15.4" r="1.3" fill="currentColor"/>`,
+  door:  `<path d="M4 20.5V5a1.5 1.5 0 0 1 1.2-1.47l7-1.4A1.5 1.5 0 0 1 14 3.6v16.9"/>
+          <path d="M14 20.5h5.5V8.5H14M3 20.5h17"/>
+          <circle cx="11.4" cy="12.4" r="1" fill="currentColor"/>`,
+  tent:  `<path d="M12 5 3.2 19.6h17.6z" fill="currentColor" fill-opacity=".14"/>
+          <path d="M12 5 3.2 19.6h17.6z"/>
+          <path d="M12 5v6.4"/>
+          <path d="M12 11.4 8.4 19.6h7.2z" fill="currentColor" fill-opacity=".3"/>
+          <path d="M12 11.4 8.4 19.6h7.2z"/>
+          <path d="M1.6 19.6h20.8"/>`,
+  target:`<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.8"/>
+          <circle cx="12" cy="12" r="1.4" fill="currentColor"/>`,
+  play:  `<path d="M7.5 4.7 19 12 7.5 19.3z" fill="currentColor" fill-opacity=".2"/>
+          <path d="M7.5 4.7 19 12 7.5 19.3z"/>`,
+  stop:  `<rect x="6" y="6" width="12" height="12" rx="1.6" fill="currentColor" fill-opacity=".2"/>
+          <rect x="6" y="6" width="12" height="12" rx="1.6"/>`,
+  reset: `<path d="M3.2 5.5v5.2h5.2"/>
+          <path d="M4.4 14.2a8 8 0 1 0 2-8.3L3.2 8.7"/>`,
+  book:  `<path d="M4 4.8A1.8 1.8 0 0 1 5.8 3H19v18H5.8A1.8 1.8 0 0 1 4 19.2z"/>
+          <path d="M4 17.2h15M8 3v14"/>`,
+  search:`<circle cx="10.8" cy="10.8" r="6.6"/><path d="M15.6 15.6 20.5 20.5"/>`,
+  chart: `<path d="M3.5 20.5h17"/>
+          <rect x="5.5" y="12" width="3.4" height="6" rx=".7" fill="currentColor" fill-opacity=".25"/>
+          <rect x="5.5" y="12" width="3.4" height="6" rx=".7"/>
+          <rect x="10.3" y="7.5" width="3.4" height="10.5" rx=".7" fill="currentColor" fill-opacity=".25"/>
+          <rect x="10.3" y="7.5" width="3.4" height="10.5" rx=".7"/>
+          <rect x="15.1" y="4" width="3.4" height="14" rx=".7" fill="currentColor" fill-opacity=".25"/>
+          <rect x="15.1" y="4" width="3.4" height="14" rx=".7"/>`,
+  save:  `<path d="M4.5 6.3A1.8 1.8 0 0 1 6.3 4.5h9.4L19.5 8.3v9.4a1.8 1.8 0 0 1-1.8 1.8H6.3a1.8 1.8 0 0 1-1.8-1.8z"/>
+          <path d="M8 4.5v4.8h6.6V4.5M7.6 19.5v-5.6h8.8v5.6"/>`,
+  trash: `<path d="M3.8 6.4h16.4M8.6 6.4V4.8a1.4 1.4 0 0 1 1.4-1.4h4a1.4 1.4 0 0 1 1.4 1.4v1.6"/>
+          <path d="M6.2 6.4 7.2 20a1.5 1.5 0 0 0 1.5 1.4h6.6a1.5 1.5 0 0 0 1.5-1.4l1-13.6"/>
+          <path d="M10.4 10.5v6.4M13.6 10.5v6.4"/>`,
+  camera:`<path d="M3.5 8.4A1.9 1.9 0 0 1 5.4 6.5h2.4l1.5-2.3h5.4l1.5 2.3h2.4a1.9 1.9 0 0 1 1.9 1.9v9.2a1.9 1.9 0 0 1-1.9 1.9H5.4a1.9 1.9 0 0 1-1.9-1.9z"/>
+          <circle cx="12" cy="13" r="3.9"/>`,
+  trophy:`<path d="M8 3.5h8v6.2a4 4 0 0 1-8 0z" fill="currentColor" fill-opacity=".2"/>
+          <path d="M8 3.5h8v6.2a4 4 0 0 1-8 0z"/>
+          <path d="M8 5.2H5.2v1.4A3.4 3.4 0 0 0 8 9.9M16 5.2h2.8v1.4A3.4 3.4 0 0 1 16 9.9"/>
+          <path d="M12 13.7v3.4M8.6 20.5h6.8l-.6-3.4H9.2z"/>`,
+  skull: `<path d="M12 2.8c-4.6 0-7.6 3.1-7.6 7.3 0 2.5 1.1 4 2.4 5v3.3c0 1 .8 1.8 1.8 1.8h6.8c1 0 1.8-.8 1.8-1.8v-3.3c1.3-1 2.4-2.5 2.4-5 0-4.2-3-7.3-7.6-7.3z"/>
+          <circle cx="9.2" cy="11" r="1.9" fill="currentColor"/>
+          <circle cx="14.8" cy="11" r="1.9" fill="currentColor"/>
+          <path d="M12 14.6l-1 2h2z" fill="currentColor"/>`,
+  school:`<path d="M12 2.6 3 7v2h18V7z"/><path d="M4.6 9v9.5M19.4 9v9.5M2.6 21.4h18.8"/>
+          <rect x="8.4" y="12.4" width="7.2" height="6.1" rx=".8"/>`,
+  back:  `<path d="M20 12H4.6"/><path d="M10.4 5.6 4 12l6.4 6.4"/>`,
+  alert: `<path d="M12 3.8 21.2 19.8H2.8z"/><path d="M12 9.8v4.6"/>
+          <circle cx="12" cy="17.2" r="1" fill="currentColor"/>`,
+  flame: `<path d="M12 21.4c3.5 0 6.2-2.5 6.2-5.8 0-4.4-4.3-5.9-3.4-11.2-2.6 1-4.4 3.5-4.4 6 0 1.3-.9 2-1.7 1.4-.9-.6-.9-2-.9-2C6 11.3 5.8 13.2 5.8 15.6c0 3.3 2.7 5.8 6.2 5.8z"
+          fill="currentColor" fill-opacity=".2"/>
+          <path d="M12 21.4c3.5 0 6.2-2.5 6.2-5.8 0-4.4-4.3-5.9-3.4-11.2-2.6 1-4.4 3.5-4.4 6 0 1.3-.9 2-1.7 1.4-.9-.6-.9-2-.9-2C6 11.3 5.8 13.2 5.8 15.6c0 3.3 2.7 5.8 6.2 5.8z"/>`,
+  clock: `<circle cx="12" cy="12" r="8.6"/><path d="M12 6.8V12l3.4 2"/>`,
+  sparkle:`<path d="M12 3.2 13.7 9l5.8 1.7-5.8 1.7L12 18.2l-1.7-5.8L4.5 10.7 10.3 9z"
+          fill="currentColor" fill-opacity=".2"/>
+          <path d="M12 3.2 13.7 9l5.8 1.7-5.8 1.7L12 18.2l-1.7-5.8L4.5 10.7 10.3 9z"/>
+          <path d="M18.6 3.4v3M20.1 4.9h-3" stroke-width="1.3"/>`,
+  check: `<path d="M4.5 12.4 9.5 17.4 19.5 6.6"/>`,
+  medal: `<circle cx="12" cy="14.6" r="5.9" fill="currentColor" fill-opacity=".22"/>
+          <circle cx="12" cy="14.6" r="5.9"/>
+          <path d="M8.6 9.2 6.2 3.4h4l2 4M15.4 9.2l2.4-5.8h-4l-1.2 2.6"/>`,
+  user:  `<circle cx="12" cy="8.2" r="3.9"/>
+          <path d="M4.8 20.6a7.2 7.2 0 0 1 14.4 0"/>`,
+  keyboard:`<rect x="2.5" y="6" width="19" height="12" rx="2"/>
+          <path d="M6 9.4h.01M9.4 9.4h.01M12.8 9.4h.01M16.2 9.4h.01M6 12.6h.01M9.4 12.6h.01M12.8 12.6h.01M16.2 12.6h.01" stroke-width="2.2" stroke-linecap="round"/>
+          <path d="M8 15.6h8"/>`
+};
+
+/* 產生一個 SVG 字串。size 是像素，cls 會加到 class 上 */
+function ico(name, size = 18, cls = '', extra = '') {
+  const p = ICONS[name];
+  if (!p) return '';
+  return `<svg class="ico ${cls}" width="${size}" height="${size}" viewBox="0 0 24 24"
+    fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+    stroke-linejoin="round" aria-hidden="true" ${extra}>${p}</svg>`;
+}
+
+/* 名次徽章：1/2/3 用金銀銅獎牌，其餘顯示數字 */
+function rankBadge(i) {
+  const col = ['#f5c451', '#c9d1e0', '#cd8a54'][i];
+  if (col) return `<span style="color:${col};display:inline-flex">${ico('medal', 20)}</span>`;
+  return `<span class="mono" style="color:var(--dim);width:20px;display:inline-block;text-align:center">${i + 1}</span>`;
+}
+
+/* 把 HTML 裡的 <i data-ico="gear"></i> 換成真正的 SVG。
+   靜態標記裡不方便直接寫一長串 path，用這個佔位法保持可讀性。 */
+function hydrateIcons(root = document) {
+  root.querySelectorAll('[data-ico]').forEach(el => {
+    const name = el.dataset.ico;
+    const size = +(el.dataset.icoSize || 18);
+    if (!ICONS[name]) { console.warn('未知圖示', name); return; }
+    el.innerHTML = ico(name, size);
+    el.removeAttribute('data-ico');
+  });
+}
 /* ══════════════════════════════════════════════════════════════
    ASCII 美術資產：怪獸、武器、階級徽章、特效
    ══════════════════════════════════════════════════════════════ */
@@ -654,48 +936,168 @@ const MONSTERS = [
 ` }
 ];
 
-/* ── 武器 ─────────────────────────────────────────────── */
+/* ── 武器（圖示改用 SVG，見 ICONS）───────────────────── */
 const WEAPONS = {
   staff: {
-    key:'staff', name:'法杖', icon:'🔮', color:'#a78bfa',
+    key:'staff', name:'法杖', icon:'staff', color:'var(--staff)', raw:'#a78bfa',
     blurb:'短句 · 標點符號',
-    detail:'傷害穩定。每打對一個標點符號額外 +150 傷害，但打錯標點不扣連擊也不加成。',
-    art: String.raw`
-    ✦
-   /|\
-    |
-    |
-    |
-`,
-    hitArt:'✧ ･ ﾟ ✦ ･ ﾟ ✧'
+    detail:'傷害穩定。每打對一個標點符號額外 +150 傷害。',
+    long:'題目是完整短句，含逗號句號等標點。傷害最穩，適合想踏實累積的人。'
   },
   bow: {
-    key:'bow', name:'弓箭', icon:'🏹', color:'#5fb8ff',
+    key:'bow', name:'弓箭', icon:'bow', color:'var(--bow)', raw:'#5fb8ff',
     blurb:'生難字 · 拚準確',
-    detail:'傷害 × 正確率的平方。全對會「一箭穿心」造成雙倍傷害；錯一個字傷害就掉很多。',
-    art: String.raw`
-   )|
-  ) |
- )--+---->
-  ) |
-   )|
-`,
-    hitArt:'———➤'
+    detail:'傷害 × 正確率的平方。全對「一箭穿心」雙倍傷害。',
+    long:'題目是生難字、形近字與成語。全對就雙倍，但錯一個字傷害掉很多——高風險高報酬。'
   },
   dagger: {
-    key:'dagger', name:'匕首', icon:'🗡️', color:'#ff9f6b',
+    key:'dagger', name:'匕首', icon:'dagger', color:'var(--dagger)', raw:'#ff9f6b',
     blurb:'短詞 · 拚速度',
-    detail:'題目短、可以連打。每連續打對一題連擊 +1，傷害隨連擊倍增；打錯連擊歸零。',
-    art: String.raw`
-    /\
-   /  \
-   |  |
-   |==|
-    ||
-`,
-    hitArt:'✂ ✂ ✂'
+    detail:'連續打對一題連擊 +1，傷害隨連擊倍增；打錯歸零。',
+    long:'題目短、可以快速連打。連擊疊越高傷害越誇張，但一失手就全部歸零。'
   }
 };
+
+/* ══════════════════════════════════════════════════════════════
+   第一人稱武器模型（ASCII，畫面左下角）
+   ══════════════════════════════════════════════════════════════ */
+const VIEWMODEL = {
+  staff: String.raw`
+                    _.-"-._
+                  .'  ,-.  '.
+                 /   ( O )   \
+                 \    '-'    /
+                  '._     _.'
+                     '---'
+                      | |
+                     / /
+                    / /
+                   / /
+                  / /
+                 / /
+                / /
+             __/ /
+            /___/
+           |_____|
+          /_______\
+`,
+  bow: String.raw`
+                        _.-'
+                   _.-'
+               _.-'
+           _.-'
+        _,'
+      ,'
+     /
+    |
+    |>=========================>
+    |
+     \
+      '.
+        '-._
+            '-._
+                '-._
+                     '-._
+                          '-.
+`,
+  dagger: String.raw`
+                             /\
+                            //
+                           //
+                          //
+                         //
+                        //
+                       //
+                      //
+                     //
+                 ___//
+                |=====|
+                 |   |
+                 |   |
+                 |   |
+                 |___|
+                /_____\
+`
+};
+
+/* ══════════════════════════════════════════════════════════════
+   攻擊特效（ASCII）：每把武器 3 組，輪流播放
+   法杖＝火球　弓＝射箭　匕首＝線條斬擊
+   ══════════════════════════════════════════════════════════════ */
+const FX = {
+  staff: [
+String.raw`
+              .-~~~-.
+     ~~~    ,'(#####)'.
+    ~~~~~  ( (#######) )
+     ~~~    '.(#####),'
+              '-~~~-'
+`,
+String.raw`
+                \   |   /
+              .-~~~~~~~-.
+      ~~~   ,'(#########)'.
+     ~~~~~ ( ((#########)) )
+      ~~~   '.(#########),'
+              '-~~~~~~~-'
+                /   |   \
+`,
+String.raw`
+        (###)
+    ~~           .-~~-.
+        ~~~     (######)
+    ~~~~         '-~~-'
+        (#####)
+    ~~        (###)
+`],
+
+  bow: [
+String.raw`
+       >>>=====================>>
+`,
+String.raw`
+     >>>==================>>
+              ~~~~~
+     >>>==================>>
+`,
+String.raw`
+   ~~~~~~~
+   >>>========================>>
+   ~~~~~~~
+        ~~~~~~
+`],
+
+  dagger: [
+String.raw`
+      \
+       \\
+        \\\
+         \\\\
+          \\\
+           \\
+            \
+`,
+String.raw`
+      \             /
+       \\         //
+        \\\     ///
+          \\\ ///
+            \X/
+          /// \\\
+        ///     \\\
+       //         \\
+      /             \
+`,
+String.raw`
+     \      \      \
+      \      \      \
+       \      \      \
+        \      \      \
+         \      \      \
+          \      \      \
+`]
+};
+
 const WEAPON_ORDER = ['staff','bow','dagger'];
 
 /* ── 品質 ─────────────────────────────────────────────── */
@@ -943,6 +1345,69 @@ const BANK_DAGGER_LEGEND = [
  {t:'看見長輩要主動問好', z:'ㄎㄢˋ ㄐㄧㄢˋ ㄓㄤˇ ㄅㄟˋ ㄧㄠˋ ㄓㄨˇ ㄉㄨㄥˋ ㄨㄣˋ ㄏㄠˇ'}
 ];
 /* ══════════════════════════════════════════════════════════════
+   外部美術素材載入器
+   讀得到 assets/ 就用外部的，讀不到就用上面內建的那份。
+   （用 file:// 直接開啟網頁時，瀏覽器會擋掉本機 fetch，這時就走內建。）
+   ══════════════════════════════════════════════════════════════ */
+
+let ASSET_SOURCE = '內建';
+
+async function loadAssets() {
+  const base = 'assets/';
+  const grab = async p => {
+    const r = await fetch(base + p, { cache: 'no-cache' });
+    if (!r.ok) throw new Error(p + ' → HTTP ' + r.status);
+    return r.text();
+  };
+
+  let mf;
+  try {
+    mf = JSON.parse(await grab('manifest.json'));
+  } catch (e) {
+    console.info('[美術] 沒有讀到 assets/manifest.json，改用內建美術。', e.message || e);
+    return;
+  }
+
+  try {
+    /* 怪獸：整組換掉（順序＝出場順序）*/
+    if (Array.isArray(mf.monsters) && mf.monsters.length) {
+      const loaded = await Promise.all(mf.monsters.map(async m => ({
+        name: m.name || '怪獸',
+        hp:   Number(m.hp) || 10000,
+        color: m.color || '#ffffff',
+        tag:  m.tag || '',
+        art:  '\n' + await grab('monsters/' + m.file) + '\n'
+      })));
+      MONSTERS.length = 0;
+      loaded.forEach(m => MONSTERS.push(m));
+    }
+
+    /* 武器第一人稱模型 */
+    if (mf.weapons) {
+      await Promise.all(Object.entries(mf.weapons).map(async ([k, w]) => {
+        if (!VIEWMODEL[k] && !WEAPONS[k]) return;
+        VIEWMODEL[k] = '\n' + await grab('weapons/' + w.file) + '\n';
+        if (w.name && WEAPONS[k]) WEAPONS[k].name = w.name;
+      }));
+    }
+
+    /* 攻擊特效：每把武器一組陣列 */
+    if (mf.fx) {
+      await Promise.all(Object.entries(mf.fx).map(async ([k, files]) => {
+        if (!Array.isArray(files) || !files.length) return;
+        FX[k] = await Promise.all(files.map(async f => '\n' + await grab('fx/' + f) + '\n'));
+      }));
+    }
+
+    ASSET_SOURCE = 'assets 資料夾';
+    console.info('[美術] 已套用 assets/ 的外部素材');
+  } catch (e) {
+    // 抓到一半失敗：保留已經換掉的部分，其餘維持內建，不讓遊戲整個壞掉
+    console.warn('[美術] assets/ 讀取中斷，部分沿用內建美術。', e.message || e);
+    ASSET_SOURCE = 'assets 資料夾（部分）';
+  }
+}
+/* ══════════════════════════════════════════════════════════════
    遊戲引擎：注音排版、打字判定、傷害計算、怪獸、動畫
    ══════════════════════════════════════════════════════════════ */
 
@@ -1143,7 +1608,7 @@ function standardWords(str) {
 
 /* ── 動畫特效 ───────────────────────────────────────── */
 function popDamage(amount, kind, note) {
-  const stage = document.getElementById('monster-slot');
+  const stage = document.getElementById('stage') || document.getElementById('monster-slot');
   const el = document.createElement('div');
   el.className = `dmg-pop ${kind === 'crit' ? 'crit' : kind === 'combo' ? 'combo-dmg' : 'normal-dmg'}`;
   el.style.left = (38 + Math.random() * 24) + '%';
@@ -1155,22 +1620,43 @@ function popDamage(amount, kind, note) {
   setTimeout(() => el.remove(), 1150);
 }
 
+/* 攻擊特效：ASCII，每把武器 3 組輪流播放；同時讓第一人稱武器做出動作 */
+let _fxTurn = { staff: 0, bow: 0, dagger: 0 };
+
 function playSlash(weaponKey) {
-  const stage = document.getElementById('monster-slot');
-  const el = document.createElement('div');
-  el.className = 'slash';
-  el.style.color = WEAPONS[weaponKey].color;
-  el.style.left = '30%'; el.style.top = '40%';
-  el.textContent = WEAPONS[weaponKey].hitArt;
-  stage.appendChild(el);
-  setTimeout(() => el.remove(), 450);
+  const stage = document.getElementById('stage') || document.getElementById('monster-slot');
+  const set = FX[weaponKey] || [];
+  if (set.length) {
+    const v = _fxTurn[weaponKey] % set.length;
+    _fxTurn[weaponKey]++;
+    const el = document.createElement('pre');
+    el.className = 'fx ' + (weaponKey === 'dagger' ? 'fx-cut' : 'fx-fly');
+    el.style.color = WEAPONS[weaponKey].raw;
+    el.textContent = set[v];
+    // 落在怪獸身上，略偏左下往右上打過去
+    el.style.left = '46%';
+    el.style.top = '34%';
+    el.style.transform = 'translate(-50%,-50%)';
+    stage.appendChild(el);
+    setTimeout(() => el.remove(), 560);
+  }
+
+  // 第一人稱武器動作
+  const vm = document.getElementById('viewmodel');
+  if (vm) {
+    const cls = 'vm-' + weaponKey;
+    vm.classList.remove('vm-staff', 'vm-bow', 'vm-dagger');
+    void vm.offsetWidth;                       // 重新觸發動畫
+    vm.classList.add(cls);
+    setTimeout(() => vm.classList.remove(cls), 460);
+  }
 
   const art = document.getElementById('monster-art');
   art.classList.remove('mon-idle');
   art.classList.add('mon-hit');
   setTimeout(() => { art.classList.remove('mon-hit'); art.classList.add('mon-idle'); }, 340);
-  document.getElementById('battle-stage').classList.add('shake');
-  setTimeout(() => document.getElementById('battle-stage').classList.remove('shake'), 400);
+  const stg = document.getElementById('stage');
+  if (stg) { stg.classList.add('shake'); setTimeout(() => stg.classList.remove('shake'), 400); }
 }
 
 function playDeath(cb) {
@@ -1232,7 +1718,7 @@ POOL_KEYS.forEach(k => BANK[k] = DEFAULT_BANK[k].slice());
 let G = null;
 function freshGame() {
   return {
-    weapon: 'staff', quality: 'normal',
+    weapon: LOADOUT.weapon, quality: LOADOUT.quality,
     damage: 0, combo: 0, maxCombo: 0, perfect: 0, attacks: 0,
     correctChars: 0, typedChars: 0, wrongChars: 0, words: 0,
     byWeapon: { staff: 0, bow: 0, dagger: 0 },
@@ -1243,7 +1729,8 @@ function freshGame() {
 
 /* ── 小工具 ─────────────────────────────────────────── */
 const $ = id => document.getElementById(id);
-const show = (id, on = true) => $(id).classList.toggle('hidden', !on);
+const setTxt = (id, v) => { const e = $(id); if (e) e.textContent = v; };
+const show = (id, on = true) => { const e = $(id); if (e) e.classList.toggle('hidden', !on); };
 function toast(msg, ms = 2200) {
   $('toast-body').textContent = msg;
   show('toast', true);
@@ -1261,16 +1748,20 @@ let ONLINE = false;
 function setOffline(reason) {
   ONLINE = false;
   $('hdr-sub').innerHTML =
-    `<span style="color:#ff8a9c">⚠ ${reason}</span>　<span style="color:var(--dim)">仍可用「自由練習」，但成績不會上傳</span>`;
+    `<span style="color:#ff8a9c">${reason}</span>　<span style="color:var(--dim)">仍可用「自由練習」，但成績不會上傳</span>`;
 }
 
 async function boot() {
+  await loadAssets();          // 有 assets/ 就用外部美術，沒有就用內建
   // 先讓畫面能用，再談連線
+  loadSavedLoadout();
   buildWeaponRack();
   buildQualityRack();
+  paintLoadout();
   wireEvents();
   fillClassSelects();
   applyConfig({});
+  hydrateIcons();
 
   try { await signInAnonymously(auth); }
   catch (e) { console.error(e); setOffline('無法登入 Firebase，請檢查網路'); return; }
@@ -1376,39 +1867,52 @@ function doLogin() {
 
 function gotoLobby() {
   show('screen-lobby', true); show('screen-game', false);
-  show('screen-result', false); show('screen-class', false);
-  show('hdr-timer', false);
+  show('screen-result', false); show('screen-boss', false);
+  show('hdr-timer', false); show('hdr-stats', false);
 }
 
-/* ══════════════ 武器架 ══════════════ */
+/* ══════════════ 營地：裝備選擇 ══════════════
+   武器與品質在出發前就決定，進戰場後鎖定不能換。 */
+const LOADOUT = { weapon: 'staff', quality: 'normal' };
+
+function loadSavedLoadout() {
+  try {
+    const v = JSON.parse(localStorage.getItem('mg_loadout') || '{}');
+    if (WEAPONS[v.weapon]) LOADOUT.weapon = v.weapon;
+    if (QUALITIES[v.quality]) LOADOUT.quality = v.quality;
+  } catch (e) { /* 沒存過就用預設 */ }
+}
+function saveLoadout() {
+  try { localStorage.setItem('mg_loadout', JSON.stringify(LOADOUT)); } catch (e) {}
+}
+
 function buildWeaponRack() {
-  const rack = $('weapon-rack');
+  const rack = $('lobby-weapon-rack');
   rack.innerHTML = '';
   WEAPON_ORDER.forEach(k => {
     const w = WEAPONS[k];
-    const el = document.createElement('div');
-    el.className = 'weapon p-3';
+    const el = document.createElement('button');
+    el.className = 'weapon';
     el.dataset.w = k;
+    el.style.color = w.raw;
     el.innerHTML = `
-      <div class="flex items-center gap-2">
-        <pre class="weapon-art" style="color:${w.color}">${w.art}</pre>
-        <div class="flex-1 min-w-0">
-          <div class="font-black text-sm">${w.icon} ${w.name}</div>
-          <div class="text-[11px]" style="color:var(--dim)">${w.blurb}</div>
-        </div>
-      </div>`;
+      <span class="weapon-ico">${ico(w.icon, 24)}</span>
+      <span class="weapon-txt">
+        <span class="weapon-name">${w.name}</span>
+        <span class="weapon-sub block">${w.blurb}</span>
+      </span>`;
     el.addEventListener('click', () => selectWeapon(k));
     rack.appendChild(el);
   });
 }
 
 function buildQualityRack() {
-  const rack = $('quality-rack');
+  const rack = $('lobby-quality-rack');
   rack.innerHTML = '';
   QUALITY_ORDER.forEach(k => {
     const q = QUALITIES[k];
     const el = document.createElement('button');
-    el.className = 'weapon py-2 text-xs font-black';
+    el.className = 'qbtn';
     el.dataset.q = k;
     el.style.color = q.color;
     el.textContent = q.name;
@@ -1418,25 +1922,50 @@ function buildQualityRack() {
 }
 
 function selectWeapon(k) {
-  if (!G || G.over) return;
-  G.weapon = k;
-  [...$('weapon-rack').children].forEach(el => el.classList.toggle('sel', el.dataset.w === k));
-  const w = WEAPONS[k];
-  $('q-weapon-chip').textContent = `${w.icon} ${w.name}`;
-  $('q-weapon-chip').style.color = w.color;
-  $('q-hint').textContent = w.detail;
-  nextQuestion();
+  LOADOUT.weapon = k; saveLoadout(); paintLoadout();
+}
+function selectQuality(k) {
+  LOADOUT.quality = k; saveLoadout(); paintLoadout();
 }
 
-function selectQuality(k) {
-  if (!G || G.over) return;
-  G.quality = k;
-  [...$('quality-rack').children].forEach(el => el.classList.toggle('sel', el.dataset.q === k));
-  const q = QUALITIES[k];
-  $('q-quality-chip').textContent = q.name;
-  $('q-quality-chip').className = 'q-chip ' + q.cls;
-  $('quality-desc').textContent = q.desc;
-  nextQuestion();
+function paintLoadout() {
+  const w = WEAPONS[LOADOUT.weapon], q = QUALITIES[LOADOUT.quality];
+  const rack = $('lobby-weapon-rack');
+  if (rack) [...rack.children].forEach(el => el.classList.toggle('sel', el.dataset.w === LOADOUT.weapon));
+  const qr = $('lobby-quality-rack');
+  if (qr) [...qr.children].forEach(el => el.classList.toggle('sel', el.dataset.q === LOADOUT.quality));
+  const desc = $('lobby-quality-desc');
+  if (desc) desc.textContent = q.desc;
+  const out = $('lobby-loadout');
+  if (out) out.innerHTML = `
+    <span class="weapon-ico" style="color:${w.raw};width:34px;height:34px">${ico(w.icon, 20)}</span>
+    <span>
+      <b style="color:${w.raw}">${w.name}</b>
+      <b style="color:${q.color}" class="ml-1">${q.name}</b>
+      <div class="text-[11px] mt-0.5" style="color:var(--dim2)">${w.long}</div>
+    </span>`;
+}
+
+/* 戰鬥畫面上只顯示鎖定的配置，不提供切換 */
+function paintBattleChips() {
+  const w = WEAPONS[LOADOUT.weapon], q = QUALITIES[LOADOUT.quality];
+  const wc = $('q-weapon-chip');
+  wc.innerHTML = `${ico(w.icon, 14)}${w.name}`;
+  wc.style.color = w.raw;
+  const qc = $('q-quality-chip');
+  qc.textContent = q.name;
+  qc.style.color = q.color;
+  const hint = $('q-hint');
+  if (hint) hint.textContent = w.detail;
+}
+
+/* 左下角的第一人稱武器（ASCII）*/
+function renderViewmodel() {
+  const vm = $('viewmodel');
+  if (!vm) return;
+  const w = WEAPONS[LOADOUT.weapon];
+  vm.textContent = VIEWMODEL[LOADOUT.weapon] || '';
+  vm.style.color = w.raw;
 }
 
 /* ══════════════ 戰鬥 ══════════════ */
@@ -1445,14 +1974,16 @@ function startBattle(practice) {
   G = freshGame();
   G.startedAt = Date.now();
   show('screen-lobby', false); show('screen-login', false);
-  show('screen-result', false); show('screen-class', false);
+  show('screen-result', false); show('screen-boss', false);
   show('screen-game', true); show('hdr-timer', true);
   show('practice-flag', practice);
 
   drawMonster();
-  selectWeapon('staff');
-  selectQuality('normal');
+  paintBattleChips();
+  renderViewmodel();
+  show('hdr-stats', true);
   updateStats();
+  nextQuestion();                 // 開戰要先發第一題
   $('type-input').disabled = false;
   setTimeout(() => $('type-input').focus(), 150);
 
@@ -1547,7 +2078,12 @@ const allCleared = () => G.monIdx >= G.run.length;
 function drawMonster() {
   if (allCleared()) {
     const art = $('monster-art');
-    art.textContent = '\n\n      ✧　全部怪獸都被清光了　✧\n\n         你是全班的英雄\n';
+    art.textContent = String.raw`
+
+        *  全部怪獸都被清光了  *
+
+            你是全班的英雄
+`;
     art.style.color = 'var(--gold)';
     $('mon-name').textContent = '戰場已清空';
     $('mon-lv').textContent = `${G.run.length} / ${G.run.length} 隻`;
@@ -1592,7 +2128,7 @@ function hitMonster(dmg) {
     updateHpBar();
     playDeath(() => {
       drawMonster();
-      if (allCleared()) toast('🎉 全部怪獸都被你打倒了！太誇張了！', 3500);
+      if (allCleared()) toast('全部怪獸都被你打倒了！太誇張了！', 3500);
     });
   } else {
     updateHpBar();
@@ -1601,22 +2137,30 @@ function hitMonster(dmg) {
 }
 
 function renderMonList() {
-  $('kill-n').textContent = G.kills;
-  $('st-monlist').innerHTML = G.run.map((m, i) => {
-    if (m.dead) return `<div style="color:#4ade80">☠ ${m.name}</div>`;
-    if (i === G.monIdx) return `<div style="color:${m.color}">▶ ${m.name}　${Math.round(m.hp / m.max * 100)}%</div>`;
-    return `<div>・${m.name}</div>`;
-  }).join('');
+  setTxt('kill-n', G.kills);
+  const track = $('mon-track');
+  if (!track) return;
+  track.innerHTML = '';
+  G.run.forEach((m, i) => {
+    const d = document.createElement('span');
+    d.className = 'mon-dot' + (m.dead ? ' dead' : i === G.monIdx ? ' cur' : '');
+    d.title = m.dead ? `${m.name}（已擊倒）`
+                     : i === G.monIdx ? `${m.name}　${Math.round(m.hp / m.max * 100)}%`
+                     : m.name;
+    track.appendChild(d);
+  });
 }
 
 /* ── 狀態列 ─────────────────────────────────────────── */
 function updateStats() {
-  $('st-damage').textContent = fmt(G.damage);
-  $('st-combo').textContent = G.combo;
-  $('st-combo').className = 'mono text-xl font-black' + (G.combo >= 3 ? ' combo-flame' : '');
-  $('st-combo').style.color = G.combo >= 3 ? '#ffb340' : 'var(--ink)';
+  setTxt('st-damage', fmt(G.damage));
   const acc = G.typedChars ? Math.round(G.correctChars / G.typedChars * 100) : 100;
-  $('st-acc').textContent = acc + '%';
+  setTxt('st-acc', acc + '%');
+  const tag = $('combo-tag');
+  if (tag) {
+    tag.textContent = G.combo >= 2 ? `${G.combo} 連擊` : '';
+    tag.className = G.combo >= 3 ? 'combo-flame' : '';
+  }
   updateWpm();
 }
 
@@ -1624,11 +2168,16 @@ function updateWpm() {
   if (!G) return;
   const el = ME.practice ? (Date.now() - G.startedAt) / 1000
                          : Math.max(1, ROUND.duration - remainingSec());
-  $('st-wpm').textContent = el > 0 ? Math.round(G.words / el * 60) : 0;
+  setTxt('st-wpm', el > 0 ? Math.round(G.words / el * 60) : 0);
 }
 /* ══════════════════════════════════════════════════════════════
-   結算：個人成績卡、全班總傷害討伐、排行榜
+   結算流程：
+     時間到 → 上傳成績 → 播放「全班總傷害討伐 BOSS」動畫 → 結算畫面
+   結算畫面左邊是個人成績，右邊是班內前 10 與跨班排行。
    ══════════════════════════════════════════════════════════════ */
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+let SKIP_ANIM = false;
 
 async function endBattle() {
   if (!G || G.over) return;
@@ -1640,83 +2189,39 @@ async function endBattle() {
   const elapsed = ME.practice
     ? Math.max(1, (Date.now() - G.startedAt) / 1000)
     : Math.max(1, ROUND.duration);
-  const wpm = Math.round(G.words / elapsed * 60);
-  const acc = G.typedChars ? Math.round(G.correctChars / G.typedChars * 100) : 100;
-  const rank = rankOf(G.damage);
-
-  $('r-class').textContent = `${ME.className}${ME.seat ? '　' + ME.seat + '號' : ''}`;
-  $('r-name').textContent = ME.name;
-  $('r-rank-art').textContent = rank.art;
-  $('r-title').textContent = rank.title;
-  $('r-quote').textContent = rank.quote;
-  $('r-damage').textContent = fmt(G.damage);
-  $('r-words').textContent = Math.floor(G.words);
-  $('r-acc').textContent = acc;
-  $('r-wpm').textContent = wpm;
-  $('r-combo').textContent = G.maxCombo;
-  $('r-perfect').textContent = G.perfect;
-  $('r-kills').textContent = G.kills;
-
-  $('r-weapon-breakdown').innerHTML = WEAPON_ORDER.map(k => {
-    const w = WEAPONS[k], d = G.byWeapon[k];
-    const pct = G.damage ? Math.round(d / G.damage * 100) : 0;
-    return `<div>
-      <div class="flex justify-between mb-1">
-        <span>${w.icon} ${w.name}</span>
-        <span class="mono" style="color:${w.color}">${fmt(d)}　${pct}%</span>
-      </div>
-      <div style="height:6px;background:var(--panel2);border-radius:99px;overflow:hidden">
-        <div style="height:100%;width:${pct}%;background:${w.color}"></div>
-      </div></div>`;
-  }).join('');
-
-  const rec = $('r-record');
-  rec.classList.add('hidden');
+  G.finalWpm = Math.round(G.words / elapsed * 60);
+  G.finalAcc = G.typedChars ? Math.round(G.correctChars / G.typedChars * 100) : 100;
+  G.isRecord = false; G.uploadErr = null; G.prevBest = 0;
 
   if (!ME.practice && G.damage > 0) {
     try {
       const ref = doc(REF.scores, ME.docId);
       const prev = await getDoc(ref);
       const best = prev.exists() ? (prev.data().bestDamage || 0) : 0;
-      const isNew = G.damage > best;
-
+      G.prevBest = best;
+      G.isRecord = G.damage > best;
       await setDoc(ref, {
         className: ME.className, seat: ME.seat, name: ME.name,
-        damage: G.damage, words: Math.floor(G.words), accuracy: acc, wpm,
+        damage: G.damage, words: Math.floor(G.words),
+        accuracy: G.finalAcc, wpm: G.finalWpm,
         maxCombo: G.maxCombo, perfect: G.perfect, attacks: G.attacks,
-        byWeapon: G.byWeapon, kills: G.kills,
+        weapon: G.weapon, quality: G.quality, kills: G.kills,
         roundId: ROUND.roundId || '', mode: CFG.mode,
         bestDamage: Math.max(best, G.damage),
         timestamp: serverTimestamp()
       }, { merge: true });
-
-      if (isNew) {
-        rec.textContent = best === 0
-          ? `🎉 建立了你的第一筆紀錄：${fmt(G.damage)} 傷害！`
-          : `🏆 破紀錄！比之前最高多了 ${fmt(G.damage - best)} 傷害！`;
-        rec.style.color = 'var(--gold)';
-        rec.classList.remove('hidden');
-        confetti({ particleCount: 160, spread: 95, origin: { y: .5 } });
-      }
     } catch (e) {
       console.error('上傳成績失敗', e);
-      rec.textContent = '⚠ 成績上傳失敗，請告訴老師';
-      rec.style.color = '#ff6b81';
-      rec.classList.remove('hidden');
+      G.uploadErr = e;
     }
   }
 
-  show('screen-result', true);
+  await runBossSequence();
 }
 
-/* ══════════════ 全班結算 ══════════════ */
-async function showClassResult() {
-  show('screen-result', false);
-  show('screen-class', true);
-  $('c-classname').textContent = ME.className + '　·　本場戰果';
-  $('c-monsters').innerHTML = '<p class="text-xs" style="color:var(--dim)">統計中…</p>';
-
-  let rows = [];
+/* ── 取全班資料 ─────────────────────────────────────── */
+async function fetchClassData() {
+  let rows = [], err = null;
   try {
     const q = ROUND.roundId
       ? query(REF.scores, where('roundId', '==', ROUND.roundId))
@@ -1724,100 +2229,232 @@ async function showClassResult() {
     const snap = await getDocs(q);
     snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
   } catch (e) {
-    console.error(e);
-    // 讀不到全班資料時，至少讓學生看到自己的戰果，不要留一片 0
-    const mySolo = G ? G.damage : 0;
-    $('c-classname').textContent = ME.className;
-    $('c-total').textContent = fmt(mySolo);
-    $('c-players').textContent = 1;
-    $('c-monsters').innerHTML =
-      `<div class="p-4 rounded-xl text-sm" style="background:rgba(224,69,94,.12);color:#ff8a9c">
-         ⚠ 讀不到全班成績：${fbReason(e)}<br>
-         <span style="color:var(--dim)">下面顯示的只有你自己的傷害。</span>
-       </div>`;
-    $('c-verdict').textContent = `你一個人造成了 ${fmt(mySolo)} 傷害`;
-    $('c-rank').innerHTML =
-      `<div class="flex items-center justify-between p-2 rounded-lg"
-            style="background:rgba(245,196,81,.14);border:1px solid var(--gold)">
-         <span class="text-sm">${ME.name} <small style="color:var(--gold)">(你)</small></span>
-         <span class="mono text-sm font-black" style="color:var(--gold)">${fmt(mySolo)}</span>
-       </div>`;
-    $('c-classrank').innerHTML =
-      '<p class="text-xs" style="color:var(--dim)">需要連上 Firestore 才能比較各班</p>';
-    return;
+    console.error(e); err = e;
+    // 讀不到就只算自己，動畫照樣播
+    rows = [{ id: ME.docId, className: ME.className, name: ME.name,
+              damage: G ? G.damage : 0, wpm: G ? G.finalWpm : 0 }];
+  }
+  const mine  = rows.filter(r => r.className === ME.className);
+  const total = mine.reduce((s, r) => s + (r.damage || 0), 0);
+  const run   = makeMonsterRun(CFG.difficulty);
+  const { kills } = applyDamage(makeMonsterRun(CFG.difficulty), total);
+  return { rows, mine, total, run, kills, err };
+}
+
+/* ══════════════ 全班討伐動畫 ══════════════ */
+async function runBossSequence() {
+  SKIP_ANIM = false;
+  show('screen-game', false);
+  show('screen-boss', true);
+  $('boss-caption').textContent = '全班戰力集結中…';
+  $('boss-total').textContent = '0';
+  $('boss-name').textContent = '';
+  $('boss-hptext').textContent = '';
+  $('boss-art').textContent = '';
+
+  await sleep(1400);                    // 讓同時結束的同學也把成績送上來
+  const data = await fetchClassData();
+
+  const run = data.run;
+  drawBossTrack(run, -1);
+
+  $('boss-caption').textContent = '全班總傷害';
+  await countUp($('boss-total'), data.total, 1500);
+
+  let left = data.total, killed = 0;
+  for (let i = 0; i < run.length; i++) {
+    const m = run[i];
+    drawBoss(m, i);
+    drawBossTrack(run, i - 1);
+    if (left <= 0) break;
+
+    const take = Math.min(m.hp, left);
+    const before = m.hp;
+    m.hp -= take; left -= take;
+
+    $('boss-caption').textContent = (i === run.length - 1) ? '最終決戰！' : `討伐 ${m.name}`;
+    await drainHp(m, before, m.hp, SKIP_ANIM ? 50 : (i === run.length - 1 ? 1300 : 750));
+
+    if (m.hp <= 0) {
+      m.dead = true; killed++;
+      $('boss-caption').textContent = `${m.name} 被擊倒了！`;
+      const art = $('boss-art');
+      art.classList.remove('mon-idle'); art.classList.add('mon-die');
+      if (!SKIP_ANIM) confetti({ particleCount: 70, spread: 65, origin: { y: .42 },
+                                colors: ['#f5c451', '#ff8a3d', '#ffffff'] });
+      await sleep(SKIP_ANIM ? 30 : 800);
+      art.classList.remove('mon-die'); art.classList.add('mon-idle');
+      drawBossTrack(run, i);
+    } else break;
   }
 
-  const mine = rows.filter(r => r.className === ME.className);
-  const total = mine.reduce((s, r) => s + (r.damage || 0), 0);
-  $('c-total').textContent = fmt(total);
-  $('c-players').textContent = mine.length;
+  $('boss-caption').textContent = killed === 0
+    ? '再加把勁就能擊倒第一隻了！'
+    : killed >= run.length ? '全部清光！全班太強了！'
+    : `全班擊倒了 ${killed} 隻怪獸！`;
+  if (killed > 0 && !SKIP_ANIM)
+    confetti({ particleCount: 220, spread: 110, origin: { y: .4 } });
+  await sleep(SKIP_ANIM ? 200 : 1600);
 
-  /* 用全班總傷害去打怪獸序列 */
-  const run = makeMonsterRun(CFG.difficulty);
-  const { kills, overflow } = applyDamage(run, total);
+  show('screen-boss', false);
+  showResult(data, killed);
+}
 
-  $('c-monsters').innerHTML = run.map((m, i) => {
-    const pct = Math.max(0, m.hp / m.max * 100);
-    const done = m.dead;
-    return `<div class="flex items-center gap-3 ${done ? '' : 'opacity-90'}">
-      <div class="w-24 shrink-0 text-sm font-bold" style="color:${done ? '#4ade80' : m.color}">
-        ${done ? '☠' : (pct < 100 ? '▶' : '・')} ${m.name}</div>
-      <div class="flex-1 hpbar" style="height:14px">
-        <div class="hpfill" style="width:${pct}%;${done ? 'background:#2a2440' : ''}"></div>
-      </div>
-      <div class="mono text-xs w-24 text-right" style="color:var(--dim)">
-        ${done ? '擊倒' : fmt(Math.max(0, m.hp)) + ' 剩'}</div>
+function drawBoss(m, i) {
+  const art = $('boss-art');
+  art.textContent = m.art;
+  art.style.color = m.color;
+  art.style.fontSize = (window.innerWidth < 700 ? 8 : 13) + 'px';
+  $('boss-name').textContent = `第 ${i + 1} 隻　${m.name}`;
+  setBossHp(m, m.hp);
+}
+function setBossHp(m, hp) {
+  const pct = Math.max(0, hp / m.max * 100);
+  $('boss-hpfill').style.width = pct + '%';
+  $('boss-hpghost').style.width = pct + '%';
+  $('boss-hptext').textContent = `${fmt(Math.max(0, hp))} / ${fmt(m.max)}`;
+}
+function drawBossTrack(run, upto) {
+  const t = $('boss-track');
+  t.innerHTML = '';
+  run.forEach((m, i) => {
+    const d = document.createElement('span');
+    d.className = 'mon-dot' + (i <= upto ? ' dead' : i === upto + 1 ? ' cur' : '');
+    d.title = m.name;
+    t.appendChild(d);
+  });
+}
+
+function countUp(el, to, ms) {
+  return new Promise(res => {
+    if (SKIP_ANIM || to <= 0) { el.textContent = fmt(to); return res(); }
+    const t0 = performance.now();
+    const step = now => {
+      const p = Math.min(1, (now - t0) / ms);
+      el.textContent = fmt(to * (1 - Math.pow(1 - p, 3)));
+      if (p < 1 && !SKIP_ANIM) requestAnimationFrame(step);
+      else { el.textContent = fmt(to); res(); }
+    };
+    requestAnimationFrame(step);
+  });
+}
+
+function drainHp(m, from, to, ms) {
+  return new Promise(res => {
+    if (SKIP_ANIM) { setBossHp(m, to); return res(); }
+    const t0 = performance.now();
+    const step = now => {
+      const p = Math.min(1, (now - t0) / ms);
+      setBossHp(m, from + (to - from) * (1 - Math.pow(1 - p, 2)));
+      if (p < 1 && !SKIP_ANIM) requestAnimationFrame(step);
+      else { setBossHp(m, to); res(); }
+    };
+    requestAnimationFrame(step);
+  });
+}
+
+/* ══════════════ 結算畫面 ══════════════ */
+function showResult(data, killed) {
+  const rank = rankOf(G.damage);
+  $('r-class').textContent    = `${ME.className}${ME.seat ? '　' + ME.seat + '號' : ''}`;
+  $('r-name').textContent     = ME.name;
+  $('r-rank-art').textContent = rank.art;
+  $('r-title').textContent    = rank.title;
+  $('r-quote').textContent    = rank.quote;
+  $('r-damage').textContent   = fmt(G.damage);
+  $('r-words').textContent    = Math.floor(G.words);
+  $('r-acc').textContent      = G.finalAcc;
+  $('r-wpm').textContent      = G.finalWpm;
+  $('r-combo').textContent    = G.maxCombo;
+  $('r-perfect').textContent  = G.perfect;
+  $('r-kills').textContent    = G.kills;
+
+  const w = WEAPONS[G.weapon], q = QUALITIES[G.quality];
+  $('r-weapon-breakdown').innerHTML = `
+    <div class="panel-flat p-3 flex items-center gap-3">
+      <span class="weapon-ico" style="color:${w.raw};width:36px;height:36px">${ico(w.icon, 21)}</span>
+      <span class="text-left">
+        <span class="font-black text-sm" style="color:${w.raw}">${w.name}</span>
+        <span class="font-black text-sm ml-1" style="color:${q.color}">${q.name}</span>
+        <div class="label mt-0.5">本場裝備・出手 ${G.attacks} 次</div>
+      </span>
     </div>`;
-  }).join('');
 
-  const verdict = kills === 0
-    ? `全班合力打掉了 ${run[0] ? Math.round((run[0].max - run[0].hp) / run[0].max * 100) : 0}% 的 ${run[0] ? run[0].name : '怪獸'}，下次一定可以擊倒牠！`
-    : kills >= run.length
-      ? `🔥 不可思議！全班把 ${run.length} 隻怪獸全部清光，連混沌魔王都倒下了！`
-      : `⚔️ 全班擊倒了 ${kills} 隻怪獸！正在挑戰第 ${kills + 1} 隻「${run[kills].name}」`;
-  $('c-verdict').textContent = verdict;
-  if (kills > 0) confetti({ particleCount: 220, spread: 110, origin: { y: .4 } });
+  const rec = $('r-record');
+  rec.className = 'text-sm font-bold mb-3';
+  if (ME.practice) {
+    rec.textContent = '練習模式：成績不會列入排行';
+    rec.style.color = 'var(--dim)';
+  } else if (G.uploadErr) {
+    rec.textContent = '成績上傳失敗：' + fbReason(G.uploadErr);
+    rec.style.color = '#ff8a9c';
+  } else if (G.isRecord) {
+    rec.textContent = G.prevBest === 0
+      ? `建立了你的第一筆紀錄：${fmt(G.damage)} 傷害！`
+      : `破紀錄！比之前最高多了 ${fmt(G.damage - G.prevBest)} 傷害！`;
+    rec.style.color = 'var(--gold)';
+    confetti({ particleCount: 130, spread: 90, origin: { y: .5 } });
+  } else {
+    rec.classList.add('hidden');
+  }
 
-  /* 班內排行 */
-  mine.sort((a, b) => (b.damage || 0) - (a.damage || 0));
-  const limit = CFG.rankLimit || 10;
+  /* 全班戰果條 */
+  const run = data.run;
+  $('c-total').textContent   = fmt(data.total);
+  $('c-kills').textContent   = killed;
+  $('c-players').textContent = data.mine.length;
+  $('c-verdict').textContent = data.err
+    ? '讀不到全班成績：' + fbReason(data.err)
+    : killed === 0
+      ? `全班合力打掉了 ${run[0] ? Math.round((run[0].max - run[0].hp) / run[0].max * 100) : 0}% 的 ${run[0].name}`
+      : killed >= run.length
+        ? '把七隻怪獸全部清光了！'
+        : `正在挑戰第 ${killed + 1} 隻「${run[killed].name}」`;
+
+  /* 班內前 10（自己若在 10 名外，補一列） */
+  const mine = [...data.mine].sort((a, b) => (b.damage || 0) - (a.damage || 0));
   const myIdx = mine.findIndex(r => r.id === ME.docId);
-  $('c-rank').innerHTML = mine.map((r, i) => {
-    if (i >= limit && i !== myIdx) return '';
+  const rowHtml = (r, i) => {
     const me = r.id === ME.docId;
-    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
-    return `<div class="flex items-center justify-between p-2 rounded-lg"
+    return `<div class="flex items-center justify-between px-2.5 py-2 rounded-lg"
       style="background:${me ? 'rgba(245,196,81,.14)' : 'var(--panel2)'};
              border:1px solid ${me ? 'var(--gold)' : 'transparent'}">
-      <span class="text-sm truncate"><span class="inline-block w-7">${medal}</span>
-        ${r.name}${me ? ' <small style="color:var(--gold)">(你)</small>' : ''}</span>
-      <span class="mono text-sm font-black" style="color:var(--gold)">${fmt(r.damage || 0)}</span>
-    </div>`;
-  }).join('') || '<p class="text-xs" style="color:var(--dim)">還沒有紀錄</p>';
+      <span class="text-sm truncate flex items-center gap-2">${rankBadge(i)}
+        <span class="truncate">${r.name || ''}${me ? ' <small style="color:var(--gold)">(你)</small>' : ''}</span></span>
+      <span class="mono text-sm font-black flex-none ml-2"
+            style="color:var(--gold)">${fmt(r.damage || 0)}</span></div>`;
+  };
+  let html = mine.slice(0, 10).map(rowHtml).join('');
+  if (myIdx >= 10) {
+    html += '<div class="text-center text-xs py-1" style="color:var(--dim2)">⋯</div>'
+          + rowHtml(mine[myIdx], myIdx);
+  }
+  $('c-rank').innerHTML = html || '<p class="text-xs" style="color:var(--dim)">還沒有紀錄</p>';
 
-  /* 跨班排行 */
+  /* 跨班 */
   const byClass = {};
-  rows.forEach(r => {
+  data.rows.forEach(r => {
     const c = r.className || '未分班';
     byClass[c] = byClass[c] || { total: 0, n: 0 };
-    byClass[c].total += r.damage || 0;
-    byClass[c].n++;
+    byClass[c].total += r.damage || 0; byClass[c].n++;
   });
-  const cls = Object.entries(byClass).sort((a, b) => b[1].total - a[1].total);
-  $('c-classrank').innerHTML = cls.map(([name, v], i) => {
-    const me = name === ME.className;
-    const k = applyDamage(makeMonsterRun(CFG.difficulty), v.total).kills;
-    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
-    return `<div class="flex items-center justify-between p-2 rounded-lg"
-      style="background:${me ? 'rgba(245,196,81,.14)' : 'var(--panel2)'};
-             border:1px solid ${me ? 'var(--gold)' : 'transparent'}">
-      <span class="text-sm truncate"><span class="inline-block w-7">${medal}</span>${name}
-        <small style="color:var(--dim)">(${v.n}人)</small></span>
-      <span class="text-right">
-        <span class="mono text-sm font-black" style="color:var(--gold)">${fmt(v.total)}</span>
-        <small style="color:var(--dim)" class="ml-1">☠${k}</small></span>
-    </div>`;
-  }).join('') || '<p class="text-xs" style="color:var(--dim)">還沒有紀錄</p>';
+  $('c-classrank').innerHTML = Object.entries(byClass)
+    .sort((a, b) => b[1].total - a[1].total)
+    .map(([name, v], i) => {
+      const me = name === ME.className;
+      const k = applyDamage(makeMonsterRun(CFG.difficulty), v.total).kills;
+      return `<div class="flex items-center justify-between px-2.5 py-2 rounded-lg"
+        style="background:${me ? 'rgba(245,196,81,.14)' : 'var(--panel2)'};
+               border:1px solid ${me ? 'var(--gold)' : 'transparent'}">
+        <span class="text-sm truncate flex items-center gap-2">${rankBadge(i)}
+          <span class="truncate">${name}</span>
+          <small style="color:var(--dim2)">${v.n}人</small></span>
+        <span class="text-right flex-none ml-2">
+          <span class="mono text-sm font-black" style="color:var(--gold)">${fmt(v.total)}</span>
+          <small style="color:var(--dim2)" class="ml-1">擊倒 ${k}</small></span></div>`;
+    }).join('') || '<p class="text-xs" style="color:var(--dim)">還沒有紀錄</p>';
+
+  show('screen-result', true);
 }
 
 /* ══════════════ 成績卡存圖 ══════════════ */
@@ -1825,11 +2462,10 @@ async function saveResultImage() {
   const btn = $('btn-save-img');
   const card = $('result-card');
   const old = btn.innerHTML;
-  btn.innerHTML = '⏳ 產生中…'; btn.disabled = true;
-  const bar = btn.parentElement;
-  bar.style.visibility = 'hidden';
+  btn.textContent = '產生中…'; btn.disabled = true;
+  btn.style.visibility = 'hidden';
   try {
-    const canvas = await html2canvas(card, { scale: 2, backgroundColor: '#1b1830', useCORS: true });
+    const canvas = await html2canvas(card, { scale: 2, backgroundColor: '#191630', useCORS: true });
     const link = document.createElement('a');
     link.download = `打字勇者_${ME.className}_${ME.name}_${new Date().toLocaleDateString('zh-TW').replace(/\//g, '')}.jpg`;
     link.href = canvas.toDataURL('image/jpeg', .92);
@@ -1837,7 +2473,7 @@ async function saveResultImage() {
   } catch (e) {
     console.error(e); toast('圖片產生失敗，請稍後再試');
   } finally {
-    bar.style.visibility = 'visible';
+    btn.style.visibility = 'visible';
     btn.innerHTML = old; btn.disabled = false;
   }
 }
@@ -1845,9 +2481,15 @@ async function saveResultImage() {
    教師控制台、注音校對台、事件綁定
    ══════════════════════════════════════════════════════════════ */
 
+/* 純文字版（給 textContent 用）與 HTML 版（給 innerHTML 用）*/
 const POOL_LABEL = k => {
   const [w, q] = k.split('_');
-  return `${WEAPONS[w].icon} ${WEAPONS[w].name} · ${QUALITIES[q].name}`;
+  return `${WEAPONS[w].name} · ${QUALITIES[q].name}`;
+};
+const POOL_LABEL_HTML = k => {
+  const [w, q] = k.split('_');
+  return `<span style="color:${WEAPONS[w].raw};display:inline-flex;vertical-align:-.2em">
+            ${ico(WEAPONS[w].icon, 14)}</span> ${WEAPONS[w].name} · ${QUALITIES[q].name}`;
 };
 
 /* ── 事件綁定 ───────────────────────────────────────── */
@@ -1861,13 +2503,12 @@ function wireEvents() {
   inp.addEventListener('paste', e => { e.preventDefault(); toast('要自己打喔，不可以用貼上的！'); });
   inp.addEventListener('keydown', e => {
     if (e.key === 'Enter')  { e.preventDefault(); submitAttack(); }
-    if (e.key === 'Tab')    { e.preventDefault(); cycleWeapon(); }
     if (e.key === 'Escape') { e.preventDefault(); skipQuestion(); }
   });
   $('btn-attack').addEventListener('click', submitAttack);
 
-  $('btn-to-class').addEventListener('click', showClassResult);
   $('btn-save-img').addEventListener('click', saveResultImage);
+  $('boss-skip').addEventListener('click', () => { SKIP_ANIM = true; });
   $('btn-back-lobby').addEventListener('click', () => { G = null; gotoLobby(); });
 
   /* 教師 */
@@ -1895,12 +2536,6 @@ function wireEvents() {
   $('sc-refresh').addEventListener('click', loadScores);
   $('sc-export').addEventListener('click', exportScoresExcel);
   $('sc-clear').addEventListener('click', clearScores);
-}
-
-function cycleWeapon() {
-  if (!G || G.over) return;
-  const i = WEAPON_ORDER.indexOf(G.weapon);
-  selectWeapon(WEAPON_ORDER[(i + 1) % WEAPON_ORDER.length]);
 }
 
 function tryAuth() {
@@ -1936,7 +2571,7 @@ function updateTeacherBanner() {
   if (!el) return;
   const map = {
     lobby:   ['營地待命中（學生看得到等待畫面）', 'rgba(139,135,168,.15)', 'var(--dim)'],
-    running: ['⚔️ 比賽進行中', 'rgba(74,222,128,.15)', '#4ade80'],
+    running: ['比賽進行中', 'rgba(74,222,128,.15)', '#4ade80'],
     ended:   ['比賽已結束，學生正在看結算', 'rgba(245,196,81,.15)', 'var(--gold)']
   };
   const [txt, bg, col] = map[ROUND.state] || map.lobby;
@@ -1988,7 +2623,7 @@ function buildBankSelector() {
   POOL_KEYS.forEach(k => {
     const b = document.createElement('button');
     b.className = 'px-3 py-2 rounded-lg text-xs font-bold';
-    b.textContent = POOL_LABEL(k);
+    b.innerHTML = POOL_LABEL_HTML(k);
     b.dataset.k = k;
     b.addEventListener('click', () => openPool(k));
     host.appendChild(b);
@@ -2093,7 +2728,7 @@ function buildProofreader() {
     });
     if (!rows) return;
     block.innerHTML = `<div class="font-bold text-sm mb-2 pb-1"
-      style="border-bottom:1px solid var(--line)">${POOL_LABEL(k)}</div>${rows}`;
+      style="border-bottom:1px solid var(--line)">${POOL_LABEL_HTML(k)}</div>${rows}`;
     host.appendChild(block);
   });
 
@@ -2252,7 +2887,7 @@ async function clearScores() {
     renderScores();
     toast('已清空所有成績');
   } catch (e) { console.error(e); toast('清空失敗'); }
-  btn.disabled = false; btn.innerHTML = '🗑️ 清空所有成績紀錄';
+  btn.disabled = false; btn.textContent = '清空所有成績紀錄';
 }
 
 boot();
