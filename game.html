@@ -10,398 +10,349 @@
 <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
 <style>
 :root{
-  --ink:#e9e7f2; --dim:#8b87a8; --dim2:#6b6788;
-  --bg:#0d0b18; --panel:#191630; --panel2:#221d3b; --panel3:#2b2549;
-  --line:#332c54; --line2:#443b6b;
-  --gold:#f5c451; --gold2:#ffb340; --hp:#e0455e; --mp:#5fb8ff; --gr:#4ade80;
-  --staff:#a78bfa; --bow:#5fb8ff; --dagger:#ff9f6b;
-  --r:14px;
+  --ink:#f0eee8; --dim:#9a927f; --dim2:#6f6857;
+  --bg:#14110d; --panel:#221d16; --panel2:#2c261d; --panel3:#3a3226;
+  --line:#453b2c; --line2:#5c4f3b;
+  --gold:#e8b64c; --gold2:#c8912f; --hp:#c0392b; --mp:#5b9bd5; --gr:#6aa84f;
+  --staff:#b9a4e0; --bow:#9dc3e6; --dagger:#e8c37a;
+  --r:10px;
 }
 *{scrollbar-width:thin;scrollbar-color:var(--line2) transparent}
+html,body{height:100%}
 body{
   background:var(--bg);
   background-image:
-    radial-gradient(ellipse 80% 50% at 20% -5%, rgba(72,54,140,.38), transparent 60%),
-    radial-gradient(ellipse 70% 50% at 85% 100%, rgba(30,66,120,.32), transparent 60%);
+    radial-gradient(ellipse 90% 60% at 50% 0%, rgba(70,58,40,.45), transparent 65%),
+    radial-gradient(ellipse 70% 50% at 50% 100%, rgba(40,32,22,.6), transparent 60%);
   background-attachment:fixed;
   color:var(--ink);
   font-family:"Noto Sans TC","Microsoft JhengHei",ui-sans-serif,system-ui,sans-serif;
-  min-height:100vh; -webkit-font-smoothing:antialiased;
+  -webkit-font-smoothing:antialiased; overflow:hidden;
 }
-.panel{background:linear-gradient(180deg,rgba(30,26,56,.86),rgba(23,20,44,.86));
-       border:1px solid var(--line);border-radius:var(--r);
-       backdrop-filter:blur(8px);box-shadow:0 1px 0 rgba(255,255,255,.04) inset}
-.panel-flat{background:var(--panel2);border:1px solid var(--line);border-radius:var(--r)}
+/* RPG 風格的實邊框，不用螢光暈染 */
+.panel{background:var(--panel);border:2px solid var(--line2);border-radius:var(--r);
+       box-shadow:0 2px 0 rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05)}
+.panel-flat{background:var(--panel2);border:2px solid var(--line);border-radius:var(--r)}
 .mono{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace;
       font-variant-numeric:tabular-nums}
-.label{font-size:12.5px;letter-spacing:.06em;color:var(--dim);text-transform:none}
+.label{font-size:14px;letter-spacing:.04em;color:var(--dim)}
 
-/* ============ SVG 圖示 ============ */
 .ico{display:inline-block;vertical-align:-.18em;flex:none}
 [data-ico],.ico-slot{display:inline-flex;align-items:center;justify-content:center}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:.5em;
-     border-radius:11px;font-weight:800;transition:transform .12s,filter .12s,background .12s}
-.btn:hover{filter:brightness(1.08)} .btn:active{transform:translateY(1px)}
-.btn-gold{background:linear-gradient(135deg,var(--gold),var(--gold2));color:#20182c}
-.btn-ghost{border:1px solid var(--line2);color:var(--ink);background:transparent}
+     border-radius:8px;font-weight:800;transition:filter .12s,transform .1s;
+     border:2px solid var(--line2)}
+.btn:hover{filter:brightness(1.1)} .btn:active{transform:translateY(1px)}
+.btn-gold{background:linear-gradient(180deg,var(--gold),var(--gold2));
+          color:#231c10;border-color:#8c6420;
+          box-shadow:0 2px 0 #7a5518, inset 0 1px 0 rgba(255,255,255,.35)}
+.btn-ghost{background:var(--panel2);color:var(--ink)}
 .btn-ghost:hover{background:var(--panel3)}
 
-/* ============ 怪獸 ASCII 舞台 ============ */
-#monster-art{
-  font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;
-  white-space:pre; line-height:1.02; font-size:13px; letter-spacing:0;
-  text-align:center; text-shadow:0 0 16px currentColor, 0 0 42px currentColor;
-  transition:transform .09s, filter .09s; margin:0;
-}
-@media (max-width:700px){ #monster-art{font-size:8.5px} }
+/* ══════════ 遊戲畫面：滿版、不捲動 ══════════ */
+#screen-game:not(.hidden){display:flex;flex-direction:column;
+  height:100dvh;padding:10px 16px 12px;gap:8px}
+
+/* 最上面：討伐進度條 */
+#mon-track{flex:0 0 auto;display:flex;gap:4px;height:14px}
+.mon-dot{flex:1 1 0;border-radius:3px;background:#332b20;
+         border:2px solid var(--line);transition:background .3s,border-color .3s}
+.mon-dot.dead{background:var(--gr);border-color:#4f7a3a}
+.mon-dot.cur{background:var(--gold);border-color:#8c6420}
+
+/* 上排：左邊武器資訊、右邊傷害與時間 */
+#topbar{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.chip{font-size:20px;padding:7px 16px;border-radius:8px;font-weight:900;
+      border:2px solid var(--line2);background:var(--panel2);
+      display:inline-flex;align-items:center;gap:8px}
+.chip-hot{border-color:var(--gold);background:rgba(232,182,76,.18);color:var(--gold)}
+
+/* 戰鬥舞台 */
+#stage{flex:1 1 auto;min-height:0;position:relative;display:flex;
+       flex-direction:column;align-items:center}
+#monster-slot{flex:1 1 auto;min-height:150px;width:100%;
+              display:flex;align-items:center;justify-content:center;position:relative}
+#monster-art{font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;
+  white-space:pre;line-height:1.05;font-size:17px;text-align:center;margin:0;
+  transition:transform .09s,filter .09s}
+@media (max-height:820px){ #monster-art{font-size:14px} }
+@media (max-height:680px){ #monster-art{font-size:11px} }
 .mon-idle{animation:monIdle 3.6s ease-in-out infinite}
-@keyframes monIdle{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
-.mon-hit{animation:monHit .32s steps(2) 3}
-@keyframes monHit{0%{filter:brightness(4) saturate(.2);transform:translateX(-9px)}
-                  100%{filter:none;transform:translateX(9px)}}
+@keyframes monIdle{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.mon-hit{animation:monHit .3s steps(2) 3}
+@keyframes monHit{0%{filter:brightness(3);transform:translateX(-8px)}
+                  100%{filter:none;transform:translateX(8px)}}
 .mon-die{animation:monDie .9s ease-in forwards}
-@keyframes monDie{0%{opacity:1;transform:scale(1) rotate(0)}
-                  100%{opacity:0;transform:scale(.3) rotate(22deg) translateY(60px)}}
+@keyframes monDie{0%{opacity:1;transform:scale(1)}
+                  100%{opacity:0;transform:scale(.35) translateY(50px)}}
 .shake{animation:shake .4s}
 @keyframes shake{0%,100%{transform:translate(0)}
-  20%{transform:translate(-7px,3px)}40%{transform:translate(6px,-4px)}
-  60%{transform:translate(-5px,-2px)}80%{transform:translate(4px,3px)}}
-#monster-slot::after{content:"";position:absolute;left:50%;bottom:6px;
-  width:min(62%,340px);height:16px;transform:translateX(-50%);
-  background:radial-gradient(ellipse,rgba(0,0,0,.55),transparent 70%);pointer-events:none}
+  25%{transform:translate(-6px,3px)}50%{transform:translate(5px,-3px)}
+  75%{transform:translate(-4px,-2px)}}
 
-/* ============ 注音排版：注音直排於漢字右側 ============ */
+/* 怪獸名牌與血條 */
+.mon-hud{flex:0 0 auto;width:min(560px,86%);margin:0 auto 4px}
+.hpbar{height:24px;background:#241e17;border:2px solid var(--line2);
+       border-radius:5px;overflow:hidden;position:relative}
+.hpfill{height:100%;background:linear-gradient(180deg,#d9503f,#a5291c);
+        transition:width .45s cubic-bezier(.2,.9,.3,1);position:relative;z-index:2}
+.hpghost{position:absolute;inset:0;height:100%;background:rgba(255,255,255,.22);
+         transition:width .9s ease .3s;z-index:1}
+
+/* 左下角第一人稱武器：白色、無光暈 */
+#vm-wrap{position:absolute;left:6px;bottom:-10px;z-index:2;pointer-events:none;
+  max-height:78%;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end}
+#viewmodel{margin:0;font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;
+  white-space:pre;line-height:1.05;font-size:10px;color:#e8e4da;opacity:.92}
+@media (max-height:820px){ #viewmodel{font-size:8.5px} }
+@media (max-height:680px){ #viewmodel{font-size:7px} }
+.vm-staff{animation:vmCast .42s ease-out}
+@keyframes vmCast{0%{transform:none}30%{transform:translate(14px,-18px) rotate(-8deg)}100%{transform:none}}
+.vm-bow{animation:vmShoot .34s ease-out}
+@keyframes vmShoot{0%{transform:none}25%{transform:translate(-14px,5px)}
+  60%{transform:translate(7px,-3px)}100%{transform:none}}
+.vm-dagger{animation:vmSlash .3s ease-out}
+@keyframes vmSlash{0%{transform:none}35%{transform:translate(42px,-36px) rotate(-20deg)}100%{transform:none}}
+#combo-tag{position:absolute;left:10px;top:4px;z-index:3;
+  font-weight:900;font-size:21px;color:var(--gold);pointer-events:none}
+
+/* 右側：正確率與每分鐘字 */
+#hud-right{position:absolute;right:0;bottom:4px;z-index:2;
+  display:flex;flex-direction:column;gap:22px;pointer-events:none}
+.hud-item{display:flex;flex-direction:column;align-items:center;line-height:1}
+.hud-val{font-family:ui-monospace,Consolas,monospace;font-variant-numeric:tabular-nums;
+  font-size:32px;font-weight:900;color:var(--ink)}
+.hud-key{font-size:16px;font-weight:700;letter-spacing:.2em;color:var(--dim);margin-top:8px;
+  writing-mode:vertical-rl;text-orientation:upright}
+@media (max-height:680px){ .hud-val{font-size:23px} .hud-key{font-size:12px} }
+
+/* 弓箭爆擊條 */
+#gauge-wrap{position:absolute;left:50%;bottom:2px;transform:translateX(-50%);
+  z-index:2;width:min(300px,50%);text-align:center;pointer-events:none}
+#gauge-bar{height:12px;border-radius:4px;background:#241e17;
+  border:2px solid var(--line2);overflow:hidden}
+#gauge-fill{height:100%;width:0;background:linear-gradient(180deg,#7ab0e0,#3d78ad);
+  transition:width .35s ease}
+#gauge-wrap.gauge-hot #gauge-fill{background:linear-gradient(180deg,var(--gold),var(--gold2))}
+#gauge-wrap.gauge-hot #gauge-text{color:var(--gold);font-weight:900}
+
+/* ══════════ 注音排版 ══════════ */
 .zy{display:inline-flex;align-items:flex-start;vertical-align:top;
-    margin:0 .18em;padding:.10em .14em;border-radius:7px;
+    margin:0 .14em;padding:.08em .12em;border-radius:6px;
     transition:background-color .12s,color .12s}
 .zy-han{font-size:1em;line-height:1.12}
 .zy-bpmf{display:grid;grid-template-columns:auto auto;
-         font-size:.46em;line-height:1.06;margin-left:.1em;
+         font-size:.44em;line-height:1.06;margin-left:.1em;
          font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif}
 .zy-syms{grid-column:1;display:flex;flex-direction:column;align-items:center}
 .zy-tone{grid-column:2;align-self:end;padding-left:.06em;line-height:1;font-weight:700}
-.zy-light{line-height:.8}                        /* 輕聲點置於符號欄最上方 */
+.zy-light{line-height:.8}
 
-/* 打字判定狀態 */
-.st-pending .zy-han{color:#6f6a90}
-.st-pending .zy-bpmf{color:#565175}
-/* 外側陰影而非 inset —— inset 會畫在元素內側，剛好蓋住貼右邊的注音 */
-.st-current{background:rgba(245,196,81,.22);box-shadow:0 0 0 2px var(--gold);
-            border-radius:7px;position:relative;z-index:2}
-.st-correct .zy-han{color:var(--gr)}
-.st-correct .zy-bpmf{color:#2f9c5c}
-.st-wrong .zy-han{color:#ff6b81}
-.st-wrong .zy-bpmf{color:#c4415a}
-.st-wrong{background:rgba(255,107,129,.16)}
+.st-pending .zy-han{color:#8a8172}
+.st-pending .zy-bpmf{color:#6b6354}
+.st-current{background:rgba(232,182,76,.25);box-shadow:0 0 0 3px var(--gold);
+            border-radius:6px;position:relative;z-index:2}
+.st-correct .zy-han{color:#8ec96b}
+.st-correct .zy-bpmf{color:#5f9445}
+.st-wrong .zy-han{color:#e5705f}
+.st-wrong .zy-bpmf{color:#b04a3c}
+.st-wrong{background:rgba(192,57,43,.2)}
 
-/* ============ 武器卡 ============ */
-.weapon{cursor:pointer;border:1.5px solid var(--line);border-radius:12px;
-        background:var(--panel2);transition:all .16s;position:relative;overflow:hidden;
-        display:flex;align-items:center;gap:10px;padding:11px 12px;width:100%;text-align:left}
-.weapon::before{content:"";position:absolute;inset:0;opacity:0;transition:opacity .16s;
-        background:linear-gradient(100deg,currentColor,transparent 62%)}
+/* ══════════ 武器卡：選取只換邊框與底色，不蓋住文字 ══════════ */
+.weapon{cursor:pointer;border:2px solid var(--line);border-radius:9px;
+        background:var(--panel2);transition:border-color .14s,background .14s;
+        display:flex;align-items:center;gap:14px;padding:14px 16px;width:100%;text-align:left}
 .weapon:hover{border-color:var(--line2);background:var(--panel3)}
-.weapon.sel{border-color:currentColor;background:var(--panel3);
-            box-shadow:0 0 0 1px currentColor, 0 6px 20px -8px currentColor}
-.weapon.sel::before{opacity:.13}
-.weapon-ico{width:46px;height:46px;border-radius:10px;flex:none;
-        display:grid;place-items:center;background:rgba(255,255,255,.05);
-        border:1px solid var(--line2);position:relative;z-index:1}
-.weapon.sel .weapon-ico{background:rgba(255,255,255,.13);border-color:currentColor}
-.weapon-txt{position:relative;z-index:1;min-width:0}
-.weapon-name{font-weight:900;font-size:18px;color:var(--ink)}
-.weapon-sub{font-size:13px;color:var(--dim);margin-top:2px}
+.weapon.sel{border-color:var(--gold);background:var(--panel3)}
+.weapon-ico{width:54px;height:54px;border-radius:8px;flex:none;
+        display:grid;place-items:center;background:#241e17;border:2px solid var(--line)}
+.weapon.sel .weapon-ico{border-color:var(--gold)}
+.weapon-txt{min-width:0}
+.weapon-name{font-weight:900;font-size:23px;color:var(--ink)}
+.weapon-sub{font-size:16px;color:var(--dim);margin-top:3px}
 
-/* 品質 */
-.qbtn{cursor:pointer;border:1.5px solid var(--line);border-radius:10px;padding:11px 4px;
-      background:var(--panel2);font-weight:900;font-size:16px;transition:all .14s}
+.qbtn{cursor:pointer;border:2px solid var(--line);border-radius:8px;padding:15px 4px;
+      background:var(--panel2);font-weight:900;font-size:20px;color:var(--ink);
+      transition:border-color .14s,background .14s}
 .qbtn:hover{background:var(--panel3)}
-.qbtn.sel{border-color:currentColor;background:currentColor;color:#1a1630;
-          box-shadow:0 4px 16px -6px currentColor}
-.q-chip{font-size:14px;padding:4px 12px;border-radius:99px;border:1px solid currentColor;
-        display:inline-flex;align-items:center;gap:6px;font-weight:800}
+.qbtn.sel{border-color:var(--gold);background:rgba(232,182,76,.16);color:var(--gold)}
 
-/* ============ 第一人稱戰鬥舞台（無邊框）============ */
-/* 遊戲畫面用視窗高度的彈性版面：怪獸區會自動壓縮，
-   題目與輸入區固定，保證輸入框永遠在畫面內 */
-#screen-game:not(.hidden){display:flex;flex-direction:column;
-  height:calc(100dvh - 92px);min-height:430px}
-#stage{position:relative;overflow:hidden;border-radius:18px;isolation:isolate;
-       flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
-#battle-bottom{flex:0 0 auto}
-/* 螢幕矮的時候把 ASCII 縮小，讓怪獸還是完整看得到 */
-@media (max-height:820px){ #monster-art{font-size:11px} #viewmodel{font-size:10.5px} }
-@media (max-height:700px){ #monster-art{font-size:9.5px} #viewmodel{font-size:9px} }
-#stage::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
-  background:
-    radial-gradient(ellipse 60% 45% at 50% 42%, rgba(120,90,200,.16), transparent 70%),
-    linear-gradient(180deg, transparent 55%, rgba(9,8,18,.55) 100%)}
-#stage > *{position:relative;z-index:1}
+/* ══════════ 特殊攻擊 ══════════ */
+.q-special{border-color:var(--gold) !important;background:rgba(232,182,76,.1) !important}
+#special-banner{position:absolute;left:50%;top:40%;z-index:6;pointer-events:none;
+  transform:translate(-50%,-50%);white-space:nowrap;font-weight:900;
+  font-size:clamp(34px,6vw,62px);opacity:0}
+.sb-hit{animation:sbHit 1.5s ease-out forwards;color:var(--gold);text-shadow:3px 4px 0 #6b4a12}
+.sb-miss{animation:sbMiss 1.1s ease-out forwards;color:var(--dim)}
+@keyframes sbHit{0%{opacity:0;transform:translate(-50%,-50%) scale(.6)}
+  22%{opacity:1;transform:translate(-50%,-50%) scale(1.1)}
+  38%{transform:translate(-50%,-50%) scale(1)}
+  72%{opacity:1;transform:translate(-50%,-58%)}
+  100%{opacity:0;transform:translate(-50%,-76%)}}
+@keyframes sbMiss{0%{opacity:0}25%{opacity:.85}100%{opacity:0;transform:translate(-50%,-42%)}}
 
-/* 怪獸上方的血條組（參考第一人稱 RPG 的擺法）*/
-.mon-hud{width:min(420px,72%);margin:0 auto}
-
-/* 左下角第一人稱武器 */
-#vm-wrap{position:absolute;left:-4px;bottom:-8px;z-index:2;pointer-events:none}
-#viewmodel{margin:0;
-  font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;
-  white-space:pre;line-height:1.02;font-size:12.5px;
-  text-shadow:0 0 10px currentColor, 0 0 26px currentColor;
-  transform-origin:12% 92%}
-@media (max-width:700px){ #viewmodel{font-size:8px} }
-.vm-staff{animation:vmCast .42s ease-out}
-@keyframes vmCast{0%{transform:none}
-  30%{transform:translate(14px,-18px) rotate(-9deg) scale(1.04)}
-  100%{transform:none}}
-.vm-bow{animation:vmShoot .34s ease-out}
-@keyframes vmShoot{0%{transform:none}
-  25%{transform:translate(-16px,6px) scale(.97)}
-  60%{transform:translate(8px,-4px)}
-  100%{transform:none}}
-.vm-dagger{animation:vmSlash .3s ease-out}
-@keyframes vmSlash{0%{transform:none}
-  35%{transform:translate(46px,-40px) rotate(-22deg)}
-  100%{transform:none}}
-
-/* 右側低調 HUD：正確率／每分鐘字（直式，不搶戲）*/
-#hud-right{position:absolute;right:14px;top:50%;transform:translateY(-50%);z-index:2;
-  display:flex;flex-direction:column;gap:26px;pointer-events:none;opacity:.62}
-.hud-item{display:flex;flex-direction:column;align-items:center;line-height:1}
-.hud-val{font-family:ui-monospace,Consolas,monospace;font-variant-numeric:tabular-nums;
-  font-size:26px;font-weight:900;color:var(--ink);text-align:center}
-.hud-key{font-size:14px;font-weight:700;letter-spacing:.22em;color:var(--dim);margin-top:8px;
-  writing-mode:vertical-rl;text-orientation:upright;text-align:center}
-@media (max-width:700px){ #hud-right{opacity:.5;gap:16px;right:6px}
-  .hud-val{font-size:19px} .hud-key{font-size:11px} }
-
-/* 右下角討伐進度 */
-#mon-track{position:absolute;right:12px;bottom:14px;z-index:2;
-  display:flex;align-items:center;gap:6px}
-
-/* 連擊指示（貼在武器上方，只有連擊時才出現）*/
-#combo-tag{padding-left:20px;margin-bottom:2px;height:20px;
-  font-weight:900;font-size:15px;color:var(--gold);white-space:nowrap;
-  text-shadow:0 0 12px rgba(245,196,81,.8)}
-
-/* ============ ASCII 攻擊特效 ============ */
+/* ══════════ 傷害數字與特效 ══════════ */
+.dmg-pop{position:absolute;font-weight:900;pointer-events:none;z-index:5;
+         text-shadow:2px 3px 0 rgba(0,0,0,.55);animation:dmgFly 1.1s ease-out forwards}
+@keyframes dmgFly{0%{opacity:0;transform:translate(-50%,10px) scale(.5)}
+  18%{opacity:1;transform:translate(-50%,-14px) scale(1.2)}
+  40%{transform:translate(-50%,-26px) scale(1)}
+  100%{opacity:0;transform:translate(-50%,-80px) scale(.9)}}
+.crit{color:#ffd66b}.normal-dmg{color:#fff}.combo-dmg{color:#9fe07a}
 .fx{position:absolute;z-index:3;pointer-events:none;
     font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;
-    white-space:pre;line-height:1.05;font-size:15px;font-weight:700;
-    text-shadow:0 0 12px currentColor, 0 0 30px currentColor}
-@media (max-width:700px){ .fx{font-size:10px} }
+    white-space:pre;line-height:1.05;font-size:16px;font-weight:700}
 .fx-fly{animation:fxFly .5s cubic-bezier(.2,.6,.4,1) forwards}
 @keyframes fxFly{0%{opacity:0;transform:translate(-190px,120px) scale(.55)}
-  25%{opacity:1}
-  75%{opacity:1;transform:translate(0,0) scale(1)}
-  100%{opacity:0;transform:translate(46px,-14px) scale(1.18)}}
+  25%{opacity:1}75%{opacity:1;transform:translate(0,0) scale(1)}
+  100%{opacity:0;transform:translate(46px,-14px) scale(1.15)}}
 .fx-cut{animation:fxCut .38s ease-out forwards}
-@keyframes fxCut{0%{opacity:0;transform:translate(-40px,26px) scale(.7) rotate(-8deg)}
-  30%{opacity:1;transform:translate(0,0) scale(1.05) rotate(0)}
+@keyframes fxCut{0%{opacity:0;transform:translate(-40px,26px) scale(.7)}
+  30%{opacity:1;transform:translate(0,0) scale(1.05)}
   100%{opacity:0;transform:translate(26px,-16px) scale(1.3)}}
-
-/* ============ 弓箭爆擊條 ============ */
-#gauge-wrap{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);
-  z-index:2;width:min(240px,46%);text-align:center;pointer-events:none}
-#gauge-bar{height:7px;border-radius:99px;background:rgba(255,255,255,.09);
-  border:1px solid var(--line2);overflow:hidden}
-#gauge-fill{height:100%;width:0;border-radius:99px;
-  background:linear-gradient(90deg,#3d7fb8,var(--mp));transition:width .35s ease}
-#gauge-wrap.gauge-hot #gauge-fill{background:linear-gradient(90deg,var(--gold2),var(--gold));
-  animation:gaugeHot .7s ease-in-out infinite alternate}
-#gauge-wrap.gauge-hot #gauge-text{color:var(--gold);font-weight:900}
-@keyframes gaugeHot{from{box-shadow:0 0 6px rgba(245,196,81,.6)}
-  to{box-shadow:0 0 20px rgba(245,196,81,.95)}}
-
-/* ============ 特殊攻擊 ============ */
-/* 題目框在特殊攻擊時整個亮起來，學生一眼就知道這題不一樣 */
-.q-special{box-shadow:0 0 0 2px var(--gold), 0 0 34px -6px var(--gold) !important;
-  background:rgba(245,196,81,.07) !important;animation:qPulse 1.6s ease-in-out infinite}
-@keyframes qPulse{0%,100%{box-shadow:0 0 0 2px var(--gold), 0 0 26px -8px var(--gold)}
-  50%{box-shadow:0 0 0 2px var(--gold), 0 0 46px -4px var(--gold)}}
-
-/* 詠唱成功／一箭穿心／連環斬：浮現後淡出 */
-#special-banner{position:absolute;left:50%;top:38%;z-index:6;pointer-events:none;
-  transform:translate(-50%,-50%);white-space:nowrap;font-weight:900;
-  font-size:clamp(28px,6vw,54px);letter-spacing:.06em;opacity:0}
-.sb-hit{animation:sbHit 1.5s ease-out forwards;color:var(--gold);
-  text-shadow:0 0 18px rgba(245,196,81,.9), 0 0 52px rgba(245,196,81,.5)}
-.sb-miss{animation:sbMiss 1.1s ease-out forwards;color:#8b87a8;
-  text-shadow:0 2px 12px rgba(0,0,0,.8)}
-@keyframes sbHit{0%{opacity:0;transform:translate(-50%,-50%) scale(.6)}
-  22%{opacity:1;transform:translate(-50%,-50%) scale(1.12)}
-  38%{transform:translate(-50%,-50%) scale(1)}
-  72%{opacity:1;transform:translate(-50%,-58%) scale(1)}
-  100%{opacity:0;transform:translate(-50%,-78%) scale(1.06)}}
-@keyframes sbMiss{0%{opacity:0;transform:translate(-50%,-50%) scale(.9)}
-  25%{opacity:.85;transform:translate(-50%,-50%) scale(1)}
-  100%{opacity:0;transform:translate(-50%,-42%) scale(.96)}}
-.fx-special{filter:drop-shadow(0 0 16px currentColor);transform-origin:center}
-
-/* ============ 傷害數字 ============ */
-/* 血條 */
-.hpbar{height:20px;background:#221d3b;border:1px solid var(--line);
-       border-radius:99px;overflow:hidden;position:relative}
-.hpfill{height:100%;background:linear-gradient(90deg,#ff5470,#e0455e);
-        transition:width .45s cubic-bezier(.2,.9,.3,1);position:relative;z-index:2}
-.hpghost{position:absolute;inset:0;height:100%;background:rgba(255,255,255,.3);
-         transition:width .9s ease .3s;z-index:1}
-
-/* 討伐進度點 */
-.mon-dot{width:9px;height:9px;border-radius:99px;background:var(--line2);
-         transition:all .3s;position:relative;flex:none}
-.mon-dot.dead{background:var(--gr);box-shadow:0 0 8px rgba(74,222,128,.55)}
-.mon-dot.cur{width:26px;background:var(--gold);box-shadow:0 0 10px rgba(245,196,81,.6)}
-
-/* 統計列 */
-.stat-row{display:flex;justify-content:space-between;align-items:baseline;
-          padding:7px 0;border-bottom:1px solid rgba(255,255,255,.045)}
-.stat-row:last-child{border-bottom:0}
 .combo-flame{animation:flame .6s ease-in-out infinite alternate}
-@keyframes flame{from{text-shadow:0 0 6px #ff8a3d}to{text-shadow:0 0 22px #ffd34d}}
+@keyframes flame{from{opacity:.75}to{opacity:1}}
 
 .pop-in{animation:popIn .45s cubic-bezier(.175,.885,.32,1.275) both}
 @keyframes popIn{0%{transform:scale(.85);opacity:0}100%{transform:scale(1);opacity:1}}
-.fade-in{animation:fadeIn .5s both}
-@keyframes fadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.fade-in{animation:fadeIn .4s both}
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 #type-input{caret-color:var(--gold)}
-#type-input:focus{border-color:var(--gold)!important;box-shadow:0 0 0 3px rgba(245,196,81,.13)}
-.scrolly::-webkit-scrollbar{width:8px;height:8px}
-.scrolly::-webkit-scrollbar-thumb{background:var(--line2);border-radius:9px}
-.scrolly::-webkit-scrollbar-track{background:transparent}
-kbd{font-family:ui-monospace,Consolas,monospace;font-size:12.5px;padding:2px 6px;
-    border-radius:4px;background:var(--panel3);border:1px solid var(--line2);
-    box-shadow:0 1.5px 0 var(--line2)}
+#type-input:focus{border-color:var(--gold)!important;outline:none}
+.scrolly{overflow-y:auto}
+.scrolly::-webkit-scrollbar{width:10px}
+.scrolly::-webkit-scrollbar-thumb{background:var(--line2);border-radius:5px}
+kbd{font-family:ui-monospace,Consolas,monospace;font-size:14px;padding:3px 8px;
+    border-radius:4px;background:var(--panel3);border:2px solid var(--line2);
+    box-shadow:0 2px 0 var(--line2)}
 input,select,textarea{color:var(--ink)}
 select option{background:var(--panel2);color:var(--ink)}
-.divider{height:1px;background:linear-gradient(90deg,transparent,var(--line2),transparent)}
+.divider{height:2px;background:var(--line)}
+#screen-login,#screen-lobby{max-height:100dvh;overflow-y:auto}
 </style>
 </head>
 <body>
-<div class="max-w-7xl mx-auto p-3 md:p-5">
-
-<!-- ══════════ 頁首 ══════════ -->
-<header class="flex items-center justify-between mb-4 gap-3">
+<!-- ══════════ 頁首（進遊戲後整條隱藏）══════════ -->
+<header id="app-header" class="max-w-6xl mx-auto px-4 pt-4 flex items-center justify-between gap-3">
   <div class="flex items-center gap-3 min-w-0">
-    <span class="ico-slot" style="color:var(--gold)" data-ico="swords" data-ico-size="28"></span>
+    <span class="ico-slot" style="color:var(--gold)" data-ico="swords" data-ico-size="30"></span>
     <div class="min-w-0">
-      <h1 class="text-base md:text-lg font-black tracking-wide leading-tight">打字勇者 · 全班討伐戰</h1>
-      <p id="hdr-sub" class="text-xs truncate" style="color:var(--dim)">連線中…</p>
+      <h1 class="text-xl md:text-2xl font-black">打字勇者</h1>
+      <p id="hdr-sub" class="text-sm" style="color:var(--dim)">連線中…</p>
     </div>
   </div>
-  <div class="flex items-center gap-3 flex-none">
-    <div id="hdr-stats" class="hidden text-right leading-none mr-1">
-      <div class="mono text-xl font-black" style="color:var(--gold)" id="st-damage">0</div>
-      <div class="label" style="font-size:10px">傷害</div>
-    </div>
-    <div id="hdr-timer" class="mono text-3xl font-black hidden" style="color:var(--gold)">--:--</div>
-    <button id="btn-teacher" class="btn btn-ghost text-xs px-3 py-2" style="color:var(--dim)">
-      <span class="ico-slot" data-ico="gear" data-ico-size="15"></span>教師</button>
-  </div>
+  <button id="btn-teacher" class="btn btn-ghost text-sm px-4 py-2.5" style="color:var(--dim)">
+    <span class="ico-slot" data-ico="gear" data-ico-size="17"></span>教師</button>
 </header>
 
 <!-- ══════════ 1. 登入 ══════════ -->
-<section id="screen-login" class="panel p-7 md:p-10 max-w-md mx-auto mt-6 text-center fade-in">
-  <div class="mx-auto mb-4 grid place-items-center rounded-2xl"
-       style="width:64px;height:64px;background:var(--panel3);border:1px solid var(--line2);color:var(--gold)">
-    <span class="ico-slot" data-ico="user" data-ico-size="32"></span>
+<section id="screen-login" class="panel p-8 max-w-md mx-auto mt-8 text-center fade-in">
+  <div class="mx-auto mb-5 grid place-items-center rounded-xl"
+       style="width:72px;height:72px;background:var(--panel2);border:2px solid var(--line2);color:var(--gold)">
+    <span class="ico-slot" data-ico="user" data-ico-size="38"></span>
   </div>
-  <h2 class="text-xl font-black mb-1">勇者，報上名來</h2>
-  <p class="text-sm mb-6" style="color:var(--dim)">全班一起討伐怪獸</p>
+  <h2 class="text-2xl font-black mb-2">勇者，報上名來</h2>
+  <p class="text-base mb-7" style="color:var(--dim)">全班一起討伐怪獸</p>
 
-  <label class="label block text-left mb-1.5">班級</label>
-  <div class="flex gap-2 mb-3.5">
-    <select id="in-grade" class="w-28 p-2.5 rounded-lg panel-flat text-center font-bold text-sm"></select>
-    <select id="in-class" class="flex-1 p-2.5 rounded-lg panel-flat text-center font-bold text-sm"></select>
+  <label class="label block text-left mb-2">班級</label>
+  <div class="flex gap-2 mb-4">
+    <select id="in-grade" class="w-32 p-3 rounded-lg panel-flat text-center font-bold text-lg"></select>
+    <select id="in-class" class="flex-1 p-3 rounded-lg panel-flat text-center font-bold text-lg"></select>
   </div>
 
-  <div class="flex gap-2 mb-5">
-    <div class="w-28">
-      <label class="label block text-left mb-1.5">座號</label>
+  <div class="flex gap-2 mb-6">
+    <div class="w-32">
+      <label class="label block text-left mb-2">座號</label>
       <input id="in-seat" type="number" min="1" max="60" placeholder="選填"
-             class="w-full p-2.5 rounded-lg panel-flat text-center font-bold text-sm">
+             class="w-full p-3 rounded-lg panel-flat text-center font-bold text-lg">
     </div>
     <div class="flex-1">
-      <label class="label block text-left mb-1.5">姓名</label>
+      <label class="label block text-left mb-2">姓名</label>
       <input id="in-name" type="text" maxlength="10" placeholder="請輸入姓名"
-             class="w-full p-2.5 rounded-lg panel-flat text-center font-bold">
+             class="w-full p-3 rounded-lg panel-flat text-center font-bold text-xl">
     </div>
   </div>
 
-  <button id="btn-enter" class="btn btn-gold w-full py-3.5 text-base">
-    <span class="ico-slot" data-ico="door" data-ico-size="19"></span>進入戰場</button>
-  <p id="login-err" class="text-xs mt-3 hidden" style="color:#ff8a9c"></p>
+  <button id="btn-enter" class="btn btn-gold w-full py-4 text-xl">
+    <span class="ico-slot" data-ico="door" data-ico-size="22"></span>進入戰場</button>
+  <p id="login-err" class="text-base mt-3 hidden" style="color:#e5705f"></p>
 </section>
 
-<!-- ══════════ 2. 營地：選裝備 ＋ 等開戰 ══════════ -->
-<section id="screen-lobby" class="hidden fade-in max-w-xl mx-auto mt-6">
-  <div class="panel p-5 mb-3 text-center">
-    <div class="mx-auto mb-3 grid place-items-center rounded-2xl mon-idle"
-         style="width:54px;height:54px;background:var(--panel3);border:1px solid var(--line2);color:var(--gold)">
-      <span class="ico-slot" data-ico="tent" data-ico-size="28"></span>
-    </div>
-    <h2 class="text-xl font-black mb-1">在營地待命中</h2>
-    <p class="text-sm mb-4" style="color:var(--dim)">等老師開戰，先把裝備挑好</p>
+<!-- ══════════ 2. 營地：選裝備 ══════════ -->
+<section id="screen-lobby" class="hidden fade-in max-w-2xl mx-auto mt-6 px-4 pb-6">
+  <div class="panel p-6 mb-4 text-center">
+    <h2 class="text-2xl font-black mb-1">在營地待命中</h2>
+    <p class="text-base mb-4" style="color:var(--dim)">等老師開戰，先把裝備挑好</p>
     <div id="lobby-who" class="panel-flat p-4"></div>
   </div>
 
-  <!-- 裝備選擇：出發前決定，戰鬥中不能換 -->
-  <div class="panel p-5 mb-3">
-    <div class="flex items-center gap-2 mb-1">
-      <span class="ico-slot" style="color:var(--gold)" data-ico="swords" data-ico-size="17"></span>
-      <h3 class="font-black text-lg">選擇武器</h3>
-    </div>
-    <p class="text-sm mb-4" style="color:var(--dim)">
+  <div class="panel p-6 mb-4">
+    <h3 class="font-black text-2xl mb-1">選擇武器</h3>
+    <p class="text-base mb-4" style="color:var(--dim)">
       進戰場後<b style="color:var(--gold)">不能更換</b></p>
-    <div id="lobby-weapon-rack" class="space-y-2 mb-4"></div>
+    <div id="lobby-weapon-rack" class="space-y-3 mb-6"></div>
 
-    <div class="divider mb-4"></div>
+    <div class="divider mb-5"></div>
 
-    <div class="flex items-center gap-2 mb-1">
-      <span class="ico-slot" style="color:var(--gold)" data-ico="sparkle" data-ico-size="17"></span>
-      <h3 class="font-black text-lg">選擇品質</h3>
-    </div>
-    <p class="text-sm mb-3" style="color:var(--dim)">越高越難，傷害也越高</p>
-    <div id="lobby-quality-rack" class="grid grid-cols-3 gap-2"></div>
-    <p id="lobby-quality-desc" class="text-sm mt-3 leading-relaxed" style="color:var(--dim2)"></p>
+    <h3 class="font-black text-2xl mb-1">選擇難度</h3>
+    <p class="text-base mb-3" style="color:var(--dim)">越高越難，傷害也越高</p>
+    <div id="lobby-quality-rack" class="grid grid-cols-3 gap-3"></div>
+    <p id="lobby-quality-desc" class="text-base mt-4 leading-relaxed" style="color:var(--dim)"></p>
   </div>
 
-  <button id="btn-practice" class="btn btn-ghost w-full py-3.5 text-base">
-    <span class="ico-slot" data-ico="target" data-ico-size="17"></span>先自己練習（不計分）</button>
+  <button id="btn-practice" class="btn btn-ghost w-full py-4 text-lg">
+    <span class="ico-slot" data-ico="target" data-ico-size="20"></span>先自己練習（不計分）</button>
 </section>
 
-<!-- ══════════ 3. 遊戲主畫面：第一人稱、無邊框 ══════════ -->
-<section id="screen-game" class="hidden max-w-4xl mx-auto">
+<!-- ══════════ 3. 遊戲主畫面：滿版、不捲動 ══════════ -->
+<section id="screen-game" class="hidden">
+
+  <!-- 最上面：討伐進度條 -->
+  <div id="mon-track"></div>
+
+  <!-- 上排：左邊武器資訊、右邊傷害與時間 -->
+  <div id="topbar">
+    <div class="flex items-center gap-2.5">
+      <span id="q-weapon-chip" class="chip"></span>
+      <span id="q-quality-chip" class="chip"></span>
+    </div>
+    <div class="flex items-center gap-5">
+      <div class="text-right leading-none">
+        <div class="mono text-3xl font-black" style="color:var(--gold)" id="st-damage">0</div>
+        <div class="label" style="font-size:13px">傷害</div>
+      </div>
+      <div id="hdr-timer" class="mono text-4xl font-black" style="color:var(--gold)">--:--</div>
+      <button id="btn-teacher-game" class="btn btn-ghost text-sm px-3 py-2" style="color:var(--dim)">
+        <span class="ico-slot" data-ico="gear" data-ico-size="16"></span></button>
+    </div>
+  </div>
 
   <!-- 戰鬥舞台 -->
   <div id="stage">
-    <!-- 怪獸上方的名牌與血條 -->
-    <div class="mon-hud pt-3">
-      <div class="flex items-center justify-center gap-2 mb-1.5">
-        <span id="mon-lv" class="text-xs px-2.5 py-1 rounded-full"
-              style="background:rgba(9,8,18,.6);color:var(--dim)">第 1 隻</span>
-        <span id="mon-name" class="font-black text-xl">史萊姆</span>
+    <div class="mon-hud">
+      <div class="flex items-center justify-center gap-3 mb-2">
+        <span id="mon-lv" class="text-sm px-3 py-1 rounded"
+              style="background:var(--panel2);border:2px solid var(--line);color:var(--dim)">第 1 隻</span>
+        <span id="mon-name" class="font-black text-2xl">史萊姆</span>
+        <span id="mon-hptext" class="mono text-base" style="color:var(--dim)">0 / 0</span>
       </div>
       <div class="hpbar">
         <div class="hpghost" id="mon-hpghost" style="width:100%"></div>
         <div class="hpfill" id="mon-hpfill" style="width:100%"></div>
       </div>
-      <div id="mon-hptext" class="mono text-sm text-center mt-1.5"
-           style="color:var(--dim)">0 / 0</div>
     </div>
 
-    <!-- 怪獸 -->
-    <div class="flex items-center justify-center relative"
-         style="flex:1 1 auto;min-height:120px" id="monster-slot">
+    <div id="monster-slot">
       <pre id="monster-art" class="mon-idle"></pre>
     </div>
 
     <!-- 左下角：第一人稱武器 -->
+    <div id="combo-tag"></div>
     <div id="vm-wrap">
-      <div id="combo-tag"></div>
       <pre id="viewmodel"></pre>
     </div>
 
-    <!-- 弓箭爆擊條（只有選弓箭才出現）-->
+    <!-- 弓箭爆擊條 -->
     <div id="gauge-wrap" class="hidden">
       <div id="gauge-text" class="label mb-1">爆擊條</div>
       <div id="gauge-bar"><div id="gauge-fill"></div></div>
@@ -410,7 +361,7 @@ select option{background:var(--panel2);color:var(--ink)}
     <!-- 特殊攻擊的浮現字 -->
     <div id="special-banner"></div>
 
-    <!-- 右側：低調的正確率／速度 -->
+    <!-- 右側：正確率與每分鐘字 -->
     <div id="hud-right">
       <div class="hud-item">
         <span class="hud-val" id="st-acc">100%</span>
@@ -421,150 +372,135 @@ select option{background:var(--panel2);color:var(--ink)}
         <span class="hud-key">每分鐘字</span>
       </div>
     </div>
-
-    <!-- 右下角：討伐進度 -->
-    <div id="mon-track"></div>
   </div>
 
   <!-- 下半部：題目 + 大輸入區 -->
-  <div class="mt-1" id="battle-bottom">
-    <div class="flex items-center justify-center gap-2 mb-2.5">
-      <span id="q-weapon-chip" class="q-chip"></span>
-      <span id="q-quality-chip" class="q-chip"></span>
-    </div>
+  <div id="battle-bottom" class="max-w-5xl w-full mx-auto">
+    <div id="q-text" class="px-6 py-4 rounded-xl text-center leading-[2.1]"
+         data-base="42"
+         style="background:var(--panel);border:2px solid var(--line2);
+                min-height:104px;font-size:42px"></div>
 
-    <div id="q-text" class="min-h-[112px] px-5 py-5 rounded-2xl text-center
-                            text-[32px] md:text-[40px] leading-[2.5]"
-         style="background:rgba(9,8,18,.5)"></div>
-
-    <div class="flex gap-2.5 mt-3">
+    <div class="flex gap-3 mt-3">
       <input id="type-input" type="text" autocomplete="off" autocapitalize="off"
              spellcheck="false" placeholder="在這裡輸入…"
-             class="flex-1 px-6 rounded-2xl text-center"
-             style="height:84px;font-size:34px;font-weight:800;
-                    background:rgba(255,255,255,.05);border:2px solid var(--line2)">
-      <button id="btn-attack" class="btn btn-gold px-8 text-2xl" style="height:84px">攻擊</button>
+             class="flex-1 px-6 rounded-xl text-center"
+             style="height:88px;font-size:38px;font-weight:800;
+                    background:var(--panel2);border:2px solid var(--line2)">
+      <button id="btn-attack" class="btn btn-gold px-8 text-3xl"
+              style="height:88px;white-space:nowrap;flex:none">攻擊</button>
     </div>
-    <p class="text-sm mt-3 flex flex-wrap gap-x-5 gap-y-1 justify-center"
+    <p class="text-base mt-2.5 flex flex-wrap gap-x-6 gap-y-1 justify-center"
        style="color:var(--dim2)">
-      <span><kbd>Enter</kbd> 送出攻擊</span>
-      <span><kbd>Esc</kbd> 跳過此題（連擊歸零）</span>
-      <span id="practice-flag" class="hidden" style="color:var(--gold)">練習模式：成績不會上傳</span>
+      <span><kbd>Enter</kbd> 送出</span>
+      <span><kbd>Esc</kbd> 跳過</span>
+      <span id="practice-flag" class="hidden" style="color:var(--gold)">練習模式・成績不會上傳</span>
     </p>
   </div>
 </section>
 
-<!-- ══════════ 4. 全班討伐動畫（結算前先播）══════════ -->
+<!-- ══════════ 4. 全班討伐動畫 ══════════ -->
 <section id="screen-boss" class="hidden fixed inset-0 z-[72] overflow-hidden"
-         style="background:radial-gradient(ellipse at 50% 40%,#1a1430,#08070f 70%)">
+         style="background:radial-gradient(ellipse at 50% 40%,#241d14,#100d09 70%)">
   <div class="h-full flex flex-col items-center justify-center p-4">
-    <p id="boss-caption" class="label mb-2">全班戰力集結中…</p>
+    <p id="boss-caption" class="label text-lg mb-2">全班戰力集結中…</p>
     <div class="mono font-black leading-none mb-1"
-         style="color:var(--gold);font-size:clamp(38px,8vw,76px)" id="boss-total">0</div>
-    <p class="label mb-5">全班總傷害</p>
+         style="color:var(--gold);font-size:clamp(42px,8vw,80px)" id="boss-total">0</div>
+    <p class="label mb-6">全班總傷害</p>
 
     <div id="boss-stage" class="relative flex items-center justify-center w-full"
-         style="min-height:270px">
+         style="min-height:250px">
       <pre id="boss-art" class="mon-idle"></pre>
     </div>
 
-    <div class="w-full" style="max-width:520px">
-      <div class="flex items-center justify-between mb-1.5">
-        <span id="boss-name" class="font-black"></span>
-        <span id="boss-hptext" class="mono text-xs" style="color:var(--dim)"></span>
+    <div class="w-full" style="max-width:560px">
+      <div class="flex items-center justify-between mb-2">
+        <span id="boss-name" class="font-black text-xl"></span>
+        <span id="boss-hptext" class="mono text-base" style="color:var(--dim)"></span>
       </div>
-      <div class="hpbar" style="height:24px">
+      <div class="hpbar" style="height:26px">
         <div class="hpghost" id="boss-hpghost" style="width:100%"></div>
         <div class="hpfill"  id="boss-hpfill"  style="width:100%"></div>
       </div>
-      <div id="boss-track" class="flex items-center justify-center gap-1.5 mt-4"></div>
+      <div id="boss-track" class="flex items-center justify-center gap-2 mt-4"></div>
     </div>
 
-    <button id="boss-skip" class="btn btn-ghost mt-7 px-6 py-2.5 text-sm">跳過動畫</button>
+    <button id="boss-skip" class="btn btn-ghost mt-8 px-7 py-3 text-base">跳過動畫</button>
   </div>
 </section>
 
 <!-- ══════════ 5. 結算：左個人、右排行 ══════════ -->
 <section id="screen-result" class="hidden fixed inset-0 z-[75] overflow-y-auto scrolly"
-         style="background:rgba(9,8,18,.96)">
+         style="background:rgba(16,13,9,.97)">
   <div class="max-w-5xl mx-auto p-4 py-7">
 
-    <!-- 全班戰果條 -->
-    <div class="panel p-4 mb-4 flex flex-wrap items-center justify-center gap-x-8 gap-y-2 text-center">
+    <div class="panel p-5 mb-4 flex flex-wrap items-center justify-center gap-x-10 gap-y-3 text-center">
       <div>
-        <div class="mono text-2xl font-black" style="color:var(--gold)" id="c-total">0</div>
+        <div class="mono text-3xl font-black" style="color:var(--gold)" id="c-total">0</div>
         <div class="label">全班總傷害</div></div>
       <div>
-        <div class="mono text-2xl font-black" style="color:var(--gr)" id="c-kills">0</div>
+        <div class="mono text-3xl font-black" style="color:var(--gr)" id="c-kills">0</div>
         <div class="label">擊倒怪獸</div></div>
       <div>
-        <div class="mono text-2xl font-black" id="c-players">0</div>
+        <div class="mono text-3xl font-black" id="c-players">0</div>
         <div class="label">參戰人數</div></div>
-      <div class="w-full md:w-auto md:max-w-sm text-sm font-bold px-3"
+      <div class="w-full md:w-auto md:max-w-sm text-lg font-bold px-3"
            style="color:var(--gold)" id="c-verdict"></div>
     </div>
 
     <div class="grid md:grid-cols-2 gap-4 items-start">
-
-      <!-- 左：個人成績 -->
       <div id="result-card" class="panel p-6 text-center pop-in">
         <p class="label mb-1"><span id="r-class"></span></p>
-        <h2 class="text-xl font-black mb-3" id="r-name">勇者</h2>
-        <pre id="r-rank-art" class="mono text-xs leading-tight mb-2" style="color:var(--gold)"></pre>
-        <h3 class="text-2xl font-black mb-1.5" id="r-title">見習生</h3>
-        <p class="text-xs mb-5 px-2 leading-relaxed" style="color:var(--dim)" id="r-quote"></p>
+        <h2 class="text-2xl font-black mb-3" id="r-name">勇者</h2>
+        <pre id="r-rank-art" class="mono text-sm leading-tight mb-2" style="color:var(--gold)"></pre>
+        <h3 class="text-3xl font-black mb-2" id="r-title">見習生</h3>
+        <p class="text-base mb-5 px-2 leading-relaxed" style="color:var(--dim)" id="r-quote"></p>
 
         <div class="p-4 rounded-xl mb-4"
-             style="background:rgba(245,196,81,.09);border:1px solid rgba(245,196,81,.22)">
+             style="background:var(--panel2);border:2px solid var(--gold)">
           <div class="label mb-1">本場總傷害</div>
-          <div class="mono text-4xl font-black leading-none" style="color:var(--gold)" id="r-damage">0</div>
+          <div class="mono text-5xl font-black leading-none" style="color:var(--gold)" id="r-damage">0</div>
         </div>
 
         <div class="grid grid-cols-3 gap-2 mb-2">
-          <div class="panel-flat p-2.5"><div class="label mb-1">正確字數</div>
-            <div class="mono text-base font-black" id="r-words">0</div></div>
-          <div class="panel-flat p-2.5"><div class="label mb-1">正確率</div>
-            <div class="mono text-base font-black" style="color:var(--gr)"><span id="r-acc">0</span>%</div></div>
-          <div class="panel-flat p-2.5"><div class="label mb-1">WPM</div>
-            <div class="mono text-base font-black" style="color:var(--mp)" id="r-wpm">0</div></div>
+          <div class="panel-flat p-3"><div class="label" style="font-size:13px">正確字數</div>
+            <div class="mono text-xl font-black" id="r-words">0</div></div>
+          <div class="panel-flat p-3"><div class="label" style="font-size:13px">正確率</div>
+            <div class="mono text-xl font-black" style="color:var(--gr)"><span id="r-acc">0</span>%</div></div>
+          <div class="panel-flat p-3"><div class="label" style="font-size:13px">WPM</div>
+            <div class="mono text-xl font-black" style="color:var(--mp)" id="r-wpm">0</div></div>
         </div>
         <div class="grid grid-cols-3 gap-2 mb-4">
-          <div class="panel-flat p-2.5"><div class="label mb-1">最高連擊</div>
-            <div class="mono text-base font-black" id="r-combo">0</div></div>
-          <div class="panel-flat p-2.5"><div class="label mb-1">完美攻擊</div>
-            <div class="mono text-base font-black" style="color:#ffd34d" id="r-perfect">0</div></div>
-          <div class="panel-flat p-2.5"><div class="label mb-1">個人擊倒</div>
-            <div class="mono text-base font-black" id="r-kills">0</div></div>
+          <div class="panel-flat p-3"><div class="label" style="font-size:13px">最高連擊</div>
+            <div class="mono text-xl font-black" id="r-combo">0</div></div>
+          <div class="panel-flat p-3"><div class="label" style="font-size:13px">完美攻擊</div>
+            <div class="mono text-xl font-black" style="color:#ffd66b" id="r-perfect">0</div></div>
+          <div class="panel-flat p-3"><div class="label" style="font-size:13px">個人擊倒</div>
+            <div class="mono text-xl font-black" id="r-kills">0</div></div>
         </div>
 
         <div id="r-weapon-breakdown" class="mb-4"></div>
-        <p id="r-record" class="text-sm font-bold mb-3 hidden"></p>
-        <button id="btn-save-img" class="btn btn-ghost w-full py-2.5 text-sm">
-          <span class="ico-slot" data-ico="camera" data-ico-size="16"></span>存成圖片</button>
+        <p id="r-record" class="text-base font-bold mb-3 hidden"></p>
+        <button id="btn-save-img" class="btn btn-ghost w-full py-3 text-base">
+          <span class="ico-slot" data-ico="camera" data-ico-size="18"></span>存成圖片</button>
       </div>
 
-      <!-- 右：排行榜 -->
       <div class="space-y-4">
         <div class="panel p-5">
-          <div class="flex items-center gap-2 mb-3">
-            <span class="ico-slot" style="color:var(--gold)" data-ico="medal" data-ico-size="17"></span>
-            <span class="font-black text-sm">班內傷害排行　前 10 名</span></div>
-          <div id="c-rank" class="space-y-1.5"></div>
+          <div class="font-black text-xl mb-3">班內傷害排行　前 10 名</div>
+          <div id="c-rank" class="space-y-2"></div>
         </div>
         <div class="panel p-5">
-          <div class="flex items-center gap-2 mb-3">
-            <span class="ico-slot" style="color:var(--mp)" data-ico="school" data-ico-size="17"></span>
-            <span class="font-black text-sm">跨班排行</span></div>
-          <div id="c-classrank" class="space-y-1.5"></div>
+          <div class="font-black text-xl mb-3">跨班排行</div>
+          <div id="c-classrank" class="space-y-2"></div>
         </div>
       </div>
     </div>
 
-    <button id="btn-back-lobby" class="btn btn-ghost w-full mt-4 py-3 text-sm">
-      <span class="ico-slot" data-ico="back" data-ico-size="17"></span>回營地</button>
+    <button id="btn-back-lobby" class="btn btn-ghost w-full mt-4 py-3 text-base">
+      <span class="ico-slot" data-ico="back" data-ico-size="18"></span>回營地</button>
   </div>
 </section>
-</div>
 
 <!-- ══════════ 教師驗證 ══════════ -->
 <div id="auth-modal" class="hidden fixed inset-0 z-[85] flex items-center justify-center p-4"
@@ -865,142 +801,147 @@ function hydrateIcons(root = document) {
 const PERSONAL_MONSTERS = [
   { name:'史萊姆', hp:100, color:'#7dffb0', tag:'黏答答的果凍生物',
     art: String.raw`
-        .-~~~~~~~-.
-      .'           '.
-     /   (o)   (o)   \
-    |        w        |
-     \    \_______/   /
-      '.           .'
-        '-._____.-'
-     ~~~~~~~~~~~~~~~~~
+           .-"""""""-.
+         .'           '.
+        /   (o)   (o)   \
+       |                 |
+       |    \  ~~~  /    |
+        \    '-----'    /
+         '.           .'
+           '-._____.-'
+      ~~~~~~~~~~~~~~~~~~~~~
 ` },
   { name:'大蝙蝠', hp:130, color:'#b98cff', tag:'從洞穴深處竄出的夜行者',
     art: String.raw`
-     __                         __
-    /  \__                 __/  \
-   /      \__   /\_/\   __/      \
-  /          \ ( o.o ) /          \
- /            \ > ^ < /            \
-|              \_____/              |
- \    \/\/\/\/         \/\/\/\/    /
-  \__/                         \__/
+    __                                  __
+   /  \__                          __/  \
+  /       \__      _______      __/       \
+ /            \   /  o   o  \   /            \
+|               \|     ^     |/               |
+ \               |  \_____/  |               /
+  \__            '.         .'            __/
+     \_/\_/\_/\_/  '-------'  \_/\_/\_/\_/
 ` },
   { name:'哥布林戰士', hp:168, color:'#8fd14f', tag:'成群結隊、手持鏽刀',
     art: String.raw`
-            /\   /\
-           /  \_/  \
-          |  o   o  |
-          |    ^    |    ___
-           \  vvvv /    |   |
-            \_____/     |===|
-          ___/   \___   |   |
-         /  |     |  \  |   |
-        /   |_____|   \ |___|
-            |     |
-           _|     |_
+           /\      /\
+          /  \____/  \
+         |  (o)  (o)  |
+         |     /\     |
+          \  \####/  /
+           '--------'
+          ___|    |___        ___
+         /   |    |   \      |###|
+        |    |____|    |     |###|
+        |    |    |    |     |###|
+             |    |          |###|
+            _|    |_         |###|
+           |__|  |__|        '---'
 ` },
   { name:'骷髏騎士', hp:218, color:'#dfe6ff', tag:'不死的守墓者，鎧甲已鏽',
     art: String.raw`
-             _______
-            /  ___  \
-           |  o   o  |
-           |    ^    |        /|
-           |  |||||  |       / |
-            \_______/       /  |
-           /=========\     /   |
-        __/ |       | \__ |____|
-       /    |=======|    \|    |
-      /     |       |     \    |
-            |_______|
-            |__| |__|
+            .---------.
+           /  .-----.  \
+          |  | o | o |  |
+          |   '-----'   |
+          |   ||||||    |            /\
+           \___________/            /||\
+          /=============\          / || \
+         /   |       |   \        |  ||  |
+        |    |=======|    |       |  ||  |
+        |    |       |    |       |  ||  |
+             |_______|            |  ||  |
+             |__| |__|             \_||_/
 ` },
   { name:'食人樹妖', hp:283, color:'#9ad36a', tag:'森林深處會走路的老樹',
     art: String.raw`
-         (~)      (~)
-      (~)   (~) (~)   (~)
-         \\    |||    //
-          \\   |||   //
-           .-----------.
-          /   ()   ()   \
-         |       ^       |
-         |    \_____/    |
-          '-._       _.-'
-              |||||||
+        (\/)          (\/)
+     (\/)   (\/)  (\/)   (\/)
+        \\\    |||    ///
+         \\\   |||   ///
+          .-------------.
+         /   (o)   (o)   \
+        |       /\        |
+        |    \#######/    |
+         '-._           _.-'
+             '---------'
+              || | ||
              /|| | ||\
-            // |  |  \\
+            //|| | ||\\
 ` },
   { name:'冰霜巨狼', hp:367, color:'#7fd8ff', tag:'呼氣就能結霜的雪原獵手',
     art: String.raw`
-            /\       /\
-           /  \_____/  \
-          |  ()     ()  |
-          |      <      |
-           \   vvvvv   /
-       _____\_________/_____
-      /                     \
-     |   /\     /\     /\    |
-      \_/  \___/  \___/  \__/
-        ||     ||     ||
-       _||_   _||_   _||_
+             /\           /\
+            /  \_________/  \
+           |   (o)     (o)   |
+           |        ^        |
+            \    \#####/    /
+             '-.___________.-'
+        ________/         \________
+       /                           \
+      |    /\      /\      /\       |
+       \__/  \____/  \____/  \_____/
+          ||       ||       ||
+         _||_     _||_     _||_
 ` },
   { name:'岩甲蟲', hp:476, color:'#c9a06a', tag:'外殼硬得像岩石',
     art: String.raw`
-             .-"""""-.
-           .'  _____  '.
-          /  .'     '.  \
-         |  /  ()  () \  |
-         | |     <>    | |
-         |  \  '---'  /  |
-          \  '-.___.-'  /
-           '.  _____  .'
-          /  \/  |  \/  \
-         /   /   |   \   \
-        '   '    |    '   '
+              .-"""""""-.
+            .'  _______  '.
+           /  .'       '.  \
+          |  /  (o) (o)  \  |
+          | |     ###     | |
+          |  \   '---'   /  |
+           \  '._______.'  /
+            '.  _______  .'
+           /  \/   |   \/  \
+          /   /    |    \   \
+         '   '     |     '   '
 ` },
   { name:'沙漠毒蠍', hp:618, color:'#e8b44f', tag:'尾針上掛著風乾的毒液',
     art: String.raw`
-                              _____
-                            .'     '.
-        /\                 /  .---.  \
-       /  \      _________ |  | o |  |
-      | () |    /         \ \  '---'  /
-      |    |___/   .---.   \ '.     .'
-       \  /   |   / o o \   |  '---'
-        \/    |  |   ^   |  |
-        /\    |   \ vvv /   |
-       /  \   |    '-----'  |
-      |____|__|__|__|__|__|_|
-         /  \  /  \  /  \
+                                  ___
+                                .'   '.
+        /\                     /  ###  \
+       /  \        ________   |    #    |
+      | () |      /        \   \  ###  /
+      |    |_____/  (o)(o)  \___'.___.'
+       \  /      |    /\    |
+        \/       |  \####/  |
+        /\        \________/
+       /  \      /  |  |  |  \
+      |____|____/___|__|__|___\
+        /  \   /  \  /  \  /  \
 ` },
   { name:'雷霆隼鷹', hp:800, color:'#ffe066', tag:'翅膀一振就是一道閃電',
     art: String.raw`
-          \\\                     ///
-       \\\\\\\        ___        ///////
-    \\\\\\\\\\      .'   '.     //////////
-   \\\\\\\\\\\     / () () \   ///////////
-     \\\\\\\\      |   ^^   |    ////////
-        \\\\        \  vv  /        ////
-                     '.__.'
-              _______/    \_______
-             /                    \
-            '     |    |    |      '
-                 /|    |    |\
-                / |    |    | \
+        \\\\                          ////
+     \\\\\\\\\\        ___        //////////
+   \\\\\\\\\\\\\     .'   '.    /////////////
+     \\\\\\\\\\     / (o)(o) \    //////////
+        \\\\\\     |    /\    |     //////
+           \\       \  \##/  /        //
+                     '.____.'
+              ________/    \________
+             /                      \
+            '       |    |    |      '
+                   /|    |    |\
+                  //|    |    |\\
 ` },
   { name:'熔岩巨獸', hp:1040, color:'#ff7a45', tag:'體內流著岩漿的遠古兇獸',
     art: String.raw`
-        ###           ###           ###
-       #####         #####         #####
-      #######       #######       #######
-     .------------------------------------.
-    /   ####     ()          ()     ####   \
-   |    ####            /\           ####   |
-   |          \ vvvvvvvvvvvvvvvv /          |
-    \    ####  '----------------'   ####   /
-     '------------------------------------'
-      ##|##          ##|##          ##|##
-       /   \          /   \          /   \
-      /_____\        /_____\        /_____\
+      ###          ###          ###
+     #####        #####        #####
+    #######      #######      #######
+   .-----------------------------------.
+  /   ####    (o)         (o)    ####   \
+ |    ####          /\           ####    |
+ |           \ #################  /      |
+  \   ####    '---------------'  ####   /
+   '-----------------------------------'
+     ##|##        ##|##        ##|##
+      /   \        /   \        /   \
+     /_____\      /_____\      /_____\
 ` }
 ];
 
@@ -1211,60 +1152,73 @@ const WEAPONS = {
    ══════════════════════════════════════════════════════════════ */
 const VIEWMODEL = {
   staff: String.raw`
-                    _.-"-._
-                  .'  ,-.  '.
-                 /   ( O )   \
-                 \    '-'    /
-                  '._     _.'
-                     '---'
-                      | |
-                     / /
-                    / /
-                   / /
-                  / /
-                 / /
-                / /
-             __/ /
-            /___/
-           |_____|
-          /_______\
+          _____
+       .-'     '-.
+      /   _____   \
+     |   /     \   |
+     |  |   O   |  |
+     |   \_____/   |
+      \           /
+       '-.._ _..-'
+          /###\
+          \###/
+           |||
+          //
+         //
+        //
+       //
+      //
+     //
+  __//
+ /#####\
+|#######|
+ \#####/
+  |___|
+ /_____\
 `,
   bow: String.raw`
-                        _.-'
-                   _.-'
-               _.-'
-           _.-'
-        _,'
-      ,'
-     /
-    |
-    |>=========================>
-    |
-     \
-      '.
-        '-._
-            '-._
-                '-._
-                     '-._
-                          '-.
+                              _.-''
+                          _.-'
+                      _.-'
+                   _.'
+                 ,'
+               ,'
+              /
+             |
+             |
+        >>===|=========================>
+             |
+             |
+              \
+               '.
+                 '.
+                   '-._
+                       '-._
+                           '-._
+                               '-.
 `,
   dagger: String.raw`
-                             /\
-                            //
-                           //
-                          //
-                         //
-                        //
-                       //
-                      //
-                     //
-                 ___//
-                |=====|
-                 |   |
-                 |   |
-                 |   |
-                 |___|
-                /_____\
+                          /\
+                         /##\
+                        /####\
+                       /######\
+                      /######/
+                     /######/
+                    /######/
+                   /######/
+                  /######/
+                 /######/
+                /######/
+               /######/
+              /######/
+         ____/######/
+        |______#####/
+        |__________/
+             |    |
+             |####|
+             |####|
+             |____|
+            /______\
 `
 };
 
@@ -1723,6 +1677,9 @@ function renderQuestion(q, mode) {
   const host = document.getElementById('q-text');
   host.innerHTML = '';
   const units = questionUnits(q, mode);
+  // 題目越長字越小，長句才不會換太多行把怪獸擠掉
+  const n = units.length;
+  host.style.fontSize = (n <= 8 ? 42 : n <= 14 ? 34 : n <= 22 ? 27 : 22) + 'px';
   units.forEach((u, i) => {
     const el = document.createElement('span');
     el.className = 'zy st-pending';
@@ -2190,7 +2147,7 @@ function doLogin() {
 function gotoLobby() {
   show('screen-lobby', true); show('screen-game', false);
   show('screen-result', false); show('screen-boss', false);
-  show('hdr-timer', false); show('hdr-stats', false);
+  show('app-header', true);
 }
 
 /* ══════════════ 營地：裝備選擇 ══════════════
@@ -2281,16 +2238,14 @@ function paintSpecialState(isSpecial) {
   const hot = isSpecial || sharp;
 
   if (hot) {
-    wc.innerHTML = `${ico(w.icon, 14)}${w.special.name}`;
-    wc.style.color = 'var(--gold)';
+    wc.innerHTML = `${ico(w.icon, 20)}${w.special.name}`;
     qc.textContent = w.special.hint;
-    qc.style.color = 'var(--gold)';
   } else {
-    wc.innerHTML = `${ico(w.icon, 14)}${w.name}`;
-    wc.style.color = w.raw;
+    wc.innerHTML = `${ico(w.icon, 20)}${w.name}`;
     qc.textContent = q.name;
-    qc.style.color = q.color;
   }
+  wc.className = 'chip' + (hot ? ' chip-hot' : '');
+  qc.className = 'chip' + (hot ? ' chip-hot' : '');
   qt.classList.toggle('q-special', hot);
 }
 
@@ -2300,7 +2255,6 @@ function renderViewmodel() {
   if (!vm) return;
   const w = WEAPONS[LOADOUT.weapon];
   vm.textContent = VIEWMODEL[LOADOUT.weapon] || '';
-  vm.style.color = w.raw;
 }
 
 /* ══════════════ 戰鬥 ══════════════ */
@@ -2310,14 +2264,14 @@ function startBattle(practice) {
   G.startedAt = Date.now();
   show('screen-lobby', false); show('screen-login', false);
   show('screen-result', false); show('screen-boss', false);
-  show('screen-game', true); show('hdr-timer', true);
+  show('app-header', false);                 // 遊戲中不需要標題列
+  show('screen-game', true);
   show('practice-flag', practice);
 
   drawMonster();
   paintSpecialState(false);
   paintGauge();
   renderViewmodel();
-  show('hdr-stats', true);
   updateStats();
   nextQuestion();                 // 開戰要先發第一題
   $('type-input').disabled = false;
@@ -2909,7 +2863,9 @@ function wireEvents() {
   $('btn-back-lobby').addEventListener('click', () => { G = null; gotoLobby(); });
 
   /* 教師 */
-  $('btn-teacher').addEventListener('click', () => { show('auth-modal', true); $('auth-pw').focus(); });
+  const openAuth = () => { show('auth-modal', true); $('auth-pw').focus(); };
+  $('btn-teacher').addEventListener('click', openAuth);
+  $('btn-teacher-game').addEventListener('click', openAuth);
   $('auth-cancel').addEventListener('click', () => show('auth-modal', false));
   $('auth-pw').addEventListener('keydown', e => { if (e.key === 'Enter') tryAuth(); });
   $('auth-ok').addEventListener('click', tryAuth);
