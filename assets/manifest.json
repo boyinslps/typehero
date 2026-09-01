@@ -1,54 +1,149 @@
 {
-  "說明": "改這裡的檔名或數值就能換美術。怪獸順序＝出場順序，hp 是難度 1.0 時的血量。",
-  "monsters": [
+  "說明": "改這裡的檔名或數值就能換美術。順序＝出場順序，hp 是難度 1.0 時的血量。",
+  "personal 說明": "學生自己打的小怪。第一隻建議 100 血左右。",
+  "bosses 說明": "時間到才登場、吃全班總傷害的大 BOSS。一班約打出 7000～20000 傷害。",
+  "personal": [
     {
       "file": "1-slime.txt",
       "name": "史萊姆",
-      "hp": 30000,
+      "hp": 100,
       "color": "#7dffb0",
       "tag": "黏答答的果凍生物"
     },
     {
       "file": "2-bat.txt",
       "name": "大蝙蝠",
-      "hp": 60000,
+      "hp": 130,
       "color": "#b98cff",
       "tag": "從洞穴深處竄出的夜行者"
     },
     {
       "file": "3-goblin.txt",
       "name": "哥布林戰士",
-      "hp": 120000,
+      "hp": 168,
       "color": "#8fd14f",
       "tag": "成群結隊、手持鏽刀"
     },
     {
       "file": "4-skeleton.txt",
       "name": "骷髏騎士",
-      "hp": 200000,
+      "hp": 218,
       "color": "#dfe6ff",
       "tag": "不死的守墓者，鎧甲已鏽"
     },
     {
-      "file": "5-golem.txt",
-      "name": "石魔像",
-      "hp": 320000,
-      "color": "#c9a06a",
-      "tag": "古代遺跡的巨大守衛"
+      "file": "5-treant.txt",
+      "name": "食人樹妖",
+      "hp": 283,
+      "color": "#9ad36a",
+      "tag": "森林深處會走路的老樹"
     },
     {
-      "file": "6-dragon.txt",
+      "file": "6-frostwolf.txt",
+      "name": "冰霜巨狼",
+      "hp": 367,
+      "color": "#7fd8ff",
+      "tag": "呼氣就能結霜的雪原獵手"
+    },
+    {
+      "file": "7-beetle.txt",
+      "name": "岩甲蟲",
+      "hp": 476,
+      "color": "#c9a06a",
+      "tag": "外殼硬得像岩石"
+    },
+    {
+      "file": "8-scorpion.txt",
+      "name": "沙漠毒蠍",
+      "hp": 618,
+      "color": "#e8b44f",
+      "tag": "尾針上掛著風乾的毒液"
+    },
+    {
+      "file": "9-thunderhawk.txt",
+      "name": "雷霆隼鷹",
+      "hp": 800,
+      "color": "#ffe066",
+      "tag": "翅膀一振就是一道閃電"
+    },
+    {
+      "file": "10-lavabeast.txt",
+      "name": "熔岩巨獸",
+      "hp": 1040,
+      "color": "#ff7a45",
+      "tag": "體內流著岩漿的遠古兇獸"
+    }
+  ],
+  "bosses": [
+    {
+      "file": "1-troll.txt",
+      "name": "巨魔守衛",
+      "hp": 4500,
+      "color": "#8fd14f",
+      "tag": "擋在洞口的第一道關卡"
+    },
+    {
+      "file": "2-cerberus.txt",
+      "name": "雙頭獄犬",
+      "hp": 5900,
+      "color": "#ff8a3d",
+      "tag": "兩顆頭永遠不同時睡覺"
+    },
+    {
+      "file": "3-medusa.txt",
+      "name": "蛇髮妖女",
+      "hp": 7600,
+      "color": "#a78bfa",
+      "tag": "對上眼睛就會變成石頭"
+    },
+    {
+      "file": "4-abyssknight.txt",
+      "name": "深淵騎士",
+      "hp": 9900,
+      "color": "#dfe6ff",
+      "tag": "鎧甲底下空無一物"
+    },
+    {
+      "file": "5-frostdragon.txt",
+      "name": "冰霜巨龍",
+      "hp": 12900,
+      "color": "#7fd8ff",
+      "tag": "吐息能把整條河凍住"
+    },
+    {
+      "file": "6-firedragon.txt",
       "name": "火焰惡龍",
-      "hp": 500000,
+      "hp": 16800,
       "color": "#ff8a3d",
       "tag": "吐息足以熔化鋼鐵"
     },
     {
-      "file": "7-demonlord.txt",
+      "file": "7-thundergiant.txt",
+      "name": "雷霆巨人",
+      "hp": 21800,
+      "color": "#ffe066",
+      "tag": "每一步都伴隨落雷"
+    },
+    {
+      "file": "8-demonlord.txt",
       "name": "混沌魔王",
-      "hp": 800000,
+      "hp": 28300,
       "color": "#ff4d6d",
-      "tag": "最終的支配者，全班之敵"
+      "tag": "從裂縫爬出的支配者"
+    },
+    {
+      "file": "9-calamity.txt",
+      "name": "天災之獸",
+      "hp": 36800,
+      "color": "#ff5470",
+      "tag": "牠醒來的地方寸草不生"
+    },
+    {
+      "file": "10-voidshade.txt",
+      "name": "虛空之影",
+      "hp": 47800,
+      "color": "#b98cff",
+      "tag": "全班的最終試煉"
     }
   ],
   "weapons": {
