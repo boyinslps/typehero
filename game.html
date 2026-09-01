@@ -34,7 +34,7 @@ body{
 .panel-flat{background:var(--panel2);border:1px solid var(--line);border-radius:var(--r)}
 .mono{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace;
       font-variant-numeric:tabular-nums}
-.label{font-size:11px;letter-spacing:.06em;color:var(--dim);text-transform:none}
+.label{font-size:12.5px;letter-spacing:.06em;color:var(--dim);text-transform:none}
 
 /* ============ SVG 圖示 ============ */
 .ico{display:inline-block;vertical-align:-.18em;flex:none}
@@ -104,26 +104,34 @@ body{
 .weapon.sel{border-color:currentColor;background:var(--panel3);
             box-shadow:0 0 0 1px currentColor, 0 6px 20px -8px currentColor}
 .weapon.sel::before{opacity:.13}
-.weapon-ico{width:40px;height:40px;border-radius:10px;flex:none;
+.weapon-ico{width:46px;height:46px;border-radius:10px;flex:none;
         display:grid;place-items:center;background:rgba(255,255,255,.05);
         border:1px solid var(--line2);position:relative;z-index:1}
 .weapon.sel .weapon-ico{background:rgba(255,255,255,.13);border-color:currentColor}
 .weapon-txt{position:relative;z-index:1;min-width:0}
-.weapon-name{font-weight:900;font-size:14px;color:var(--ink)}
-.weapon-sub{font-size:11px;color:var(--dim);margin-top:1px}
+.weapon-name{font-weight:900;font-size:18px;color:var(--ink)}
+.weapon-sub{font-size:13px;color:var(--dim);margin-top:2px}
 
 /* 品質 */
-.qbtn{cursor:pointer;border:1.5px solid var(--line);border-radius:10px;padding:7px 4px;
-      background:var(--panel2);font-weight:900;font-size:12.5px;transition:all .14s}
+.qbtn{cursor:pointer;border:1.5px solid var(--line);border-radius:10px;padding:11px 4px;
+      background:var(--panel2);font-weight:900;font-size:16px;transition:all .14s}
 .qbtn:hover{background:var(--panel3)}
 .qbtn.sel{border-color:currentColor;background:currentColor;color:#1a1630;
           box-shadow:0 4px 16px -6px currentColor}
-.q-chip{font-size:11px;padding:2px 9px;border-radius:99px;border:1px solid currentColor;
-        display:inline-flex;align-items:center;gap:5px;font-weight:700}
+.q-chip{font-size:14px;padding:4px 12px;border-radius:99px;border:1px solid currentColor;
+        display:inline-flex;align-items:center;gap:6px;font-weight:800}
 
 /* ============ 第一人稱戰鬥舞台（無邊框）============ */
-#stage{position:relative;min-height:56vh;overflow:hidden;
-       border-radius:18px;isolation:isolate}
+/* 遊戲畫面用視窗高度的彈性版面：怪獸區會自動壓縮，
+   題目與輸入區固定，保證輸入框永遠在畫面內 */
+#screen-game:not(.hidden){display:flex;flex-direction:column;
+  height:calc(100dvh - 92px);min-height:430px}
+#stage{position:relative;overflow:hidden;border-radius:18px;isolation:isolate;
+       flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+#battle-bottom{flex:0 0 auto}
+/* 螢幕矮的時候把 ASCII 縮小，讓怪獸還是完整看得到 */
+@media (max-height:820px){ #monster-art{font-size:11px} #viewmodel{font-size:10.5px} }
+@media (max-height:700px){ #monster-art{font-size:9.5px} #viewmodel{font-size:9px} }
 #stage::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
   background:
     radial-gradient(ellipse 60% 45% at 50% 42%, rgba(120,90,200,.16), transparent 70%),
@@ -156,14 +164,15 @@ body{
   100%{transform:none}}
 
 /* 右側低調 HUD：正確率／每分鐘字（直式，不搶戲）*/
-#hud-right{position:absolute;right:10px;top:50%;transform:translateY(-50%);z-index:2;
-  display:flex;flex-direction:column;gap:18px;pointer-events:none;opacity:.5}
-.hud-item{display:flex;flex-direction:column;align-items:flex-end;line-height:1}
+#hud-right{position:absolute;right:14px;top:50%;transform:translateY(-50%);z-index:2;
+  display:flex;flex-direction:column;gap:26px;pointer-events:none;opacity:.62}
+.hud-item{display:flex;flex-direction:column;align-items:center;line-height:1}
 .hud-val{font-family:ui-monospace,Consolas,monospace;font-variant-numeric:tabular-nums;
-  font-size:17px;font-weight:800;color:var(--ink)}
-.hud-key{font-size:9.5px;letter-spacing:.14em;color:var(--dim);margin-top:3px;
-  writing-mode:vertical-rl;text-orientation:upright}
-@media (max-width:700px){ #hud-right{opacity:.4;gap:12px} .hud-val{font-size:14px} }
+  font-size:26px;font-weight:900;color:var(--ink);text-align:center}
+.hud-key{font-size:14px;font-weight:700;letter-spacing:.22em;color:var(--dim);margin-top:8px;
+  writing-mode:vertical-rl;text-orientation:upright;text-align:center}
+@media (max-width:700px){ #hud-right{opacity:.5;gap:16px;right:6px}
+  .hud-val{font-size:19px} .hud-key{font-size:11px} }
 
 /* 右下角討伐進度 */
 #mon-track{position:absolute;right:12px;bottom:14px;z-index:2;
@@ -259,7 +268,7 @@ body{
 .scrolly::-webkit-scrollbar{width:8px;height:8px}
 .scrolly::-webkit-scrollbar-thumb{background:var(--line2);border-radius:9px}
 .scrolly::-webkit-scrollbar-track{background:transparent}
-kbd{font-family:ui-monospace,Consolas,monospace;font-size:10.5px;padding:1.5px 5px;
+kbd{font-family:ui-monospace,Consolas,monospace;font-size:12.5px;padding:2px 6px;
     border-radius:4px;background:var(--panel3);border:1px solid var(--line2);
     box-shadow:0 1.5px 0 var(--line2)}
 input,select,textarea{color:var(--ink)}
@@ -297,8 +306,7 @@ select option{background:var(--panel2);color:var(--ink)}
     <span class="ico-slot" data-ico="user" data-ico-size="32"></span>
   </div>
   <h2 class="text-xl font-black mb-1">勇者，報上名來</h2>
-  <p class="text-xs mb-6 leading-relaxed" style="color:var(--dim)">
-    全班一起討伐怪獸，你的每一次攻擊都算進班級總傷害</p>
+  <p class="text-sm mb-6" style="color:var(--dim)">全班一起討伐怪獸</p>
 
   <label class="label block text-left mb-1.5">班級</label>
   <div class="flex gap-2 mb-3.5">
@@ -331,38 +339,33 @@ select option{background:var(--panel2);color:var(--ink)}
          style="width:54px;height:54px;background:var(--panel3);border:1px solid var(--line2);color:var(--gold)">
       <span class="ico-slot" data-ico="tent" data-ico-size="28"></span>
     </div>
-    <h2 class="text-lg font-black mb-1">在營地待命中</h2>
-    <p class="text-xs mb-4" style="color:var(--dim)">等老師宣布開戰。先把裝備挑好！</p>
-    <div id="lobby-who" class="panel-flat p-3 text-sm"></div>
+    <h2 class="text-xl font-black mb-1">在營地待命中</h2>
+    <p class="text-sm mb-4" style="color:var(--dim)">等老師開戰，先把裝備挑好</p>
+    <div id="lobby-who" class="panel-flat p-4"></div>
   </div>
 
   <!-- 裝備選擇：出發前決定，戰鬥中不能換 -->
   <div class="panel p-5 mb-3">
     <div class="flex items-center gap-2 mb-1">
       <span class="ico-slot" style="color:var(--gold)" data-ico="swords" data-ico-size="17"></span>
-      <h3 class="font-black text-sm">選擇武器</h3>
+      <h3 class="font-black text-lg">選擇武器</h3>
     </div>
-    <p class="text-xs mb-3.5" style="color:var(--dim)">
-      進戰場後就<b style="color:var(--gold)">不能更換</b>，想清楚再出發</p>
+    <p class="text-sm mb-4" style="color:var(--dim)">
+      進戰場後<b style="color:var(--gold)">不能更換</b></p>
     <div id="lobby-weapon-rack" class="space-y-2 mb-4"></div>
 
     <div class="divider mb-4"></div>
 
     <div class="flex items-center gap-2 mb-1">
       <span class="ico-slot" style="color:var(--gold)" data-ico="sparkle" data-ico-size="17"></span>
-      <h3 class="font-black text-sm">選擇品質</h3>
+      <h3 class="font-black text-lg">選擇品質</h3>
     </div>
-    <p class="text-xs mb-3" style="color:var(--dim)">品質越高，題目越難、單題傷害越高</p>
+    <p class="text-sm mb-3" style="color:var(--dim)">越高越難，傷害也越高</p>
     <div id="lobby-quality-rack" class="grid grid-cols-3 gap-2"></div>
-    <p id="lobby-quality-desc" class="text-xs mt-2.5 leading-relaxed" style="color:var(--dim2)"></p>
-
-    <div class="panel-flat p-3.5 mt-4">
-      <div class="label mb-2">你的出戰配置</div>
-      <div id="lobby-loadout" class="flex items-center gap-2.5"></div>
-    </div>
+    <p id="lobby-quality-desc" class="text-sm mt-3 leading-relaxed" style="color:var(--dim2)"></p>
   </div>
 
-  <button id="btn-practice" class="btn btn-ghost w-full py-3 text-sm">
+  <button id="btn-practice" class="btn btn-ghost w-full py-3.5 text-base">
     <span class="ico-slot" data-ico="target" data-ico-size="17"></span>先自己練習（不計分）</button>
 </section>
 
@@ -374,21 +377,21 @@ select option{background:var(--panel2);color:var(--ink)}
     <!-- 怪獸上方的名牌與血條 -->
     <div class="mon-hud pt-3">
       <div class="flex items-center justify-center gap-2 mb-1.5">
-        <span id="mon-lv" class="text-[10px] px-2 py-0.5 rounded-full"
+        <span id="mon-lv" class="text-xs px-2.5 py-1 rounded-full"
               style="background:rgba(9,8,18,.6);color:var(--dim)">第 1 隻</span>
-        <span id="mon-name" class="font-black text-base">史萊姆</span>
+        <span id="mon-name" class="font-black text-xl">史萊姆</span>
       </div>
       <div class="hpbar">
         <div class="hpghost" id="mon-hpghost" style="width:100%"></div>
         <div class="hpfill" id="mon-hpfill" style="width:100%"></div>
       </div>
-      <div id="mon-hptext" class="mono text-[11px] text-center mt-1"
+      <div id="mon-hptext" class="mono text-sm text-center mt-1.5"
            style="color:var(--dim)">0 / 0</div>
     </div>
 
     <!-- 怪獸 -->
     <div class="flex items-center justify-center relative"
-         style="min-height:230px" id="monster-slot">
+         style="flex:1 1 auto;min-height:120px" id="monster-slot">
       <pre id="monster-art" class="mon-idle"></pre>
     </div>
 
@@ -424,25 +427,25 @@ select option{background:var(--panel2);color:var(--ink)}
   </div>
 
   <!-- 下半部：題目 + 大輸入區 -->
-  <div class="mt-1">
+  <div class="mt-1" id="battle-bottom">
     <div class="flex items-center justify-center gap-2 mb-2.5">
       <span id="q-weapon-chip" class="q-chip"></span>
       <span id="q-quality-chip" class="q-chip"></span>
     </div>
 
-    <div id="q-text" class="min-h-[96px] px-5 py-4 rounded-2xl text-center
-                            text-[26px] md:text-[32px] leading-[2.6]"
+    <div id="q-text" class="min-h-[112px] px-5 py-5 rounded-2xl text-center
+                            text-[32px] md:text-[40px] leading-[2.5]"
          style="background:rgba(9,8,18,.5)"></div>
 
     <div class="flex gap-2.5 mt-3">
       <input id="type-input" type="text" autocomplete="off" autocapitalize="off"
              spellcheck="false" placeholder="在這裡輸入…"
              class="flex-1 px-6 rounded-2xl text-center"
-             style="height:76px;font-size:30px;font-weight:800;
+             style="height:84px;font-size:34px;font-weight:800;
                     background:rgba(255,255,255,.05);border:2px solid var(--line2)">
-      <button id="btn-attack" class="btn btn-gold px-8 text-lg" style="height:76px">攻擊</button>
+      <button id="btn-attack" class="btn btn-gold px-8 text-2xl" style="height:84px">攻擊</button>
     </div>
-    <p class="text-[11px] mt-2.5 flex flex-wrap gap-x-4 gap-y-1 justify-center"
+    <p class="text-sm mt-3 flex flex-wrap gap-x-5 gap-y-1 justify-center"
        style="color:var(--dim2)">
       <span><kbd>Enter</kbd> 送出攻擊</span>
       <span><kbd>Esc</kbd> 跳過此題（連擊歸零）</span>
@@ -759,12 +762,13 @@ const ICONS = {
   door:  `<path d="M4 20.5V5a1.5 1.5 0 0 1 1.2-1.47l7-1.4A1.5 1.5 0 0 1 14 3.6v16.9"/>
           <path d="M14 20.5h5.5V8.5H14M3 20.5h17"/>
           <circle cx="11.4" cy="12.4" r="1" fill="currentColor"/>`,
-  tent:  `<path d="M12 5 3.2 19.6h17.6z" fill="currentColor" fill-opacity=".14"/>
-          <path d="M12 5 3.2 19.6h17.6z"/>
-          <path d="M12 5v6.4"/>
-          <path d="M12 11.4 8.4 19.6h7.2z" fill="currentColor" fill-opacity=".3"/>
-          <path d="M12 11.4 8.4 19.6h7.2z"/>
-          <path d="M1.6 19.6h20.8"/>`,
+  tent:  `<path d="M12 4.4 2.2 19.4h19.6z" fill="currentColor" fill-opacity=".13"/>
+          <path d="M12 4.4 2.2 19.4h19.6z"/>
+          <path d="M12 4.4v4.2"/>
+          <path d="M12 8.6 8.8 19.4h6.4z" fill="currentColor" fill-opacity=".34"/>
+          <path d="M12 8.6 8.8 19.4h6.4z"/>
+          <path d="M1 19.4h22"/>
+          <path d="M12 4.4 13.6 2M4.6 19.4 3 21.6M19.4 19.4 21 21.6" stroke-width="1.3" opacity=".7"/>`,
   target:`<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.8"/>
           <circle cx="12" cy="12" r="1.4" fill="currentColor"/>`,
   play:  `<path d="M7.5 4.7 19 12 7.5 19.3z" fill="currentColor" fill-opacity=".2"/>
@@ -1377,12 +1381,16 @@ function rankOf(dmg){
   return r;
 }
 /* ══════════════════════════════════════════════════════════════
-   題庫（三把武器共用一般題庫，特殊攻擊才各自獨立）
+   題庫
 
-     COMMON_*    一般攻擊。三把武器都從這裡抽，不含標點符號。
-     SPECIAL_STAFF  只有法杖需要自己的題庫：標點特別多的長句（詠唱）。
-                    弓箭的神射手模式與匕首的連環斬都用共用題庫，
-                    所以不需要額外題庫。
+     COMMON_NORMAL   一般 · 普通    兩字詞
+     COMMON_FINE     一般 · 精良    詞組與成語
+     COMMON_LEGEND   一般 · 傳奇    句子
+       以上三池三把武器共用，一律不含標點符號。
+
+     SPECIAL_STAFF   法杖「詠唱」專用，標點特別多的長句。
+       只有法杖會出現標點。弓箭的神射手與匕首的連環斬都用
+       共用題庫，所以不需要額外題庫。
    ══════════════════════════════════════════════════════════════ */
 
 const BANK_COMMON_NORMAL = [
@@ -1450,30 +1458,10 @@ const BANK_COMMON_FINE = [
  {t:'麵包', z:'ㄇㄧㄢˋ ㄅㄠ'},
  {t:'蠟燭', z:'ㄌㄚˋ ㄓㄨˊ'},
  {t:'剪刀', z:'ㄐㄧㄢˇ ㄉㄠ'},
- {t:'橡皮擦', z:'ㄒㄧㄤˋ ㄆㄧˊ ㄘㄚ'}
-];
-
-const BANK_COMMON_LEGEND = [
+ {t:'橡皮擦', z:'ㄒㄧㄤˋ ㄆㄧˊ ㄘㄚ'},
  {t:'蜘蛛結網', z:'ㄓ ㄓㄨ ㄐㄧㄝˊ ㄨㄤˇ'},
- {t:'螢火蟲飛舞', z:'ㄧㄥˊ ㄏㄨㄛˇ ㄔㄨㄥˊ ㄈㄟ ㄨˇ'},
- {t:'蟬在樹上叫', z:'ㄔㄢˊ ㄗㄞˋ ㄕㄨˋ ㄕㄤˋ ㄐㄧㄠˋ'},
- {t:'洗澡水太燙', z:'ㄒㄧˇ ㄗㄠˇ ㄕㄨㄟˇ ㄊㄞˋ ㄊㄤˋ'},
- {t:'眼睛看晴天', z:'ㄧㄢˇ ㄐㄧㄥ ㄎㄢˋ ㄑㄧㄥˊ ㄊㄧㄢ'},
- {t:'蜜蜂採花蜜', z:'ㄇㄧˋ ㄈㄥ ㄘㄞˇ ㄏㄨㄚ ㄇㄧˋ'},
- {t:'想辦法去辨別', z:'ㄒㄧㄤˇ ㄅㄢˋ ㄈㄚˇ ㄑㄩˋ ㄅㄧㄢˋ ㄅㄧㄝˊ'},
- {t:'木材與財產', z:'ㄇㄨˋ ㄘㄞˊ ㄩˇ ㄘㄞˊ ㄔㄢˇ'},
- {t:'螃蟹橫著走', z:'ㄆㄤˊ ㄒㄧㄝˋ ㄏㄥˊ ˙ㄓㄜ ㄗㄡˇ'},
- {t:'鴕鳥把頭埋起來', z:'ㄊㄨㄛˊ ㄋㄧㄠˇ ㄅㄚˇ ㄊㄡˊ ㄇㄞˊ ㄑㄧˇ ㄌㄞˊ'},
  {t:'灌溉農田', z:'ㄍㄨㄢˋ ㄍㄞˋ ㄋㄨㄥˊ ㄊㄧㄢˊ'},
- {t:'鑰匙掉在抽屜裡', z:'ㄧㄠˋ ˙ㄕ ㄉㄧㄠˋ ㄗㄞˋ ㄔㄡ ㄊㄧˋ ㄌㄧˇ'},
- {t:'醬油加上醋', z:'ㄐㄧㄤˋ ㄧㄡˊ ㄐㄧㄚ ㄕㄤˋ ㄘㄨˋ'},
- {t:'蔬菜與水果', z:'ㄕㄨ ㄘㄞˋ ㄩˇ ㄕㄨㄟˇ ㄍㄨㄛˇ'},
- {t:'燦爛的煙火', z:'ㄘㄢˋ ㄌㄢˋ ˙ㄉㄜ ㄧㄢ ㄏㄨㄛˇ'},
- {t:'鴿子停在屋簷', z:'ㄍㄜ ˙ㄗ ㄊㄧㄥˊ ㄗㄞˋ ㄨ ㄧㄢˊ'},
- {t:'潑水節很熱鬧', z:'ㄆㄛ ㄕㄨㄟˇ ㄐㄧㄝˊ ㄏㄣˇ ㄖㄜˋ ㄋㄠˋ'},
- {t:'攜帶雨具出門', z:'ㄒㄧ ㄉㄞˋ ㄩˇ ㄐㄩˋ ㄔㄨ ㄇㄣˊ'},
  {t:'颱風警報', z:'ㄊㄞˊ ㄈㄥ ㄐㄧㄥˇ ㄅㄠˋ'},
- {t:'翩翩起舞的蝴蝶', z:'ㄆㄧㄢ ㄆㄧㄢ ㄑㄧˇ ㄨˇ ˙ㄉㄜ ㄏㄨˊ ㄉㄧㄝˊ'},
  {t:'一心一意', z:'ㄧˋ ㄒㄧㄣ ㄧˊ ㄧˋ'},
  {t:'專心致志', z:'ㄓㄨㄢ ㄒㄧㄣ ㄓˋ ㄓˋ'},
  {t:'井底之蛙', z:'ㄐㄧㄥˇ ㄉㄧˇ ㄓ ㄨㄚ'},
@@ -1491,7 +1479,27 @@ const BANK_COMMON_LEGEND = [
  {t:'水落石出', z:'ㄕㄨㄟˇ ㄌㄨㄛˋ ㄕˊ ㄔㄨ'},
  {t:'興高采烈', z:'ㄒㄧㄥ ㄍㄠ ㄘㄞˇ ㄌㄧㄝˋ'},
  {t:'聚精會神', z:'ㄐㄩˋ ㄐㄧㄥ ㄏㄨㄟˋ ㄕㄣˊ'},
- {t:'滴水穿石', z:'ㄉㄧ ㄕㄨㄟˇ ㄔㄨㄢ ㄕˊ'},
+ {t:'滴水穿石', z:'ㄉㄧ ㄕㄨㄟˇ ㄔㄨㄢ ㄕˊ'}
+];
+
+const BANK_COMMON_LEGEND = [
+ {t:'螢火蟲飛舞', z:'ㄧㄥˊ ㄏㄨㄛˇ ㄔㄨㄥˊ ㄈㄟ ㄨˇ'},
+ {t:'蟬在樹上叫', z:'ㄔㄢˊ ㄗㄞˋ ㄕㄨˋ ㄕㄤˋ ㄐㄧㄠˋ'},
+ {t:'洗澡水太燙', z:'ㄒㄧˇ ㄗㄠˇ ㄕㄨㄟˇ ㄊㄞˋ ㄊㄤˋ'},
+ {t:'眼睛看晴天', z:'ㄧㄢˇ ㄐㄧㄥ ㄎㄢˋ ㄑㄧㄥˊ ㄊㄧㄢ'},
+ {t:'蜜蜂採花蜜', z:'ㄇㄧˋ ㄈㄥ ㄘㄞˇ ㄏㄨㄚ ㄇㄧˋ'},
+ {t:'想辦法去辨別', z:'ㄒㄧㄤˇ ㄅㄢˋ ㄈㄚˇ ㄑㄩˋ ㄅㄧㄢˋ ㄅㄧㄝˊ'},
+ {t:'木材與財產', z:'ㄇㄨˋ ㄘㄞˊ ㄩˇ ㄘㄞˊ ㄔㄢˇ'},
+ {t:'螃蟹橫著走', z:'ㄆㄤˊ ㄒㄧㄝˋ ㄏㄥˊ ˙ㄓㄜ ㄗㄡˇ'},
+ {t:'鴕鳥把頭埋起來', z:'ㄊㄨㄛˊ ㄋㄧㄠˇ ㄅㄚˇ ㄊㄡˊ ㄇㄞˊ ㄑㄧˇ ㄌㄞˊ'},
+ {t:'鑰匙掉在抽屜裡', z:'ㄧㄠˋ ˙ㄕ ㄉㄧㄠˋ ㄗㄞˋ ㄔㄡ ㄊㄧˋ ㄌㄧˇ'},
+ {t:'醬油加上醋', z:'ㄐㄧㄤˋ ㄧㄡˊ ㄐㄧㄚ ㄕㄤˋ ㄘㄨˋ'},
+ {t:'蔬菜與水果', z:'ㄕㄨ ㄘㄞˋ ㄩˇ ㄕㄨㄟˇ ㄍㄨㄛˇ'},
+ {t:'燦爛的煙火', z:'ㄘㄢˋ ㄌㄢˋ ˙ㄉㄜ ㄧㄢ ㄏㄨㄛˇ'},
+ {t:'鴿子停在屋簷', z:'ㄍㄜ ˙ㄗ ㄊㄧㄥˊ ㄗㄞˋ ㄨ ㄧㄢˊ'},
+ {t:'潑水節很熱鬧', z:'ㄆㄛ ㄕㄨㄟˇ ㄐㄧㄝˊ ㄏㄣˇ ㄖㄜˋ ㄋㄠˋ'},
+ {t:'攜帶雨具出門', z:'ㄒㄧ ㄉㄞˋ ㄩˇ ㄐㄩˋ ㄔㄨ ㄇㄣˊ'},
+ {t:'翩翩起舞的蝴蝶', z:'ㄆㄧㄢ ㄆㄧㄢ ㄑㄧˇ ㄨˇ ˙ㄉㄜ ㄏㄨˊ ㄉㄧㄝˊ'},
  {t:'今天是個好天氣', z:'ㄐㄧㄣ ㄊㄧㄢ ㄕˋ ˙ㄍㄜ ㄏㄠˇ ㄊㄧㄢ ㄑㄧˋ'},
  {t:'我要努力把字打好', z:'ㄨㄛˇ ㄧㄠˋ ㄋㄨˇ ㄌㄧˋ ㄅㄚˇ ㄗˋ ㄉㄚˇ ㄏㄠˇ'},
  {t:'每天進步一點點', z:'ㄇㄟˇ ㄊㄧㄢ ㄐㄧㄣˋ ㄅㄨˋ ㄧˋ ㄉㄧㄢˇ ㄉㄧㄢˇ'},
@@ -2069,10 +2077,12 @@ let ONLINE = false;
 
 /* 連線壞掉時要說人話，而且遊戲仍然可以離線練習 —
    教室網路不穩不該讓整個登入畫面變成一片空白。 */
+let OFFLINE_REASON = '';
 function setOffline(reason) {
   ONLINE = false;
+  OFFLINE_REASON = reason;                 // 完整原因留給教師控制台
   $('hdr-sub').innerHTML =
-    `<span style="color:#ff8a9c">${reason}</span>　<span style="color:var(--dim)">仍可用「自由練習」，但成績不會上傳</span>`;
+    '<span style="color:#ff8a9c">離線・成績不會上傳</span>';
 }
 
 async function boot() {
@@ -2173,8 +2183,7 @@ function doLogin() {
   show('login-err', false);
   show('screen-login', false);
   $('lobby-who').innerHTML =
-    `<div class="font-black text-lg">${ME.className}　${ME.seat ? ME.seat + '號　' : ''}${ME.name}</div>
-     <div class="text-xs mt-1" style="color:var(--dim)">成績會記在這個名字底下，下次用同樣的班級姓名就能接上</div>`;
+    `<div class="font-black text-2xl">${ME.className}　${ME.seat ? ME.seat + '號　' : ''}${ME.name}</div>`;
   if (ROUND.state === 'running') startBattle(false); else gotoLobby();
 }
 
@@ -2249,14 +2258,6 @@ function paintLoadout() {
   if (qr) [...qr.children].forEach(el => el.classList.toggle('sel', el.dataset.q === LOADOUT.quality));
   const desc = $('lobby-quality-desc');
   if (desc) desc.textContent = q.desc;
-  const out = $('lobby-loadout');
-  if (out) out.innerHTML = `
-    <span class="weapon-ico" style="color:${w.raw};width:34px;height:34px">${ico(w.icon, 20)}</span>
-    <span>
-      <b style="color:${w.raw}">${w.name}</b>
-      <b style="color:${q.color}" class="ml-1">${q.name}</b>
-      <div class="text-[11px] mt-0.5" style="color:var(--dim2)">${w.long}</div>
-    </span>`;
 }
 
 /* 弓箭專屬的爆擊條 */
@@ -2966,7 +2967,10 @@ function updateTeacherBanner() {
     ended:   ['比賽已結束，學生正在看結算', 'rgba(245,196,81,.15)', 'var(--gold)']
   };
   const [txt, bg, col] = map[ROUND.state] || map.lobby;
-  el.textContent = txt; el.style.background = bg; el.style.color = col;
+  el.style.background = bg; el.style.color = col;
+  el.innerHTML = OFFLINE_REASON
+    ? `${txt}<div class="text-xs font-normal mt-2" style="color:#ff8a9c">${OFFLINE_REASON}</div>`
+    : txt;
 }
 
 /* ── 比賽控制 ───────────────────────────────────────── */
