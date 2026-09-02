@@ -6,6 +6,13 @@ BOSS 的 ASCII 不是手打的，是「先用程式畫剪影 → 再轉成 ASCII
 
   draw_bosses.py      用 PIL 畫出十隻 BOSS 的黑白剪影（900x700 PNG）
   draw_mobs.py        十隻個人小怪 ＋ 三把直式武器的剪影
+
+  註：小怪與武器的剪影用了三個色階，轉出來才有大量符號堆疊的質感：
+        FG（黑）  → 實心 #
+        MID（灰）→ 中間調，會變成 = : 之類的符號，用來畫鱗片、鎧甲紋、毛
+        BG（白）→ 空白
+      scales() 畫鱗片、stripes() 畫條紋，都是拿來鋪 MID 的。
+      只有黑白兩階的話會變成一坨實心，看起來很扁。
   make_boss_ascii.py  把剪影轉成 ASCII，再收斂成乾淨的遊戲風格
   rank_badges.svg.js  六個階級徽章（SVG，不是 ASCII）
 
