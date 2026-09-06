@@ -1,5 +1,5 @@
 {
-  "說明": "六個題庫檔的對應表。common_* 三把武器共用，special_* 每 5 題觸發一次、各武器獨立。",
+  "說明": "四個題庫檔的對應表。common_* 三把武器共用，special_staff 是法杖「詠唱」每 5 題觸發一次專用。",
   "池": {
     "common_normal": "common_normal.json",
     "common_fine": "common_fine.json",
