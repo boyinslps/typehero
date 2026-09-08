@@ -308,10 +308,10 @@ select option{background:var(--panel2);color:var(--ink)}
     <select id="in-class" class="flex-1 p-3 rounded-lg panel-flat text-center font-bold text-lg"></select>
   </div>
 
-  <div class="flex gap-2 mb-6">
+  <div class="flex gap-2 mb-2">
     <div class="w-32">
       <label class="label block text-left mb-2">座號</label>
-      <input id="in-seat" type="number" min="1" max="60" placeholder="選填"
+      <input id="in-seat" type="number" min="1" max="60" placeholder="必填"
              class="w-full p-3 rounded-lg panel-flat text-center font-bold text-lg">
     </div>
     <div class="flex-1">
@@ -319,6 +319,34 @@ select option{background:var(--panel2);color:var(--ink)}
       <input id="in-name" type="text" maxlength="10" placeholder="請輸入姓名"
              class="w-full p-3 rounded-lg panel-flat text-center font-bold text-xl">
     </div>
+  </div>
+  <p id="login-hint" class="text-sm text-left mb-5" style="color:var(--dim2)">
+    第一次來把座號和姓名都填上；之後只要填座號，就會自動帶出你的紀錄。</p>
+
+  <!-- 歷史成績：填好座號、資料庫裡有紀錄才會出現 -->
+  <div id="login-history" class="hidden panel-flat p-4 mb-5 text-left">
+    <div class="flex items-center gap-3">
+      <div id="lh-badge" class="flex-none" style="width:64px;height:60px"></div>
+      <div class="min-w-0 flex-1">
+        <div class="label">目前階級</div>
+        <div id="lh-title" class="font-black text-xl leading-tight">見習生</div>
+        <div id="lh-next" class="text-sm" style="color:var(--dim)"></div>
+      </div>
+      <div class="text-right flex-none">
+        <div class="label">歷史最高傷害</div>
+        <div id="lh-best" class="mono text-3xl font-black leading-none"
+             style="color:var(--gold)">0</div>
+      </div>
+    </div>
+    <div class="grid grid-cols-3 gap-2 mt-3">
+      <div class="panel-flat p-2 text-center"><div class="label" style="font-size:12px">最快每分鐘字</div>
+        <div class="mono text-lg font-black" style="color:var(--mp)" id="lh-wpm">0</div></div>
+      <div class="panel-flat p-2 text-center"><div class="label" style="font-size:12px">單場最多擊倒</div>
+        <div class="mono text-lg font-black" style="color:var(--gr)" id="lh-kills">0</div></div>
+      <div class="panel-flat p-2 text-center"><div class="label" style="font-size:12px">挑戰次數</div>
+        <div class="mono text-lg font-black" id="lh-plays">0</div></div>
+    </div>
+    <p id="lh-last" class="text-sm mt-2" style="color:var(--dim2)"></p>
   </div>
 
   <button id="btn-enter" class="btn btn-gold w-full py-4 text-xl">
@@ -353,7 +381,9 @@ select option{background:var(--panel2);color:var(--ink)}
   </div>
 
   <button id="btn-practice" class="btn btn-ghost w-full py-3.5 text-lg">
-    <span class="ico-slot" data-ico="target" data-ico-size="20"></span>先自己練習（不計分）</button>
+    <span class="ico-slot" data-ico="target" data-ico-size="20"></span>先自己練習</button>
+  <p class="text-base text-center" style="color:var(--dim2)">
+    練習打完一樣會更新你的歷史最高分</p>
 </section>
 
 <!-- ══════════ 3. 遊戲主畫面：滿版、不捲動 ══════════ -->
@@ -446,7 +476,7 @@ select option{background:var(--panel2);color:var(--ink)}
        style="color:var(--dim2)">
       <span><kbd>Enter</kbd> 送出</span>
       <span><kbd>Esc</kbd> 跳過</span>
-      <span id="practice-flag" class="hidden" style="color:var(--gold)">練習模式・成績不會上傳</span>
+      <span id="practice-flag" class="hidden" style="color:var(--gold)">練習模式・會更新歷史最高分</span>
     </p>
   </div>
 </section>
@@ -532,7 +562,17 @@ select option{background:var(--panel2);color:var(--ink)}
       </div>
 
       <div id="r-weapon-breakdown" class="mb-2"></div>
-      <p id="r-record" class="text-base font-bold hidden"></p>
+
+      <!-- 突破個人歷史最高分才會出現 -->
+      <div id="r-record" class="hidden p-3 rounded-xl mb-2 text-center"
+           style="background:linear-gradient(135deg,rgba(232,182,76,.24),rgba(232,182,76,.05));
+                  border:2px solid var(--gold)">
+        <div class="label" style="color:var(--gold)" id="r-record-title">突破個人最高分</div>
+        <div class="mono text-3xl font-black leading-none" style="color:var(--gold)"
+             id="r-record-num">0</div>
+        <div class="text-sm mt-1" style="color:var(--dim)" id="r-record-sub"></div>
+      </div>
+      <p id="r-note" class="text-base font-bold hidden"></p>
     </div>
 
     <!-- 右：排行榜 -->
@@ -1575,21 +1615,30 @@ const RANK_SVG = (() => {
           preserveAspectRatio="xMidYMid meet">${body}</svg>`);
 })();
 
-/* ── 勇者階級（依個人總傷害）───────────────────────────── */
+/* ── 勇者階級（依個人總傷害）─────────────────────────────
+   門檻對齊「推倒第幾隻小怪」，學生看得到因果關係：
+     第 1 隻累計 100、第 2 隻 230、第 3 隻 398、第 4 隻 616、第 5 隻 899。
+   實測（五年級最快的學生一堂課推倒 4 隻）落在金級，所以門檻照這條線鋪。
+   ─────────────────────────────────────────────────────── */
 const RANKS = [
-  { min:0,      title:'見習生', svg: RANK_SVG[0],
+  { min:0,     title:'見習生', svg: RANK_SVG[0],
     quote:'第一次上戰場，能站著撐完就很棒了！先把每個鍵的位置找熟，傷害自然會長出來。' },
-  { min:160,    title:'冒險者', svg: RANK_SVG[1],
-    quote:'已經打得有模有樣了。試著多用一點精良品質的題目，傷害會跳一大階。' },
-  { min:360,   title:'銅級勇者', svg: RANK_SVG[2],
-    quote:'速度跟準確度都上軌道了！挑一把最順手的武器專精下去，你會更強。' },
-  { min:640,   title:'銀級勇者', svg: RANK_SVG[3],
-    quote:'班上的主力輸出。試著用匕首把連擊拉高，或用弓箭賭全對暴擊。' },
-  { min:1000,  title:'金級勇者', svg: RANK_SVG[4],
-    quote:'太強了！你一個人的傷害就抵得上好幾位同學，是全班的關鍵戰力。' },
-  { min:1500, title:'傳說勇者', svg: RANK_SVG[5],
-    quote:'傳說級的手速與精準度。全班能推倒幾隻怪，很大一部分要感謝你。' }
+  { min:100,   title:'冒險者', svg: RANK_SVG[1],
+    quote:'推倒第一隻怪了！已經打得有模有樣，試著多用一點精良品質的題目，傷害會跳一大階。' },
+  { min:230,   title:'銅級勇者', svg: RANK_SVG[2],
+    quote:'兩隻怪進帳。速度跟準確度都上軌道了，挑一把最順手的武器專精下去，你會更強。' },
+  { min:400,   title:'銀級勇者', svg: RANK_SVG[3],
+    quote:'三隻怪！班上的主力輸出。試著用匕首把連擊拉高，或用弓箭賭全對暴擊。' },
+  { min:620,   title:'金級勇者', svg: RANK_SVG[4],
+    quote:'四隻怪，太強了！你一個人的傷害就抵得上好幾位同學，是全班的關鍵戰力。' },
+  { min:900,   title:'傳說勇者', svg: RANK_SVG[5],
+    quote:'五隻怪起跳的傳說級手速。全班能推倒幾隻大怪，很大一部分要感謝你。' }
 ];
+
+/* 下一階還差多少——登入畫面用來給目標感 */
+function nextRankOf(dmg) {
+  return RANKS.find(x => dmg < x.min) || null;
+}
 
 function rankOf(dmg){
   let r = RANKS[0];
@@ -2524,6 +2573,69 @@ function toast(msg, ms = 2200) {
 const safeId = s => String(s).replace(/[\/\\.#$\[\]]/g, '_').trim();
 const fmt = n => Math.round(n).toLocaleString();
 
+/* ══════════════════════════════════════════════════════════════
+   身分：班級＋座號
+   識別碼從「班級_姓名」改成「班級_座號」，同班同名不會再互相蓋掉，
+   學生也不必記得上次打的名字長什麼樣。姓名只是顯示用，第二次登入
+   會自動帶出來，學生改掉就以新填的為準覆蓋回紀錄。
+   ══════════════════════════════════════════════════════════════ */
+const normSeat = v => {
+  const n = parseInt(String(v).replace(/[^0-9]/g, ''), 10);
+  return Number.isFinite(n) && n >= 1 && n <= 60 ? String(n) : '';
+};
+const seatDocId = (className, seat) => safeId(`${className}_${seat}號`);
+
+/* Firestore 離線時，setDoc 的 promise 會一直吊著（它要等伺服器回應才算數），
+   getDoc / getDocs 也可能重試很久。結算流程不能卡在網路上等，所以每個
+   呼叫都給一個上限，超時就當作失敗往下走。寫入仍然留在 SDK 的離線佇列，
+   之後連回線還是會自己補送。 */
+function withTimeout(p, ms, label) {
+  let t;
+  return Promise.race([
+    p.finally(() => clearTimeout(t)),
+    new Promise((_, rej) => {
+      t = setTimeout(() => rej(Object.assign(new Error(label), { code: 'unavailable' })), ms);
+    })
+  ]);
+}
+
+/* 歷史成績在瀏覽器留一份鏡像：離線或 Firestore 掛掉時，
+   登入畫面照樣看得到自己的紀錄，練習也還是能累積。 */
+const histKey = id => 'mg_hist_' + id;
+function readLocalHist(id) {
+  try { return JSON.parse(localStorage.getItem(histKey(id)) || 'null'); }
+  catch (e) { return null; }
+}
+function writeLocalHist(id, h) {
+  try { localStorage.setItem(histKey(id), JSON.stringify(h)); } catch (e) {}
+}
+/* Firestore 那筆 → 歷史成績的形狀。舊資料沒有 best* 欄位，
+   就拿當時那場的數字頂著，不會變成 0。 */
+function histFromDoc(d) {
+  if (!d) return null;
+  const ts = d.lastPlayedAt || d.timestamp;
+  return {
+    name:       d.name || '',
+    bestDamage: Math.max(d.bestDamage || 0, d.damage || 0),
+    bestWpm:    Math.max(d.bestWpm    || 0, d.wpm    || 0),
+    bestKills:  Math.max(d.bestKills  || 0, d.kills  || 0),
+    plays:      d.plays || 0,
+    lastPlayedMs: (ts && ts.toDate) ? ts.toDate().getTime() : 0
+  };
+}
+/* 雲端與本機各取大的那個；姓名以較晚的那筆為準 */
+function mergeHist(a, b) {
+  if (!a && !b) return null;
+  const pick = k => Math.max((a && a[k]) || 0, (b && b[k]) || 0);
+  const newer = ((a && a.lastPlayedMs) || 0) >= ((b && b.lastPlayedMs) || 0) ? a : b;
+  return {
+    name:       (newer && newer.name) || (a && a.name) || (b && b.name) || '',
+    bestDamage: pick('bestDamage'), bestWpm: pick('bestWpm'),
+    bestKills:  pick('bestKills'),  plays:   pick('plays'),
+    lastPlayedMs: pick('lastPlayedMs')
+  };
+}
+
 /* ══════════════ 啟動 ══════════════ */
 let ONLINE = false;
 
@@ -2534,7 +2646,7 @@ function setOffline(reason) {
   ONLINE = false;
   OFFLINE_REASON = reason;                 // 完整原因留給教師控制台
   $('hdr-sub').innerHTML =
-    '<span style="color:#ff8a9c">離線・成績不會上傳</span>';
+    '<span style="color:#ff8a9c">離線・成績只留在這台電腦</span>';
 }
 
 async function boot() {
@@ -2615,27 +2727,106 @@ function fillClassSelects() {
   const saved = JSON.parse(localStorage.getItem('mg_me') || '{}');
   if (saved.grade && CFG.grades.includes(saved.grade)) g.value = saved.grade;
   if (saved.cls   && CFG.classes.includes(saved.cls))  c.value = saved.cls;
-  if (saved.seat) $('in-seat').value = saved.seat;
-  if (saved.name) $('in-name').value = saved.name;
+  if (saved.seat && !$('in-seat').value) $('in-seat').value = saved.seat;
+  if (saved.name && !$('in-name').value) { $('in-name').value = saved.name; NAME_AUTOFILLED = true; }
+  scheduleHistoryLookup();
+}
+
+/* ══════════════════════════════════════════════════════════════
+   登入畫面的歷史成績
+   座號一填好就用「班級_座號」去撈自己的紀錄：帶出姓名、階級徽章、
+   歷史最高傷害。撈不到（第一次來）就整塊不出現。
+   ══════════════════════════════════════════════════════════════ */
+let LOOKUP_T = null;             // debounce
+let LOOKUP_SEQ = 0;              // 連打座號時，只認最後一次的結果
+let LOOKUP_ID = '';              // 上一次撈的是哪一筆
+let LOOKUP_CLOUD_NAME = null;    // 雲端那筆的姓名（null = 雲端沒有這筆）
+let NAME_AUTOFILLED = false;     // 姓名是自動帶出來的，還是學生自己打的
+
+function scheduleHistoryLookup() {
+  clearTimeout(LOOKUP_T);
+  LOOKUP_T = setTimeout(lookupHistory, 350);
+}
+
+async function lookupHistory() {
+  const seat = normSeat($('in-seat').value);
+  const className = $('in-grade').value + $('in-class').value;
+  if (!seat) { show('login-history', false); LOOKUP_ID = ''; LOOKUP_CLOUD_NAME = null; return; }
+
+  const id = seatDocId(className, seat);
+  const seq = ++LOOKUP_SEQ;
+
+  let cloud = null, cloudName = null;
+  if (ONLINE) {
+    try {
+      const snap = await withTimeout(getDoc(doc(REF.scores, id)), 5000, '讀取逾時');
+      if (snap.exists()) { cloud = histFromDoc(snap.data()); cloudName = cloud.name || ''; }
+    } catch (e) { console.warn('讀取歷史成績失敗', e); }
+  }
+  if (seq !== LOOKUP_SEQ) return;                 // 期間又改了座號，這次結果作廢
+
+  LOOKUP_ID = id; LOOKUP_CLOUD_NAME = cloudName;
+  const hist = mergeHist(cloud, readLocalHist(id));
+  paintLoginHistory(hist);
+
+  /* 姓名自動帶出。學生自己打過字就不要蓋掉他打的。 */
+  const nameEl = $('in-name');
+  if (hist && hist.name && (!nameEl.value.trim() || NAME_AUTOFILLED)) {
+    nameEl.value = hist.name;
+    NAME_AUTOFILLED = true;
+  }
+}
+
+function paintLoginHistory(h) {
+  if (!h || (!h.bestDamage && !h.plays)) { show('login-history', false); return; }
+  const r = rankOf(h.bestDamage), nx = nextRankOf(h.bestDamage);
+  $('lh-badge').innerHTML = r.svg || '';
+  setTxt('lh-title', r.title);
+  setTxt('lh-best',  fmt(h.bestDamage));
+  setTxt('lh-wpm',   h.bestWpm   || 0);
+  setTxt('lh-kills', h.bestKills || 0);
+  setTxt('lh-plays', h.plays     || 0);
+  setTxt('lh-next', nx
+    ? `再 ${fmt(nx.min - h.bestDamage)} 傷害就升上「${nx.title}」`
+    : '已經是最高階級了');
+  setTxt('lh-last', h.lastPlayedMs
+    ? '上次挑戰：' + new Date(h.lastPlayedMs).toLocaleString('zh-TW',
+        { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : '');
+  show('login-history', true);
 }
 
 function doLogin() {
   const grade = $('in-grade').value, cls = $('in-class').value;
-  const seat = $('in-seat').value.trim();
+  const seat = normSeat($('in-seat').value);
   const name = $('in-name').value.trim();
-  if (!name) { $('login-err').textContent = '請輸入姓名'; show('login-err', true); return; }
-  if (name.length > 10) { $('login-err').textContent = '姓名太長了'; show('login-err', true); return; }
+  const fail = m => { $('login-err').textContent = m; show('login-err', true); };
+  if (!seat) { fail('請輸入座號（1～60）'); $('in-seat').focus(); return; }
+  if (!name) { fail('請輸入姓名'); $('in-name').focus(); return; }
+  if (name.length > 10) { fail('姓名太長了'); return; }
 
   ME.className = grade + cls;
   ME.seat = seat;
   ME.name = name;
-  ME.docId = safeId(`${ME.className}_${name}`);
+  ME.docId = seatDocId(ME.className, seat);
   localStorage.setItem('mg_me', JSON.stringify({ grade, cls, seat, name }));
+
+  /* 姓名以這次填的為準：第二次登入改掉名字，就覆蓋回紀錄裡。
+     只覆蓋已經存在的那筆，不會為了改名憑空生出一筆空成績。 */
+  const local = readLocalHist(ME.docId);
+  if (local && local.name !== name) writeLocalHist(ME.docId, { ...local, name });
+  if (ONLINE && LOOKUP_ID === ME.docId
+      && LOOKUP_CLOUD_NAME !== null && LOOKUP_CLOUD_NAME !== name) {
+    setDoc(doc(REF.scores, ME.docId),
+           { className: ME.className, seat: ME.seat, name: ME.name }, { merge: true })
+      .catch(e => console.warn('姓名同步失敗', e));
+    LOOKUP_CLOUD_NAME = name;
+  }
 
   show('login-err', false);
   show('screen-login', false);
   $('lobby-who').innerHTML =
-    `<div class="font-black text-2xl">${ME.className}　${ME.seat ? ME.seat + '號　' : ''}${ME.name}</div>`;
+    `<div class="font-black text-2xl">${ME.className}　${ME.seat}號　${ME.name}</div>`;
   if (ROUND.state === 'running') startBattle(false); else gotoLobby();
 }
 
@@ -2644,7 +2835,7 @@ function gotoLobby() {
   show('screen-lobby', true); show('screen-game', false);
   show('screen-result', false); show('screen-boss', false);
   const ls = $('lobby-sub');
-  if (ls) ls.textContent = ONLINE ? '' : '離線・成績不會上傳';
+  if (ls) ls.textContent = ONLINE ? '' : '離線・成績只留在這台電腦';
 }
 
 /* ══════════════ 營地：裝備選擇 ══════════════
@@ -3036,30 +3227,67 @@ async function endBattle() {
   G.finalAcc = G.typedChars ? Math.round(G.correctChars / G.typedChars * 100) : 100;
   G.isRecord = false; G.uploadErr = null; G.prevBest = 0;
 
-  if (!ME.practice && G.damage > 0) {
-    try {
-      const ref = doc(REF.scores, ME.docId);
-      const prev = await getDoc(ref);
-      const best = prev.exists() ? (prev.data().bestDamage || 0) : 0;
-      G.prevBest = best;
-      G.isRecord = G.damage > best;
-      await setDoc(ref, {
-        className: ME.className, seat: ME.seat, name: ME.name,
-        damage: G.damage, words: Math.floor(G.words),
-        accuracy: G.finalAcc, wpm: G.finalWpm,
-        maxCombo: G.maxCombo, perfect: G.perfect, attacks: G.attacks,
-        weapon: G.weapon, quality: G.quality, kills: G.kills,
-        roundId: ROUND.roundId || '', mode: CFG.mode,
-        bestDamage: Math.max(best, G.damage),
-        timestamp: serverTimestamp()
-      }, { merge: true });
-    } catch (e) {
-      console.error('上傳成績失敗', e);
-      G.uploadErr = e;
-    }
-  }
+  if (G.damage > 0) await saveScore();
 
   await runBossSequence();
+}
+
+/* ══════════════════════════════════════════════════════════════
+   成績寫回（文件 ID＝班級_座號）
+
+   正式比賽：整筆寫，含 damage 與 roundId，會進班內排行與全班總傷害。
+   自己練習：只更新個人歷史（best*／plays），完全不碰 damage 與 roundId，
+             所以練習分數不會混進排行，但歷史最高分照樣會往上推。
+   ══════════════════════════════════════════════════════════════ */
+async function saveScore() {
+  const ref = doc(REF.scores, ME.docId);
+  let cloud = null;
+
+  try {
+    const prev = await withTimeout(getDoc(ref), 5000, '讀取逾時');
+    if (prev.exists()) cloud = histFromDoc(prev.data());
+  } catch (e) {
+    console.error('讀取歷史成績失敗', e);
+    G.uploadErr = e;                      // 讀不到就當第一次，但要讓學生知道沒接上
+  }
+
+  const before = mergeHist(cloud, readLocalHist(ME.docId)) || {};
+  G.prevBest = before.bestDamage || 0;
+  G.isRecord = G.damage > G.prevBest;
+
+  const hist = {
+    name:         ME.name,
+    bestDamage:   Math.max(G.prevBest,          G.damage),
+    bestWpm:      Math.max(before.bestWpm  || 0, G.finalWpm),
+    bestKills:    Math.max(before.bestKills || 0, G.kills),
+    plays:        (before.plays || 0) + 1,
+    lastPlayedMs: Date.now()
+  };
+  writeLocalHist(ME.docId, hist);         // 本機先留一份，斷線也不會丟
+
+  const payload = {
+    className: ME.className, seat: ME.seat, name: ME.name,
+    bestDamage: hist.bestDamage, bestWpm: hist.bestWpm,
+    bestKills: hist.bestKills, plays: hist.plays,
+    lastPlayedAt: serverTimestamp()
+  };
+  if (!ME.practice) Object.assign(payload, {
+    damage: G.damage, words: Math.floor(G.words),
+    accuracy: G.finalAcc, wpm: G.finalWpm,
+    maxCombo: G.maxCombo, perfect: G.perfect, attacks: G.attacks,
+    weapon: G.weapon, quality: G.quality, kills: G.kills,
+    byWeapon: G.byWeapon,
+    roundId: ROUND.roundId || '', mode: CFG.mode,
+    timestamp: serverTimestamp()
+  });
+
+  try {
+    await withTimeout(setDoc(ref, payload, { merge: true }), 8000, '上傳逾時');
+    G.uploadErr = null;                   // 寫進去了，前面讀取逾時就不用再報錯
+  } catch (e) {
+    console.error('上傳成績失敗', e);
+    G.uploadErr = e;
+  }
 }
 
 /* ── 取全班資料 ─────────────────────────────────────── */
@@ -3069,7 +3297,7 @@ async function fetchClassData() {
     const q = ROUND.roundId
       ? query(REF.scores, where('roundId', '==', ROUND.roundId))
       : query(REF.scores);
-    const snap = await getDocs(q);
+    const snap = await withTimeout(getDocs(q), 8000, '讀取逾時');
     snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
   } catch (e) {
     console.error(e); err = e;
@@ -3223,22 +3451,37 @@ function showResult(data, killed) {
       </span>
     </div>`;
 
-  const rec = $('r-record');
-  rec.className = 'text-sm font-bold mb-3';
-  if (ME.practice) {
-    rec.textContent = '練習模式：成績不會列入排行';
-    rec.style.color = 'var(--dim)';
-  } else if (G.uploadErr) {
-    rec.textContent = '成績上傳失敗：' + fbReason(G.uploadErr);
-    rec.style.color = '#ff8a9c';
-  } else if (G.isRecord) {
-    rec.textContent = G.prevBest === 0
-      ? `建立了你的第一筆紀錄：${fmt(G.damage)} 傷害！`
-      : `破紀錄！比之前最高多了 ${fmt(G.damage - G.prevBest)} 傷害！`;
-    rec.style.color = 'var(--gold)';
+  /* 突破個人歷史最高分才亮這一塊；沒突破就只在下面輕輕提一句還差多少 */
+  const note = $('r-note');
+  note.className = 'text-base font-bold hidden';
+  if (G.isRecord) {
+    show('r-record', true);
+    if (G.prevBest <= 0) {
+      setTxt('r-record-title', '個人首戰紀錄');
+      setTxt('r-record-num',   fmt(G.damage));
+      setTxt('r-record-sub',   '這是你的第一筆成績，之後要超越的就是自己了');
+    } else {
+      setTxt('r-record-title', '突破個人最高分！');
+      setTxt('r-record-num',   '+' + fmt(G.damage - G.prevBest));
+      setTxt('r-record-sub',   `原本最高 ${fmt(G.prevBest)} → 這場 ${fmt(G.damage)}`);
+    }
     confetti({ particleCount: 130, spread: 90, origin: { y: .5 } });
   } else {
-    rec.classList.add('hidden');
+    show('r-record', false);
+    if (G.prevBest > 0) {
+      note.textContent = `離個人最高 ${fmt(G.prevBest)} 還差 ${fmt(G.prevBest - G.damage)} 傷害`;
+      note.style.color = 'var(--dim)';
+      note.classList.remove('hidden');
+    }
+  }
+  /* 上傳出事最重要，蓋掉上面那句。練習只是雲端沒同步到，
+     歷史最高分本機已經存好了，不用紅字嚇人。 */
+  if (G.uploadErr) {
+    note.textContent = ME.practice
+      ? '目前連不上伺服器，這次的紀錄先存在這台電腦'
+      : '成績上傳失敗：' + fbReason(G.uploadErr);
+    note.style.color = ME.practice ? 'var(--dim)' : '#ff8a9c';
+    note.classList.remove('hidden');
   }
 
   /* 全班戰果條 */
@@ -3348,6 +3591,13 @@ function wireEvents() {
   $('btn-enter').addEventListener('click', doLogin);
   $('in-name').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
   $('btn-practice').addEventListener('click', () => startBattle(true));
+
+  /* 班級或座號一改就重撈歷史成績；姓名一旦自己打過就不再被自動蓋掉 */
+  $('in-grade').addEventListener('change', scheduleHistoryLookup);
+  $('in-class').addEventListener('change', scheduleHistoryLookup);
+  $('in-seat').addEventListener('input',  scheduleHistoryLookup);
+  $('in-seat').addEventListener('keydown', e => { if (e.key === 'Enter') $('in-name').focus(); });
+  $('in-name').addEventListener('input', () => { NAME_AUTOFILLED = false; });
 
   const inp = $('type-input');
   inp.addEventListener('input', onInput);
@@ -3655,7 +3905,10 @@ async function previewResult() {
   show('screen-login', false);
   show('screen-lobby', false);
   show('screen-game', false);
-  if (!ME.name) { ME.className = '測試班'; ME.name = '測試'; ME.docId = '測試班_測試'; }
+  if (!ME.name) {
+    ME.className = '測試班'; ME.seat = '1'; ME.name = '測試';
+    ME.docId = seatDocId('測試班', '1');
+  }
   // 沒有實際戰績就捏一筆，方便檢查版面
   if (!G || !G.over) {
     G = freshGame();
