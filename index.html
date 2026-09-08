@@ -186,7 +186,6 @@ body{
 /* 自己練習：沒有排行榜可看，成績卡自己置中就好 */
 #res-mid.solo{grid-template-columns:minmax(360px,560px);justify-content:center}
 #res-mid > *{min-height:0;display:flex;flex-direction:column}
-#res-mid > .hidden{display:none}
 #c-rank{flex:1 1 auto;min-height:0;overflow-y:auto}
 #result-card{overflow-y:auto}
 .rank-row{display:flex;align-items:center;justify-content:space-between;
@@ -311,6 +310,10 @@ body{
 kbd{font-family:ui-monospace,Consolas,monospace;font-size:14px;padding:3px 8px;
     border-radius:4px;background:var(--panel3);border:2px solid var(--line2);
     box-shadow:0 2px 0 var(--line2)}
+/* Tailwind 的 .hidden 是 class 選擇器，會被上面那些 #id 規則的 display 蓋掉
+   （id 的優先度比較高）。統一補這一條：只要掛上 hidden 就一定不顯示。 */
+.hidden{display:none !important}
+
 input,select,textarea{color:var(--ink)}
 select option{background:var(--panel2);color:var(--ink)}
 .divider{height:2px;background:var(--line)}
@@ -1561,7 +1564,7 @@ const WEAPON_ORDER = ['staff','bow','dagger'];
    而且只有這一階會出現注音鍵盤輔助（該按的鍵會亮）。 */
 const QUALITIES = {
   normal: { key:'normal', name:'普通', mult:1.5, cls:'q-normal', color:'#8fd14f',
-            assist:true,
+            beginner:true,
             desc:'最常用的簡單詞，畫面下方會出現注音鍵盤，該按哪幾個鍵會亮起來。' },
   fine:   { key:'fine',   name:'精良', mult:2.0, cls:'q-fine',   color:'#c9c6db',
             desc:'兩個字的一般詞語，字認得就打得出來。沒有鍵盤輔助了，靠自己找鍵。' },
@@ -2408,7 +2411,8 @@ function renderQuestion(q, mode) {
   const units = questionUnits(q, mode);
   // 題目越長字越小，長句才不會換太多行把怪獸擠掉
   const n = units.length;
-  host.style.fontSize = (n <= 8 ? 42 : n <= 14 ? 34 : n <= 22 ? 27 : 22) + 'px';
+  host.style.fontSize = (n <= 8 ? 42 : n <= 14 ? 34 : n <= 22 ? 27 : n <= 30 ? 22 : 19) + 'px';
+  fitInputFont(n);
   units.forEach((u, i) => {
     const el = document.createElement('span');
     el.className = 'zy st-pending';
@@ -2447,6 +2451,18 @@ function renderQuestion(q, mode) {
   });
   if (host.firstChild) host.firstChild.classList.add('st-current');
   return units;
+}
+
+/* 輸入框的字級跟著題目長度縮
+   長句用 38px 打到一半就會把開頭推出框外，學生看不到自己前面打了什麼。
+   一個中文字大約就是一個字級寬，所以「可用寬度 ÷ 字數」直接當字級用，
+   再夾在 18～38px 之間。太小看不清楚，太大又塞不下。 */
+function fitInputFont(n) {
+  const inp = document.getElementById('type-input');
+  if (!inp) return;
+  const avail = (inp.clientWidth || 900) - 56;          // 扣掉左右 padding
+  const size  = Math.max(18, Math.min(38, Math.floor(avail / Math.max(1, n))));
+  inp.style.fontSize = size + 'px';
 }
 
 /* 把題目拆成「輸入單位」：中文模式一個字一單位；注音模式一個注音符號一單位 */
@@ -2723,6 +2739,10 @@ const DEFAULT_BANK = {
   common_legend: BANK_COMMON_LEGEND,
   special_staff: BANK_SPECIAL_STAFF     // 只有法杖需要自己的題庫（多標點的長句）
 };
+
+/* 連環斬最多串到幾個字。傳奇一句就 14 字，三句串起來會變四十幾字，
+   輸入框根本看不完，所以串到超過就停手（至少會有一個詞組）。 */
+const FLURRY_MAX_CHARS = 12;
 
 /* 弓箭爆擊條 */
 const GAUGE_PER_HIT = 25;    // 一次全對加多少（四題集滿）
@@ -3159,7 +3179,7 @@ function buildZhuyinPad() {
 function paintZhuyinPad() {
   const pad = $('zhuyin-pad');
   if (!pad) return;
-  const on = !!(G && QUALITIES[G.quality] && QUALITIES[G.quality].assist);
+  const on = !!(G && QUALITIES[G.quality] && QUALITIES[G.quality].beginner);
   pad.classList.toggle('hidden', !on);
   if (!on) return;
   buildZhuyinPad();
@@ -3259,8 +3279,11 @@ function pickQuestion() {
   G.qCount = (G.qCount || 0) + 1;
   const w = G.weapon;
 
+  // 「普通」是給還在找鍵盤的孩子，長題一律不出，照常抽普通題就好
+  const beginner = !!(QUALITIES[G.quality] && QUALITIES[G.quality].beginner);
+
   // 法杖：每 5 題來一次「詠唱」，題目來自它自己的題庫
-  if (w === 'staff' && G.qCount % SPECIAL_EVERY === 0) {
+  if (w === 'staff' && !beginner && G.qCount % SPECIAL_EVERY === 0) {
     const p = (BANK.special_staff && BANK.special_staff.length)
             ? BANK.special_staff : DEFAULT_BANK.special_staff;
     const q = drawFrom(p, 'special_staff');
@@ -3271,11 +3294,15 @@ function pickQuestion() {
   if (w === 'dagger' && G.qCount % SPECIAL_EVERY === 0) {
     const p = commonPool();
     const picked = [];
+    let chars = 0;
     for (let i = 0; i < 3 && picked.length < p.length; i++) {
       let q, guard = 0;
       do { q = p[Math.floor(Math.random() * p.length)]; guard++; }
       while (picked.some(x => x.t === q.t) && guard < 12);
-      picked.push(q);
+      const len = [...q.t].length;
+      // 已經有一個了、再串下去會太長，就到此為止
+      if (picked.length && chars + len > FLURRY_MAX_CHARS) break;
+      picked.push(q); chars += len;
     }
     return {
       t: picked.map(q => q.t).join(''),
