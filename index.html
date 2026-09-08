@@ -183,7 +183,10 @@ body{
   padding:12px 20px 14px;gap:10px}
 #res-mid{flex:1 1 auto;min-height:0;display:grid;
   grid-template-columns:minmax(300px,1fr) minmax(320px,1.05fr);gap:12px}
+/* 自己練習：沒有排行榜可看，成績卡自己置中就好 */
+#res-mid.solo{grid-template-columns:minmax(360px,560px);justify-content:center}
 #res-mid > *{min-height:0;display:flex;flex-direction:column}
+#res-mid > .hidden{display:none}
 #c-rank{flex:1 1 auto;min-height:0;overflow-y:auto}
 #result-card{overflow-y:auto}
 .rank-row{display:flex;align-items:center;justify-content:space-between;
@@ -193,8 +196,17 @@ body{
 .rank-no{font-family:ui-monospace,Consolas,monospace;font-weight:900;
   width:34px;color:var(--dim)}
 .rank-row.me .rank-no{color:var(--gold)}
-#r-rank-art{flex:none}
-@media (max-height:760px){ #r-rank-art{width:82px;height:76px} }
+#r-rank-art{flex:none;width:108px;height:100px}
+#r-stats .label{font-size:12px;line-height:1.15}
+#r-stats .panel-flat{padding:6px 2px;text-align:center}
+/* 教室常見的 1366×768：把成績卡收緊一點，才不會逼出捲軸 */
+@media (max-height:830px){
+  #r-rank-art{width:76px;height:72px}
+  #result-card{padding:14px}
+  #r-stats .label{font-size:11px}
+  #r-stats .panel-flat{padding:4px 2px}
+  #r-quote{display:none}
+}
 .deco-line{text-align:center;color:var(--line2);font-family:ui-monospace,Consolas,monospace;
   white-space:pre;line-height:1;font-size:13px;letter-spacing:-.5px}
 
@@ -216,6 +228,32 @@ body{
       transition:border-color .14s,background .14s}
 .qbtn:hover{background:var(--panel3)}
 .qbtn.sel{border-color:var(--gold);background:rgba(232,182,76,.16);color:var(--gold)}
+
+/* ══════════ 注音鍵盤輔助（只有「普通」品質會出現）══════════
+   標準大千鍵盤排列。該按的鍵會亮成金色，孩子照著找就好。 */
+#zhuyin-pad{flex:0 0 auto;display:flex;align-items:center;gap:14px;
+  padding:9px 12px;border-radius:11px;
+  background:var(--panel);border:2px solid var(--line2)}
+#zp-now{flex:none;width:118px;text-align:center;
+  border-right:2px solid var(--line);padding-right:12px}
+#zp-now-label{font-size:12px;color:var(--dim2);letter-spacing:.1em}
+#zp-now-han{font-size:34px;font-weight:900;line-height:1.1;color:var(--gold)}
+#zp-now-zy{font-size:16px;font-weight:800;color:var(--ink);letter-spacing:.06em}
+#zp-keys{flex:1 1 auto;display:flex;flex-direction:column;gap:4px}
+.zp-row{display:flex;gap:4px}
+.zk{flex:1 1 0;min-width:0;height:32px;border-radius:6px;
+  background:var(--panel2);border:2px solid var(--line);
+  display:flex;align-items:center;justify-content:center;gap:3px;
+  transition:background .12s,border-color .12s,color .12s}
+.zk-sym{font-size:17px;font-weight:900;color:var(--ink);line-height:1}
+.zk-key{font-size:10px;color:var(--dim2);font-family:ui-monospace,Consolas,monospace}
+.zk.lit{background:rgba(232,182,76,.9);border-color:#fff0c4}
+.zk.lit .zk-sym{color:#231c10}
+.zk.lit .zk-key{color:#5c4611}
+@media (max-height:860px){
+  .zk{height:26px} .zk-sym{font-size:15px} .zk-key{font-size:9px}
+  #zp-now-han{font-size:28px} #zhuyin-pad{padding:6px 10px}
+}
 
 /* ══════════ 特殊攻擊 ══════════ */
 .q-special{border-color:var(--gold) !important;background:rgba(232,182,76,.1) !important}
@@ -276,7 +314,20 @@ kbd{font-family:ui-monospace,Consolas,monospace;font-size:14px;padding:3px 8px;
 input,select,textarea{color:var(--ink)}
 select option{background:var(--panel2);color:var(--ink)}
 .divider{height:2px;background:var(--line)}
-#screen-login{max-height:100dvh;overflow-y:auto}
+/* ══════════ 登入：表單在左、歷史成績在右，整頁不捲動 ══════════ */
+#screen-login:not(.hidden){display:flex;align-items:center;justify-content:center;
+  gap:18px;padding:10px 16px 16px;min-height:calc(100dvh - 88px)}
+#login-form{flex:0 0 auto;width:392px}
+#login-history{flex:0 0 auto;width:372px;align-self:center}
+/* 撈不到紀錄時右邊整塊不存在，表單自己置中 */
+@media (max-width:820px){
+  #screen-login:not(.hidden){flex-direction:column;min-height:0;align-items:stretch}
+  #login-form,#login-history{width:100%;max-width:392px;margin-inline:auto}
+}
+@media (max-height:720px){
+  #login-form{width:360px}
+  #login-icon{display:none}
+}
 </style>
 </head>
 <body>
@@ -294,16 +345,17 @@ select option{background:var(--panel2);color:var(--ink)}
 </header>
 
 <!-- ══════════ 1. 登入 ══════════ -->
-<section id="screen-login" class="panel p-8 max-w-md mx-auto mt-8 text-center fade-in">
-  <div class="mx-auto mb-5 grid place-items-center rounded-xl"
-       style="width:72px;height:72px;background:var(--panel2);border:2px solid var(--line2);color:var(--gold)">
-    <span class="ico-slot" data-ico="user" data-ico-size="38"></span>
+<section id="screen-login" class="fade-in">
+ <div id="login-form" class="panel p-7 text-center">
+  <div id="login-icon" class="mx-auto mb-4 grid place-items-center rounded-xl"
+       style="width:64px;height:64px;background:var(--panel2);border:2px solid var(--line2);color:var(--gold)">
+    <span class="ico-slot" data-ico="user" data-ico-size="34"></span>
   </div>
-  <h2 class="text-2xl font-black mb-2">勇者，報上名來</h2>
-  <p class="text-base mb-7" style="color:var(--dim)">全班一起討伐怪獸</p>
+  <h2 class="text-2xl font-black mb-1">勇者，報上名來</h2>
+  <p class="text-base mb-5" style="color:var(--dim)">全班一起討伐怪獸</p>
 
   <label class="label block text-left mb-2">班級</label>
-  <div class="flex gap-2 mb-4">
+  <div class="flex gap-2 mb-3">
     <select id="in-grade" class="w-32 p-3 rounded-lg panel-flat text-center font-bold text-lg"></select>
     <select id="in-class" class="flex-1 p-3 rounded-lg panel-flat text-center font-bold text-lg"></select>
   </div>
@@ -323,35 +375,38 @@ select option{background:var(--panel2);color:var(--ink)}
   <p id="login-hint" class="text-sm text-left mb-5" style="color:var(--dim2)">
     第一次來把座號和姓名都填上；之後只要填座號，就會自動帶出你的紀錄。</p>
 
-  <!-- 歷史成績：填好座號、資料庫裡有紀錄才會出現 -->
-  <div id="login-history" class="hidden panel-flat p-4 mb-5 text-left">
-    <div class="flex items-center gap-3">
-      <div id="lh-badge" class="flex-none" style="width:64px;height:60px"></div>
-      <div class="min-w-0 flex-1">
-        <div class="label">目前階級</div>
-        <div id="lh-title" class="font-black text-xl leading-tight">見習生</div>
-        <div id="lh-next" class="text-sm" style="color:var(--dim)"></div>
-      </div>
-      <div class="text-right flex-none">
-        <div class="label">歷史最高傷害</div>
-        <div id="lh-best" class="mono text-3xl font-black leading-none"
-             style="color:var(--gold)">0</div>
-      </div>
-    </div>
-    <div class="grid grid-cols-3 gap-2 mt-3">
-      <div class="panel-flat p-2 text-center"><div class="label" style="font-size:12px">最快每分鐘字</div>
-        <div class="mono text-lg font-black" style="color:var(--mp)" id="lh-wpm">0</div></div>
-      <div class="panel-flat p-2 text-center"><div class="label" style="font-size:12px">單場最多擊倒</div>
-        <div class="mono text-lg font-black" style="color:var(--gr)" id="lh-kills">0</div></div>
-      <div class="panel-flat p-2 text-center"><div class="label" style="font-size:12px">挑戰次數</div>
-        <div class="mono text-lg font-black" id="lh-plays">0</div></div>
-    </div>
-    <p id="lh-last" class="text-sm mt-2" style="color:var(--dim2)"></p>
-  </div>
-
   <button id="btn-enter" class="btn btn-gold w-full py-4 text-xl">
     <span class="ico-slot" data-ico="door" data-ico-size="22"></span>進入戰場</button>
   <p id="login-err" class="text-base mt-3 hidden" style="color:#e5705f"></p>
+ </div>
+
+ <!-- 歷史成績：填好座號、撈得到紀錄才會出現在表單旁邊 -->
+ <div id="login-history" class="hidden panel p-6 text-left">
+   <div class="label mb-3">你的紀錄</div>
+   <div class="flex items-center gap-3 mb-4">
+     <div id="lh-badge" class="flex-none" style="width:76px;height:72px"></div>
+     <div class="min-w-0 flex-1">
+       <div class="label">目前階級</div>
+       <div id="lh-title" class="font-black text-2xl leading-tight">見習生</div>
+       <div id="lh-next" class="text-sm mt-1" style="color:var(--dim)"></div>
+     </div>
+   </div>
+   <div class="p-3 rounded-xl text-center mb-3"
+        style="background:var(--panel2);border:2px solid var(--gold)">
+     <div class="label">歷史最高傷害</div>
+     <div id="lh-best" class="mono text-4xl font-black leading-none"
+          style="color:var(--gold)">0</div>
+   </div>
+   <div class="grid grid-cols-3 gap-2">
+     <div class="panel-flat p-2 text-center"><div class="label" style="font-size:12px">每分鐘字</div>
+       <div class="mono text-xl font-black" style="color:var(--mp)" id="lh-wpm">0</div></div>
+     <div class="panel-flat p-2 text-center"><div class="label" style="font-size:12px">最多擊倒</div>
+       <div class="mono text-xl font-black" style="color:var(--gr)" id="lh-kills">0</div></div>
+     <div class="panel-flat p-2 text-center"><div class="label" style="font-size:12px">挑戰次數</div>
+       <div class="mono text-xl font-black" id="lh-plays">0</div></div>
+   </div>
+   <p id="lh-last" class="text-sm mt-3" style="color:var(--dim2)"></p>
+ </div>
 </section>
 
 <!-- ══════════ 2. 營地：三欄橫排、不捲動 ══════════ -->
@@ -472,6 +527,16 @@ select option{background:var(--panel2);color:var(--ink)}
       <button id="btn-attack" class="btn btn-gold px-8 text-3xl"
               style="height:88px;white-space:nowrap;flex:none">攻擊</button>
     </div>
+
+    <!-- 注音鍵盤輔助：只有「普通」品質會顯示 -->
+    <div id="zhuyin-pad" class="hidden mt-3">
+      <div id="zp-now">
+        <div id="zp-now-label">現在打</div>
+        <div id="zp-now-han">　</div>
+        <div id="zp-now-zy"></div>
+      </div>
+      <div id="zp-keys"></div>
+    </div>
     <p class="text-base mt-2.5 flex flex-wrap gap-x-6 gap-y-1 justify-center"
        style="color:var(--dim2)">
       <span><kbd>Enter</kbd> 送出</span>
@@ -514,8 +579,9 @@ select option{background:var(--panel2);color:var(--ink)}
 <!-- ══════════ 5. 結算：滿版、不捲動 ══════════ -->
 <section id="screen-result" class="hidden">
 
-  <!-- 全班戰果 -->
-  <div class="panel px-5 py-3 flex flex-wrap items-center justify-center gap-x-9 gap-y-2 text-center">
+  <!-- 全班戰果（自己練習時不顯示）-->
+  <div id="res-classbar"
+       class="panel px-5 py-3 flex flex-wrap items-center justify-center gap-x-9 gap-y-2 text-center">
     <div>
       <div class="mono text-3xl font-black leading-none" style="color:var(--gold)" id="c-total">0</div>
       <div class="label">全班總傷害</div></div>
@@ -533,31 +599,28 @@ select option{background:var(--panel2);color:var(--ink)}
     <div id="result-card" class="panel p-5 text-center">
       <p class="label"><span id="r-class"></span></p>
       <h2 class="text-2xl font-black mb-1" id="r-name">勇者</h2>
-      <div id="r-rank-art" class="mx-auto my-1"
-           style="width:108px;height:100px"></div>
+      <div id="r-rank-art" class="mx-auto my-1"></div>
       <h3 class="text-2xl font-black" id="r-title">見習生</h3>
-      <p class="text-sm mb-3 px-2 leading-relaxed" style="color:var(--dim)" id="r-quote"></p>
+      <p id="r-quote" class="text-sm mb-2 px-2 leading-relaxed" style="color:var(--dim)"></p>
 
-      <div class="p-3 rounded-xl mb-3"
+      <div class="p-2.5 rounded-xl mb-2"
            style="background:var(--panel2);border:2px solid var(--gold)">
         <div class="label">本場總傷害</div>
         <div class="mono text-4xl font-black leading-none" style="color:var(--gold)" id="r-damage">0</div>
       </div>
 
-      <div class="grid grid-cols-3 gap-2 mb-2">
-        <div class="panel-flat p-2"><div class="label" style="font-size:12px">正確字數</div>
+      <div id="r-stats" class="grid grid-cols-6 gap-2 mb-2">
+        <div class="panel-flat p-2"><div class="label">正確字數</div>
           <div class="mono text-lg font-black" id="r-words">0</div></div>
-        <div class="panel-flat p-2"><div class="label" style="font-size:12px">正確率</div>
+        <div class="panel-flat p-2"><div class="label">正確率</div>
           <div class="mono text-lg font-black" style="color:var(--gr)"><span id="r-acc">0</span>%</div></div>
-        <div class="panel-flat p-2"><div class="label" style="font-size:12px">每分鐘字</div>
+        <div class="panel-flat p-2"><div class="label">每分鐘字</div>
           <div class="mono text-lg font-black" style="color:var(--mp)" id="r-wpm">0</div></div>
-      </div>
-      <div class="grid grid-cols-3 gap-2 mb-3">
-        <div class="panel-flat p-2"><div class="label" style="font-size:12px">最高連擊</div>
+        <div class="panel-flat p-2"><div class="label">最高連擊</div>
           <div class="mono text-lg font-black" id="r-combo">0</div></div>
-        <div class="panel-flat p-2"><div class="label" style="font-size:12px">完美攻擊</div>
+        <div class="panel-flat p-2"><div class="label">完美攻擊</div>
           <div class="mono text-lg font-black" style="color:#ffd66b" id="r-perfect">0</div></div>
-        <div class="panel-flat p-2"><div class="label" style="font-size:12px">個人擊倒</div>
+        <div class="panel-flat p-2"><div class="label">個人擊倒</div>
           <div class="mono text-lg font-black" id="r-kills">0</div></div>
       </div>
 
@@ -575,8 +638,8 @@ select option{background:var(--panel2);color:var(--ink)}
       <p id="r-note" class="text-base font-bold hidden"></p>
     </div>
 
-    <!-- 右：排行榜 -->
-    <div class="panel p-5">
+    <!-- 右：排行榜（自己練習時整塊不顯示）-->
+    <div id="res-ranks" class="panel p-5">
       <div class="font-black text-xl mb-1">班內傷害排行</div>
       <pre class="deco-line mb-2" id="deco-1"></pre>
       <div id="c-rank" class="space-y-1.5 scrolly pr-1"></div>
@@ -1493,15 +1556,21 @@ String.raw`
 const WEAPON_ORDER = ['staff','bow','dagger'];
 
 /* ── 品質 ─────────────────────────────────────────────── */
+/* 四階武器品質。倍率照原本三階往上接：精良 2.0／史詩 2.9／傳奇 4.2 沒動，
+   只在最下面補一階「普通」給還在找鍵盤的孩子，題目是最常用的簡單兩字詞，
+   而且只有這一階會出現注音鍵盤輔助（該按的鍵會亮）。 */
 const QUALITIES = {
-  normal: { key:'normal', name:'普通', mult:2.0, cls:'q-normal', color:'#c9c6db',
-            desc:'題目短、字好認。適合先熱身、穩穩累積傷害。' },
-  fine:   { key:'fine',   name:'精良', mult:2.9, cls:'q-fine',   color:'#5fb8ff',
-            desc:'題目變長、出現形近字與難字。單題傷害是普通的 1.6 倍。' },
+  normal: { key:'normal', name:'普通', mult:1.5, cls:'q-normal', color:'#8fd14f',
+            assist:true,
+            desc:'最常用的簡單詞，畫面下方會出現注音鍵盤，該按哪幾個鍵會亮起來。' },
+  fine:   { key:'fine',   name:'精良', mult:2.0, cls:'q-fine',   color:'#c9c6db',
+            desc:'兩個字的一般詞語，字認得就打得出來。沒有鍵盤輔助了，靠自己找鍵。' },
+  epic:   { key:'epic',   name:'史詩', mult:2.9, cls:'q-epic',   color:'#5fb8ff',
+            desc:'題目變長、出現形近字與成語。單題傷害是精良的 1.45 倍。' },
   legend: { key:'legend', name:'傳奇', mult:4.2, cls:'q-legend', color:'#ffb340',
-            desc:'最長最難，還有成語跟少見標點。打對一題抵普通題好幾題。' }
+            desc:'最長最難的整句。打對一題抵好幾題精良。' }
 };
-const QUALITY_ORDER = ['normal','fine','legend'];
+const QUALITY_ORDER = ['normal','fine','epic','legend'];
 
 /* 六個階級徽章（SVG）
    共用一枚圓章，隨等級往外長：緞帶 → 桂冠 → 光芒 → 雙翼與王冠。
@@ -1648,18 +1717,131 @@ function rankOf(dmg){
 /* ══════════════════════════════════════════════════════════════
    題庫
 
-     COMMON_NORMAL   一般 · 普通    2 字詞          90 題
-     COMMON_FINE     一般 · 精良    3～4 字詞組成語 140 題
-     COMMON_LEGEND   一般 · 傳奇    5～14 字句子     77 題
-       以上三池三把武器共用，一律不含標點符號。
-       程度對準國小中高年級，字數分層不重疊。
+     COMMON_NORMAL   一般 · 普通    最常用的簡單 2 字詞 103 題
+     COMMON_FINE     一般 · 精良    2 字詞              90 題
+     COMMON_EPIC     一般 · 史詩    3～4 字詞組成語    140 題
+     COMMON_LEGEND   一般 · 傳奇    5～14 字句子        77 題
+       以上四池三把武器共用，一律不含標點符號。
+       程度對準國小中高年級，一階一階往上疊。
+
+     普通與精良都是兩個字，差別在「字有多常見」：
+     普通全是媽媽、天空、跑步這種每天在用的詞，而且只有這一階
+     會出現注音鍵盤輔助（該按哪幾個鍵會亮）；精良才開始出現
+     觀察、蒸發、磁鐵這類課本上的詞。
 
      SPECIAL_STAFF   法杖「詠唱」專用，標點特別多的長句，75 題。
        只有法杖會出現標點。弓箭的神射手與匕首的連環斬都用
        共用題庫，所以不需要額外題庫。
    ══════════════════════════════════════════════════════════════ */
 
+/* 普通：給還在找鍵盤的孩子。全部是最常用、筆畫少、注音單純的兩字詞。 */
 const BANK_COMMON_NORMAL = [
+ {t:'媽媽', z:'ㄇㄚ ˙ㄇㄚ'},
+ {t:'爸爸', z:'ㄅㄚˋ ˙ㄅㄚ'},
+ {t:'哥哥', z:'ㄍㄜ ˙ㄍㄜ'},
+ {t:'姐姐', z:'ㄐㄧㄝˇ ˙ㄐㄧㄝ'},
+ {t:'弟弟', z:'ㄉㄧˋ ˙ㄉㄧ'},
+ {t:'妹妹', z:'ㄇㄟˋ ˙ㄇㄟ'},
+ {t:'爺爺', z:'ㄧㄝˊ ˙ㄧㄝ'},
+ {t:'奶奶', z:'ㄋㄞˇ ˙ㄋㄞ'},
+ {t:'老師', z:'ㄌㄠˇ ㄕ'},
+ {t:'同學', z:'ㄊㄨㄥˊ ㄒㄩㄝˊ'},
+ {t:'朋友', z:'ㄆㄥˊ ㄧㄡˇ'},
+ {t:'大家', z:'ㄉㄚˋ ㄐㄧㄚ'},
+ {t:'小孩', z:'ㄒㄧㄠˇ ㄏㄞˊ'},
+ {t:'天空', z:'ㄊㄧㄢ ㄎㄨㄥ'},
+ {t:'太陽', z:'ㄊㄞˋ ㄧㄤˊ'},
+ {t:'月亮', z:'ㄩㄝˋ ㄌㄧㄤˋ'},
+ {t:'星星', z:'ㄒㄧㄥ ㄒㄧㄥ'},
+ {t:'白雲', z:'ㄅㄞˊ ㄩㄣˊ'},
+ {t:'下雨', z:'ㄒㄧㄚˋ ㄩˇ'},
+ {t:'大風', z:'ㄉㄚˋ ㄈㄥ'},
+ {t:'大海', z:'ㄉㄚˋ ㄏㄞˇ'},
+ {t:'海水', z:'ㄏㄞˇ ㄕㄨㄟˇ'},
+ {t:'高山', z:'ㄍㄠ ㄕㄢ'},
+ {t:'小草', z:'ㄒㄧㄠˇ ㄘㄠˇ'},
+ {t:'花朵', z:'ㄏㄨㄚ ㄉㄨㄛˇ'},
+ {t:'樹木', z:'ㄕㄨˋ ㄇㄨˋ'},
+ {t:'石頭', z:'ㄕˊ ˙ㄊㄡ'},
+ {t:'泥土', z:'ㄋㄧˊ ㄊㄨˇ'},
+ {t:'小狗', z:'ㄒㄧㄠˇ ㄍㄡˇ'},
+ {t:'小貓', z:'ㄒㄧㄠˇ ㄇㄠ'},
+ {t:'小鳥', z:'ㄒㄧㄠˇ ㄋㄧㄠˇ'},
+ {t:'小魚', z:'ㄒㄧㄠˇ ㄩˊ'},
+ {t:'兔子', z:'ㄊㄨˋ ˙ㄗ'},
+ {t:'鴨子', z:'ㄧㄚ ˙ㄗ'},
+ {t:'猴子', z:'ㄏㄡˊ ˙ㄗ'},
+ {t:'大象', z:'ㄉㄚˋ ㄒㄧㄤˋ'},
+ {t:'老虎', z:'ㄌㄠˇ ㄏㄨˇ'},
+ {t:'蜜蜂', z:'ㄇㄧˋ ㄈㄥ'},
+ {t:'小蟲', z:'ㄒㄧㄠˇ ㄔㄨㄥˊ'},
+ {t:'牛奶', z:'ㄋㄧㄡˊ ㄋㄞˇ'},
+ {t:'上課', z:'ㄕㄤˋ ㄎㄜˋ'},
+ {t:'下課', z:'ㄒㄧㄚˋ ㄎㄜˋ'},
+ {t:'讀書', z:'ㄉㄨˊ ㄕㄨ'},
+ {t:'寫字', z:'ㄒㄧㄝˇ ㄗˋ'},
+ {t:'畫畫', z:'ㄏㄨㄚˋ ㄏㄨㄚˋ'},
+ {t:'唱歌', z:'ㄔㄤˋ ㄍㄜ'},
+ {t:'跳舞', z:'ㄊㄧㄠˋ ㄨˇ'},
+ {t:'運動', z:'ㄩㄣˋ ㄉㄨㄥˋ'},
+ {t:'跑步', z:'ㄆㄠˇ ㄅㄨˋ'},
+ {t:'打球', z:'ㄉㄚˇ ㄑㄧㄡˊ'},
+ {t:'教室', z:'ㄐㄧㄠˋ ㄕˋ'},
+ {t:'書包', z:'ㄕㄨ ㄅㄠ'},
+ {t:'鉛筆', z:'ㄑㄧㄢ ㄅㄧˇ'},
+ {t:'課本', z:'ㄎㄜˋ ㄅㄣˇ'},
+ {t:'黑板', z:'ㄏㄟ ㄅㄢˇ'},
+ {t:'學校', z:'ㄒㄩㄝˊ ㄒㄧㄠˋ'},
+ {t:'早安', z:'ㄗㄠˇ ㄢ'},
+ {t:'午安', z:'ㄨˇ ㄢ'},
+ {t:'晚安', z:'ㄨㄢˇ ㄢ'},
+ {t:'中午', z:'ㄓㄨㄥ ㄨˇ'},
+ {t:'今天', z:'ㄐㄧㄣ ㄊㄧㄢ'},
+ {t:'明天', z:'ㄇㄧㄥˊ ㄊㄧㄢ'},
+ {t:'昨天', z:'ㄗㄨㄛˊ ㄊㄧㄢ'},
+ {t:'星期', z:'ㄒㄧㄥ ㄑㄧ'},
+ {t:'時間', z:'ㄕˊ ㄐㄧㄢ'},
+ {t:'吃飯', z:'ㄔ ㄈㄢˋ'},
+ {t:'喝水', z:'ㄏㄜ ㄕㄨㄟˇ'},
+ {t:'睡覺', z:'ㄕㄨㄟˋ ㄐㄧㄠˋ'},
+ {t:'洗手', z:'ㄒㄧˇ ㄕㄡˇ'},
+ {t:'刷牙', z:'ㄕㄨㄚ ㄧㄚˊ'},
+ {t:'回家', z:'ㄏㄨㄟˊ ㄐㄧㄚ'},
+ {t:'出門', z:'ㄔㄨ ㄇㄣˊ'},
+ {t:'走路', z:'ㄗㄡˇ ㄌㄨˋ'},
+ {t:'水果', z:'ㄕㄨㄟˇ ㄍㄨㄛˇ'},
+ {t:'果汁', z:'ㄍㄨㄛˇ ㄓ'},
+ {t:'香蕉', z:'ㄒㄧㄤ ㄐㄧㄠ'},
+ {t:'西瓜', z:'ㄒㄧ ㄍㄨㄚ'},
+ {t:'早餐', z:'ㄗㄠˇ ㄘㄢ'},
+ {t:'雞蛋', z:'ㄐㄧ ㄉㄢˋ'},
+ {t:'青菜', z:'ㄑㄧㄥ ㄘㄞˋ'},
+ {t:'米飯', z:'ㄇㄧˇ ㄈㄢˋ'},
+ {t:'快樂', z:'ㄎㄨㄞˋ ㄌㄜˋ'},
+ {t:'高興', z:'ㄍㄠ ㄒㄧㄥˋ'},
+ {t:'用心', z:'ㄩㄥˋ ㄒㄧㄣ'},
+ {t:'努力', z:'ㄋㄨˇ ㄌㄧˋ'},
+ {t:'認真', z:'ㄖㄣˋ ㄓㄣ'},
+ {t:'勇敢', z:'ㄩㄥˇ ㄍㄢˇ'},
+ {t:'安全', z:'ㄢ ㄑㄩㄢˊ'},
+ {t:'乾淨', z:'ㄍㄢ ㄐㄧㄥˋ'},
+ {t:'謝謝', z:'ㄒㄧㄝˋ ˙ㄒㄧㄝ'},
+ {t:'請問', z:'ㄑㄧㄥˇ ㄨㄣˋ'},
+ {t:'幫忙', z:'ㄅㄤ ㄇㄤˊ'},
+ {t:'分享', z:'ㄈㄣ ㄒㄧㄤˇ'},
+ {t:'紅色', z:'ㄏㄨㄥˊ ㄙㄜˋ'},
+ {t:'藍色', z:'ㄌㄢˊ ㄙㄜˋ'},
+ {t:'綠色', z:'ㄌㄩˋ ㄙㄜˋ'},
+ {t:'黃色', z:'ㄏㄨㄤˊ ㄙㄜˋ'},
+ {t:'公園', z:'ㄍㄨㄥ ㄩㄢˊ'},
+ {t:'房間', z:'ㄈㄤˊ ㄐㄧㄢ'},
+ {t:'馬路', z:'ㄇㄚˇ ㄌㄨˋ'},
+ {t:'商店', z:'ㄕㄤ ㄉㄧㄢˋ'},
+ {t:'車站', z:'ㄔㄜ ㄓㄢˋ'},
+ {t:'火車', z:'ㄏㄨㄛˇ ㄔㄜ'}
+];
+
+const BANK_COMMON_FINE = [
  {t:'觀察', z:'ㄍㄨㄢ ㄔㄚˊ'},
  {t:'實驗', z:'ㄕˊ ㄧㄢˋ'},
  {t:'蒸發', z:'ㄓㄥ ㄈㄚ'},
@@ -1752,7 +1934,7 @@ const BANK_COMMON_NORMAL = [
  {t:'剪刀', z:'ㄐㄧㄢˇ ㄉㄠ'}
 ];
 
-const BANK_COMMON_FINE = [
+const BANK_COMMON_EPIC = [
  {t:'天氣很好', z:'ㄊㄧㄢ ㄑㄧˋ ㄏㄣˇ ㄏㄠˇ'},
  {t:'快樂學習', z:'ㄎㄨㄞˋ ㄌㄜˋ ㄒㄩㄝˊ ㄒㄧˊ'},
  {t:'用功讀書', z:'ㄩㄥˋ ㄍㄨㄥ ㄉㄨˊ ㄕㄨ'},
@@ -2532,11 +2714,12 @@ const ME = { className: '', seat: '', name: '', docId: '', practice: false };
 /* 題庫：一般攻擊三把武器共用，特殊攻擊各武器獨立 */
 const BANK = {};
 const SPECIAL_EVERY = 5;                  // 每幾題插入一次特殊攻擊
-const POOL_KEYS = ['common_normal', 'common_fine', 'common_legend', 'special_staff'];
+const POOL_KEYS = ['common_normal', 'common_fine', 'common_epic', 'common_legend', 'special_staff'];
 
 const DEFAULT_BANK = {
   common_normal: BANK_COMMON_NORMAL,
   common_fine:   BANK_COMMON_FINE,
+  common_epic:   BANK_COMMON_EPIC,
   common_legend: BANK_COMMON_LEGEND,
   special_staff: BANK_SPECIAL_STAFF     // 只有法杖需要自己的題庫（多標點的長句）
 };
@@ -2937,6 +3120,77 @@ function paintSpecialState(isSpecial) {
   qt.classList.toggle('q-special', hot);
 }
 
+/* ══════════════════════════════════════════════════════════════
+   注音鍵盤輔助
+   標準大千鍵盤：37 個注音符號 + 4 個聲調，每個符號剛好一個鍵。
+   只有「普通」品質會出現，把當下要打的那個字的注音鍵點亮。
+   ══════════════════════════════════════════════════════════════ */
+const ZHUYIN_KEYBOARD = [
+  [['1','ㄅ'],['2','ㄉ'],['3','ˇ'],['4','ˋ'],['5','ㄓ'],['6','ˊ'],
+   ['7','˙'],['8','ㄚ'],['9','ㄞ'],['0','ㄢ'],['-','ㄦ']],
+  [['Q','ㄆ'],['W','ㄊ'],['E','ㄍ'],['R','ㄐ'],['T','ㄔ'],['Y','ㄗ'],
+   ['U','ㄧ'],['I','ㄛ'],['O','ㄟ'],['P','ㄣ']],
+  [['A','ㄇ'],['S','ㄋ'],['D','ㄎ'],['F','ㄑ'],['G','ㄕ'],['H','ㄘ'],
+   ['J','ㄨ'],['K','ㄜ'],['L','ㄠ'],[';','ㄤ']],
+  [['Z','ㄈ'],['X','ㄌ'],['C','ㄏ'],['V','ㄒ'],['B','ㄖ'],['N','ㄙ'],
+   ['M','ㄩ'],[',','ㄝ'],['.','ㄡ'],['/','ㄥ']]
+];
+
+function buildZhuyinPad() {
+  const host = $('zp-keys');
+  if (!host || host.childElementCount) return;      // 只建一次
+  ZHUYIN_KEYBOARD.forEach((row, ri) => {
+    const r = document.createElement('div');
+    r.className = 'zp-row';
+    // 下面三排往右錯開一點，看起來才像真的鍵盤
+    if (ri > 0) r.style.paddingLeft = (ri * 10) + 'px';
+    row.forEach(([key, sym]) => {
+      const k = document.createElement('div');
+      k.className = 'zk';
+      k.dataset.sym = sym;
+      k.innerHTML = `<span class="zk-sym">${sym}</span><span class="zk-key">${key}</span>`;
+      r.appendChild(k);
+    });
+    host.appendChild(r);
+  });
+}
+
+/* 這一題現在該打哪個字、那個字要按哪幾個鍵 */
+function paintZhuyinPad() {
+  const pad = $('zhuyin-pad');
+  if (!pad) return;
+  const on = !!(G && QUALITIES[G.quality] && QUALITIES[G.quality].assist);
+  pad.classList.toggle('hidden', !on);
+  if (!on) return;
+  buildZhuyinPad();
+
+  const units = (G && G.units) || [];
+  const typed = [...$('type-input').value];
+  const done  = typed.length >= units.length;
+  const u     = done ? null : units[typed.length];
+
+  const want = new Set();
+  if (u) {
+    if (CFG.mode === 'hanzi') {
+      const zy = splitZhuyin(u.zy);
+      if (zy) {
+        if (zy.light) want.add('˙');
+        zy.syms.forEach(x => want.add(x));
+        if (zy.tone) want.add(zy.tone);
+      }
+    } else if (!u.punct) {
+      want.add(u.show);                      // 注音模式一次只按一個符號
+    }
+  }
+
+  setTxt('zp-now-label', done ? '打完了' : '現在打');
+  setTxt('zp-now-han',   done ? '✓' : (u ? u.show : '　'));
+  setTxt('zp-now-zy',    done ? '按 Enter 送出'
+                              : (u && CFG.mode === 'hanzi' ? (u.zy || '') : ''));
+  [...pad.querySelectorAll('.zk')].forEach(k =>
+    k.classList.toggle('lit', want.has(k.dataset.sym)));
+}
+
 /* 左下角的第一人稱武器（ASCII）*/
 function renderViewmodel() {
   const vm = $('viewmodel');
@@ -2959,6 +3213,7 @@ function startBattle(practice) {
   drawMonster();
   paintSpecialState(false);
   paintGauge();
+  paintZhuyinPad();
   renderViewmodel();
   updateStats();
   nextQuestion();                 // 開戰要先發第一題
@@ -3042,11 +3297,13 @@ function nextQuestion() {
   paintSpecialState(G.q.special);
   paintGauge();
   $('type-input').value = '';
+  paintZhuyinPad();
   $('type-input').focus();
 }
 
 function onInput() {
   if (!G || G.over || !G.units.length) return;
+  paintZhuyinPad();                    // 鍵盤輔助照樣走，它只說「下一個按哪裡」
   // 神射手模式看不到自己打錯，送出才知道結果
   if (G.weapon === 'bow' && G.sharpLeft > 0) return;
   paintProgress(G.units, $('type-input').value);
@@ -3496,6 +3753,12 @@ function showResult(data, killed) {
       : killed >= run.length
         ? '把七隻怪獸全部清光了！'
         : `正在挑戰第 ${killed + 1} 隻「${run[killed].name}」`;
+
+  /* 自己練習不跟別人比：班內排行與跨班排行整塊收起來，成績卡置中。
+     上面那條全班戰果留著，因為它就是剛剛那段討伐動畫的結果。 */
+  $('res-mid').classList.toggle('solo', !!ME.practice);
+  show('res-ranks', !ME.practice);
+  if (ME.practice) { show('screen-result', true); return; }
 
   /* 班內前 10（自己若在 10 名外，補一列） */
   const mine = [...data.mine].sort((a, b) => (b.damage || 0) - (a.damage || 0));
