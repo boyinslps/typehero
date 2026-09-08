@@ -1,7 +1,7 @@
 rules_version = '2';
 
 // ═══════════════════════════════════════════════════════════════
-//  打字勇者（game.html）Firestore 安全規則
+//  打字勇者（index.html）Firestore 安全規則
 //
 //  貼上位置：Firebase 主控台 → Firestore Database → 規則 → 全部取代 → 發布
 //  專案：school-4c9bf
