@@ -69,7 +69,7 @@ function quickSim(wpm, acc, qualityKey, weaponKey, seconds, dda) {
   const cps = Math.max(0.3, (wpm / 60) / Math.max(acc, 0.3));
   let t = 0, lv = 1, exp = 0, kills = 0, dmg = 0, hits = 0;
   let monHp = monsterHp(1, qualityKey, dda);
-  const need = l => BALANCE.exp.needBase + BALANCE.exp.needStep * (l - 1);
+  const need = l => BALANCE.exp.needBase + BALANCE.exp.needStep * (l - 1) + BALANCE.exp.needQuad * (l - 1) * (l - 1);
   while (true) {
     const dt = q.chars / cps;
     if (t + dt > seconds) break;

@@ -128,8 +128,12 @@ body{
    18%{transform:rotate(-14deg)}                     /* 先往後舉一點 */
    55%{transform:rotate(72deg) translateY(10px)}     /* 往前下方劈到接近水平 */
   100%{transform:rotate(0deg)}}
-#combo-tag{position:absolute;left:10px;top:4px;z-index:3;
-  font-weight:900;font-size:21px;color:var(--gold);pointer-events:none}
+/* 放右上角、不是左上角：左下角是第一人稱武器的地盤（固定 left:34px 往上長），
+   窄螢幕下武器圖會佔掉舞台左半邊，連擊字放左邊很容易疊上去看不清楚。
+   放右上角保證不管螢幕多窄都不會跟武器圖重疊（武器永遠貼左）。 */
+#combo-tag{position:absolute;right:10px;top:4px;z-index:5;text-align:right;
+  font-weight:900;font-size:19px;color:var(--gold);pointer-events:none;
+  text-shadow:1px 2px 0 rgba(0,0,0,.55)}
 
 /* 右側：正確率與每分鐘字 */
 #hud-right{position:absolute;right:0;bottom:4px;z-index:2;
@@ -1818,15 +1822,21 @@ const BALANCE = {
     step: 0.06,                         // 每連擊 +6%
     cap: 0.90,                          // 最多 +90%
     expBonusEvery: 5,                   // 每幾連擊加一次經驗獎勵
-    expBonus: 20
+    expBonus: 10                        // 小獎勵就好，經驗主要來源是擊倒，不是連擊
   },
 
-  /* 經驗與等級（局內，每場從 LV1 重來） */
+  /* 經驗與等級（局內，每場從 LV1 重來）
+     設計原則：打字只給「一點點」經驗，擊倒才是經驗的主要來源——
+     不然學生會覺得殺不殺怪都無所謂，反正打字就會一直升級。
+     need(LV) 多加一個二次項，讓後期升級明顯變慢，打字快的學生
+     不會整場一路狂升到頂，跟血量曲線（CTK）的「後期變硬」互相呼應。
+     實測（docs/BALANCE.md §5）：普通/法杖一下全對只有 7 點，
+     一隻 LV1 怪擊倒卻有 29 點，四倍差距，殺怪的份量感拉出來了。 */
   exp: {
-    needBase: 45, needStep: 18,         // need(LV) = needBase + needStep×(LV-1)
-    perChar: 10,                        // 每個正確字，乘 quality.expW
-    perfectBonus: 15,                   // 整題全對
-    killBase: 30, killPerLv: 8          // 擊倒一隻 = killBase + killPerLv×怪物等級
+    needBase: 40, needStep: 16, needQuad: 1.2,   // need(LV) = needBase + needStep×(LV-1) + needQuad×(LV-1)²
+    perChar: 2,                         // 每個正確字，乘 quality.expW——小補貼，不是主力
+    perfectBonus: 3,                    // 整題全對
+    killBase: 22, killPerLv: 7          // 擊倒一隻 = killBase + killPerLv×怪物等級——經驗的主要來源
   },
 
   /* 血量：CTK = 打倒一隻要幾個正確字，隨等級平滑成長 */
@@ -1878,7 +1888,7 @@ const VERSION_LOG = [
       '局內等級與經驗條，打字、全對、擊倒都給經驗',
       '怪物改成依等級出現在對應區域，每區最後一級是王級，每擊倒幾隻一次菁英',
       '連擊加成：連續全對每次 +6%，多出來的傷害另外顯示「追加 +N」',
-      '新手教學：第一次登入會先簡介介面、試打三把武器，背後量測手速',
+      '新手教學：第一次登入會一段一段介紹戰場，每把武器都真的體驗一次特殊攻擊',
       '動態難度：每個人的怪物血量依上一場擊倒數自動調整，目標一場推倒 4～8 隻',
       '單場評價 S / A / B / C / D',
       '首頁右下角版本紀錄（就是你現在看的這個）'
@@ -1888,11 +1898,14 @@ const VERSION_LOG = [
       '普通品質的傷害數字大幅提高',
       '階級徽章改看「戰績分」（速度×品質×正確率），不再看總傷害',
       '難度解鎖改看「歷史最高到達等級」，不再看單場擊倒幾隻',
-      'BOSS 血量依老師設定的場次長度縮放，2 分鐘或 10 分鐘都能推倒 3～5 隻'
+      'BOSS 血量依老師設定的場次長度縮放，2 分鐘或 10 分鐘都能推倒 3～5 隻',
+      '經驗獲取重新調配：打字只給一點點，擊倒才是主要來源，升級曲線後期也變慢了',
+      '傷害數字跟連擊標籤挪開了武器圖的位置，窄螢幕下不會再疊在一起看不清楚'
     ],
     fixed: [
       'assets/ 資料夾的外部小怪美術修好了（原本因為讀錯欄位從沒生效過）',
-      '結算時重複算了兩次 BOSS 血量，已經合併成一次'
+      '結算時重複算了兩次 BOSS 血量，已經合併成一次',
+      '新手教學最後一題連按兩次 Enter 會當機的問題'
     ] },
   { v:'1.5', date:'2026-09-09', title:'難度鎖與細節修正',
     added: ['難度鎖：高一階的品質要先打贏才選得到', '營地加「換人／回登入」'],
@@ -3103,13 +3116,18 @@ function standardWords(str) {
 }
 
 /* ── 動畫特效 ───────────────────────────────────────── */
+/* 傷害數字的水平落點刻意偏右（48～78%），不是正中央。
+   左下角的第一人稱武器是固定 left:34px + 本身寬度，在比較窄的視窗下
+   會佔掉舞台左半邊一大塊；傷害數字如果還落在舊的 38～62% 範圍，
+   在窄螢幕上會直接疊在武器圖上面，看不清楚打了多少。偏右一點
+   還是在「打中怪物」的視覺範圍內，但明顯讓開武器的地盤。 */
 function popDamage(amount, kind, note, bonus = 0) {
   const stage = document.getElementById('stage') || document.getElementById('monster-slot');
-  const left = 38 + Math.random() * 24;
+  const left = 48 + Math.random() * 30;
   const el = document.createElement('div');
   el.className = `dmg-pop ${kind === 'crit' ? 'crit' : kind === 'combo' ? 'combo-dmg' : 'normal-dmg'}`;
   el.style.left = left + '%';
-  el.style.top = '32%';
+  el.style.top = '26%';
   el.style.fontSize = kind === 'crit' ? '46px' : kind === 'combo' ? '38px' : '32px';
   el.innerHTML = `-${amount.toLocaleString()}` +
     (note ? `<div style="font-size:13px;opacity:.9;margin-top:2px">${note}</div>` : '');
@@ -3121,7 +3139,7 @@ function popDamage(amount, kind, note, bonus = 0) {
     const bEl = document.createElement('div');
     bEl.className = 'dmg-pop-bonus';
     bEl.style.left = left + '%';
-    bEl.style.top = '44%';
+    bEl.style.top = '38%';
     bEl.textContent = `追加 +${bonus.toLocaleString()}`;
     stage.appendChild(bEl);
     setTimeout(() => bEl.remove(), 1150);
@@ -3260,7 +3278,10 @@ function freshGame(opts = {}) {
    局內等級與經驗條
    每場從 LV1 重來，經驗來源與升級需求見 BALANCE.exp（docs/BALANCE.md §5）。
    ══════════════════════════════════════════════════════════════ */
-const expNeed = lv => BALANCE.exp.needBase + BALANCE.exp.needStep * (lv - 1);
+const expNeed = lv => {
+  const e = BALANCE.exp;
+  return e.needBase + e.needStep * (lv - 1) + e.needQuad * (lv - 1) * (lv - 1);
+};
 
 function gainExp(n) {
   if (!G || !(n > 0)) return;
@@ -3888,27 +3909,20 @@ function updateDda(dda, kills) {
 }
 
 /* ══════════════ 戰鬥 ══════════════
-   opts.dda：這場怪物血量的個人難度（省略就用歷史紀錄或保底值推算）
-   opts.tutorial：新手教學的暖身戰鬥，不計分、不寫排行，武器每兩題輪換一次 */
+   opts.dda：這場怪物血量的個人難度（省略就用歷史紀錄或保底值推算） */
 function startBattle(practice, opts = {}) {
   ME.practice = !!practice;
-  const tutorial = !!opts.tutorial;
-  const dda = tutorial ? BALANCE.dda.seedNew
-    : (opts.dda != null ? opts.dda
-      : (MY_HIST && MY_HIST.dda != null ? MY_HIST.dda : seedDda(MY_HIST && MY_HIST.bestWpm)));
-  G = freshGame({ dda, tutorial });
+  const dda = opts.dda != null ? opts.dda
+    : (MY_HIST && MY_HIST.dda != null ? MY_HIST.dda : seedDda(MY_HIST && MY_HIST.bestWpm));
+  G = freshGame({ dda });
   G.startedAt = Date.now();
-  if (tutorial) {
-    G.tutWeapons = ['staff', 'staff', 'bow', 'bow', 'dagger', 'dagger'];
-    tutorialSetStep(0);
-  }
 
   show('screen-lobby', false); show('screen-login', false);
   show('screen-result', false); show('screen-boss', false);
   show('app-header', false);                 // 遊戲中不需要標題列
   show('btn-verlog', false);
   show('screen-game', true);
-  show('practice-flag', practice && !tutorial);
+  show('practice-flag', practice);
   show('unlock-banner', false); show('levelup-banner', false); show('chainkill-banner', false);
 
   drawMonster();
@@ -3923,51 +3937,107 @@ function startBattle(practice, opts = {}) {
   setTimeout(() => $('type-input').focus(), 150);
 
   clearInterval(G.timer);
-  if (tutorial) {
-    $('hdr-timer').textContent = `${G.tutIdx + 1} / ${G.tutWeapons.length}`;
-    $('hdr-timer').style.color = 'var(--gold)';
-  } else {
-    G.timer = setInterval(tick, 250);
-    tick();
-  }
+  G.timer = setInterval(tick, 250);
+  tick();
 }
 
 /* ══════════════════════════════════════════════════════════════
-   新手教學：史上第一次登入（!MY_HIST || !MY_HIST.plays）才會出現。
-   目的是用真實打字速度校準動態難度，取代 seedNew 的盲猜（docs/BALANCE.md §7.0）。
-   流程：4 張介面簡介卡 → 6 題暖身戰鬥（法杖/弓箭/匕首各 2 題，背後量測手速）
-        → 把量到的速度換算成 dda，寫進歷史，再進營地。
+   新手教學：史上第一次登入（!MY_HIST || (!MY_HIST.tutorialDone && !MY_HIST.plays)）
+   才會出現。兩個目的：
+     (1) 用真實打字速度校準動態難度，取代 seedNew 的盲猜（docs/BALANCE.md §7.0）；
+     (2) 一段一段帶學生「實際打過」三把武器的特殊攻擊，不是唸說明書了事——
+         每把武器先給幾題暖身，說明卡告訴他們特殊攻擊是什麼、會發生什麼，
+         按下去才真的觸發那個特殊攻擊讓他們打一次。
+
+   TUTORIAL_SCRIPT 是一條線性腳本，caption（說明卡，要按按鈕才過）跟
+   battle（實際對戰一段，count 題後自動接下一步）交錯。整段教學共用同一個
+   G（同一隻正在打的怪物、同一條經驗條），只是每段開頭換武器、換要打幾題，
+   量測到的手速自然涵蓋三把武器、涵蓋一般攻擊跟特殊攻擊。
    ══════════════════════════════════════════════════════════════ */
-const TUTORIAL_STEPS = [
-  { title: '歡迎來到打字勇者！', body: '你要對抗一隻一隻的怪物，靠打對題目來造成傷害。花 30 秒認識一下戰場吧。' },
-  { title: '看注音打字', body: '題目下面會顯示你要打的字，右側標著注音。打完按 Enter 或按「攻擊」送出，答錯也沒關係，送出就會進下一題。' },
-  { title: '血條與等級', body: '畫面上方是怪物的血條，血條上面那條細的是你的等級條——打對字、打倒怪物都會累積經驗值，等級越高攻擊力越強。' },
-  { title: '三把武器', body: '法杖、弓箭、匕首手感各不同，各有專屬的特殊攻擊。接下來讓你各試打兩題，找找自己的手感。' }
+const TUTORIAL_SCRIPT = [
+  { type: 'caption', title: '歡迎來到打字勇者！',
+    body: '你要對抗一隻一隻的怪物，靠打對題目來造成傷害。花一分鐘認識一下戰場、試打三把武器吧。',
+    cta: '開始' },
+  { type: 'caption', title: '看注音打字',
+    body: '題目下面會顯示你要打的字，右側標著注音。打完按 Enter 或按「攻擊」送出，答錯也沒關係，送出就會進下一題。',
+    cta: '繼續' },
+  { type: 'caption', title: '血條與等級',
+    body: '畫面上方是怪物的血條，上面那條細的是你的等級條——打對字、打倒怪物都會累積經驗值，等級越高攻擊力越強。',
+    cta: '繼續' },
+
+  { type: 'caption', title: '法杖',
+    body: '法杖：一般攻擊傷害三把武器裡最高，每個正確標點還有額外加成。先試打兩題。',
+    cta: '試試看' },
+  { type: 'battle', weapon: 'staff', count: 2 },
+  { type: 'caption', title: '詠唱',
+    body: '法杖的絕招是「詠唱」——接下來這句標點特別多，全部打對傷害會變成三倍！',
+    cta: '開始詠唱' },
+  { type: 'battle', weapon: 'staff', count: 1, forceSpecial: true },
+
+  { type: 'caption', title: '弓箭',
+    body: '弓箭：傷害跟著正確率走，最穩定。打對會累積畫面下方那條爆擊條，先試打兩題。',
+    cta: '試試看' },
+  { type: 'battle', weapon: 'bow', count: 2 },
+  { type: 'caption', title: '神射手模式',
+    body: '爆擊條集滿了！接下來會進入「神射手模式」：連續幾題傷害雙倍，但打字的時候看不到自己打對打錯，要更專心、憑感覺打完再送出。',
+    cta: '開始' },
+  { type: 'battle', weapon: 'bow', count: 4, forceGauge: true },
+
+  { type: 'caption', title: '匕首',
+    body: '匕首：一般攻擊傷害固定，不看速度。先試打兩題。',
+    cta: '試試看' },
+  { type: 'battle', weapon: 'dagger', count: 2 },
+  { type: 'caption', title: '連環斬',
+    body: '匕首的絕招是「連環斬」——接下來要一次連打好幾個詞，打越快傷害越高！',
+    cta: '開始連環斬' },
+  { type: 'battle', weapon: 'dagger', count: 1, forceSpecial: true },
+
+  { type: 'caption', title: '準備出發！', body: '教學結束了，營地在等你。', cta: '進入營地' }
 ];
-let _tutStep = 0;
+
+let TUT = { idx: -1 };
+
 function startTutorial() {
-  _tutStep = 0;
+  TUT.idx = -1;
+  G = null;
   show('screen-login', false); show('screen-lobby', false); show('screen-game', false);
   show('app-header', false);
   show('btn-verlog', false);
+  advanceTutorial();
+}
+
+/* 腳本往前走一步：按過說明卡（tutorialNext）或打完一段對戰
+   （submitAttack 尾端）都呼叫這個，是整個教學流程唯一的推進點。 */
+function advanceTutorial() {
+  TUT.idx++;
+  const step = TUTORIAL_SCRIPT[TUT.idx];
+  if (!step) { endTutorialFlow(); return; }
+  if (step.type === 'caption') {
+    if (G) { G.over = true; $('type-input').disabled = true; }   // 看說明卡時先暫停輸入
+    showTutorialCaption(step);
+  } else {
+    runTutorialBattleSegment(step);
+  }
+}
+
+function showTutorialCaption(step) {
   show('tutorial-intro', true);
-  paintTutorialStep();
+  setTxt('tut-step', `${TUT.idx + 1} / ${TUTORIAL_SCRIPT.length}`);
+  setTxt('tut-title', step.title);
+  setTxt('tut-body', step.body);
+  setTxt('tut-next', step.cta || '繼續');
 }
-function paintTutorialStep() {
-  const s = TUTORIAL_STEPS[_tutStep];
-  setTxt('tut-step', `${_tutStep + 1} / ${TUTORIAL_STEPS.length}`);
-  setTxt('tut-title', s.title);
-  setTxt('tut-body', s.body);
-  setTxt('tut-next', _tutStep < TUTORIAL_STEPS.length - 1 ? '繼續' : '開始試打！');
-}
+
+/* 說明卡按鈕：收起卡片，繼續跑腳本 */
 function tutorialNext() {
-  if (_tutStep < TUTORIAL_STEPS.length - 1) { _tutStep++; paintTutorialStep(); return; }
   show('tutorial-intro', false);
-  startBattle(true, { tutorial: true });
+  advanceTutorial();
 }
-/* 給老師示範用：跳過教學，量測值用保底的 seedNew */
+
+/* 給老師示範用：任何時候都能跳過，量測值用保底的 seedNew */
 function tutorialSkip() {
   show('tutorial-intro', false);
+  if (G) { clearInterval(G.timer); G = null; }
   MY_HIST = Object.assign({}, MY_HIST, { dda: BALANCE.dda.seedNew, tutorialDone: true });
   writeLocalHist(ME.docId, MY_HIST);
   setDoc(doc(REF.scores, ME.docId), {
@@ -3977,18 +4047,48 @@ function tutorialSkip() {
   gotoLobby();
 }
 
-/* 切到教學的下一個武器步驟：直接改 LOADOUT，因為學生這時候還沒真的選過武器 */
-function tutorialSetStep(i) {
-  G.tutIdx = i;
+/* 開一段實際對戰。第一次呼叫要把整個戰鬥畫面架起來；之後同一場教學
+   延續同一個 G（同一隻怪、同一條經驗條），只換武器跟這一段要打幾題。
+   step.forceSpecial：這一段（通常只有 1 題）強制出特殊攻擊題型（詠唱／連環斬）。
+   step.forceGauge：弓箭專用，直接發神射手模式（不看這幾題打得準不準），
+                    對應的說明卡已經把「爆擊條集滿了」講成既定事實，
+                    所以這裡要保證一定會觸發，不能讓手感不好的學生錯過。 */
+function runTutorialBattleSegment(step) {
+  if (!G) {
+    G = freshGame({ dda: BALANCE.dda.seedNew, tutorial: true });
+    G.startedAt = Date.now();
+    show('screen-lobby', false); show('screen-login', false);
+    show('screen-result', false); show('screen-boss', false);
+    show('app-header', false);
+    show('btn-verlog', false);
+    show('screen-game', true);
+    show('unlock-banner', false); show('levelup-banner', false); show('chainkill-banner', false);
+    paintExpBar();
+    paintZhuyinPad();
+  }
+  G.over = false;
+  $('type-input').disabled = false;
+  G.weapon  = LOADOUT.weapon  = step.weapon;
   G.quality = LOADOUT.quality = 'normal';
-  G.weapon  = LOADOUT.weapon  = G.tutWeapons[i];
+  G.tutSegRemaining = step.count;
+  G.tutForceSpecial = !!step.forceSpecial;
+  if (step.forceGauge) { G.gauge = 0; G.sharpLeft = BALANCE.sharpShots; }   // 直接給神射手模式，不看這幾題打得準不準
+
+  drawMonster();
+  paintSpecialState(false);
+  paintGauge();
   renderViewmodel();
-  setTxt('hdr-timer', `${i + 1} / ${G.tutWeapons.length}`);
+  updateStats();
+  setTxt('hdr-timer', `${TUT.idx + 1} / ${TUTORIAL_SCRIPT.length}`);
+  nextQuestion();
+  setTimeout(() => $('type-input').focus(), 150);
 }
 
-/* 教學結束：把量到的手速換算成 dda，寫進歷史（本機＋雲端），不計分、不進排行 */
-async function endTutorial() {
-  if (!G) return;                       // 保險：不會發生，但避免任何重入路徑炸掉
+/* 教學腳本跑完：把量到的手速換算成 dda，寫進歷史（本機＋雲端），不計分、不進排行 */
+async function endTutorialFlow() {
+  if (!G) { gotoLobby(); return; }         // 保險：理論上不會發生
+  G.over = true;
+  $('type-input').disabled = true;
   const elapsedSec = Math.max(1, (Date.now() - G.startedAt) / 1000);
   const measuredWpm = Math.round(G.words / elapsedSec * 60);
   const dda = seedDda(measuredWpm);
@@ -4042,12 +4142,48 @@ function drawFrom(pool, key) {
   return q;
 }
 
+/* 法杖「詠唱」：題目來自它自己的題庫（多標點的長句） */
+function pickStaffChant() {
+  const p = (BANK.special_staff && BANK.special_staff.length)
+          ? BANK.special_staff : DEFAULT_BANK.special_staff;
+  const q = drawFrom(p, 'special_staff');
+  return { t: q.t, z: q.z, special: true };
+}
+
+/* 匕首「連環斬」：把一般題庫的幾個詞組串起來 */
+function pickDaggerFlurry() {
+  const p = commonPool();
+  const picked = [];
+  let chars = 0;
+  for (let i = 0; i < 3 && picked.length < p.length; i++) {
+    let q, guard = 0;
+    do { q = p[Math.floor(Math.random() * p.length)]; guard++; }
+    while (picked.some(x => x.t === q.t) && guard < 12);
+    const len = [...q.t].length;
+    // 已經有一個了、再串下去會太長，就到此為止
+    if (picked.length && chars + len > BALANCE.flurry.maxChars) break;
+    picked.push(q); chars += len;
+  }
+  return {
+    t: picked.map(q => q.t).join(''),
+    z: picked.map(q => q.z).join(' '),
+    special: true
+  };
+}
+
 function pickQuestion() {
   G.qCount = (G.qCount || 0) + 1;
   const w = G.weapon;
 
-  // 新手教學：一律用最簡單的普通題庫，不出特殊攻擊，量測才乾淨
+  /* 新手教學：一律用最簡單的普通題庫；如果這一段是「示範特殊攻擊」，
+     直接強制出詠唱／連環斬，不用等 qCount 湊到倍數——學生才不用打一堆
+     陪襯題目。弓箭的特殊攻擊不是靠題目類型觸發（是爆擊條），所以弓箭
+     沒有這個分支，交給 runTutorialBattleSegment() 事先把爆擊條催滿。 */
   if (G.tutorial) {
+    if (G.tutForceSpecial) {
+      if (w === 'staff')  return pickStaffChant();
+      if (w === 'dagger') return pickDaggerFlurry();
+    }
     const q = drawFrom(commonPool(), 'common_normal');
     return { t: q.t, z: q.z, special: false };
   }
@@ -4055,34 +4191,11 @@ function pickQuestion() {
   // 「普通」是給還在找鍵盤的孩子，長題一律不出，照常抽普通題就好
   const beginner = !!(QUALITIES[G.quality] && QUALITIES[G.quality].beginner);
 
-  // 法杖：每 5 題來一次「詠唱」，題目來自它自己的題庫
-  if (w === 'staff' && !beginner && G.qCount % BALANCE.specialEvery === 0) {
-    const p = (BANK.special_staff && BANK.special_staff.length)
-            ? BANK.special_staff : DEFAULT_BANK.special_staff;
-    const q = drawFrom(p, 'special_staff');
-    return { t: q.t, z: q.z, special: true };
-  }
+  // 法杖：每 5 題來一次「詠唱」
+  if (w === 'staff' && !beginner && G.qCount % BALANCE.specialEvery === 0) return pickStaffChant();
 
-  // 匕首：每 5 題來一次「連環斬」，把一般題庫的三個詞組串起來
-  if (w === 'dagger' && G.qCount % BALANCE.specialEvery === 0) {
-    const p = commonPool();
-    const picked = [];
-    let chars = 0;
-    for (let i = 0; i < 3 && picked.length < p.length; i++) {
-      let q, guard = 0;
-      do { q = p[Math.floor(Math.random() * p.length)]; guard++; }
-      while (picked.some(x => x.t === q.t) && guard < 12);
-      const len = [...q.t].length;
-      // 已經有一個了、再串下去會太長，就到此為止
-      if (picked.length && chars + len > BALANCE.flurry.maxChars) break;
-      picked.push(q); chars += len;
-    }
-    return {
-      t: picked.map(q => q.t).join(''),
-      z: picked.map(q => q.z).join(' '),
-      special: true
-    };
-  }
+  // 匕首：每 5 題來一次「連環斬」
+  if (w === 'dagger' && G.qCount % BALANCE.specialEvery === 0) return pickDaggerFlurry();
 
   // 其餘一律用共用題庫（弓箭的爆發靠爆擊條，不換題目）
   const q = drawFrom(commonPool(), `common_${G.quality}`);
@@ -4165,15 +4278,16 @@ function submitAttack() {
   if (brokeCombo) flashComboBreak();
 
   if (G.tutorial) {
-    const nextIdx = G.tutIdx + 1;
-    if (nextIdx >= G.tutWeapons.length) {
-      // 最後一題：立刻鎖住輸入框、擋掉重複送出（Enter 連按），
-      // 跟 endBattle() 的作法一樣，晚一點才真的呼叫 endTutorial 存資料、換畫面
+    G.tutSegRemaining--;
+    if (G.tutSegRemaining <= 0) {
+      // 這一段打完了：立刻鎖住輸入框、擋掉重複送出（Enter 連按），
+      // 跟 endBattle() 的作法一樣，晚一點才真的推進腳本（可能是下一張說明卡，
+      // 也可能直接是教學結束），視覺上留一點停頓再跳，不會太突兀。
       G.over = true;
       $('type-input').disabled = true;
-      setTimeout(endTutorial, 500);
+      G.tutForceSpecial = false;
+      setTimeout(advanceTutorial, 500);
     } else {
-      tutorialSetStep(nextIdx);
       setTimeout(nextQuestion, 130);
     }
   } else {
