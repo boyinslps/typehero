@@ -129,6 +129,44 @@ HTML `#topbar`（約 494–509）。
 
 ---
 
+## W3.5. 新手教學（史上第一次登入才會出現）
+
+數值理由見 `docs/BALANCE.md` §7.0。**目的是用真實打字速度取代 `seedNew:0.85` 的盲猜**。
+
+**位置**：`gotoLobby()`（約 3216 行）、新增 `#screen-tutorial`（HTML，放在
+`#screen-lobby` 與 `#screen-game` 之間）、新增 `startTutorial()` / `tutorialStep()`
+/ `endTutorial()`、`LOADOUT` 附近加 `TUT = { active:false, ... }`。
+
+1. **觸發條件**：`doLogin()` 撈完歷史後，若 `!MY_HIST || !MY_HIST.plays`
+   （史上第一次，完全沒打過任何一場——包含練習），進 `gotoLobby()` 前先跳
+   `startTutorial()`，而不是直接給老師/學生控制的營地。
+2. **介面簡介**（3～4 張卡，每張一個「繼續」鍵或 Enter 前進）：
+   指向怪物血條／輸入框／傷害數字／武器與品質 chip，文字要短
+   （例：「這是你要打的字，看注音打中文就好」）。
+3. **自動戰鬥 6 題**：依序法杖 2 題、弓箭 2 題、匕首 2 題
+   （`TUT.weapons = ['staff','staff','bow','bow','dagger','dagger']`），
+   每題前把 `G.weapon = TUT.weapons[TUT.i]` 再呼叫現有的 `nextQuestion()`，
+   畫面照常顯示武器、怪物會正常掉血甚至死掉（用 `BALANCE.dda.seedNew` 開場），
+   **但不觸發 `checkUnlock`／不寫入 `damage`／不算進任何排行**，
+   純粹借現有戰鬥流程的手感。
+4. **背後量測**：累計這 6 題的 `correctChars` 與花費時間算出 `measuredWpm`，
+   以及 `correctChars/typedChars` 算 `measuredAcc`。
+   **畫面上不顯示這兩個數字**（不是考試，是暖身）。
+5. **結束**：`endTutorial()` 把 `MY_HIST.dda = seedDda(measuredWpm)`、
+   `MY_HIST.tutorialDone = true`、`MY_HIST.bestWpm = Math.max(MY_HIST.bestWpm||0,
+   measuredWpm)` 寫進本機歷史**與雲端**（一筆 `setDoc merge`），
+   跳一句鼓勵的話（不給分數，例如「準備好了，營地在等你」），再進 `gotoLobby()`。
+6. `#tutorial-skip`（小字，角落）：給老師示範用，跳過時 `MY_HIST.dda =
+   BALANCE.dda.seedNew`、一樣寫 `tutorialDone:true`（不會每次示範都重新跳出來）。
+7. **回頭相容**：既有 139 筆舊紀錄 `plays` 欄位都 > 0，天然不會被叫出教學，
+   不用額外補 `tutorialDone` 欄位。
+
+**驗收**：清 localStorage＋用全新座號登入 → 自動進教學而不是直接到營地；
+教完的第一場擊倒數應該已經反映真實手速，跟用該生真實 wpm 算出的 §7 模擬表一致
+（容許 ±1 隻的量測誤差）。
+
+---
+
 ## W6. 難度鎖改看 `bestLevel`
 
 **位置**：1628–1658（`QUALITY_NEED_KILLS` / `myBestKills` / `qualityUnlocked`
@@ -290,7 +328,10 @@ README 裡凡是提到具體數字的地方，一律改成「詳見 `docs/BALANC
 
 用 http 開（`python -m http.server` 或 VS Code Live Server），**不要用 file://**。
 
-1. **新生第一場**：清 localStorage、用沒用過的座號登入 → 練習 2 分鐘，
+1. **新手教學**：清 localStorage、用沒用過的座號登入 → 應自動進教學
+   （不是直接到營地），介面簡介卡可以按過去，6 題內依序看到法杖／弓箭／匕首，
+   教完進營地；用同一座號再登入一次，**不會**再跳教學。
+1b. **新生第一場**：教學結束後練習 2 分鐘，
    確認擊倒 2～8 隻、LV 到 4 以上、經驗條有動、沒有卡在第一隻。
 2. **弱者**：故意慢慢打（約 10 秒一題）→ 確認觸發救援（第一隻會比平常早死），
    整場至少推倒 1～2 隻。

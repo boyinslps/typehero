@@ -1,7 +1,7 @@
 {
-  "說明": "改這裡的檔名或數值就能換美術。順序＝出場順序，hp 是難度 1.0 時的血量。",
-  "personal 說明": "學生自己打的小怪。第一隻建議 100 血左右。",
-  "bosses 說明": "時間到才登場、吃全班總傷害的大 BOSS。一班約打出 7000～20000 傷害。",
+  "說明": "改這裡的檔名或數值就能換美術。順序＝出場順序，改名字、換圖都可以，但不要調整陣列順序（前後怪物會對不上區域）。",
+  "personal 說明": "學生自己打的小怪，共 10 種造型。v2.0 改版後 hp 這欄不再影響血量——血量是依玩家等級即時算出來的（公式在 docs/BALANCE.md §3），這裡的 hp 純備查、可以留著不用管。怪物出現的等級區間寫在 index.html 的 ZONES（不在這份檔案裡），第 1、2 隻在 LV1-5，第 3、5 隻在 LV6-10，以此類推，詳見 docs/BALANCE.md §6。",
+  "bosses 說明": "時間到才登場、吃全班總傷害的大 BOSS，共 10 隻。這裡的 hp 仍然有效，是「一場 120 秒」的基準值，遊戲會依老師實際設定的比賽時間等比例縮放（時間長血量也跟著長），詳見 docs/BALANCE.md §9。",
   "personal": [
     {
       "file": "1-slime.txt",
@@ -78,70 +78,70 @@
     {
       "file": "1-troll.txt",
       "name": "巨魔守衛",
-      "hp": 4500,
+      "hp": 4200,
       "color": "#8fd14f",
       "tag": "擋在洞口的第一道關卡"
     },
     {
       "file": "2-cerberus.txt",
       "name": "雙頭獄犬",
-      "hp": 5900,
+      "hp": 5500,
       "color": "#ff8a3d",
       "tag": "兩顆頭永遠不同時睡覺"
     },
     {
       "file": "3-medusa.txt",
       "name": "蛇髮妖女",
-      "hp": 7600,
+      "hp": 7200,
       "color": "#a78bfa",
       "tag": "對上眼睛就會變成石頭"
     },
     {
       "file": "4-abyssknight.txt",
       "name": "深淵騎士",
-      "hp": 9900,
+      "hp": 9400,
       "color": "#dfe6ff",
       "tag": "鎧甲底下空無一物"
     },
     {
       "file": "5-frostdragon.txt",
       "name": "冰霜巨龍",
-      "hp": 12900,
+      "hp": 12200,
       "color": "#7fd8ff",
       "tag": "吐息能把整條河凍住"
     },
     {
       "file": "6-firedragon.txt",
       "name": "火焰惡龍",
-      "hp": 16800,
+      "hp": 15900,
       "color": "#ff8a3d",
       "tag": "吐息足以熔化鋼鐵"
     },
     {
       "file": "7-thundergiant.txt",
       "name": "雷霆巨人",
-      "hp": 21800,
+      "hp": 20700,
       "color": "#ffe066",
       "tag": "每一步都伴隨落雷"
     },
     {
       "file": "8-demonlord.txt",
       "name": "混沌魔王",
-      "hp": 28300,
+      "hp": 26900,
       "color": "#ff4d6d",
       "tag": "從裂縫爬出的支配者"
     },
     {
       "file": "9-calamity.txt",
       "name": "天災之獸",
-      "hp": 36800,
+      "hp": 35000,
       "color": "#ff5470",
       "tag": "牠醒來的地方寸草不生"
     },
     {
       "file": "10-voidshade.txt",
       "name": "虛空之影",
-      "hp": 47800,
+      "hp": 45500,
       "color": "#b98cff",
       "tag": "全班的最終試煉"
     }
