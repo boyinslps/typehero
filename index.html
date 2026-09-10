@@ -70,8 +70,16 @@ body{
 /* 戰鬥舞台 */
 #stage{flex:1 1 auto;min-height:0;position:relative;overflow:hidden;display:flex;
        flex-direction:column;align-items:center}
-#monster-slot{flex:1 1 auto;min-height:150px;width:100%;
-              display:flex;align-items:center;justify-content:center;position:relative}
+/* min-height 以前是 150px，矮螢幕（尤其普通品質多一排鍵盤）下這個下限
+   會逼 flexbox 硬是撐出比舞台實際能給的還高的空間，圖案就會溢出舞台
+   底部，跟弓箭的爆擊條、右下角數字疊在一起。降到 60px 當安全下限，
+   真正的縮放交給 fitMonsterArt()（比照武器的 fitViewmodel() 做法）
+   即時量測、需要就用 transform:scale 縮小——套在 #monster-slot（外層），
+   不是 #monster-art（內層），因為內層自己的 mon-idle/mon-hit/mon-die
+   已經用 animation 佔掉 transform 了，套在外層才不會打架。 */
+#monster-slot{flex:1 1 auto;min-height:60px;width:100%;
+              display:flex;align-items:center;justify-content:center;position:relative;
+              transform-origin:50% 50%}
 #monster-art{font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;
   white-space:pre;line-height:1.05;font-size:17px;text-align:center;margin:0;
   transition:transform .09s,filter .09s}
@@ -99,10 +107,12 @@ body{
 .hpghost{position:absolute;inset:0;height:100%;background:rgba(255,255,255,.22);
          transition:width .9s ease .3s;z-index:1}
 
-/* 第一人稱武器：白色、無光暈，置中、貼著舞台下緣。
+/* 第一人稱武器：白色、無光暈，貼著舞台下緣、靠左側（不是正中央）。
    整把都要看得到——fitViewmodel() 會依舞台實際高度即時算縮放，
-   不管螢幕多矮都不會被切掉一截（縮放從底部往上，握的位置不會跑掉）。 */
-#vm-wrap{position:absolute;left:50%;bottom:0;z-index:2;pointer-events:none;
+   不管螢幕多矮都不會被切掉一截（縮放從底部往上，握的位置不會跑掉）。
+   實測發現置中會直接疊在怪獸身上（怪獸本來就水平置中，兩個擠在
+   同一塊），所以水平位置維持靠左，跟怪獸的位置錯開，兩個都看得清楚。 */
+#vm-wrap{position:absolute;left:6%;bottom:0;z-index:2;pointer-events:none;
   transform-origin:50% 100%}
 #viewmodel{margin:0;font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;
   white-space:pre;line-height:1.02;font-size:19px;color:#e8e4da;
@@ -1914,8 +1924,9 @@ const VERSION_LOG = [
       '難度解鎖改看「歷史最高到達等級」，不再看單場擊倒幾隻',
       'BOSS 血量依老師設定的場次長度縮放，2 分鐘或 10 分鐘都能推倒 3～5 隻',
       '經驗獲取重新調配：打字只給一點點，擊倒才是主要來源，升級曲線後期也變慢了',
-      '第一人稱武器改成整把完整顯示、置中、依螢幕高度自動縮放，不會再被切掉一截',
+      '第一人稱武器改成整把完整顯示、依螢幕高度自動縮放，不會再被切掉一截',
       '連擊標籤搬進頁首那排，傷害數字落點往右挪，都避開武器的位置',
+      '怪獸圖也會依舞台高度自動縮小，不會再疊到弓箭的爆擊條',
       '普通品質出現注音鍵盤時，題目框跟輸入框會自動縮小一點讓出空間',
       '弓箭攻擊特效重畫成直的箭、箭頭朝上（原本是一條橫線，方向不對）',
       '放慢所有攻擊動畫跟傷害文字的消失速度，多留時間讓學生看清楚'
@@ -3912,15 +3923,13 @@ function renderViewmodel() {
   fitViewmodel();
 }
 
-/* 讓整把武器完整顯示、置中：#vm-wrap 底部貼齊舞台下緣（見 CSS），
-   水平置中要知道實際寬度才能算，垂直方向矮螢幕下武器可能比舞台還高——
-   兩者都得量過實際渲染尺寸才知道，所以每次開戰、換武器、改視窗大小
-   都要重算一次。
-     水平：量到寬度後往左推半個寬度，達到置中。
-     垂直：算出「完整武器高度」佔舞台高度的比例，超過上限
-           （vmMaxStageFrac）就用 scale() 縮小；transform-origin 是
-           50% 100%（見 CSS），縮放會從底部往上收，貼地的握把位置
-           不會跟著跑掉，跑掉的是頂端的縮小幅度。
+/* 讓整把武器完整顯示：#vm-wrap 貼著舞台下緣、靠左（見 CSS），
+   矮螢幕下武器的原始高度可能比舞台還高，超過的部分會被 overflow:hidden
+   切掉頂端，所以每次開戰、換武器、改視窗大小都要重新量一次實際渲染
+   高度，算出「完整武器高度」佔舞台高度的比例，超過上限
+   （VM_MAX_STAGE_FRAC）就用 scale() 縮小。transform-origin 是 50% 100%
+   （見 CSS），縮放會從底部往上收，貼地的握把位置不會跟著跑掉，
+   跑掉的是頂端縮小的幅度。
    這個縮放套在 #vm-wrap（外層），揮砍動畫（.vm-staff/.vm-bow/.vm-dagger）
    套在 #viewmodel（內層），兩層互不干擾，動畫照樣疊加在縮放結果上面。 */
 const VM_MAX_STAGE_FRAC = 0.62;   // 武器最高只能佔舞台高度的 62%
@@ -3929,13 +3938,16 @@ function fitViewmodel() {
   const vm = $('viewmodel'), wrap = $('vm-wrap'), stage = $('stage');
   if (!vm || !wrap || !stage) return;
 
-  wrap.style.transform = 'translateX(-50%)';      // 先歸零縮放，量到的才是原始尺寸
-  const v = vm.getBoundingClientRect(), st = stage.getBoundingClientRect();
-  if (!v.height || !v.width) return;
-
-  const maxH = st.height * VM_MAX_STAGE_FRAC;
-  const scale = v.height > maxH ? maxH / v.height : 1;
-  wrap.style.transform = `translateX(-50%) scale(${scale.toFixed(3)})`;
+  const apply = () => {
+    wrap.style.transform = 'none';                // 先歸零縮放，量到的才是原始尺寸
+    const v = vm.getBoundingClientRect(), st = stage.getBoundingClientRect();
+    if (!v.height) return;
+    const maxH = st.height * VM_MAX_STAGE_FRAC;
+    const scale = v.height > maxH ? maxH / v.height : 1;
+    wrap.style.transform = scale < 1 ? `scale(${scale.toFixed(3)})` : 'none';
+  };
+  apply();
+  requestAnimationFrame(apply);   // 保險：剛切畫面那一刻版面可能還沒完全定案，下一帧再修一次
 }
 
 /* ══════════════ 動態難度 DDA ══════════════
@@ -3973,10 +3985,11 @@ function startBattle(practice, opts = {}) {
   show('practice-flag', practice);
   show('unlock-banner', false); show('levelup-banner', false); show('chainkill-banner', false);
 
-  drawMonster();
   paintSpecialState(false);
   paintGauge();
-  paintZhuyinPad();
+  paintZhuyinPad();                // 先決定普通品質要不要長出鍵盤，
+                                    // 擠壓題目框／輸入框的空間定案後，
+  drawMonster();                   // fitMonsterArt() 才量得到舞台真正剩下的高度
   paintExpBar();
   renderViewmodel();
   updateStats();
@@ -4372,6 +4385,28 @@ function drawMonster() {
   $('mon-lv').textContent = `LV ${m.lv}　${m.zoneName}`;
   updateHpBar();
   renderMonList();
+  fitMonsterArt();
+}
+
+/* 矮螢幕下怪獸圖可能比 #monster-slot 實際能給的空間還高，
+   會溢出舞台底部、疊到弓箭的爆擊條或右下角的數字。量測邏輯跟武器的
+   fitViewmodel() 一樣，縮放套在 #monster-slot（外層），
+   #monster-art（內層）自己的受擊／死亡動畫才不會被打斷。 */
+function fitMonsterArt() {
+  const art = $('monster-art'), slot = $('monster-slot');
+  if (!art || !slot) return;
+  const apply = () => {
+    slot.style.transform = 'none';                // 先歸零，量到的才是原始尺寸
+    const a = art.getBoundingClientRect(), sl = slot.getBoundingClientRect();
+    if (!a.height || !sl.height) return;
+    // 目標抓 slot 高度的九成，不是頂滿——弓箭的爆擊條就貼在舞台下緣，
+    // slot 自己的底部本來就沒留緣，貼滿反而會碰到爆擊條的文字。
+    const target = sl.height * 0.9;
+    const scale = a.height > target ? target / a.height : 1;
+    slot.style.transform = scale < 1 ? `scale(${scale.toFixed(3)})` : 'none';
+  };
+  apply();
+  requestAnimationFrame(apply);   // 保險：剛切畫面那一刻版面可能還沒完全定案，下一帧再修一次
 }
 
 function updateHpBar() {
@@ -4927,6 +4962,7 @@ function wireEvents() {
   $('in-seat').addEventListener('keydown', e => { if (e.key === 'Enter') $('in-name').focus(); });
   $('in-name').addEventListener('input', () => { NAME_AUTOFILLED = false; });
   addEventListener('resize', fitViewmodel);
+  addEventListener('resize', fitMonsterArt);
 
   const inp = $('type-input');
   inp.addEventListener('input', onInput);
