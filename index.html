@@ -446,6 +446,13 @@ select option{background:var(--panel2);color:var(--ink)}
                background:var(--panel2);border:1px solid var(--line2);color:var(--dim2)">
   v<span id="btn-verlog-num"></span></button>
 
+<!-- 逃脫：右下角固定按鈕，只在戰鬥中（含新手教學的暖身戰鬥）出現，
+     跟版本紀錄按鈕互斥（一個在畫面上時另一個一定藏著），共用同一個角落。 -->
+<button id="btn-escape" class="hidden text-sm px-3.5 py-2 rounded-full"
+        style="position:fixed;right:16px;bottom:16px;z-index:40;
+               background:var(--panel2);border:1px solid var(--line2);color:var(--dim)">
+  <span class="ico-slot" data-ico="back" data-ico-size="14"></span> 逃脫</button>
+
 <!-- ══════════ 1. 登入 ══════════ -->
 <section id="screen-login" class="fade-in">
  <div id="login-form" class="panel p-7 text-center">
@@ -1905,8 +1912,14 @@ const BALANCE = {
    版本紀錄：首頁右下角那顆 v2.0.0 按鈕點開看到的內容。
    跟 CHANGELOG.md 是同一份資料，改一邊也要記得改另一邊。
    ══════════════════════════════════════════════════════════════ */
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.1.0';
 const VERSION_LOG = [
+  { v:'2.1.0', date:'2026-09-11', title:'逃脫鍵',
+    added: [
+      '戰鬥畫面右下角新增「逃脫」按鈕：練習或新手教學可以直接放棄回營地',
+      '正式比賽不開放逃脫（全班同步，中途離開回不去），按下去只會提醒找老師'
+    ],
+    changed: [], fixed: [] },
   { v:'2.0.0', date:'2026-09-10', title:'roguelike 改版',
     added: [
       '局內等級與經驗條，打字、全對、擊倒都給經驗',
@@ -3696,6 +3709,7 @@ function gotoLogin() {
   show('screen-login', true);
   show('login-err', false);
   show('btn-verlog', true);           // 版本紀錄按鈕：登入、營地才看得到
+  show('btn-escape', false);
   paintLoadout();
   scheduleHistoryLookup();            // 把畫面上那組班級座號的紀錄重撈一次
 }
@@ -3705,8 +3719,27 @@ function gotoLobby() {
   show('screen-lobby', true); show('screen-game', false);
   show('screen-result', false); show('screen-boss', false);
   show('btn-verlog', true);
+  show('btn-escape', false);
   const ls = $('lobby-sub');
   if (ls) ls.textContent = ONLINE ? '' : '離線・成績只留在這台電腦';
+}
+
+/* 逃脫鍵：戰鬥中想直接回營地，不等時間到、不看結算。
+   練習跟教學都可以直接放棄離開（反正只影響自己）；
+   正式比賽是全班同步的，中途跳出去之後沒有機制能自己再回去
+   （下一次連上要等老師開新的一輪），所以正式比賽不開放逃脫，
+   要結束請找老師按「結束比賽」或「回到營地」。 */
+function escapeBattle() {
+  if (!G) { gotoLobby(); return; }
+  if (G.tutorial) { tutorialSkip(); return; }
+  if (ME.practice) {
+    clearInterval(G.timer);
+    G = null;
+    gotoLobby();
+    toast('已經回到營地');
+    return;
+  }
+  toast('比賽是全班同步的，中途離開就回不去了——要結束請找老師', 3200);
 }
 
 /* ══════════════ 營地：裝備選擇 ══════════════
@@ -3981,6 +4014,7 @@ function startBattle(practice, opts = {}) {
   show('screen-result', false); show('screen-boss', false);
   show('app-header', false);                 // 遊戲中不需要標題列
   show('btn-verlog', false);
+  show('btn-escape', true);
   show('screen-game', true);
   show('practice-flag', practice);
   show('unlock-banner', false); show('levelup-banner', false); show('chainkill-banner', false);
@@ -4064,6 +4098,7 @@ function startTutorial() {
   show('screen-login', false); show('screen-lobby', false); show('screen-game', false);
   show('app-header', false);
   show('btn-verlog', false);
+  show('btn-escape', false);
   advanceTutorial();
 }
 
@@ -4083,6 +4118,7 @@ function advanceTutorial() {
 
 function showTutorialCaption(step) {
   show('tutorial-intro', true);
+  show('btn-escape', false);           // 看說明卡的時候不需要逃脫鍵，跳過教學鍵已經在卡片上了
   setTxt('tut-step', `${TUT.idx + 1} / ${TUTORIAL_SCRIPT.length}`);
   setTxt('tut-title', step.title);
   setTxt('tut-body', step.body);
@@ -4122,6 +4158,7 @@ function runTutorialBattleSegment(step) {
     show('screen-result', false); show('screen-boss', false);
     show('app-header', false);
     show('btn-verlog', false);
+    show('btn-escape', true);
     show('screen-game', true);
     show('unlock-banner', false); show('levelup-banner', false); show('chainkill-banner', false);
     paintExpBar();
@@ -4656,6 +4693,7 @@ async function fetchClassData() {
 async function runBossSequence(skip = false) {
   SKIP_ANIM = skip;
   show('screen-game', false);
+  show('btn-escape', false);
   show('screen-boss', true);
   $('boss-caption').textContent = '全班戰力集結中…';
   $('boss-total').textContent = '0';
@@ -4954,6 +4992,9 @@ function wireEvents() {
   /* 版本紀錄 */
   $('btn-verlog').addEventListener('click', openVerlog);
   $('verlog-close').addEventListener('click', () => show('verlog-modal', false));
+
+  /* 逃脫：戰鬥中回營地 */
+  $('btn-escape').addEventListener('click', escapeBattle);
 
   /* 班級或座號一改就重撈歷史成績；姓名一旦自己打過就不再被自動蓋掉 */
   $('in-grade').addEventListener('change', scheduleHistoryLookup);
@@ -5288,6 +5329,7 @@ async function previewResult() {
   show('teacher-modal', false);
   show('app-header', false);
   show('btn-verlog', false);
+  show('btn-escape', false);
   show('screen-login', false);
   show('screen-lobby', false);
   show('screen-game', false);
