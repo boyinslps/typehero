@@ -424,6 +424,51 @@ select option{background:var(--panel2);color:var(--ink)}
   #login-form{width:360px}
   #login-icon{display:none}
 }
+/* ══════════ 班級數據圖（教師控制台） ══════════
+   一個指標固定一個顏色（藍＝打字速度、橘＝正確率、綠＝擊倒數），
+   同一張圖裡所有長條同色——長條長度已經在講大小了，不需要再用
+   深淺重複講一次。三個顏色都在面板底色 #221d16 上跑過色盲／對比
+   檢查（最差一對 ΔE 9.4、對比都過 3:1）。 */
+.viz{
+  --viz-surface:#221d16; --viz-grid:#332c21; --viz-axis:#453b2c;
+  --viz-dim:#9a927f; --viz-ink:#f0eee8;
+  --viz-wpm:#3987e5; --viz-acc:#d95926; --viz-kills:#199e70;
+}
+.viz-seg{display:inline-flex;gap:2px;padding:2px;border-radius:9px;
+  background:var(--panel2);border:1px solid var(--line)}
+.viz-seg button{padding:6px 12px;border-radius:7px;font-size:13px;font-weight:700;
+  color:var(--dim);background:transparent;transition:background .15s,color .15s}
+.viz-seg button:hover{color:var(--ink)}
+.viz-seg button[aria-pressed="true"]{background:var(--panel3);color:var(--ink)}
+.viz-tile{background:var(--panel2);border:1px solid var(--line);border-radius:10px;
+  padding:10px 12px}
+.viz-tile .k{font-size:11px;color:var(--dim);letter-spacing:.04em}
+.viz-tile .v{font-size:24px;font-weight:800;line-height:1.15;margin-top:2px}
+.viz-plot{position:relative}
+.viz-plot svg{display:block;width:100%;height:auto}
+/* 格線／軸線一律實線細髮絲，虛線在圖表裡會被誤讀成「預測」或「門檻」 */
+.viz-grid-line{stroke:var(--viz-grid);stroke-width:1}
+.viz-axis-line{stroke:var(--viz-axis);stroke-width:1}
+.viz-tick{fill:var(--viz-dim);font-size:11px;font-variant-numeric:tabular-nums}
+.viz-bar{transition:opacity .12s}
+.viz-hit{fill:transparent;cursor:pointer}
+.viz-plot.hot .viz-bar{opacity:.45}
+.viz-plot.hot .viz-bar.on{opacity:1}
+.viz-dot{stroke:var(--viz-surface);stroke-width:2}
+.viz-plot.hot .viz-dot{opacity:.45}
+.viz-plot.hot .viz-dot.on{opacity:1}
+.viz-tip{position:absolute;pointer-events:none;z-index:5;opacity:0;
+  transform:translate(-50%,-108%);transition:opacity .1s;
+  background:var(--panel3);border:1px solid var(--line2);border-radius:8px;
+  padding:6px 9px;font-size:12px;line-height:1.45;white-space:nowrap;
+  box-shadow:0 4px 14px rgba(0,0,0,.45)}
+.viz-tip.on{opacity:1}
+.viz-tip b{font-variant-numeric:tabular-nums}
+.viz-table{width:100%;font-size:12px;font-variant-numeric:tabular-nums}
+.viz-table th{color:var(--dim);font-weight:600;text-align:right;padding:5px 8px}
+.viz-table th:first-child,.viz-table td:first-child,
+.viz-table th.l,.viz-table td.l{text-align:left}
+.viz-table td{padding:5px 8px;text-align:right;border-top:1px solid var(--line)}
 </style>
 </head>
 <body>
@@ -869,6 +914,7 @@ select option{background:var(--panel2);color:var(--ink)}
       <button data-tab="battle"  class="tc-tab px-4 py-2 rounded-lg text-sm font-bold"><span class="inline-flex items-center gap-1.5"><span class="ico-slot" data-ico="play" data-ico-size="14"></span>比賽控制</span></button>
       <button data-tab="proof"   class="tc-tab px-4 py-2 rounded-lg text-sm font-bold"><span class="inline-flex items-center gap-1.5"><span class="ico-slot" data-ico="search" data-ico-size="14"></span>注音校對台</span></button>
       <button data-tab="scores"  class="tc-tab px-4 py-2 rounded-lg text-sm font-bold"><span class="inline-flex items-center gap-1.5"><span class="ico-slot" data-ico="chart" data-ico-size="14"></span>成績管理</span></button>
+      <button data-tab="viz"     class="tc-tab px-4 py-2 rounded-lg text-sm font-bold"><span class="inline-flex items-center gap-1.5"><span class="ico-slot" data-ico="chart" data-ico-size="14"></span>班級數據圖</span></button>
     </div>
 
     <!-- ── 分頁：比賽控制 ── -->
@@ -988,6 +1034,78 @@ select option{background:var(--panel2);color:var(--ink)}
                 style="background:rgba(224,69,94,.15);border:1px solid var(--hp);color:#ff8a9c">
           <span class="inline-flex items-center gap-2"><span class="ico-slot" data-ico="trash" data-ico-size="16"></span>清空所有成績紀錄</span></button>
         <p class="text-[11px] mt-2" style="color:var(--dim)">無法復原，請先匯出 Excel 備份</p>
+      </div>
+    </div>
+
+    <!-- ── 分頁：班級數據圖 ── -->
+    <div id="tab-viz" class="tc-panel viz hidden">
+      <!-- 篩選列：一整排放在所有圖的上面，切一次全部跟著換 -->
+      <div class="panel p-4 mb-4">
+        <div class="flex items-end gap-4 flex-wrap">
+          <div>
+            <label class="block text-[11px] mb-1" style="color:var(--dim)">班級</label>
+            <select id="viz-class" class="p-2 rounded-lg bg-transparent border text-sm font-bold"
+                    style="border-color:var(--line);min-width:9rem"><option value="">全部班級</option></select>
+          </div>
+          <div>
+            <label class="block text-[11px] mb-1" style="color:var(--dim)">指標</label>
+            <div class="viz-seg" id="viz-metric" role="group">
+              <button data-m="wpm"   aria-pressed="true">打字速度</button>
+              <button data-m="acc"   aria-pressed="false">正確率</button>
+              <button data-m="kills" aria-pressed="false">擊倒數量</button>
+            </div>
+          </div>
+          <div>
+            <label class="block text-[11px] mb-1" style="color:var(--dim)">取哪一筆</label>
+            <div class="viz-seg" id="viz-scope" role="group">
+              <button data-s="best" aria-pressed="true">歷史最佳</button>
+              <button data-s="last" aria-pressed="false">最近一場</button>
+            </div>
+          </div>
+          <div class="flex gap-2 ml-auto">
+            <button id="viz-table-toggle" class="px-3 py-2 rounded-lg text-sm border"
+                    style="border-color:var(--line)" aria-pressed="false">表格</button>
+            <button id="viz-refresh" class="px-3 py-2 rounded-lg text-sm border"
+                    style="border-color:var(--line)"><span class="inline-flex items-center gap-1.5"><span class="ico-slot" data-ico="reset" data-ico-size="14"></span>重新整理</span></button>
+          </div>
+        </div>
+      </div>
+
+      <div id="viz-empty" class="panel p-6 mb-4 hidden text-sm" style="color:var(--dim)"></div>
+
+      <div id="viz-body">
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4" id="viz-tiles"></div>
+
+        <div class="panel p-5 mb-4">
+          <div class="flex items-baseline justify-between gap-3 mb-1 flex-wrap">
+            <h3 id="viz-hist-title" class="text-base font-black"></h3>
+            <p id="viz-hist-sub" class="text-[11px]" style="color:var(--dim)"></p>
+          </div>
+          <div class="viz-plot" id="viz-hist">
+            <div class="viz-tip" id="viz-hist-tip"></div>
+          </div>
+        </div>
+
+        <div class="panel p-5 mb-4">
+          <div class="flex items-baseline justify-between gap-3 mb-1 flex-wrap">
+            <h3 id="viz-strip-title" class="text-base font-black"></h3>
+            <p class="text-[11px]" style="color:var(--dim)">一個點一個學生，游標移上去看是誰</p>
+          </div>
+          <div class="viz-plot" id="viz-strip">
+            <div class="viz-tip" id="viz-strip-tip"></div>
+          </div>
+        </div>
+
+        <div id="viz-tables" class="hidden">
+          <div class="panel p-5 mb-4">
+            <h3 class="text-base font-black mb-2">區間人數表</h3>
+            <div id="viz-bin-table"></div>
+          </div>
+          <div class="panel p-5">
+            <h3 class="text-base font-black mb-2">個人數值表</h3>
+            <div id="viz-person-table" class="scrolly max-h-[22rem] overflow-y-auto"></div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -3460,6 +3578,7 @@ function histFromDoc(d) {
     bestDamage: Math.max(d.bestDamage || 0, d.damage || 0),
     bestWpm:    Math.max(d.bestWpm    || 0, d.wpm    || 0),
     bestKills:  Math.max(d.bestKills  || 0, d.kills  || 0),
+    bestAcc:    Math.max(d.bestAcc    || 0, d.lastAcc || 0, d.accuracy || 0),
     bestLevel:  Math.max(d.bestLevel  || 0, d.lastLevel || 0),
     bestScore:  d.bestScore || 0,
     bestCombo:  Math.max(d.bestCombo  || 0, d.maxCombo || 0),
@@ -3480,6 +3599,7 @@ function mergeHist(a, b) {
     name:       (newer && newer.name) || (a && a.name) || (b && b.name) || '',
     bestDamage: pick('bestDamage'), bestWpm: pick('bestWpm'),
     bestKills:  pick('bestKills'),  plays:   pick('plays'),
+    bestAcc:    pick('bestAcc'),
     bestLevel:  pick('bestLevel'),  bestScore: pick('bestScore'), bestCombo: pick('bestCombo'),
     dda:        ddaOf(newer) !== undefined ? ddaOf(newer) : (ddaOf(a) !== undefined ? ddaOf(a) : ddaOf(b)),
     tutorialDone: !!((a && a.tutorialDone) || (b && b.tutorialDone)),
@@ -4608,8 +4728,9 @@ async function endBattle() {
    成績寫回（文件 ID＝班級_座號）
 
    正式比賽：整筆寫，含 damage 與 roundId，會進班內排行與全班總傷害。
-   自己練習：只更新個人歷史（best*／plays），完全不碰 damage 與 roundId，
-             所以練習分數不會混進排行，但歷史最高分照樣會往上推。
+   自己練習：更新個人歷史（best*／plays）與 last*（最近一場的數字），
+             但完全不碰 damage 與 roundId，所以練習分數不會混進排行，
+             歷史最高分與老師的分布圖照樣拿得到資料。
    ══════════════════════════════════════════════════════════════ */
 async function saveScore() {
   const ref = doc(REF.scores, ME.docId);
@@ -4637,6 +4758,7 @@ async function saveScore() {
     bestDamage:   Math.max(G.prevBest,            G.damage),
     bestWpm:      Math.max(before.bestWpm  || 0,  G.finalWpm),
     bestKills:    Math.max(before.bestKills || 0, G.kills),
+    bestAcc:      Math.max(before.bestAcc  || 0,  G.finalAcc),
     bestLevel:    Math.max(before.bestLevel || 0, G.lv),
     bestScore:    Math.max(before.bestScore || 0, thisScore),
     bestCombo:    Math.max(before.bestCombo || 0, G.maxCombo),
@@ -4654,17 +4776,24 @@ async function saveScore() {
     className: ME.className, seat: ME.seat, name: ME.name,
     bestDamage: hist.bestDamage, bestWpm: hist.bestWpm,
     bestKills: hist.bestKills, bestLevel: hist.bestLevel,
+    bestAcc: hist.bestAcc,
     bestScore: Math.round(hist.bestScore * 10) / 10, bestCombo: hist.bestCombo,
     dda: Math.round(nextDda * 100) / 100, tutorialDone: true,
     plays: hist.plays, balanceVer: BALANCE.ver,
-    lastPlayedAt: serverTimestamp()
+    lastPlayedAt: serverTimestamp(),
+    /* last*：最近一場的當場數字，練習也寫。
+       改版前只有正式比賽才寫 accuracy/wpm/kills，而學生九成時間在練習，
+       所以舊資料裡「正確率」幾乎是空的，老師的分布圖畫不出來。 */
+    lastWpm: G.finalWpm, lastAcc: G.finalAcc, lastKills: G.kills,
+    lastLevel: G.lv, lastCombo: G.maxCombo, lastDamage: G.damage,
+    lastWeapon: G.weapon, lastQuality: G.quality, lastPractice: !!ME.practice
   };
   if (!ME.practice) Object.assign(payload, {
     damage: G.damage, words: Math.floor(G.words),
     accuracy: G.finalAcc, wpm: G.finalWpm,
     maxCombo: G.maxCombo, perfect: G.perfect, attacks: G.attacks,
     weapon: G.weapon, quality: G.quality, kills: G.kills,
-    lastLevel: G.lv, byWeapon: G.byWeapon,
+    byWeapon: G.byWeapon,
     roundId: ROUND.roundId || '', mode: CFG.mode,
     timestamp: serverTimestamp()
   });
@@ -5066,6 +5195,24 @@ function wireEvents() {
   $('sc-refresh').addEventListener('click', loadScores);
   $('sc-export').addEventListener('click', exportScoresExcel);
   $('sc-clear').addEventListener('click', clearScores);
+
+  /* 班級數據圖：篩選列上的每個控制項都重畫同一份資料 */
+  $('viz-class').addEventListener('change', renderViz);
+  $('viz-refresh').addEventListener('click', () => { scoreCache = []; buildViz(); });
+  const segPick = (wrapId, key) => [...$(wrapId).children].forEach(b =>
+    b.addEventListener('click', () => {
+      VIZ[key] = b.dataset.m || b.dataset.s;
+      [...$(wrapId).children].forEach(x => x.setAttribute('aria-pressed', x === b));
+      renderViz();
+    }));
+  segPick('viz-metric', 'metric');
+  segPick('viz-scope', 'scope');
+  $('viz-table-toggle').addEventListener('click', e => {
+    const on = e.currentTarget.getAttribute('aria-pressed') !== 'true';
+    e.currentTarget.setAttribute('aria-pressed', on);
+    e.currentTarget.style.background = on ? 'var(--panel3)' : 'transparent';
+    show('viz-tables', on);
+  });
 }
 
 function tryAuth() {
@@ -5088,7 +5235,7 @@ function tryAuth() {
 }
 
 function switchTab(name) {
-  ['battle', 'proof', 'scores'].forEach(t => show('tab-' + t, t === name));
+  ['battle', 'proof', 'scores', 'viz'].forEach(t => show('tab-' + t, t === name));
   [...document.querySelectorAll('.tc-tab')].forEach(b => {
     const on = b.dataset.tab === name;
     b.style.background = on ? 'var(--gold)' : 'var(--panel2)';
@@ -5096,6 +5243,7 @@ function switchTab(name) {
   });
   if (name === 'proof')  buildProofreader();
   if (name === 'scores') loadScores();
+  if (name === 'viz')    buildViz();
 }
 
 function updateTeacherBanner() {
@@ -5239,9 +5387,13 @@ let scoreCache = [];
 async function loadScores() {
   $('sc-table').innerHTML = '<p class="text-xs" style="color:var(--dim)">載入中…</p>';
   try {
-    const snap = await getDocs(query(REF.scores, orderBy('damage', 'desc')));
+    /* 不能用 orderBy('damage')：Firestore 的排序會直接跳過沒有那個欄位的
+       文件，而 damage 只有正式比賽才寫——學生九成時間在練習，結果 142 筆
+       紀錄裡只有 1 筆撈得到，整張表幾乎是空的。整包讀回來自己排。 */
+    const snap = await getDocs(query(REF.scores));
     scoreCache = [];
     snap.forEach(d => scoreCache.push({ id: d.id, ...d.data() }));
+    scoreCache.sort((a, b) => (b.bestDamage || 0) - (a.bestDamage || 0));
   } catch (e) {
     console.error(e);
     $('sc-table').innerHTML = '<p class="text-xs" style="color:#ff6b81">讀取失敗</p>';
@@ -5331,6 +5483,269 @@ async function clearScores() {
     toast('已清空所有成績');
   } catch (e) { console.error(e); toast('清空失敗'); }
   btn.disabled = false; btn.textContent = '清空所有成績紀錄';
+}
+
+/* ══════════════════════════════════════════════════════════════
+   班級數據圖（教師控制台 → 班級數據圖）
+
+   老師要看的不是誰第一名（那是「成績管理」那張表的事），而是「這個班
+   的程度散在哪裡」，所以這裡畫的是分布：
+     上面一張區間人數直條圖 → 看形狀（全班擠在低分區？還是兩極化？）
+     下面一張一人一點的點圖 → 看個體（最左邊那幾點是誰，要找誰補）
+   兩張圖共用同一條 X 軸範圍，上下對得起來。
+
+   資料來源是 mg_scores（一人一筆，文件 ID＝班級_座號）：
+     歷史最佳 → bestWpm / bestAcc / bestKills
+     最近一場 → lastWpm / lastAcc / lastKills
+                （舊資料回退到正式比賽那場的 wpm / accuracy / kills）
+
+   配色：一個指標一個固定色（藍＝打字速度、橘＝正確率、綠＝擊倒數），
+   同一張圖裡每根長條同色——長短已經在講大小，不需要再用深淺講一次。
+   三個顏色都對面板底色 #221d16 驗算過色盲辨識度與對比。
+   ══════════════════════════════════════════════════════════════ */
+const VIZ = { metric: 'wpm', scope: 'best' };
+const vizNum  = v => (typeof v === 'number' && isFinite(v)) ? v : undefined;
+const vizPick = (...vs) => { for (const v of vs) { const n = vizNum(v); if (n !== undefined) return n; } };
+const vizEsc  = s => String(s ?? '').replace(/[&<>"]/g,
+  c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const vizRound = v => Math.round(v * 10) / 10;
+
+const VIZ_METRICS = {
+  wpm:   { label: '打字速度', unit: ' 字/分', axis: '每分鐘正確字數', color: 'var(--viz-wpm)',
+           best: r => vizPick(r.bestWpm),   last: r => vizPick(r.lastWpm, r.wpm) },
+  acc:   { label: '正確率',   unit: '%',     axis: '正確率（%）',    color: 'var(--viz-acc)', cap: 100,
+           best: r => vizPick(r.bestAcc),   last: r => vizPick(r.lastAcc, r.accuracy) },
+  kills: { label: '擊倒數量', unit: ' 隻',   axis: '一場打倒幾隻',   color: 'var(--viz-kills)',
+           best: r => vizPick(r.bestKills), last: r => vizPick(r.lastKills, r.kills) }
+};
+const VIZ_SCOPE = { best: '歷史最佳', last: '最近一場' };
+
+async function buildViz() {
+  if (!scoreCache.length) {
+    setTxt('viz-empty', '載入中…');
+    show('viz-empty', true); show('viz-body', false);
+    await loadScores();
+  }
+  const classes = [...new Set(scoreCache.map(r => r.className).filter(Boolean))].sort();
+  const cur = $('viz-class').value;
+  $('viz-class').innerHTML = '<option value="">全部班級</option>' +
+    classes.map(c => `<option${c === cur ? ' selected' : ''}>${vizEsc(c)}</option>`).join('');
+  renderViz();
+}
+
+/* 等寬區間，目標 8 格左右，寬度只從 1/2/5/10… 這種好讀的數字裡挑
+   （寬窄不一的區間會讓長條高度不能互相比較）。三個指標都是整數，
+   所以一格 [a, a+w) 標成「a–(a+w-1)」，邊界不會有兩種讀法。 */
+function vizBin(values, cap) {
+  const min = Math.min(...values), max = Math.max(...values);
+  const w  = [1, 2, 5, 10, 20, 25, 50, 100].find(s => (max - min) / s <= 8) || 200;
+  let lo = Math.floor(min / w) * w;
+  let n  = Math.floor((max - lo) / w) + 1;
+  // 全班數值很接近時只會算出一兩格，一根孤零零的長條看不出「分布」，
+  // 補到至少 4 格（正確率有 100 的上限，撐不上去就往下撐）
+  while (n < 4) {
+    if (cap === undefined || lo + n * w - 1 < cap) { n++; continue; }
+    if (lo - w >= 0) { lo -= w; n++; continue; }
+    break;
+  }
+  const bins = Array.from({ length: n }, (_, i) => {
+    const a = lo + i * w;
+    const b = cap === undefined ? a + w - 1 : Math.min(a + w - 1, cap);
+    return { a, b, c: 0, label: w === 1 ? String(a) : `${a}–${b}` };
+  });
+  values.forEach(v => bins[Math.min(n - 1, Math.floor((v - lo) / w))].c++);
+  return { bins, lo, w, n, span: n * w };
+}
+function vizStats(vs) {
+  const s = [...vs].sort((a, b) => a - b), n = s.length;
+  return {
+    n, min: s[0], max: s[n - 1],
+    med: n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2,
+    avg: s.reduce((a, b) => a + b, 0) / n
+  };
+}
+/* 圓角只給資料的那一端（頂端），貼齊基線的那一端不圓 */
+function vizBarPath(x, yTop, w, yBase, r = 4) {
+  const rr = Math.max(0, Math.min(r, w / 2, yBase - yTop));
+  return `M${x},${yBase} L${x},${yTop + rr} Q${x},${yTop} ${x + rr},${yTop} ` +
+         `L${x + w - rr},${yTop} Q${x + w},${yTop} ${x + w},${yTop + rr} L${x + w},${yBase} Z`;
+}
+function vizSetSvg(plotId, svg) {
+  const plot = $(plotId);
+  // 換圖的時候滑鼠可能正停在某根長條上：那個元素直接被刪掉，mouseleave
+  // 不會觸發，tooltip 跟「其他根變淡」的狀態就會卡住不還原
+  plot.classList.remove('hot');
+  const tip = plot.querySelector('.viz-tip');
+  if (tip) tip.classList.remove('on');
+  const old = plot.querySelector('svg');
+  if (old) old.remove();
+  plot.insertAdjacentHTML('afterbegin', svg);
+}
+/* tooltip 只是加分，不是唯一讀到數字的路徑——每一格的人數在「表格」
+   那顆按鈕底下都列得出來，鍵盤 focus 看到的跟滑鼠一樣。 */
+function vizHover(plotId, tipId, markId, htmlOf) {
+  const plot = $(plotId), tip = $(tipId);
+  plot.querySelectorAll('[data-i]').forEach(hit => {
+    const i = +hit.dataset.i;
+    const mark = plot.querySelector('#' + markId + i);
+    const on = () => {
+      tip.innerHTML = htmlOf(i);
+      const pr = plot.getBoundingClientRect();
+      const tr = (mark || hit).getBoundingClientRect();
+      tip.style.left = (tr.left - pr.left + tr.width / 2) + 'px';
+      tip.style.top  = (tr.top - pr.top) + 'px';
+      tip.classList.add('on');
+      plot.classList.add('hot');
+      if (mark) mark.classList.add('on');
+    };
+    const off = () => {
+      tip.classList.remove('on');
+      plot.classList.remove('hot');
+      if (mark) mark.classList.remove('on');
+    };
+    hit.addEventListener('mouseenter', on);
+    hit.addEventListener('mouseleave', off);
+    hit.addEventListener('focus', on);
+    hit.addEventListener('blur', off);
+  });
+}
+
+function renderViz() {
+  const m = VIZ_METRICS[VIZ.metric];
+  const f = $('viz-class').value;
+  const rows = f ? scoreCache.filter(r => r.className === f) : scoreCache;
+  const people = rows
+    .map(r => ({ cls: r.className || '', seat: r.seat || '', name: r.name || '', v: m[VIZ.scope](r) }))
+    .filter(p => p.v !== undefined)
+    .sort((a, b) => b.v - a.v);
+
+  if (people.length < 2) {
+    show('viz-body', false); show('viz-empty', true);
+    const why = VIZ.scope === 'last'
+      ? '<br>「最近一場」是這一版才開始記錄的——改版前只有正式比賽才寫當場成績，' +
+        '學生自己練習完全不寫，所以舊紀錄沒有這個欄位。等學生再打過幾場就會長出來，' +
+        '現在請先看「歷史最佳」。'
+      : VIZ.metric === 'acc'
+        ? '<br>正確率在改版前只有正式比賽會寫進雲端（練習不寫），所以舊紀錄幾乎是空的。' +
+          '這一版起練習也會記錄，之後每打一場都會累積。'
+        : '';
+    $('viz-empty').innerHTML = rows.length
+      ? `「${m.label}・${VIZ_SCOPE[VIZ.scope]}」在${f || '全部班級'}只有 ${people.length} 筆資料，畫不出分布。` + why
+      : `${f || '雲端'}還沒有任何成績紀錄。`;
+    return;
+  }
+  show('viz-empty', false); show('viz-body', true);
+
+  const st = vizStats(people.map(p => p.v));
+  const B  = vizBin(people.map(p => p.v), m.cap);
+  const clsTxt = f || '全部班級';
+  const unit = u => `<span style="font-size:13px;font-weight:600;color:var(--viz-dim)">${u}</span>`;
+
+  $('viz-tiles').innerHTML = [
+    ['有資料人數', `${st.n}${unit(' / ' + rows.length + ' 人')}`],
+    ['中位數',     `${vizRound(st.med)}${unit(m.unit)}`],
+    ['平均',       `${vizRound(st.avg)}${unit(m.unit)}`],
+    ['最高',       `${st.max}${unit(m.unit)}`],
+    ['最低',       `${st.min}${unit(m.unit)}`]
+  ].map(([k, v]) => `<div class="viz-tile"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+
+  setTxt('viz-hist-title',  `${clsTxt}・${m.label}分布（${VIZ_SCOPE[VIZ.scope]}）`);
+  setTxt('viz-hist-sub',    `橫軸＝${m.axis}，直軸＝人數`);
+  setTxt('viz-strip-title', `${clsTxt}・${m.label}個人落點`);
+
+  drawVizHist(B, m, st);
+  drawVizStrip(people, B, m, st);
+  drawVizTables(B, people, m, st);
+}
+
+function drawVizHist(B, m, st) {
+  const W = 760, H = 240, padL = 44, padR = 16, padT = 18, padB = 42;
+  const pw = W - padL - padR, ph = H - padT - padB;
+  const maxC = Math.max(...B.bins.map(b => b.c));
+  const tick = [1, 2, 5, 10, 20, 50].find(s => maxC / s <= 4) || 100;
+  // 最高那根剛好頂到天花板時再加一格，不然它上面的「N 人」會跑到圖外
+  let yMax = Math.ceil(maxC / tick) * tick;
+  if (yMax === maxC) yMax += tick;
+  const y = c => padT + ph - (c / yMax) * ph;
+  // 長條之間留底色的空隙（至少 2px），不靠框線分隔；格子少的時候
+  // 不要把整格塞滿，太粗的色塊在投影機上很吵
+  const band = pw / B.n, bw = Math.max(6, Math.min(band - 2, band * 0.8));
+  const p = [];
+
+  for (let v = 0; v <= yMax; v += tick) {
+    p.push(`<line class="${v === 0 ? 'viz-axis-line' : 'viz-grid-line'}" x1="${padL}" y1="${y(v)}" x2="${W - padR}" y2="${y(v)}"/>`);
+    p.push(`<text class="viz-tick" x="${padL - 8}" y="${y(v) + 4}" text-anchor="end">${v}</text>`);
+  }
+  B.bins.forEach((b, i) => {
+    const x = padL + i * band + (band - bw) / 2;
+    if (b.c > 0) {
+      p.push(`<path class="viz-bar" id="vzb${i}" d="${vizBarPath(x, y(b.c), bw, y(0))}" fill="${m.color}"/>`);
+      // 只標最多人的那一格：每根都標數字反而沒人看，其餘交給直軸與 tooltip
+      if (b.c === maxC) p.push(`<text x="${x + bw / 2}" y="${y(b.c) - 7}" text-anchor="middle" style="fill:var(--viz-ink);font-size:12px;font-weight:700">${b.c} 人</text>`);
+    }
+    p.push(`<text class="viz-tick" x="${padL + i * band + band / 2}" y="${padT + ph + 17}" text-anchor="middle">${b.label}</text>`);
+    p.push(`<rect class="viz-hit" data-i="${i}" tabindex="0" x="${padL + i * band}" y="${padT}" width="${band}" height="${ph}"/>`);
+  });
+
+  // 中位數參考線：實線細髮絲＋軸下標註（虛線在圖表裡會被讀成「門檻／預測」）
+  const mx = padL + ((st.med + 0.5 - B.lo) / B.span) * pw;
+  p.push(`<line x1="${mx}" y1="${padT}" x2="${mx}" y2="${padT + ph + 3}" stroke="var(--viz-dim)" stroke-width="1"/>`);
+  p.push(`<path d="M${mx},${padT + ph + 3} l-4,7 l8,0 z" fill="var(--viz-dim)"/>`);
+  const anchor = mx > W - padR - 60 ? 'end' : mx < padL + 60 ? 'start' : 'middle';
+  p.push(`<text class="viz-tick" x="${mx + (anchor === 'end' ? 6 : anchor === 'start' ? -6 : 0)}" y="${padT + ph + 34}" text-anchor="${anchor}">中位數 ${vizRound(st.med)}</text>`);
+
+  vizSetSvg('viz-hist', `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${m.label}區間人數分布圖">${p.join('')}</svg>`);
+  vizHover('viz-hist', 'viz-hist-tip', 'vzb', i => {
+    const b = B.bins[i];
+    return `<b>${b.label}</b>${m.unit}<br><b>${b.c}</b> 人（${Math.round(b.c / st.n * 100)}%）`;
+  });
+}
+
+function drawVizStrip(people, B, m, st) {
+  const W = 760, H = 126, padL = 44, padR = 16, padT = 12, padB = 34;
+  const pw = W - padL - padR, ph = H - padT - padB;
+  const X = v => padL + ((v + 0.5 - B.lo) / B.span) * pw;
+  const p = [`<line class="viz-axis-line" x1="${padL}" y1="${padT + ph}" x2="${W - padR}" y2="${padT + ph}"/>`];
+
+  B.bins.forEach((b, i) => p.push(
+    `<text class="viz-tick" x="${padL + (i + .5) * pw / B.n}" y="${padT + ph + 17}" text-anchor="middle">${b.label}</text>`));
+
+  // 同一個數值的人往上疊成一柱：數值相同的有幾個人一眼看得出來
+  const cols = new Map();
+  people.forEach((p0, idx) => {
+    if (!cols.has(p0.v)) cols.set(p0.v, []);
+    cols.get(p0.v).push(idx);
+  });
+  const tallest = Math.max(...[...cols.values()].map(a => a.length));
+  const step = Math.min(12, Math.max(5, (ph - 14) / tallest));
+  people.forEach((p0, idx) => {
+    const col = cols.get(p0.v), k = col.indexOf(idx);
+    const cx = X(p0.v), cy = padT + ph - 7 - k * step;
+    p.push(`<circle class="viz-dot" id="vzd${idx}" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="5" fill="${m.color}"/>`);
+    p.push(`<circle class="viz-hit" data-i="${idx}" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="12"/>`);
+  });
+  const mx = X(st.med);
+  p.push(`<line x1="${mx}" y1="${padT}" x2="${mx}" y2="${padT + ph}" stroke="var(--viz-dim)" stroke-width="1"/>`);
+
+  vizSetSvg('viz-strip', `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${m.label}個人落點圖">${p.join('')}</svg>`);
+  vizHover('viz-strip', 'viz-strip-tip', 'vzd', i => {
+    const q = people[i];
+    return `<b>${vizEsc(q.name) || '（無姓名）'}</b>　${vizEsc(q.cls)} ${vizEsc(q.seat)} 號<br>` +
+           `${m.label} <b>${q.v}</b>${m.unit}`;
+  });
+}
+
+function drawVizTables(B, people, m, st) {
+  $('viz-bin-table').innerHTML = `<table class="viz-table">
+    <thead><tr><th>${m.axis}</th><th>人數</th><th>佔比</th></tr></thead><tbody>` +
+    B.bins.map(b => `<tr><td>${b.label}</td><td>${b.c}</td>
+      <td>${b.c ? Math.round(b.c / st.n * 100) + '%' : '—'}</td></tr>`).join('') +
+    `</tbody></table>`;
+  $('viz-person-table').innerHTML = `<table class="viz-table">
+    <thead><tr><th>班級</th><th>座號</th><th class="l">姓名</th><th>${m.label}</th></tr></thead><tbody>` +
+    people.map(q => `<tr><td>${vizEsc(q.cls)}</td><td>${vizEsc(q.seat)}</td>
+      <td class="l">${vizEsc(q.name)}</td><td>${q.v}</td></tr>`).join('') +
+    `</tbody></table>`;
 }
 
 boot();

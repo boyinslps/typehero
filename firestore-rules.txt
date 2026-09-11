@@ -84,14 +84,28 @@ service cloud.firestore {
 //  match /mg_scores/{doc} {
 //    allow read: if request.auth != null;
 //    allow write: if isTeacher();
-//    // 學生只能寫自己那一筆，且傷害要在合理範圍
+//    // 學生寫自己那一場的成績，數字要在合理範圍。
+//    // 注意：damage / bestDamage 只有「正式比賽」那條路徑才會寫，
+//    //       學生自己練習的那一筆根本沒有 damage 這個欄位，所以條件
+//    //       一定要寫成「有才檢查」，不能寫成「必須是數字」——
+//    //       寫死 `damage is number` 會讓全部的練習存檔被規則擋掉。
 //    allow create, update: if request.auth != null
-//      && request.resource.data.damage is number
-//      && request.resource.data.damage >= 0
-//      && request.resource.data.damage <= 500000;
+//      && (!('damage' in request.resource.data)
+//          || (request.resource.data.damage is number
+//              && request.resource.data.damage >= 0
+//              && request.resource.data.damage <= 500000))
+//      && (!('bestWpm' in request.resource.data)
+//          || (request.resource.data.bestWpm is number
+//              && request.resource.data.bestWpm >= 0
+//              && request.resource.data.bestWpm <= 300));
 //    allow delete: if isTeacher();
 //  }
 //
-//  註：加強版仍然擋不住「學生改自己的傷害數字」，只是加了上限。
-//      要完全防作弊需要伺服器端驗證，那超出這個單檔網頁的範圍。
+//  註 1：加強版仍然擋不住「學生改自己的數字」，只是加了上限。匿名登入
+//        的 uid 跟「班級_座號」對不起來，規則沒辦法判斷這筆是不是他本人
+//        的，所以做不到真正的「只能寫自己那一筆」。要完全防作弊需要
+//        伺服器端驗證，那超出這個單檔網頁的範圍。
+//  註 2：規則本身不看欄位名稱，所以遊戲每次新增欄位（bestLevel、bestAcc、
+//        last* 之類）都不用回來改規則。只有上面這種「逐欄檢查」的加強版
+//        才要跟著遊戲一起維護。
 // ═══════════════════════════════════════════════════════════════
