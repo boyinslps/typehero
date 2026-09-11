@@ -1767,25 +1767,25 @@ String.raw`
   bow: [
 String.raw`
    ^
-  /|\
+  /#\
    |
    |
-   |
+  =|=
 `,
 String.raw`
-   /\
-  /##\
-   ||
-   ||
-  >||<
+    ^
+   /#\
+    |
+  ~ | ~
+    |
+   =|=
 `,
 String.raw`
- .   ^   .
-  \ /|\ /
-   ~ | ~
-     |
-     |
-     |
+  ^     ^
+ /#\   /#\
+  |     |
+  |     |
+ =|=   =|=
 `],
 
   dagger: [
@@ -1912,8 +1912,15 @@ const BALANCE = {
    版本紀錄：首頁右下角那顆 v2.0.0 按鈕點開看到的內容。
    跟 CHANGELOG.md 是同一份資料，改一邊也要記得改另一邊。
    ══════════════════════════════════════════════════════════════ */
-const APP_VERSION = '2.1.0';
+const APP_VERSION = '2.1.1';
 const VERSION_LOG = [
+  { v:'2.1.1', date:'2026-09-11', title:'修好弓箭特效與版本按鈕',
+    added: [],
+    changed: [],
+    fixed: [
+      '弓箭特效還是橫線：assets/fx/ 的外部檔案沒跟著改，反而蓋掉了新的內建圖，已同步',
+      '登入畫面右下角看不到版本按鈕（開機時沒把它亮出來），已修好'
+    ] },
   { v:'2.1.0', date:'2026-09-11', title:'逃脫鍵',
     added: [
       '戰鬥畫面右下角新增「逃脫」按鈕：練習或新手教學可以直接放棄回營地',
@@ -1968,6 +1975,10 @@ const VERSION_LOG = [
 
 function paintVerlogButton() {
   setTxt('btn-verlog-num', APP_VERSION);
+  // 一開機停在登入畫面，但 gotoLogin() 這時候還沒被呼叫過（那是「換人／回登入」
+  // 才會走的路徑），所以按鈕要在這裡自己亮出來，不然第一眼看到的登入畫面
+  // 右下角是空的——這個 bug 只有真的開瀏覽器看才發現得了。
+  show('btn-verlog', true);
 }
 
 function openVerlog() {
