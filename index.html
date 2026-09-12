@@ -943,9 +943,9 @@ select option{background:var(--panel2);color:var(--ink)}
       <div class="panel p-6 grid md:grid-cols-2 gap-5">
         <div>
           <label class="block text-xs mb-1" style="color:var(--dim)">比賽時間（秒）</label>
-          <input id="tc-duration" type="number" value="600" min="30" max="3600"
+          <input id="tc-duration" type="number" value="180" min="30" max="3600"
                  class="w-full p-3 rounded-lg bg-transparent border font-bold" style="border-color:var(--line)">
-          <p class="text-[11px] mt-1" style="color:var(--dim)">建議 600 秒（10 分鐘）</p>
+          <p class="text-[11px] mt-1" style="color:var(--dim)">建議 180 秒（3 分鐘）</p>
         </div>
         <div>
           <label class="block text-xs mb-1" style="color:var(--dim)">難度係數（怪獸血量倍率）</label>
@@ -3445,11 +3445,11 @@ const REF = {
 
 /* ── 全域狀態 ───────────────────────────────────────── */
 const CFG = {
-  duration: 600, difficulty: 1, mode: 'hanzi', rankLimit: 10,
+  duration: 180, difficulty: 1, mode: 'hanzi', rankLimit: 10,
   grades: ['三年級', '四年級', '五年級', '六年級'],
   classes: ['1班', '2班', '3班', '4班', '5班', '6班']
 };
-let ROUND = { state: 'lobby', startAtMs: 0, duration: 600, roundId: '' };
+let ROUND = { state: 'lobby', startAtMs: 0, duration: 180, roundId: '' };
 
 const ME = { className: '', seat: '', name: '', docId: '', practice: false };
 

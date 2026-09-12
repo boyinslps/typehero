@@ -13,7 +13,7 @@
      3. 升層那一步會不會變虧（§7.5）
      4. 天賦（傷害加成）到底看不看得出效果（§11）
 
-   用法：node tools/tier-sim.mjs [場次秒數，預設 120 300 600 都跑]
+   用法：node tools/tier-sim.mjs [場次秒數，預設跑 180（標準場）／120／600]
 
    ⚠ 跟舊的 balance-sim.mjs 最大的差別：這支**沒有給打字速度設下限**。
       舊版寫 `Math.max(0.3, cps)`，等於把 wpm 3/4/6 的學生全部當成 wpm 18
@@ -122,7 +122,9 @@ for (const lv of [1, 3, 5, 10, 20, 30]) {
     (ctkOf(TIERS[k], lv) / (WEAPON.staff * atk(lv))).toFixed(1).padStart(7)).join(''));
 }
 
-const durations = process.argv[2] ? [+process.argv[2]] : [120, 300, 600];
+/* 標準場＝老師設定的 180 秒（3 分鐘），§3/§4 的驗算都用這個長度 */
+const STD = 180;
+const durations = process.argv[2] ? [+process.argv[2]] : [STD, 120, 600];
 for (const secs of durations) {
   console.log(`\n=== 2. ${secs} 秒場（普通・法杖，docs/BALANCE.md §11）===`);
   console.log('學生      層級   擊倒   到達LV   區域   成長點數');
@@ -134,20 +136,20 @@ for (const secs of durations) {
   }
 }
 
-console.log('\n=== 3. 升層那一步會不會變虧（120 秒，docs/BALANCE.md §7.5）===');
+console.log(`\n=== 3. 升層那一步會不會變虧（${STD} 秒，docs/BALANCE.md §7.5）===`);
 for (const [wpm, acc, lo, hi] of [[6, .90, 'A', 'B'], [13, .92, 'B', 'C']]) {
-  const l = avg(400, { wpm, acc, tier: TIERS[lo], seconds: 120 });
-  const h = avg(400, { wpm, acc, tier: TIERS[hi], seconds: 120 });
-  const pl = growthPts(l, wpm, TIERS[lo], 120), ph = growthPts(h, wpm, TIERS[hi], 120);
+  const l = avg(400, { wpm, acc, tier: TIERS[lo], seconds: STD });
+  const h = avg(400, { wpm, acc, tier: TIERS[hi], seconds: STD });
+  const pl = growthPts(l, wpm, TIERS[lo], STD), ph = growthPts(h, wpm, TIERS[hi], STD);
   const d = Math.round((ph / pl - 1) * 100);
   console.log(`  wpm ${String(wpm).padStart(2)}：${TIERS[lo].name} ${l.kills.toFixed(1)} 隻 ${pl} 點` +
     ` → ${TIERS[hi].name} ${h.kills.toFixed(1)} 隻 ${ph} 點　(${d >= 0 ? '+' : ''}${d}%)` +
     (d < 0 ? '　⚠ 升層變虧了，點數係數要調高' : ''));
 }
 
-console.log('\n=== 4. 天賦看不看得出效果（10 分鐘場，傷害 +0% / +15% / +30%）===');
+console.log(`\n=== 4. 天賦看不看得出效果（${STD} 秒場，傷害 +0% / +15% / +30%）===`);
 for (const [name, wpm, acc, tk] of [['初階 wpm 4', 4, .88, 'A'], ['中階 wpm 10', 10, .92, 'B'], ['高階 wpm 20', 20, .94, 'C']]) {
-  const o = [0, .15, .30].map(p => avg(300, { wpm, acc, tier: TIERS[tk], seconds: 600, power: 1 + p }));
+  const o = [0, .15, .30].map(p => avg(500, { wpm, acc, tier: TIERS[tk], seconds: STD, power: 1 + p }));
   console.log(`  ${name.padEnd(12)} 擊倒 ${o.map(r => r.kills.toFixed(1)).join(' → ')}` +
     `　到達LV ${o.map(r => r.lv.toFixed(1)).join(' → ')}` +
     `　區域 ${o.map(r => r.zone.toFixed(1)).join(' → ')}`);
