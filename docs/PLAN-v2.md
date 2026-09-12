@@ -1,5 +1,11 @@
 # v2.0.0 施工清單（roguelike 改版）
 
+> ⚠ **這份是 v2 當時的施工清單，已經完工。**
+> 其中「動態難度 DDA」那一段**在 v3 已經被取消**，改成三個難度層級
+> （見 [`BALANCE.md`](BALANCE.md) §7 與 [`META-GROWTH.md`](META-GROWTH.md)）。
+> 這份文件保留當作施工紀錄，不要再照裡面的 DDA 段落實作。
+
+
 交付對象：實作者（Sonnet）。數值規格一律以 [`docs/BALANCE.md`](BALANCE.md) 為準，
 **本文件不重複數字**，只講「改哪個檔、改哪一段、做完長什麼樣」。
 

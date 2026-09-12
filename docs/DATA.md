@@ -19,7 +19,8 @@
 | `className` / `seat` / `name` | 身分 |
 | `bestDamage` / `bestWpm` / `bestKills` / `bestAcc` / `bestLevel` / `bestCombo` | 歷史最佳 |
 | `bestScore` | 戰績分（每分鐘正確字數 × 品質 × 正確率），跨版本可比 |
-| `dda` | 下一場的個人難度係數 |
+| ~~`dda`~~ | **v3 起不再使用**（動態難度已取消，見 BALANCE.md §7）。欄位保留不刪 |
+| `tier` | 難度層級 `'A'`／`'B'`／`'C'`，新手教學量出來就固定（v3 新增） |
 | `tutorialDone` | 新手教學做過沒 |
 | `plays` | 總場次 |
 | `balanceVer` | 當時的平衡版本（舊版傷害數字不能跟新版比） |
@@ -69,15 +70,12 @@ allow read, create, update, delete: if request.auth != null;
 
 ## 3. 要做局外成長（meta progression）的話
 
-**資料容器已經有了**：`mg_scores` 本來就是一人一筆，加欄位就好，
-不需要另開 collection、也不需要學生帳號系統。大概會長這樣：
+**完整草案在 [`META-GROWTH.md`](META-GROWTH.md)**，這裡只講資料面。
 
-| 欄位 | 用途 |
-|---|---|
-| `coins` | 累積貨幣（建議用「擊倒數」或「戰績分增量」換算，不要用傷害——傷害會因平衡改版膨脹） |
-| `perks` | 已解鎖的常駐加成，`{ atk:2, expGain:1 }` 這種 |
-| `unlockedZones` / `unlockedWeapons` | 已開的區域／武器 |
-| `totalKills` / `totalExp` | 跨場累積（現在只有單場最佳，沒有累積量） |
+**容器已經有了**：`mg_scores` 本來就是一人一筆，加欄位就好，
+不需要另開 collection、也不需要學生帳號系統。要加的欄位見
+[`META-GROWTH.md`](META-GROWTH.md) §7（`tier` / `growthPts` / `growthTotal` /
+`talents` / `talentCount` / `bestZone`）。
 
 三個先講清楚再動工的問題：
 
@@ -92,7 +90,7 @@ allow read, create, update, delete: if request.auth != null;
 3. **累積量現在沒有在存**。`bestKills` 是「單場最多」不是「總共」，
    要用擊倒數當貨幣的話，得先在 `saveScore()` 加 `totalKills += G.kills`。
 
-見 [`BALANCE.md`](BALANCE.md) §12「未來規劃」。
+細節見 [`META-GROWTH.md`](META-GROWTH.md)。
 
 ---
 

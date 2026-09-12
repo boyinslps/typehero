@@ -66,7 +66,10 @@ function updateDda(dda, kills) {
    抓趨勢用，不是精算。要精算請直接玩或看 docs/BALANCE.md §11 的實測模擬。 */
 function quickSim(wpm, acc, qualityKey, weaponKey, seconds, dda) {
   const q = QUALITIES[qualityKey];
-  const cps = Math.max(0.3, (wpm / 60) / Math.max(acc, 0.3));
+  /* 這裡以前寫 Math.max(0.3, ...)，等於給打字速度設了下限：
+     wpm 3/4/6 的學生全部被當成 wpm 18 來模擬，跑出來的「最慢的學生
+     也能推倒 6 隻」是假的（真實資料裡他們是 0～2 隻）。下限拿掉了。 */
+  const cps = (wpm / 60) / Math.max(acc, 0.3);
   let t = 0, lv = 1, exp = 0, kills = 0, dmg = 0, hits = 0;
   let monHp = monsterHp(1, qualityKey, dda);
   const need = l => BALANCE.exp.needBase + BALANCE.exp.needStep * (l - 1) + BALANCE.exp.needQuad * (l - 1) * (l - 1);
