@@ -219,6 +219,32 @@ body{
   padding:7px 12px;border-radius:7px;background:var(--panel2);
   border:2px solid transparent}
 .rank-row.me{background:rgba(232,182,76,.16);border-color:var(--gold)}
+#rank-list .rank-row{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+#rank-list .rank-no{width:34px;text-align:center;font-weight:900;color:var(--dim)}
+#rank-list .rank-name{font-weight:800;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#rank-list .rank-cls{font-size:12px;color:var(--dim);white-space:nowrap}
+#rank-list .rank-val{font-weight:900;color:var(--gold);min-width:74px;text-align:right}
+#rank-list .rank-gap{text-align:center;color:var(--dim);letter-spacing:.3em;padding:4px 0}
+/* ── 天賦面板 ── */
+.tal-tree{background:var(--panel);border:2px solid var(--line2);border-radius:var(--r);padding:14px}
+.tal-tree h3{font-weight:900;font-size:18px;margin-bottom:2px}
+.tal-ring{font-size:11px;color:var(--dim);margin:10px 0 6px;letter-spacing:.08em}
+.tal-node{width:100%;text-align:left;background:var(--panel2);border:2px solid var(--line);
+  border-radius:10px;padding:9px 11px;margin-bottom:7px;transition:border-color .15s,background .15s}
+.tal-node .tn-top{display:flex;align-items:center;gap:7px}
+.tal-node .tn-name{font-weight:800;font-size:14px}
+.tal-node .tn-cost{margin-left:auto;font-weight:900;font-size:13px;color:var(--gold)}
+.tal-node .tn-desc{font-size:12px;color:var(--dim);margin-top:3px;line-height:1.45}
+.tal-node.tn-big{border-style:dashed}
+.tal-node.tn-on{background:rgba(232,182,76,.14);border-color:var(--gold)}
+.tal-node.tn-can{border-color:var(--gold);cursor:pointer}
+.tal-node.tn-can:hover{background:var(--panel3)}
+.tal-node.tn-no{opacity:.45}
+.tn-tag{font-size:10px;font-weight:900;padding:1px 6px;border-radius:5px;
+  background:rgba(0,0,0,.3);border:1px solid currentColor}
+#talent-dot{display:none;width:8px;height:8px;border-radius:50%;background:#ff6b81;margin-left:5px;
+  vertical-align:2px}
+#talent-dot.on{display:inline-block}
 .rank-no{font-family:ui-monospace,Consolas,monospace;font-weight:900;
   width:34px;color:var(--dim)}
 .rank-row.me .rank-no{color:var(--gold)}
@@ -324,6 +350,9 @@ body{
   border-radius:6px;margin-right:6px;vertical-align:middle}
 .chip-lord{background:linear-gradient(135deg,#ffd98a,#c8912f);color:#2a2010}
 .chip-elite{background:rgba(232,182,76,.22);border:1px solid var(--gold);color:var(--gold)}
+.chip-affix{background:rgba(0,0,0,.35);border:1px solid currentColor}
+.dmg-pop.blocked-dmg{color:#8ea4f0;text-shadow:0 2px 0 #1b2350,0 0 14px rgba(142,164,240,.5)}
+#mon-timer{font-size:13px;font-weight:900;margin-left:8px}
 /* 菁英／王級血條換成金色漸層 */
 .hpfill.hp-special{background:linear-gradient(180deg,#ffd98a,#c8912f)}
 
@@ -491,12 +520,14 @@ select option{background:var(--panel2);color:var(--ink)}
                background:var(--panel2);border:1px solid var(--line2);color:var(--dim2)">
   v<span id="btn-verlog-num"></span></button>
 
-<!-- 逃脫：右下角固定按鈕，只在戰鬥中（含新手教學的暖身戰鬥）出現，
-     跟版本紀錄按鈕互斥（一個在畫面上時另一個一定藏著），共用同一個角落。 -->
+<!-- 結算：右下角固定按鈕，只在戰鬥中（含新手教學的暖身戰鬥）出現，
+     跟版本紀錄按鈕互斥（一個在畫面上時另一個一定藏著），共用同一個角落。
+     原本叫「逃脫」而且按下去直接丟掉成績——下課鐘響學生按了，那節課
+     打的東西就全部不見了。改成「結算」：提早結束這一場，但成績照算照存。 -->
 <button id="btn-escape" class="hidden text-sm px-3.5 py-2 rounded-full"
         style="position:fixed;right:16px;bottom:16px;z-index:40;
                background:var(--panel2);border:1px solid var(--line2);color:var(--dim)">
-  <span class="ico-slot" data-ico="back" data-ico-size="14"></span> 逃脫</button>
+  <span class="ico-slot" data-ico="flag" data-ico-size="14"></span> 結算</button>
 
 <!-- ══════════ 1. 登入 ══════════ -->
 <section id="screen-login" class="fade-in">
@@ -571,6 +602,10 @@ select option{background:var(--panel2);color:var(--ink)}
     <div class="flex items-center gap-4">
       <span class="text-base" style="color:var(--dim)">在營地待命中・等老師開戰</span>
       <span id="lobby-sub" class="text-sm" style="color:#e5705f"></span>
+      <button id="btn-talent" class="btn btn-ghost text-sm px-3 py-2">
+        <span class="ico-slot" data-ico="sparkle" data-ico-size="16"></span>天賦<span id="talent-dot"></span></button>
+      <button id="btn-rank" class="btn btn-ghost text-sm px-3 py-2">
+        <span class="ico-slot" data-ico="trophy" data-ico-size="16"></span>排行榜</button>
       <button id="btn-relogin" class="btn btn-ghost text-sm px-3 py-2">
         <span class="ico-slot" data-ico="back" data-ico-size="16"></span>換人／回登入</button>
       <button id="btn-teacher-lobby" class="btn btn-ghost text-sm px-3 py-2" style="color:var(--dim)">
@@ -641,6 +676,7 @@ select option{background:var(--panel2);color:var(--ink)}
               style="background:var(--panel2);border:2px solid var(--line);color:var(--dim)">第 1 隻</span>
         <span id="mon-name" class="font-black text-2xl">史萊姆</span>
         <span id="mon-hptext" class="mono text-base" style="color:var(--dim)">0 / 0</span>
+        <span id="mon-timer" class="mono"></span>
       </div>
       <div class="hpbar">
         <div class="hpghost" id="mon-hpghost" style="width:100%"></div>
@@ -801,6 +837,14 @@ select option{background:var(--panel2);color:var(--ink)}
         </div>
       </div>
 
+      <!-- 局外成長：這一場賺到多少點數，拆解給孩子看是哪一項給最多 -->
+      <div id="r-growth" class="hidden p-2.5 rounded-xl mb-2"
+           style="background:rgba(127,212,168,.12);border:2px solid var(--gr)">
+        <div class="label">成長點數</div>
+        <div class="mono text-3xl font-black leading-none" style="color:var(--gr)" id="r-growth-num">+0</div>
+        <p id="r-growth-break" class="text-xs mt-1" style="color:var(--dim)"></p>
+      </div>
+
       <div class="p-2.5 rounded-xl mb-2"
            style="background:var(--panel2);border:2px solid var(--gold)">
         <div class="label">本場總傷害</div>
@@ -881,6 +925,63 @@ select option{background:var(--panel2);color:var(--ink)}
               style="border-color:var(--line)">關閉</button>
     </div>
     <div id="verlog-body" class="scrolly" style="overflow-y:auto"></div>
+  </div>
+</div>
+
+<!-- ══════════ 天賦（局外成長）══════════
+     三棵樹對應三把武器，天賦只在用那把武器時生效。
+     花費＝(20n − 10)，n 是「已經點亮第幾個」，所以累計剛好 10n²。 -->
+<div id="talent-modal" class="hidden fixed inset-0 z-[88] overflow-y-auto scrolly"
+     style="background:rgba(9,8,18,.95)">
+  <div class="max-w-5xl mx-auto p-4 py-8">
+    <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+      <h2 class="text-2xl font-black flex items-center gap-2">
+        <span class="ico-slot" data-ico="sparkle" data-ico-size="22"></span>天賦</h2>
+      <div class="flex items-center gap-3">
+        <span class="text-sm" style="color:var(--dim)">可用點數</span>
+        <span id="tal-pts" class="mono text-3xl font-black" style="color:var(--gold)">0</span>
+        <button id="tal-reset" class="px-3 py-2 rounded-lg text-sm border"
+                style="border-color:var(--line)">重置天賦</button>
+        <button id="tal-close" class="px-4 py-2 rounded-lg border text-sm"
+                style="border-color:var(--line)">關閉</button>
+      </div>
+    </div>
+    <p id="tal-hint" class="text-sm mb-4" style="color:var(--dim)"></p>
+    <div id="tal-trees" class="grid md:grid-cols-3 gap-4"></div>
+  </div>
+</div>
+
+<!-- ══════════ 排行榜 ══════════
+     學生自己看得到的榜。排序一律用「戰績分」（每分鐘正確字數 × 品質 × 正確率），
+     不是總傷害——總傷害會被場次長度與品質倍率帶偏，戰績分才跨版本可比。 -->
+<div id="rank-modal" class="hidden fixed inset-0 z-[88] overflow-y-auto scrolly"
+     style="background:rgba(9,8,18,.95)">
+  <div class="max-w-3xl mx-auto p-4 py-8">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-2xl font-black flex items-center gap-2">
+        <span class="ico-slot" data-ico="trophy" data-ico-size="22"></span>排行榜</h2>
+      <button id="rank-close" class="px-4 py-2 rounded-lg border text-sm"
+              style="border-color:var(--line)">關閉</button>
+    </div>
+
+    <div class="flex items-center gap-2 mb-4 flex-wrap">
+      <div class="viz-seg" id="rank-scope" role="group">
+        <button data-s="class" aria-pressed="true">我的班級</button>
+        <button data-s="all"   aria-pressed="false">全校</button>
+      </div>
+      <div class="viz-seg" id="rank-metric" role="group">
+        <button data-m="score" aria-pressed="true">戰績分</button>
+        <button data-m="level" aria-pressed="false">最高等級</button>
+        <button data-m="kills" aria-pressed="false">總擊倒</button>
+      </div>
+      <button id="rank-refresh" class="px-3 py-2 rounded-lg text-sm border ml-auto"
+              style="border-color:var(--line)">
+        <span class="ico-slot" data-ico="reset" data-ico-size="14"></span></button>
+    </div>
+
+    <div id="rank-list" class="panel p-4"></div>
+    <p class="text-[11px] mt-3 text-center" style="color:var(--dim)">
+      戰績分＝每分鐘正確字數 × 難度加成 × 正確率，練習跟比賽都算。</p>
   </div>
 </div>
 
@@ -1208,6 +1309,8 @@ const ICONS = {
   school:`<path d="M12 2.6 3 7v2h18V7z"/><path d="M4.6 9v9.5M19.4 9v9.5M2.6 21.4h18.8"/>
           <rect x="8.4" y="12.4" width="7.2" height="6.1" rx=".8"/>`,
   back:  `<path d="M20 12H4.6"/><path d="M10.4 5.6 4 12l6.4 6.4"/>`,
+  flag:  `<path d="M5.4 21.4V3.2"/>
+          <path d="M5.4 4.2h11.2l-2 3.6 2 3.6H5.4z" fill="currentColor" fill-opacity=".2"/>`,
   alert: `<path d="M12 3.8 21.2 19.8H2.8z"/><path d="M12 9.8v4.6"/>
           <circle cx="12" cy="17.2" r="1" fill="currentColor"/>`,
   flame: `<path d="M12 21.4c3.5 0 6.2-2.5 6.2-5.8 0-4.4-4.3-5.9-3.4-11.2-2.6 1-4.4 3.5-4.4 6 0 1.3-.9 2-1.7 1.4-.9-.6-.9-2-.9-2C6 11.3 5.8 13.2 5.8 15.6c0 3.3 2.7 5.8 6.2 5.8z"
@@ -1477,17 +1580,41 @@ function zoneForLevel(lv) {
   return { name: '深淵', lvFrom: bandFrom, lvTo: bandFrom + w - 1, monsters: null, abyss: true };
 }
 
-/* CTK：打倒 LV 這一隻要幾個正確字，隨等級平滑成長（docs/BALANCE.md §3） */
-function ctkAt(lv) {
-  const h = BALANCE.hp;
-  return h.ctk0 + (h.ctkMax - h.ctk0) * (1 - Math.exp(-(lv - 1) / h.tau)) + h.late * Math.max(0, lv - 10);
+/* ── 難度層級 ─────────────────────────────────────────
+   tierOf()  把層級代號（'A'~'D'）換成參數物件，不認得就給預設層。
+   tierFromWpm() 把量到的手速換成層級代號——新手教學結束時用一次，
+   舊學生沒有 tier 欄位時也用 bestWpm 補一個，不用叫他們重打教學。
+   ─────────────────────────────────────────────────── */
+function tierOf(key) {
+  return BALANCE.tier[key] || BALANCE.tier[BALANCE.tierDefault];
+}
+function tierFromWpm(wpm) {
+  const c = BALANCE.tierCuts;
+  if (!(wpm > 0)) return BALANCE.tierDefault;
+  if (wpm >= c.D) return 'D';
+  if (wpm >= c.C) return 'C';
+  if (wpm >= c.B) return 'B';
+  return 'A';
+}
+/* 這位學生現在該用哪一層：以雲端寫下的 tier 為準，
+   沒有（舊紀錄）就用歷史最高手速回推一個，還是沒有就預設層。 */
+function myTierKey() {
+  if (MY_HIST && BALANCE.tier[MY_HIST.tier]) return MY_HIST.tier;
+  if (MY_HIST && MY_HIST.bestWpm > 0) return tierFromWpm(MY_HIST.bestWpm);
+  return BALANCE.tierDefault;
+}
+
+/* CTK：打倒 LV 這一隻要幾個正確字。線性，而且每一層一條（docs/BALANCE.md §3） */
+function ctkAt(lv, tierKey) {
+  const t = tierOf(tierKey);
+  return t.ctk0 + t.slope * (lv - 1);
 }
 
 /* 這一等級、這個品質的怪物血量（還沒套菁英／王級倍率） */
-function monsterHp(lv, qualityKey, dda) {
+function monsterHp(lv, qualityKey, tierKey) {
   const h = BALANCE.hp, q = QUALITIES[qualityKey];
   const lenAdj = Math.pow(q.chars / 2, h.lenPow);
-  const hp = q.mult * BALANCE.weaponRef * BALANCE.dmgScale * ctkAt(lv) * lenAdj * dda * CFG.difficulty;
+  const hp = q.mult * BALANCE.weaponRef * BALANCE.dmgScale * ctkAt(lv, tierKey) * lenAdj * CFG.difficulty;
   return Math.max(1, Math.round(hp));
 }
 
@@ -1502,13 +1629,33 @@ function spawnMonster(state) {
   const isElite = !isLord && (state.kills + 1) % BALANCE.elite.every === 0;
   const kind = isLord ? 'lord' : isElite ? 'elite' : 'normal';
   const mult = isLord ? BALANCE.lord.hpMult : isElite ? BALANCE.elite.hpMult : 1;
-  const hp = Math.max(1, Math.round(monsterHp(state.lv, state.quality, state.dda) * mult));
+  const hp = Math.max(1, Math.round(monsterHp(state.lv, state.quality, state.tier) * mult));
+  const affixes = zone.abyss ? rollAffixes(zone) : [];
   return {
     baseName: (zone.abyss ? '深淵・' : '') + tpl.name,
     art: tpl.art, color: tpl.color, tag: tpl.tag,
-    lv: state.lv, max: hp, hp, dead: false, kind, zoneName: zone.name
+    lv: state.lv, max: hp, hp, dead: false, kind, zoneName: zone.name,
+    affixes,                              // 詞條代號陣列，非深淵一律空的
+    hitsTaken: 0,                         // 「重甲」要知道這是第幾下
+    deadline: 0                           // 「狂暴」的逃走時間，drawMonster 時才開始算
   };
 }
+
+/* 這一隻深淵怪掛哪幾條詞條。越深掛越多，但不會重複，也不超過 maxAt。 */
+function rollAffixes(zone) {
+  const A = BALANCE.affix;
+  const last = ZONES[ZONES.length - 1].lvTo;
+  const band = Math.floor((zone.lvFrom - last - 1) / BALANCE.zoneWidth);   // 第幾個深淵 band，從 0 起算
+  const want = Math.min(A.maxAt, 1 + Math.floor(band / A.everyBand));
+  const keys = Object.keys(A.list);
+  const picked = [];
+  while (picked.length < want && picked.length < keys.length) {
+    const k = keys[Math.floor(Math.random() * keys.length)];
+    if (!picked.includes(k)) picked.push(k);
+  }
+  return picked;
+}
+const hasAffix = (mon, key) => !!(mon && mon.affixes && mon.affixes.includes(key));
 
 /* ══════════════════════════════════════════════════════════════
    大 BOSS：只有全班總傷害才打得動，時間到才登場，10 隻。
@@ -1945,7 +2092,7 @@ String.raw`
    改完也請回去同步更新那份文件與 CHANGELOG.md。
    ══════════════════════════════════════════════════════════════ */
 const BALANCE = {
-  ver: 2,                               // 寫進成績，判斷舊紀錄要不要做相容處理
+  ver: 3,                               // 寫進成績，判斷舊紀錄要不要做相容處理
 
   /* 傷害：每個正確字的基礎傷害 = quality.mult × weapon倍率 × dmgScale */
   dmgScale: 8,                          // 全域放大，讓數字有打擊感
@@ -1989,27 +2136,54 @@ const BALANCE = {
     killBase: 22, killPerLv: 7          // 擊倒一隻 = killBase + killPerLv×怪物等級——經驗的主要來源
   },
 
-  /* 血量：CTK = 打倒一隻要幾個正確字，隨等級平滑成長 */
+  /* 血量：CTK = 打倒一隻要幾個正確字，依「難度層級」線性成長
+     CTK(LV) = tier.ctk0 + tier.slope × (LV - 1)
+     lenPow 從 0.5 降到 0.25 是為了修「選難的品質反而吃虧」：
+     舊值下傳奇每隻要打 4 個字（普通 2 個），擊倒數只有普通的一半，
+     所以 63% 的學生賴在普通不動。0.25 之後傳奇是 0.71 倍，
+     再配合成長點數的品質係數（growth.qMult），選難的才划算。 */
   hp: {
-    ctk0: 4.0, ctkMax: 10.4, tau: 5.0,  // 指數段：LV1=4字、往 10.4 字爬升
-    late: 0.25,                         // LV10 以後每級再加的字數，避免後期變太簡單
-    lenPow: 0.5                         // 長題補正：(quality.chars/2) ^ lenPow
+    lenPow: 0.25                        // 長題補正：(quality.chars/2) ^ lenPow
   },
 
-  /* 動態難度 DDA：只乘在血量上，不動傷害，所以排行仍然公平 */
-  dda: {
-    seedNew: 0.85,                      // 完全沒歷史紀錄的新生
-    seedFloor: 0.55, seedSlope: 0.045,  // seed(bestWpm) = clamp(seedFloor + seedSlope×bestWpm, ...)
-    min: 0.5, max: 2.2,
-    targetLo: 4, targetHi: 8,           // 目標：一場推倒 4～8 隻
-    downBig: 0.86, downSmall: 0.93,     // 擊倒 < targetLo-1 / < targetLo
-    upBig: 1.14, upSmall: 1.07,         // 擊倒 > targetHi+2 / > targetHi
-    revert: 0.12,                       // 落在目標帶內，往 1.0 回歸的比例
-    rescueAtPct: 0.25, rescueCut: 0.15  // 開場 25% 時間還 0 擊倒，當前怪悄悄扣血
+  /* ── 難度層級：取代動態難度（DDA）───────────────────────
+     新手教學量一次手速就定下來，之後每一場都走同一條曲線。
+     固定曲線是局外成長的前提——DDA 會把「變強」整個吃掉
+     （傷害 +10% → 怪死得快 → 下一場血量調厚 → 擊倒數回到原點）。
+     門檻用 2026-09-24 實測 229 筆 bestWpm 校準，分布約 18/49/25/8%。
+     詳見 docs/BALANCE.md §7。 */
+  tier: {
+    A: { name: '初階', ctk0: 2.0, slope: 0.30, expMult: 1.00, ptK: 0.8 },
+    B: { name: '中階', ctk0: 4.0, slope: 0.52, expMult: 1.25, ptK: 1.4 },
+    C: { name: '高階', ctk0: 6.0, slope: 0.85, expMult: 1.50, ptK: 2.0 },
+    D: { name: '大師', ctk0: 8.0, slope: 1.20, expMult: 1.80, ptK: 2.6 }
   },
+  tierCuts: { B: 6, C: 14, D: 28 },     // 教學量到的 wpm ≥ 這個值就進下一層
+  tierDefault: 'B',                     // 跳過教學、或完全沒資料時
+  tierPromoteMargin: 2,                 // 升層遲滯：最近五場中位要超過門檻 +2 才提示挑戰
+  tierPromoteRuns: 5,                   // 看最近幾場
 
   elite: { every: 5, hpMult: 1.35, expMult: 2 },   // 每擊倒幾隻出一次菁英
   lord:  { hpMult: 1.7,  expMult: 3 },             // 每區最後一級
+
+  /* ── 深淵詞條（LV26 以後才會出現）──────────────────────
+     深淵原本只是「隨機抽舊怪、名字冠上深淵・」，沒有實質難度。
+     加上詞條之後，頂尖的孩子在深淵才真的有新東西要應付。
+     每深一個 band（zoneWidth 級）多掛一條，最多 affix.maxAt 條。
+     詞條只出現在深淵，前面五個區域完全不受影響。 */
+  affix: {
+    maxAt: 2,                           // 一隻最多幾條
+    everyBand: 1,                       // 每深幾個 band 多一條
+    expBonus: 0.5,                      // 每條詞條，這隻的經驗 +50%
+    list: {
+      /* 只吃全對的攻擊：打錯一個字，這一下完全沒傷害 */
+      flawless: { name: '結界', desc: '只吃全對的攻擊，打錯一個字這下就沒傷害', color: '#8ea4f0' },
+      /* 限時：時間內沒推倒就逃走，不給經驗 */
+      timed:    { name: '狂暴', desc: '限時內沒打倒就會逃走', color: '#e0563f', sec: 22 },
+      /* 前幾下減傷：要先破甲 */
+      armored:  { name: '重甲', desc: '前 2 下傷害減半', color: '#9fa8b5', hits: 2, cut: 0.5 }
+    }
+  },
 
   zoneWidth: 5,                         // 每個區域跨幾級
 
@@ -2017,10 +2191,23 @@ const BALANCE = {
 
   unlockLevel: { normal: 0, fine: 4, epic: 8, legend: 12 },  // 難度鎖改看到達等級
 
-  /* 戰績分：score = wpm × (1+qBonus) × (0.85 + 0.15×正確率)，徽章與排名都看這個 */
+  /* 戰績分：score = wpm × (1+qBonus) × (0.85 + 0.15×正確率)，徽章與排名都看這個
+     門檻只往上加、前六階一個都不動——已經拿到傳說徽章的孩子不能被降級。
+     23 之後等比 ×1.5，用實測 124 筆 bestScore 校準（最高 101.8）：
+     ≥35 五人、≥52 四人、≥78 一人。 */
   rank: {
     qBonus: { normal: 0, fine: 0.10, epic: 0.20, legend: 0.30 },
-    thresholds: [0, 4, 7, 11, 16, 23]   // 見習／冒險／銅／銀／金／傳說
+    thresholds: [0, 4, 7, 11, 16, 23, 35, 52, 78]
+  },
+
+  /* 成長點數（局外成長，docs/META-GROWTH.md）
+     點數 = base + (擊倒×killW + 到達等級×lvW) × 層級ptK × 品質qMult + floor(wpm/wpmDiv)
+     節點花費 = (20n − 10) × (大節點 bigMult)，累計剛好 10n² */
+  growth: {
+    base: 6, killW: 2, lvW: 1, wpmDiv: 5,
+    perMinuteCap: 45,                   // 單場上限 = 45 × 場次分鐘數（3 分鐘場 = 135）
+    qMult: { normal: 1.0, fine: 1.15, epic: 1.35, legend: 1.6 },
+    nodeStep: 20, nodeBase: 10, bigMult: 2
   },
 
   /* 單場評價 S/A/B/C/D，滿分 7.5 */
@@ -2031,8 +2218,23 @@ const BALANCE = {
    版本紀錄：首頁右下角那顆 v2.0.0 按鈕點開看到的內容。
    跟 CHANGELOG.md 是同一份資料，改一邊也要記得改另一邊。
    ══════════════════════════════════════════════════════════════ */
-const APP_VERSION = '2.1.1';
+const APP_VERSION = '3.0.0';
 const VERSION_LOG = [
+  { v:'3.0.0', date:'2026-09-24', title:'天賦・難度層級・新階級',
+    added: [
+      '局外成長：每場打完換成「成長點數」，拿去點三棵天賦樹（法杖／弓箭／匕首各一棵）',
+      '天賦有小節點（數值）跟大節點（機制，例如匕首的「追擊」、法杖的「餘韻」）',
+      '天賦只在使用對應武器時生效；重置免費、隨時可以，換個玩法再試一次',
+      '營地新增排行榜：可以切「我的班級／全校」，以及戰績分／最高等級／總擊倒三種排法',
+      '階級往上加三階：屠龍者（35）、星辰勇者（52）、神話勇者（78）',
+      '深淵（LV26 以後）的怪開始帶詞條：結界（只吃全對）、狂暴（限時逃走）、重甲（前兩下減半），詞條越多經驗越多'
+    ],
+    changed: [
+      '難度改成四個層級：新手教學量一次手速就定下來，之後每場走同一條曲線，不再每場偷偷調血量',
+      '「逃脫」改名成「結算」——按下去成績照算照存，不會像以前那樣整場白打',
+      '選高難度品質不再吃虧：傳奇每隻要打的字數降下來了，成長點數也跟著品質加成'
+    ],
+    fixed: [] },
   { v:'2.1.1', date:'2026-09-11', title:'修好弓箭特效與版本按鈕',
     added: [],
     changed: [],
@@ -2244,6 +2446,49 @@ const RANK_SVG = (() => {
     <circle cx="50" cy="8" r="2.8" fill="${c}"/>
     <circle cx="58" cy="0" r="2.8" fill="${c}"/>`;
 
+  /* ── 傳說之上的三階（v3 新增）──
+     頂端那三枚要「一眼看得出比傳說更高」，所以各加一個傳說沒有的結構：
+     屠龍者＝龍翼＋交叉雙劍、星辰＝星軌環、神話＝光環＋六道長芒。 */
+
+  /* 龍翼：比一般翅膀更尖、帶骨架線 */
+  const dragonWings = (c, edge) => `
+    <path d="M25 38 L-8 14 L-2 34 L-13 30 L-4 48 L-14 50 L6 62 L28 50 Z"
+          fill="${c}" stroke="${edge}" stroke-width="1.8" stroke-linejoin="round"/>
+    <path d="M75 38 L108 14 L102 34 L113 30 L104 48 L114 50 L94 62 L72 50 Z"
+          fill="${c}" stroke="${edge}" stroke-width="1.8" stroke-linejoin="round"/>
+    <path d="M25 38 L2 26 M25 44 L0 42 M25 50 L4 55" stroke="${edge}" stroke-width="1.2" opacity=".8"/>
+    <path d="M75 38 L98 26 M75 44 L100 42 M75 50 L96 55" stroke="${edge}" stroke-width="1.2" opacity=".8"/>`;
+
+  /* 交叉雙劍：擺在圓章後面，只露出劍身與劍柄兩端 */
+  const swords = (blade, hilt) => `
+    <g stroke-linecap="round">
+      <path d="M26 72 L74 20" stroke="${blade}" stroke-width="4.5"/>
+      <path d="M74 72 L26 20" stroke="${blade}" stroke-width="4.5"/>
+      <path d="M22 76 L30 68 M78 76 L70 68" stroke="${hilt}" stroke-width="5"/>
+      <path d="M78 16 L70 24 M22 16 L30 24" stroke="${hilt}" stroke-width="5"/>
+    </g>`;
+
+  /* 星軌：一圈橢圓軌道，上面掛三顆小星 */
+  const orbit = (c, starC) => `
+    <ellipse cx="50" cy="45" rx="41" ry="17" fill="none" stroke="${c}"
+             stroke-width="2.2" opacity=".75" transform="rotate(-18 50 45)"/>
+    <ellipse cx="50" cy="45" rx="41" ry="17" fill="none" stroke="${c}"
+             stroke-width="2.2" opacity=".45" transform="rotate(34 50 45)"/>
+    ${star(11, 33, 5.5, starC)}${star(89, 57, 5.5, starC)}${star(50, 8, 5, starC)}`;
+
+  /* 光環：頭頂一圈，加六道長芒 */
+  const halo = (c) => {
+    let s = `<ellipse cx="50" cy="6" rx="20" ry="6" fill="none" stroke="${c}" stroke-width="3" opacity=".95"/>`;
+    for (let i = 0; i < 6; i++) {
+      const a = -Math.PI / 2 + i * Math.PI / 3;
+      const x1 = 50 + Math.cos(a) * 33, y1 = 45 + Math.sin(a) * 33;
+      const x2 = 50 + Math.cos(a) * 48, y2 = 45 + Math.sin(a) * 48;
+      s += `<path d="M${x1.toFixed(1)} ${y1.toFixed(1)} L${x2.toFixed(1)} ${y2.toFixed(1)}"
+              stroke="${c}" stroke-width="3.2" stroke-linecap="round" opacity=".85"/>`;
+    }
+    return s;
+  };
+
   return [
     /* 0 見習生：素面石章 */
     `${disc('#7d7568', '#4a4339', '#8f8676')}
@@ -2282,7 +2527,39 @@ const RANK_SVG = (() => {
      ${disc('#ffd98a', '#4a3413', '#fff6dd')}
      ${star(50, 45, 17, '#fff6dd')}
      ${star(50, 45, 8, '#ffffff')}
-     ${crown('#ffd98a')}`
+     ${crown('#ffd98a')}`,
+
+    /* 6 屠龍者：交叉雙劍＋龍翼＋赤金王冠 */
+    `${swords('#d9dee8', '#8a3423')}
+     ${dragonWings('#c0392b', '#7d2318')}
+     ${rays('#ff8f6b')}
+     ${ribbon('#6d1f14', '#c0392b')}
+     ${disc('#e0563f', '#3d130c', '#ffb59c')}
+     ${star(50, 45, 17, '#ffd0bd')}
+     ${star(50, 45, 8, '#fff2ec')}
+     ${crown('#ffb347')}`,
+
+    /* 7 星辰：星軌環＋龍翼＋靛藍星章 */
+    `${dragonWings('#6f7fd4', '#3b4691')}
+     ${orbit('#9fb4ff', '#eaf1ff')}
+     ${rays('#b7c7ff')}
+     ${ribbon('#2c3572', '#5b6bc4')}
+     ${disc('#8ea4f0', '#161d47', '#dce6ff')}
+     ${star(50, 45, 18, '#eaf1ff', 6)}
+     ${star(50, 45, 8, '#ffffff', 6)}
+     ${crown('#cfdaff')}`,
+
+    /* 8 神話：光環＋龍翼＋星軌＋白金全滿 */
+    `${dragonWings('#fbf7ee', '#b9a06a')}
+     ${orbit('#ffe9a8', '#fffdf5')}
+     ${halo('#fff3c9')}
+     ${rays('#ffe9a8')}
+     ${laurel('#e8d9a8', 7)}
+     ${ribbon('#8a7230', '#e8d9a8')}
+     ${disc('#fdf6e0', '#3b3418', '#ffffff')}
+     ${star(50, 45, 19, '#ffffff', 8)}
+     ${star(50, 45, 9, '#fff3c9', 8)}
+     ${crown('#fff3c9')}`
   ].map(body =>
     `<svg viewBox="-12 -4 124 110" width="100%" height="100%"
           preserveAspectRatio="xMidYMid meet">${body}</svg>`);
@@ -2298,6 +2575,38 @@ function battleScore(wpm, acc, qualityKey) {
   return wpm * (1 + qb) * (0.85 + 0.15 * acc);
 }
 
+/* ── 成長點數（局外成長，docs/META-GROWTH.md §3）──────────────
+   一場結束換算一次。回傳拆解，結算畫面會逐項秀出來，
+   讓孩子看得到「哪一項給最多」——這是在教「認真打完一隻比亂敲快更划算」。
+
+   base 是保底：實測最弱的孩子（wpm 1、0 隻、LV1）沒有保底一場只拿 1 點，
+   第一個天賦要打十場才點得到，那他就不會再打了。
+   ─────────────────────────────────────────────────────── */
+function growthPointsOf(g) {
+  const G0 = BALANCE.growth;
+  const tK = tierOf(g.tier).ptK;
+  const qM = G0.qMult[g.quality] || 1;
+  const killPart = g.kills * G0.killW;
+  const lvPart   = g.lv * G0.lvW;
+  const corePart = (killPart + lvPart) * tK * qM;
+  const wpmPart  = Math.floor((g.finalWpm || 0) / G0.wpmDiv);
+  const secs = ME.practice ? CFG.duration : (ROUND.duration || CFG.duration);
+  const cap = Math.max(G0.perMinuteCap, Math.round(G0.perMinuteCap * secs / 60));
+  const raw = G0.base + corePart + wpmPart;
+  return {
+    total: Math.min(Math.round(raw), cap),
+    base: G0.base, kills: g.kills, killPart, lv: g.lv, lvPart,
+    core: Math.round(corePart), wpm: wpmPart, tierK: tK, qMult: qM,
+    cap, capped: Math.round(raw) > cap
+  };
+}
+
+/* 第 n 個點亮的節點要多少點（累計剛好 10n²，見 docs/META-GROWTH.md §4.1） */
+function talentCost(nthNode, big) {
+  const g = BALANCE.growth;
+  return (g.nodeStep * nthNode - g.nodeBase) * (big ? g.bigMult : 1);
+}
+
 const RANKS = [
   { min:0,  title:'見習生', svg: RANK_SVG[0],
     quote:'第一次上戰場，能站著撐完就很棒了！先把每個鍵的位置找熟，速度自然會長出來。' },
@@ -2310,7 +2619,16 @@ const RANKS = [
   { min:16, title:'金級勇者', svg: RANK_SVG[4],
     quote:'太強了！你一個人的速度就抵得上好幾位同學，是全班的關鍵戰力。' },
   { min:23, title:'傳說勇者', svg: RANK_SVG[5],
-    quote:'傳說級的手速。全班能推倒幾隻大怪，很大一部分要感謝你。' }
+    quote:'傳說級的手速。全班能推倒幾隻大怪，很大一部分要感謝你。' },
+  /* ── 以下三階是 v3 新增：實測有 14 個孩子已經撞到傳說的天花板，
+     最高分是門檻的 4.4 倍，23 分和 101 分戴同一個徽章實在說不過去。
+     前六階的門檻一個都沒動，只往上加。 ── */
+  { min:35, title:'屠龍者', svg: RANK_SVG[6],
+    quote:'你已經不是在打小怪了。這種速度，換成大 BOSS 也擋不住你幾下。' },
+  { min:52, title:'星辰勇者', svg: RANK_SVG[7],
+    quote:'全校找不到幾個人有你這種手速。試試看傳奇品質的長句，那才配得上你。' },
+  { min:78, title:'神話勇者', svg: RANK_SVG[8],
+    quote:'這個分數已經是大人的水準了。剩下的對手只有你自己上一次的紀錄。' }
 ];
 
 /* 下一階還差多少——登入畫面用來給目標感 */
@@ -3241,15 +3559,112 @@ function judge(units, input) {
 
 /* 連擊倍率：跟 updateStats() 的連擊標籤共用同一條公式，數字不會兜不起來 */
 function comboMultAt(combo) {
-  const c = BALANCE.combo;
+  const c = BF.combo;
   return 1 + Math.min(c.cap, c.step * Math.max(0, combo - c.from + 1));
 }
 
 /* opts = { special:是否為特殊題, sharp:是否在神射手模式,
             cps:這一題的每秒字數, lv:目前等級, combo:這一下算進去的連擊數（含這下） } */
+/* ══════════════════════════════════════════════════════════════
+   天賦（局外成長）：docs/META-GROWTH.md §5
+
+   三棵樹對應三把武器，**天賦只在使用那把武器時生效**——這樣才有人
+   願意換武器（實測幾乎所有人只用一把），也讓「這學期走哪一條」
+   變成一個真的要選的東西。
+
+   每棵樹三圈，要先點亮同一棵樹外圈的任一個節點，才點得到內圈。
+
+   實作方式：開戰時把 BALANCE 深拷貝一份成 BF，天賦的 apply() 直接改
+   那一份，戰鬥中所有公式都讀 BF。原本的 BALANCE 一個字都不會被動到
+   （不然天賦會愈疊愈多、下一場還留著）。
+   ══════════════════════════════════════════════════════════════ */
+const TALENTS = {
+  /* ── 法杖・咒學 ── */
+  st_chant:  { tree:'staff', ring:1, name:'咒文入門', desc:'詠唱成功傷害 ×3 → ×3.3',
+               apply: b => { b.chantMult = 3.3; } },
+  st_punct:  { tree:'staff', ring:1, name:'標點熟練', desc:'每個正確標點傷害 +1',
+               apply: b => { b.staffPunctPer += 1; } },
+  st_steady: { tree:'staff', ring:2, name:'沉穩', desc:'一般題全對，額外 +8% 傷害',
+               apply: b => { b.tal.perfectDmg += 0.08; } },
+  st_focus:  { tree:'staff', ring:2, name:'咒力凝聚', desc:'詠唱從每 5 題一次變成每 4 題',
+               apply: b => { b.specialEvery = 4; } },
+  st_echo:   { tree:'staff', ring:2, big:true, name:'餘韻', desc:'詠唱成功後，接下來 2 題傷害 +50%',
+               apply: b => { b.tal.echo = 2; } },
+  st_master: { tree:'staff', ring:3, name:'標點大師', desc:'每個正確標點傷害再 +2',
+               apply: b => { b.staffPunctPer += 2; } },
+  st_forgive:{ tree:'staff', ring:3, big:true, name:'不中斷的詠唱',
+               desc:'詠唱題錯一個字仍然算成功（倍率降為 ×2）',
+               apply: b => { b.tal.chantForgive = 1; } },
+
+  /* ── 弓箭・專注 ── */
+  bw_breath: { tree:'bow', ring:1, name:'穩定呼吸', desc:'正確率加成 1.2 → 1.4',
+               apply: b => { b.weapon.bowAcc = 1.4; } },
+  bw_charge: { tree:'bow', ring:1, name:'快速蓄力', desc:'爆擊條每題 +25 → +30',
+               apply: b => { b.gaugePerHit = 30; } },
+  bw_long:   { tree:'bow', ring:2, name:'神射延長', desc:'神射手模式 3 題 → 4 題',
+               apply: b => { b.sharpShots = 4; } },
+  bw_sharp:  { tree:'bow', ring:2, name:'銳利箭頭', desc:'神射手倍率 ×2 → ×2.2',
+               apply: b => { b.sharpMult = 2.2; } },
+  bw_start:  { tree:'bow', ring:2, big:true, name:'蓄能上場', desc:'每場開場爆擊條就有 40%',
+               apply: b => { b.tal.gaugeStart = 40; } },
+  bw_calm:   { tree:'bow', ring:3, name:'心無旁騖', desc:'該場正確率 95% 以上，全程 +10% 傷害',
+               apply: b => { b.tal.accBonus = 0.10; } },
+  bw_volley: { tree:'bow', ring:3, big:true, name:'連射', desc:'神射手期間每題多射一箭（再 +35%）',
+               apply: b => { b.tal.volley = 0.35; } },
+
+  /* ── 匕首・迅捷 ── */
+  dg_fast:   { tree:'dagger', ring:1, name:'快手', desc:'連環斬的速度加成更陡',
+               apply: b => { b.flurry.slope += 0.4; } },
+  dg_combo:  { tree:'dagger', ring:1, name:'連擊熟練', desc:'連擊加成上限 +90% → +105%',
+               apply: b => { b.combo.cap = 1.05; } },
+  dg_blade:  { tree:'dagger', ring:2, name:'長刃', desc:'連環斬最長 12 字 → 15 字',
+               apply: b => { b.flurry.maxChars = 15; } },
+  dg_step:   { tree:'dagger', ring:2, name:'連擊加速', desc:'每連擊 +6% → +7%',
+               apply: b => { b.combo.step = 0.07; } },
+  dg_chase:  { tree:'dagger', ring:2, big:true, name:'追擊', desc:'擊倒後立刻對下一隻補一次攻擊',
+               apply: b => { b.tal.chase = 0.6; } },
+  dg_steady: { tree:'dagger', ring:3, name:'不失手', desc:'連環斬最低倍率 0.9 → 1.2',
+               apply: b => { b.flurry.min = 1.2; } },
+  dg_after:  { tree:'dagger', ring:3, big:true, name:'殘影', desc:'連續 3 題全對後，下一題傷害翻倍',
+               apply: b => { b.tal.afterimage = 2; } }
+};
+const TALENT_TREES = {
+  staff:  { name: '法杖・咒學', color: '#c9a2ff' },
+  bow:    { name: '弓箭・專注', color: '#8ea4f0' },
+  dagger: { name: '匕首・迅捷', color: '#7fd4a8' }
+};
+
+/* 這一場生效的數值。平常就是 BALANCE 本人，開戰時才換成疊了天賦的那一份。 */
+let BF = BALANCE;
+
+/* 把已點亮的天賦疊到一份 BALANCE 的複本上。只疊「現在用的那把武器」那一棵樹。 */
+function applyTalents(weaponKey) {
+  const b = JSON.parse(JSON.stringify({
+    dmgScale: BALANCE.dmgScale, weapon: BALANCE.weapon, weaponRef: BALANCE.weaponRef,
+    staffPunctPer: BALANCE.staffPunctPer, chantMult: BALANCE.chantMult,
+    sharpMult: BALANCE.sharpMult, gaugePerHit: BALANCE.gaugePerHit,
+    sharpShots: BALANCE.sharpShots, flurry: BALANCE.flurry, specialEvery: BALANCE.specialEvery,
+    atkPerLv: BALANCE.atkPerLv, combo: BALANCE.combo
+  }));
+  // 其餘欄位直接沿用原本那份（不會被天賦改到的部分）
+  Object.setPrototypeOf(b, BALANCE);
+  /* tal：不是「改某個既有數值」而是「多一條規則」的那種大節點，
+     統一收在這裡，戰鬥流程各自去查。 */
+  b.tal = { perfectDmg: 0, echo: 0, chantForgive: 0, gaugeStart: 0,
+            accBonus: 0, volley: 0, chase: 0, afterimage: 0 };
+  const owned = (MY_HIST && MY_HIST.talents) || {};
+  for (const [id, lvl] of Object.entries(owned)) {
+    const t = TALENTS[id];
+    if (!t || !lvl) continue;
+    if (t.tree !== weaponKey) continue;         // 天賦只在對應武器身上生效
+    try { t.apply(b); } catch (e) { console.warn('天賦套用失敗', id, e); }
+  }
+  return b;
+}
+
 function computeDamage(weaponKey, qualityKey, res, combo, opts = {}) {
   const { special = false, sharp = false, cps = 0, lv = 1 } = opts;
-  const B = BALANCE;
+  const B = BF;
   const q = QUALITIES[qualityKey];
   const atk = 1 + B.atkPerLv * (lv - 1);
   const comboMult = comboMultAt(combo);
@@ -3263,13 +3678,20 @@ function computeDamage(weaponKey, qualityKey, res, combo, opts = {}) {
     if (special) {
       const sp = WEAPONS.staff.special;
       if (res.perfect) { raw *= B.chantMult; kind = 'special'; banner = sp.hit; note = `${sp.name} ×${B.chantMult}`; }
+      // 【不中斷的詠唱】：錯的字數在容許範圍內仍然算成功，但倍率降為 ×2
+      else if (B.tal && B.tal.chantForgive && res.wrong <= B.tal.chantForgive) {
+        raw *= 2; kind = 'special'; banner = sp.hit; note = `${sp.name}（勉強成功）×2`;
+      }
       else { banner = sp.miss; note = `${sp.name}失敗`; }
     }
 
   } else if (weaponKey === 'bow') {
     raw = res.correct * q.mult * B.dmgScale * (B.weapon.bowBase + B.weapon.bowAcc * res.accuracy) * atk;
     note = `準確率 ${Math.round(res.accuracy * 100)}%`;
-    if (sharp) { raw *= B.sharpMult; kind = 'special'; note = `神射手 ×${B.sharpMult}　${note}`; }
+    if (sharp) {
+      raw *= B.sharpMult; kind = 'special'; note = `神射手 ×${B.sharpMult}　${note}`;
+      if (B.tal && B.tal.volley) { raw *= 1 + B.tal.volley; note = `連射　${note}`; }
+    }
 
   } else if (weaponKey === 'dagger') {
     if (special) {
@@ -3285,6 +3707,18 @@ function computeDamage(weaponKey, qualityKey, res, combo, opts = {}) {
       if (combo >= B.combo.from) note = `${combo} 連擊`;
     }
   }
+
+  /* 天賦的「整體加成」統一在這裡乘：沉穩（全對）、餘韻（詠唱後兩題）、
+     心無旁騖（高正確率）、殘影（連三題全對的下一題）。
+     都只乘在 raw 上，標點那份是固定值不動。 */
+  const T = B.tal || {};
+  let talMult = 1;
+  if (T.perfectDmg && res.perfect) talMult += T.perfectDmg;
+  if (T.accBonus && opts.highAcc)  talMult += T.accBonus;
+  if (opts.echoLeft > 0)           talMult += 0.5;
+  if (opts.afterimage)             talMult *= T.afterimage || 1;
+  raw *= talMult;
+  if (talMult > 1 && kind === 'normal') kind = 'combo';
 
   const base  = raw + punct;             // 沒有連擊加成的傷害（標點是固定值，不吃連擊）
   const dmg   = raw * comboMult + punct; // 連擊只乘在會變動的那部分
@@ -3338,11 +3772,12 @@ function popDamage(amount, kind, note, bonus = 0) {
   const stage = document.getElementById('stage') || document.getElementById('monster-slot');
   const left = 48 + Math.random() * 30;
   const el = document.createElement('div');
-  el.className = `dmg-pop ${kind === 'crit' ? 'crit' : kind === 'combo' ? 'combo-dmg' : 'normal-dmg'}`;
+  el.className = `dmg-pop ${kind === 'crit' ? 'crit' : kind === 'combo' ? 'combo-dmg'
+                          : kind === 'blocked' ? 'blocked-dmg' : 'normal-dmg'}`;
   el.style.left = left + '%';
   el.style.top = '26%';
   el.style.fontSize = kind === 'crit' ? '46px' : kind === 'combo' ? '38px' : '32px';
-  el.innerHTML = `-${amount.toLocaleString()}` +
+  el.innerHTML = (kind === 'blocked' ? '擋下' : `-${amount.toLocaleString()}`) +
     (note ? `<div style="font-size:13px;opacity:.9;margin-top:2px">${note}</div>` : '');
   stage.appendChild(el);
   setTimeout(() => el.remove(), 1950);
@@ -3468,7 +3903,7 @@ const DEFAULT_BANK = {
 POOL_KEYS.forEach(k => BANK[k] = DEFAULT_BANK[k].slice());
 
 /* 本場戰鬥
-   opts.dda：這一場怪物血量的個人難度倍率（來自歷史紀錄或新手教學量測，見 seedDda()）
+   opts.tier：這一場走哪一條難度曲線（'A'~'D'，見 BALANCE.tier）
    opts.tutorial：true 表示這是新手教學的暖身戰鬥，不計入排行也不寫 damage */
 let G = null;
 function freshGame(opts = {}) {
@@ -3479,10 +3914,12 @@ function freshGame(opts = {}) {
     correctChars: 0, typedChars: 0, wrongChars: 0, words: 0,
     byWeapon: { staff: 0, bow: 0, dagger: 0 },
     lv: 1, exp: 0, maxLv: 1, kills: 0,
-    dda: opts.dda != null ? opts.dda : BALANCE.dda.seedNew, rescued: false,
+    tier: BALANCE.tier[opts.tier] ? opts.tier : BALANCE.tierDefault,
     mon: null,
     q: null, units: [], lastQ: {}, startedAt: 0, timer: null, over: false,
     unlockShown: {},                // 這一場已經跳過解鎖橫幅的品質
+    perfectStreak: 0, echoLeft: 0,  // 天賦【殘影】【餘韻】用的狀態
+    growthGained: null,
     tutorial: !!opts.tutorial
   };
 }
@@ -3620,7 +4057,18 @@ function histFromDoc(d) {
     bestLevel:  Math.max(d.bestLevel  || 0, d.lastLevel || 0),
     bestScore:  d.bestScore || 0,
     bestCombo:  Math.max(d.bestCombo  || 0, d.maxCombo || 0),
-    dda:        typeof d.dda === 'number' ? d.dda : undefined,
+    dda:        typeof d.dda === 'number' ? d.dda : undefined,   // v3 起不再使用，保留不刪
+    /* v3：難度層級。舊紀錄沒有這一欄，就用歷史最高手速回推一個，
+       不用叫學生重打新手教學。 */
+    tier:       BALANCE.tier[d.tier] ? d.tier : undefined,
+    /* v3：局外成長。growthPts 會被花掉（不是只增），所以合併時要看時間，
+       不能取大的——取大的會把花掉的點數變回來。 */
+    growthPts:   d.growthPts   || 0,
+    growthTotal: d.growthTotal || 0,
+    talents:     (d.talents && typeof d.talents === 'object') ? d.talents : {},
+    talentCount: d.talentCount || 0,
+    bestZone:    d.bestZone    || 0,
+    totalKills:  d.totalKills  || 0,
     tutorialDone: !!d.tutorialDone,
     plays:      d.plays || 0,
     balanceVer: d.balanceVer || 0,
@@ -3633,6 +4081,14 @@ function mergeHist(a, b) {
   const pick = k => Math.max((a && a[k]) || 0, (b && b[k]) || 0);
   const newer = ((a && a.lastPlayedMs) || 0) >= ((b && b.lastPlayedMs) || 0) ? a : b;
   const ddaOf = h => h && typeof h.dda === 'number' ? h.dda : undefined;
+  const older = newer === a ? b : a;
+  /* 會被「花掉」的東西（可用點數、已點亮的天賦）一律以較晚那筆為準。
+     這種欄位不能取大的——取大的等於把花掉的點數變回來，天賦會愈洗愈多。 */
+  const fresh = (k, dflt) => {
+    if (newer && newer[k] !== undefined && newer[k] !== null) return newer[k];
+    if (older && older[k] !== undefined && older[k] !== null) return older[k];
+    return dflt;
+  };
   return {
     name:       (newer && newer.name) || (a && a.name) || (b && b.name) || '',
     bestDamage: pick('bestDamage'), bestWpm: pick('bestWpm'),
@@ -3640,6 +4096,13 @@ function mergeHist(a, b) {
     bestAcc:    pick('bestAcc'),
     bestLevel:  pick('bestLevel'),  bestScore: pick('bestScore'), bestCombo: pick('bestCombo'),
     dda:        ddaOf(newer) !== undefined ? ddaOf(newer) : (ddaOf(a) !== undefined ? ddaOf(a) : ddaOf(b)),
+    tier:       fresh('tier', undefined),
+    growthPts:   fresh('growthPts', 0),
+    talents:     fresh('talents', {}),
+    talentCount: fresh('talentCount', 0),
+    growthTotal: pick('growthTotal'),      // 只增不減，取大的才對
+    bestZone:    pick('bestZone'),
+    totalKills:  pick('totalKills'),
     tutorialDone: !!((a && a.tutorialDone) || (b && b.tutorialDone)),
     balanceVer: Math.max((a && a.balanceVer) || 0, (b && b.balanceVer) || 0),
     lastPlayedMs: pick('lastPlayedMs')
@@ -3883,7 +4346,230 @@ function gotoLogin() {
   scheduleHistoryLookup();            // 把畫面上那組班級座號的紀錄重撈一次
 }
 
+/* ══════════════════════════════════════════════════════════════
+   排行榜（學生自己看得到的那個）
+
+   排序一律用「戰績分」當預設：每分鐘正確字數 × 品質加成 × 正確率。
+   不用總傷害的理由跟徽章一樣——總傷害會被「打了幾分鐘」跟「選什麼品質」
+   帶偏，戰績分才是跨版本、跨難度都能比的尺（docs/BALANCE.md §8.1）。
+   另外兩個切面（最高等級、總擊倒）是給不同取向的孩子看的：
+   手速慢但很努力的，總擊倒常常排得比戰績分前面。
+   ══════════════════════════════════════════════════════════════ */
+const RANKVIEW = { scope: 'class', metric: 'score', rows: null, loading: false };
+const RANK_METRICS = {
+  score: { label: '戰績分', get: r => r.bestScore, fmt: v => (Math.round(v * 10) / 10).toFixed(1), unit: '' },
+  level: { label: '最高等級', get: r => r.bestLevel, fmt: v => 'LV ' + Math.round(v), unit: '' },
+  kills: { label: '總擊倒', get: r => (r.totalKills || r.bestKills), fmt: v => Math.round(v), unit: ' 隻' }
+};
+
+async function openRankBoard() {
+  show('rank-modal', true);
+  if (!RANKVIEW.rows) await loadRankRows();
+  else renderRankBoard();
+}
+async function loadRankRows() {
+  if (RANKVIEW.loading) return;
+  RANKVIEW.loading = true;
+  $('rank-list').innerHTML = '<p class="text-sm text-center" style="color:var(--dim)">載入中…</p>';
+  try {
+    const snap = await withTimeout(getDocs(query(REF.scores)), 8000, '讀取逾時');
+    RANKVIEW.rows = [];
+    snap.forEach(d => RANKVIEW.rows.push({ id: d.id, ...d.data() }));
+  } catch (e) {
+    console.error('排行榜讀取失敗', e);
+    $('rank-list').innerHTML =
+      '<p class="text-sm text-center" style="color:#ff8a9c">讀不到排行榜，等一下再試試看</p>';
+    RANKVIEW.loading = false;
+    return;
+  }
+  RANKVIEW.loading = false;
+  renderRankBoard();
+}
+function renderRankBoard() {
+  const m = RANK_METRICS[RANKVIEW.metric];
+  const all = RANKVIEW.rows || [];
+  const pool = RANKVIEW.scope === 'class'
+    ? all.filter(r => r.className === ME.className)
+    : all;
+  const rows = pool
+    .map(r => ({ r, v: m.get(r) }))
+    .filter(x => typeof x.v === 'number' && isFinite(x.v) && x.v > 0)
+    .sort((a, b) => b.v - a.v);
+
+  if (!rows.length) {
+    $('rank-list').innerHTML =
+      `<p class="text-sm text-center" style="color:var(--dim)">${
+        RANKVIEW.scope === 'class' ? '這個班還沒有人上榜' : '還沒有人上榜'}</p>`;
+    return;
+  }
+  const myIdx = rows.findIndex(x => x.r.id === ME.docId);
+  const top = rows.slice(0, 20);
+  // 自己排在 20 名之外時，把自己那一列單獨接在後面，不然學生找不到自己
+  const extra = (myIdx >= 20) ? [{ ...rows[myIdx], _rank: myIdx + 1 }] : [];
+
+  const line = (x, i) => {
+    const rank = x._rank || (i + 1);
+    const me = x.r.id === ME.docId;
+    const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '';
+    const badge = RANKVIEW.metric === 'score'
+      ? `<span style="display:inline-block;width:26px;height:26px;vertical-align:-7px"
+               title="${rankOf(x.v).title}">${rankOf(x.v).svg}</span>` : '';
+    return `<div class="rank-row${me ? ' me' : ''}">
+      <span class="rank-no">${medal || rank}</span>
+      ${badge}
+      <span class="rank-name">${escHtml(x.r.name || '')}</span>
+      <span class="rank-cls">${escHtml(x.r.className || '')} ${escHtml(String(x.r.seat || ''))}</span>
+      <span class="rank-val mono">${m.fmt(x.v)}${m.unit}</span>
+    </div>`;
+  };
+  $('rank-list').innerHTML =
+    top.map(line).join('') +
+    (extra.length ? '<div class="rank-gap">⋯</div>' + extra.map(line).join('') : '');
+}
+const escHtml = v => String(v ?? '').replace(/[&<>"]/g,
+  c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+/* ══════════════════════════════════════════════════════════════
+   天賦面板：花成長點數點亮節點
+
+   花費規則一句話講得完：**第 n 個點亮的節點要 (20n − 10) 點**
+   （10、30、50、70…，大節點兩倍），所以累計剛好 10n²。
+   第一個特別便宜，是為了讓班上最慢的孩子打完第一場就點得到一個。
+
+   前置：要先點亮同一棵樹外圈的任一個節點，才點得到內圈。
+   重置：免費、隨時可以——對國小生來說「試試看別的」比「懲罰換路線」重要。
+   ══════════════════════════════════════════════════════════════ */
+function myTalents() { return (MY_HIST && MY_HIST.talents) || {}; }
+function myTalentCount() {
+  const t = myTalents();
+  return Object.values(t).filter(Boolean).length;
+}
+/* 這一棵樹的這一圈解鎖了沒：ring 1 一律開，其餘要外一圈有點亮任一個 */
+function ringUnlocked(tree, ring) {
+  if (ring <= 1) return true;
+  const owned = myTalents();
+  return Object.entries(TALENTS).some(([id, t]) =>
+    t.tree === tree && t.ring === ring - 1 && owned[id]);
+}
+function nextTalentCost(big) { return talentCost(myTalentCount() + 1, big); }
+
+function openTalentPanel() {
+  show('talent-modal', true);
+  renderTalentPanel();
+}
+function renderTalentPanel() {
+  const owned = myTalents();
+  const pts = (MY_HIST && MY_HIST.growthPts) || 0;
+  const n = myTalentCount();
+  setTxt('tal-pts', pts);
+  $('tal-hint').innerHTML =
+    `已經點亮 <b style="color:var(--ink)">${n}</b> 個，下一個要 ` +
+    `<b style="color:var(--gold)">${nextTalentCost(false)}</b> 點` +
+    `（大節點 <b style="color:var(--gold)">${nextTalentCost(true)}</b> 點）。` +
+    `天賦只在使用對應武器時生效。`;
+
+  $('tal-trees').innerHTML = Object.entries(TALENT_TREES).map(([tree, meta]) => {
+    const rings = [1, 2, 3].map(ring => {
+      const nodes = Object.entries(TALENTS).filter(([, t]) => t.tree === tree && t.ring === ring);
+      const open = ringUnlocked(tree, ring);
+      return `<div class="tal-ring">第 ${ring} 圈${open ? '' : '（要先點亮外一圈）'}</div>` +
+        nodes.map(([id, t]) => {
+          const on = !!owned[id];
+          const cost = nextTalentCost(!!t.big);
+          const can = !on && open && pts >= cost;
+          const cls = on ? 'tn-on' : can ? 'tn-can' : 'tn-no';
+          return `<button class="tal-node ${cls}${t.big ? ' tn-big' : ''}"
+                    data-tal="${id}" ${on || !can ? 'disabled' : ''}>
+            <span class="tn-top">
+              ${t.big ? `<span class="tn-tag" style="color:${meta.color}">大</span>` : ''}
+              <span class="tn-name">${escHtml(t.name)}</span>
+              <span class="tn-cost">${on ? '已點亮' : cost + ' 點'}</span>
+            </span>
+            <span class="tn-desc">${escHtml(t.desc)}</span>
+          </button>`;
+        }).join('');
+    }).join('');
+    return `<div class="tal-tree">
+      <h3 style="color:${meta.color}">${meta.name}</h3>
+      ${rings}
+    </div>`;
+  }).join('');
+
+  [...document.querySelectorAll('[data-tal]')].forEach(b =>
+    b.addEventListener('click', () => buyTalent(b.dataset.tal)));
+}
+
+async function buyTalent(id) {
+  const t = TALENTS[id];
+  if (!t || myTalents()[id]) return;
+  if (!ringUnlocked(t.tree, t.ring)) { toast('要先點亮外面那一圈'); return; }
+  const cost = nextTalentCost(!!t.big);
+  const pts = (MY_HIST && MY_HIST.growthPts) || 0;
+  if (pts < cost) { toast(`還差 ${cost - pts} 點`); return; }
+
+  const talents = Object.assign({}, myTalents(), { [id]: 1 });
+  MY_HIST = Object.assign({}, MY_HIST, {
+    talents, talentCount: myTalentCount() + 1,
+    growthPts: pts - cost, lastPlayedMs: Date.now()
+  });
+  writeLocalHist(ME.docId, MY_HIST);        // 先寫本機，斷線也不會白點
+  renderTalentPanel();
+  paintTalentDot();
+  toast(`點亮「${t.name}」！`);
+  try {
+    await withTimeout(setDoc(doc(REF.scores, ME.docId), {
+      className: ME.className, seat: ME.seat, name: ME.name,
+      talents, talentCount: MY_HIST.talentCount, growthPts: MY_HIST.growthPts,
+      lastPlayedAt: serverTimestamp()
+    }, { merge: true }), 6000, '上傳逾時');
+  } catch (e) {
+    console.error('天賦上傳失敗', e);
+    toast('點亮了，但還沒存到雲端——等一下網路好了會再試', 3000);
+  }
+}
+
+async function resetTalents() {
+  const n = myTalentCount();
+  if (!n) { toast('還沒點亮任何天賦'); return; }
+  if (!confirm(`要把已經點亮的 ${n} 個天賦全部收回來嗎？
+點數會全部還給你，可以重新分配。`)) return;
+  // 退款＝把已經花掉的全部還回來（累計花費就是 10n²，含大節點的兩倍價另計）
+  let refund = 0;
+  const owned = myTalents();
+  let i = 0;
+  for (const id of Object.keys(owned)) {
+    if (!owned[id]) continue;
+    i++;
+    refund += talentCost(i, !!(TALENTS[id] && TALENTS[id].big));
+  }
+  MY_HIST = Object.assign({}, MY_HIST, {
+    talents: {}, talentCount: 0,
+    growthPts: ((MY_HIST && MY_HIST.growthPts) || 0) + refund,
+    lastPlayedMs: Date.now()
+  });
+  writeLocalHist(ME.docId, MY_HIST);
+  renderTalentPanel();
+  paintTalentDot();
+  toast(`已經重置，還你 ${refund} 點`);
+  try {
+    await withTimeout(setDoc(doc(REF.scores, ME.docId), {
+      className: ME.className, seat: ME.seat, name: ME.name,
+      talents: {}, talentCount: 0, growthPts: MY_HIST.growthPts,
+      lastPlayedAt: serverTimestamp()
+    }, { merge: true }), 6000, '上傳逾時');
+  } catch (e) { console.error('天賦重置上傳失敗', e); }
+}
+
+/* 有點數沒花就在營地的「天賦」按鈕上點一顆紅點 */
+function paintTalentDot() {
+  const dot = $('talent-dot');
+  if (!dot) return;
+  const pts = (MY_HIST && MY_HIST.growthPts) || 0;
+  dot.classList.toggle('on', pts >= nextTalentCost(false));
+}
+
 function gotoLobby() {
+  BF = BALANCE;                              // 離開戰鬥就把天賦加成收回去
   show('app-header', false);                 // 營地也是滿版，不需要標題列
   show('screen-lobby', true); show('screen-game', false);
   show('screen-result', false); show('screen-boss', false);
@@ -3891,21 +4577,22 @@ function gotoLobby() {
   show('btn-escape', false);
   const ls = $('lobby-sub');
   if (ls) ls.textContent = ONLINE ? '' : '離線・成績只留在這台電腦';
+  paintTalentDot();                          // 有點數沒花就在天賦按鈕上點紅點
 }
 
-/* 逃脫鍵：戰鬥中想直接回營地，不等時間到、不看結算。
-   練習跟教學都可以直接放棄離開（反正只影響自己）；
-   正式比賽是全班同步的，中途跳出去之後沒有機制能自己再回去
-   （下一次連上要等老師開新的一輪），所以正式比賽不開放逃脫，
-   要結束請找老師按「結束比賽」或「回到營地」。 */
+/* 「結算」鍵：提早結束這一場，但**成績照算照存**。
+   原本這顆叫「逃脫」，按下去是直接把 G 丟掉回營地，一毛都不留——
+   下課鐘響學生順手一按，那節課打的全部消失。現在改成走跟時間到
+   完全一樣的 endBattle() 流程，所以經驗、等級、成長點數、歷史紀錄
+   都會寫進去。正式比賽仍然不開放（全班同步，中途跳出去回不來）。 */
 function escapeBattle() {
   if (!G) { gotoLobby(); return; }
   if (G.tutorial) { tutorialSkip(); return; }
   if (ME.practice) {
-    clearInterval(G.timer);
-    G = null;
-    gotoLobby();
-    toast('已經回到營地');
+    if (G.over) return;                 // 已經在跑結算了，連按不要跑第二次
+    show('btn-escape', false);          // 立刻收起來，避免結算動畫期間又被按
+    toast('提早結算，這一場的成績照算', 2200);
+    endBattle(true);                    // 跟時間到同一條路，只是動畫跳過
     return;
   }
   toast('比賽是全班同步的，中途離開就回不去了——要結束請找老師', 3200);
@@ -4152,32 +4839,14 @@ function fitViewmodel() {
   requestAnimationFrame(apply);   // 保險：剛切畫面那一刻版面可能還沒完全定案，下一帧再修一次
 }
 
-/* ══════════════ 動態難度 DDA ══════════════
-   只乘在血量上，不動傷害，所以班級排行仍然公平（docs/BALANCE.md §7）。 */
-function seedDda(wpm) {
-  const d = BALANCE.dda;
-  if (!(wpm > 0)) return d.seedNew;
-  return Math.max(d.min, Math.min(1.6, d.seedFloor + d.seedSlope * wpm));
-}
-function updateDda(dda, kills) {
-  const d = BALANCE.dda;
-  let next = dda;
-  if (kills < d.targetLo - 1) next *= d.downBig;
-  else if (kills < d.targetLo) next *= d.downSmall;
-  else if (kills > d.targetHi + 2) next *= d.upBig;
-  else if (kills > d.targetHi) next *= d.upSmall;
-  else next += (1 - next) * d.revert;             // 落在目標帶內，慢慢往 1.0 回歸
-  return Math.max(d.min, Math.min(d.max, next));
-}
-
 /* ══════════════ 戰鬥 ══════════════
-   opts.dda：這場怪物血量的個人難度（省略就用歷史紀錄或保底值推算） */
+   opts.tier：這場走哪一條難度曲線（省略就用這位學生的層級，見 myTierKey()） */
 function startBattle(practice, opts = {}) {
   ME.practice = !!practice;
-  const dda = opts.dda != null ? opts.dda
-    : (MY_HIST && MY_HIST.dda != null ? MY_HIST.dda : seedDda(MY_HIST && MY_HIST.bestWpm));
-  G = freshGame({ dda });
+  G = freshGame({ tier: opts.tier || myTierKey() });
   G.startedAt = Date.now();
+  BF = applyTalents(G.weapon);        // 這一場生效的數值＝BALANCE ＋ 這把武器的天賦
+  G.gauge = BF.tal.gaugeStart || 0;   // 弓箭【蓄能上場】：開場爆擊條就有一截
 
   show('screen-lobby', false); show('screen-login', false);
   show('screen-result', false); show('screen-boss', false);
@@ -4287,7 +4956,7 @@ function advanceTutorial() {
 
 function showTutorialCaption(step) {
   show('tutorial-intro', true);
-  show('btn-escape', false);           // 看說明卡的時候不需要逃脫鍵，跳過教學鍵已經在卡片上了
+  show('btn-escape', false);           // 看說明卡的時候不需要結算鍵，跳過教學鍵已經在卡片上了
   setTxt('tut-step', `${TUT.idx + 1} / ${TUTORIAL_SCRIPT.length}`);
   setTxt('tut-title', step.title);
   setTxt('tut-body', step.body);
@@ -4300,15 +4969,16 @@ function tutorialNext() {
   advanceTutorial();
 }
 
-/* 給老師示範用：任何時候都能跳過，量測值用保底的 seedNew */
+/* 給老師示範用：任何時候都能跳過，層級給預設的中階 */
 function tutorialSkip() {
   show('tutorial-intro', false);
   if (G) { clearInterval(G.timer); G = null; }
-  MY_HIST = Object.assign({}, MY_HIST, { dda: BALANCE.dda.seedNew, tutorialDone: true });
+  const tier = BALANCE.tierDefault;
+  MY_HIST = Object.assign({}, MY_HIST, { tier, tutorialDone: true });
   writeLocalHist(ME.docId, MY_HIST);
   setDoc(doc(REF.scores, ME.docId), {
     className: ME.className, seat: ME.seat, name: ME.name,
-    dda: MY_HIST.dda, tutorialDone: true, lastPlayedAt: serverTimestamp()
+    tier, tierSetBy: 'skip', tutorialDone: true, lastPlayedAt: serverTimestamp()
   }, { merge: true }).catch(e => console.error('教學跳過寫入失敗', e));
   gotoLobby();
 }
@@ -4321,7 +4991,8 @@ function tutorialSkip() {
                     所以這裡要保證一定會觸發，不能讓手感不好的學生錯過。 */
 function runTutorialBattleSegment(step) {
   if (!G) {
-    G = freshGame({ dda: BALANCE.dda.seedNew, tutorial: true });
+    G = freshGame({ tier: BALANCE.tierDefault, tutorial: true });
+    BF = BALANCE;                     // 教學是量測手速用的，不吃天賦
     G.startedAt = Date.now();
     show('screen-lobby', false); show('screen-login', false);
     show('screen-result', false); show('screen-boss', false);
@@ -4339,7 +5010,7 @@ function runTutorialBattleSegment(step) {
   G.quality = LOADOUT.quality = 'normal';
   G.tutSegRemaining = step.count;
   G.tutForceSpecial = !!step.forceSpecial;
-  if (step.forceGauge) { G.gauge = 0; G.sharpLeft = BALANCE.sharpShots; }   // 直接給神射手模式，不看這幾題打得準不準
+  if (step.forceGauge) { G.gauge = 0; G.sharpLeft = BF.sharpShots; }   // 直接給神射手模式，不看這幾題打得準不準
 
   drawMonster();
   paintSpecialState(false);
@@ -4351,24 +5022,25 @@ function runTutorialBattleSegment(step) {
   setTimeout(() => $('type-input').focus(), 150);
 }
 
-/* 教學腳本跑完：把量到的手速換算成 dda，寫進歷史（本機＋雲端），不計分、不進排行 */
+/* 教學腳本跑完：把量到的手速換算成「難度層級」，寫進歷史（本機＋雲端），
+   不計分、不進排行。這是整個 v3 難度系統唯一的量測點（docs/BALANCE.md §7.3）。 */
 async function endTutorialFlow() {
   if (!G) { gotoLobby(); return; }         // 保險：理論上不會發生
   G.over = true;
   $('type-input').disabled = true;
   const elapsedSec = Math.max(1, (Date.now() - G.startedAt) / 1000);
   const measuredWpm = Math.round(G.words / elapsedSec * 60);
-  const dda = seedDda(measuredWpm);
+  const tier = tierFromWpm(measuredWpm);
 
   MY_HIST = Object.assign({}, MY_HIST, {
-    dda, tutorialDone: true,
+    tier, tutorialDone: true,
     bestWpm: Math.max((MY_HIST && MY_HIST.bestWpm) || 0, measuredWpm)
   });
   writeLocalHist(ME.docId, MY_HIST);
   try {
     await withTimeout(setDoc(doc(REF.scores, ME.docId), {
       className: ME.className, seat: ME.seat, name: ME.name,
-      dda: MY_HIST.dda, tutorialDone: true, bestWpm: MY_HIST.bestWpm,
+      tier, tierSetBy: 'tutorial', tutorialDone: true, bestWpm: MY_HIST.bestWpm,
       lastPlayedAt: serverTimestamp()
     }, { merge: true }), 6000, '上傳逾時');
   } catch (e) { console.error('教學結果上傳失敗', e); }
@@ -4393,7 +5065,28 @@ function tick() {
   $('hdr-timer').textContent = `${m}:${String(ss).padStart(2, '0')}`;
   $('hdr-timer').style.color = s <= 30 ? '#ff6b81' : 'var(--gold)';
   updateWpm();
+  tickAffixTimer();
   if (s <= 0) endBattle();
+}
+
+/* 深淵的「狂暴」詞條：這一隻有時限，數完還沒倒就自己跑掉。
+   跑掉不給經驗、不算擊倒，但也不罰——就是白忙一場，換下一隻。 */
+function tickAffixTimer() {
+  const m = G && G.mon;
+  const el = $('mon-timer');
+  if (!m || !hasAffix(m, 'timed') || m.dead || !m.deadline) { if (el) el.textContent = ''; return; }
+  const left = Math.max(0, (m.deadline - Date.now()) / 1000);
+  if (el) {
+    el.textContent = `⏱ ${left.toFixed(1)}s`;
+    el.style.color = left <= 5 ? '#ff6b81' : BALANCE.affix.list.timed.color;
+  }
+  if (left <= 0) {
+    m.dead = true;                       // 擋住這一幀之後的重複觸發
+    showSpecialBanner('牠跑掉了…', false);
+    G.combo = 0; flashComboBreak(); updateStats();
+    G.mon = null;
+    drawMonster();                       // 換下一隻，等級與經驗都不動
+  }
 }
 
 function commonPool() {
@@ -4453,7 +5146,7 @@ function pickDaggerFlurry() {
     while (picked.some(x => x.t === q.t) && guard < 12);
     const len = [...q.t].length;
     // 已經有一個了、再串下去會太長，就到此為止
-    if (picked.length && chars + len > BALANCE.flurry.maxChars) break;
+    if (picked.length && chars + len > BF.flurry.maxChars) break;
     picked.push(q); chars += len;
   }
   return {
@@ -4484,10 +5177,10 @@ function pickQuestion() {
   const beginner = !!(QUALITIES[G.quality] && QUALITIES[G.quality].beginner);
 
   // 法杖：每 5 題來一次「詠唱」
-  if (w === 'staff' && !beginner && G.qCount % BALANCE.specialEvery === 0) return pickStaffChant();
+  if (w === 'staff' && !beginner && G.qCount % BF.specialEvery === 0) return pickStaffChant();
 
   // 匕首：每 5 題來一次「連環斬」
-  if (w === 'dagger' && G.qCount % BALANCE.specialEvery === 0) return pickDaggerFlurry();
+  if (w === 'dagger' && G.qCount % BF.specialEvery === 0) return pickDaggerFlurry();
 
   // 其餘一律用共用題庫（弓箭的爆發靠爆擊條，不換題目）
   const q = drawFrom(commonPool(), `common_${G.quality}`);
@@ -4525,14 +5218,46 @@ function submitAttack() {
   const cps  = G.units.length / secs;               // 這一題的每秒字數
   const sharp = G.weapon === 'bow' && G.sharpLeft > 0;
   const effCombo = res.perfect ? G.combo + 1 : 0;    // 這一下算進去的連擊數（含這下）
-  const { dmg, bonus, kind, note, banner } =
-    computeDamage(G.weapon, G.quality, res, effCombo, { special: !!G.q.special, sharp, cps, lv: G.lv });
+  /* 天賦要看的那幾個狀態：
+     highAcc   這一場到目前為止的正確率（【心無旁騖】的條件）
+     echoLeft  詠唱成功後還剩幾題吃 +50%（【餘韻】）
+     afterimage 上三題是不是連續全對（【殘影】，這一題才翻倍） */
+  const accSoFar = G.typedChars ? G.correctChars / G.typedChars : 1;
+  const afterimage = !!(BF.tal.afterimage && G.perfectStreak >= 3);
+  let { dmg, bonus, kind, note, banner } =
+    computeDamage(G.weapon, G.quality, res, effCombo, {
+      special: !!G.q.special, sharp, cps, lv: G.lv,
+      highAcc: accSoFar >= 0.95, echoLeft: G.echoLeft || 0, afterimage
+    });
+  if (afterimage) { note = note ? note + '　殘影 ×2' : '殘影 ×2'; G.perfectStreak = 0; }
+
+  /* 深淵詞條：只在 LV26 以後的深淵怪身上生效（BALANCE.affix）。
+     這裡只動「這一下打進去多少」，不動 wpm／正確率的統計，
+     所以詞條不會污染戰績分與班級排行。 */
+  if (G.mon && G.mon.affixes && G.mon.affixes.length) {
+    G.mon.hitsTaken = (G.mon.hitsTaken || 0) + 1;
+    if (hasAffix(G.mon, 'flawless') && !res.perfect) {
+      dmg = 0; bonus = 0; kind = 'blocked';
+      note = '結界擋下來了'; banner = '要全對才打得進去！';
+    } else if (hasAffix(G.mon, 'armored') && G.mon.hitsTaken <= BALANCE.affix.list.armored.hits) {
+      dmg = Math.round(dmg * BALANCE.affix.list.armored.cut);
+      bonus = Math.round(bonus * BALANCE.affix.list.armored.cut);
+      note = '重甲擋掉一半';
+    }
+  }
 
   G.attacks++;
   G.typedChars  += res.total;
   G.correctChars += res.correct;
   G.wrongChars  += res.wrong;
   G.damage += dmg;
+
+  /* 天賦狀態更新（要在傷害算完之後，這一題才不會吃到自己造成的狀態） */
+  G.perfectStreak = res.perfect ? (G.perfectStreak || 0) + 1 : 0;
+  if (G.echoLeft > 0) G.echoLeft--;                       // 【餘韻】倒數
+  if (BF.tal.echo && G.q.special && G.weapon === 'staff' && res.perfect) {
+    G.echoLeft = BF.tal.echo;                             // 詠唱成功，接下來幾題加成
+  }
   G.byWeapon[G.weapon] += dmg;
 
   // 正確的部分才算進字數（WPM 用）
@@ -4544,10 +5269,10 @@ function submitAttack() {
   // 經驗值：每個正確字（乘品質權重）、整題全對、每幾連擊一次里程碑
   let exp = res.correct * BALANCE.exp.perChar * QUALITIES[G.quality].expW;
   if (res.perfect) exp += BALANCE.exp.perfectBonus;
-  if (res.perfect && effCombo % BALANCE.combo.expBonusEvery === 0) exp += BALANCE.combo.expBonus;
+  if (res.perfect && effCombo % BF.combo.expBonusEvery === 0) exp += BF.combo.expBonus;
   gainExp(Math.round(exp));
 
-  const brokeCombo = !res.perfect && G.combo >= BALANCE.combo.from;
+  const brokeCombo = !res.perfect && G.combo >= BF.combo.from;
   if (res.perfect) { G.combo = effCombo; G.perfect++; G.maxCombo = Math.max(G.maxCombo, G.combo); }
   else G.combo = 0;
 
@@ -4555,8 +5280,8 @@ function submitAttack() {
   if (G.weapon === 'bow') {
     if (sharp) { G.sharpLeft--; G.sharpUsed++; }
     else {
-      G.gauge += res.accuracy * BALANCE.gaugePerHit;
-      if (G.gauge >= 100) { G.gauge = 0; G.sharpLeft = BALANCE.sharpShots; showSpecialBanner(WEAPONS.bow.special.hit, true); }
+      G.gauge += res.accuracy * BF.gaugePerHit;
+      if (G.gauge >= 100) { G.gauge = 0; G.sharpLeft = BF.sharpShots; showSpecialBanner(WEAPONS.bow.special.hit, true); }
     }
     paintGauge();
   }
@@ -4589,7 +5314,7 @@ function submitAttack() {
 
 function skipQuestion() {
   if (!G || G.over) return;
-  if (G.combo >= BALANCE.combo.from) flashComboBreak();
+  if (G.combo >= BF.combo.from) flashComboBreak();
   G.combo = 0;
   updateStats();
   if (G.tutorial) {
@@ -4612,8 +5337,18 @@ function drawMonster() {
   art.style.color = m.kind !== 'normal' ? '#ffd98a' : m.color;
   const chip = m.kind === 'lord' ? '<span class="mon-chip chip-lord">王級</span>'
              : m.kind === 'elite' ? '<span class="mon-chip chip-elite">菁英</span>' : '';
-  $('mon-name').innerHTML = chip + m.baseName;
+  // 深淵詞條：每一條掛一顆 chip，顏色跟著詞條走，滑過去看得到說明
+  const affixChips = (m.affixes || []).map(k => {
+    const a = BALANCE.affix.list[k];
+    return a ? `<span class="mon-chip chip-affix" title="${a.desc}"
+                 style="border-color:${a.color};color:${a.color}">${a.name}</span>` : '';
+  }).join('');
+  $('mon-name').innerHTML = chip + affixChips + m.baseName;
   $('mon-lv').textContent = `LV ${m.lv}　${m.zoneName}`;
+  // 「狂暴」是限時的，從牠第一次被畫出來開始倒數
+  if (hasAffix(m, 'timed') && !m.deadline) {
+    m.deadline = Date.now() + BALANCE.affix.list.timed.sec * 1000;
+  }
   updateHpBar();
   renderMonList();
   fitMonsterArt();
@@ -4653,17 +5388,31 @@ function updateHpBar() {
 
 /* 把傷害灌進目前怪獸，死了就馬上生一隻新的接手剩餘傷害（連續擊倒不會斷）。 */
 function hitMonster(dmg) {
-  let left = dmg, died = 0;
+  let left = dmg, died = 0, chased = false;
   while (left > 0 && G.mon) {
     const m = G.mon;
     const take = Math.min(m.hp, left);
     m.hp -= take; left -= take;
     if (m.hp <= 0) {
       m.dead = true; G.kills++; died++;
-      const mult = m.kind === 'lord' ? BALANCE.lord.expMult
-                 : m.kind === 'elite' ? BALANCE.elite.expMult : 1;
+      let mult = m.kind === 'lord' ? BALANCE.lord.expMult
+               : m.kind === 'elite' ? BALANCE.elite.expMult : 1;
+      // 深淵詞條怪比較難纏，經驗也給得多一點，不然沒有人想打
+      mult *= 1 + BALANCE.affix.expBonus * ((m.affixes && m.affixes.length) || 0);
       gainExp(Math.round((BALANCE.exp.killBase + BALANCE.exp.killPerLv * m.lv) * mult));
       G.mon = spawnMonster(G);         // 立刻換下一隻接手剩餘傷害
+      /* 匕首天賦【追擊】：推倒一隻之後，對下一隻立刻再補一記。
+         一次攻擊只追擊一次（chased），不然會變成一路連鎖到底。 */
+      if (BF.tal && BF.tal.chase && !chased && G.mon) {
+        chased = true;
+        const extra = Math.round(dmg * BF.tal.chase);
+        if (extra > 0) {
+          left += extra;
+          G.damage += extra;
+          G.byWeapon[G.weapon] += extra;
+          popDamage(extra, 'combo', '追擊');
+        }
+      }
     } else break;
   }
   if (died > 0) {
@@ -4731,7 +5480,7 @@ function updateStats() {
   setTxt('st-acc', acc + '%');
   const tag = $('combo-tag');
   if (tag) {
-    if (G.combo >= BALANCE.combo.from) {
+    if (G.combo >= BF.combo.from) {
       const pct = Math.round((comboMultAt(G.combo) - 1) * 100);
       tag.textContent = `${G.combo} 連擊　+${pct}%`;
       tag.className = 'chip chip-hot' + (G.combo >= 3 ? ' combo-flame' : '');
@@ -4768,7 +5517,7 @@ function updateWpm() {
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 let SKIP_ANIM = false;
 
-async function endBattle() {
+async function endBattle(quick = false) {
   if (!G || G.over) return;
   G.over = true;
   clearInterval(G.timer);
@@ -4784,7 +5533,9 @@ async function endBattle() {
 
   if (G.damage > 0) await saveScore();
 
-  await runBossSequence();
+  // quick：學生自己按「結算」提早收工（多半是下課鐘響），
+  // 成績照存，但 BOSS 動畫直接跳到結果，不讓他站著等演完
+  await runBossSequence(quick);
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -4814,7 +5565,9 @@ async function saveScore() {
   G.isRecord = G.damage > G.prevBest;
 
   const thisScore = battleScore(G.finalWpm, G.finalAcc / 100, G.quality);
-  const nextDda = updateDda(G.dda, G.kills);     // 動態難度：只靠擊倒數調整，不動傷害
+  const zone = zoneForLevel(G.lv);
+  const gained = growthPointsOf(G);              // 這一場賺到的成長點數（局外成長）
+  G.growthGained = gained;                       // 結算畫面要顯示
 
   const hist = {
     name:         ME.name,
@@ -4825,7 +5578,16 @@ async function saveScore() {
     bestLevel:    Math.max(before.bestLevel || 0, G.lv),
     bestScore:    Math.max(before.bestScore || 0, thisScore),
     bestCombo:    Math.max(before.bestCombo || 0, G.maxCombo),
-    dda:          nextDda,
+    bestZone:     Math.max(before.bestZone  || 0, zone.lvFrom),
+    totalKills:   (before.totalKills || 0) + G.kills,
+    /* 局外成長：可用點數只加不動已花掉的部分，累計總量另外記（只增不減）。
+       天賦與已點亮數原封不動帶過去——這裡不是花點數的地方。 */
+    growthPts:    (before.growthPts   || 0) + gained.total,
+    growthTotal:  (before.growthTotal || 0) + gained.total,
+    talents:      before.talents || {},
+    talentCount:  before.talentCount || 0,
+    tier:         G.tier,                  // 這一場實際走的層級，寫回去當作現況
+    dda:          before.dda,              // v3 不再使用，原樣帶著不覆蓋也不刪
     tutorialDone: true,                    // 走得到這裡代表教學一定做過（或跳過）了
     plays:        (before.plays || 0) + 1,
     balanceVer:   BALANCE.ver,
@@ -4839,11 +5601,13 @@ async function saveScore() {
     className: ME.className, seat: ME.seat, name: ME.name,
     bestDamage: hist.bestDamage, bestWpm: hist.bestWpm,
     bestKills: hist.bestKills, bestLevel: hist.bestLevel,
-    bestAcc: hist.bestAcc,
+    bestAcc: hist.bestAcc, bestZone: hist.bestZone, totalKills: hist.totalKills,
     bestScore: Math.round(hist.bestScore * 10) / 10, bestCombo: hist.bestCombo,
-    dda: Math.round(nextDda * 100) / 100, tutorialDone: true,
+    tier: hist.tier, tutorialDone: true,
+    growthPts: hist.growthPts, growthTotal: hist.growthTotal,
     plays: hist.plays, balanceVer: BALANCE.ver,
     lastPlayedAt: serverTimestamp(),
+    lastGrowth: gained.total,
     /* last*：最近一場的當場數字，練習也寫。
        改版前只有正式比賽才寫 accuracy/wpm/kills，而學生九成時間在練習，
        所以舊資料裡「正確率」幾乎是空的，老師的分布圖畫不出來。 */
@@ -5020,6 +5784,17 @@ function showResult(data, killed) {
   $('r-quote').textContent    = rank.quote;
   $('r-damage').textContent   = fmt(G.damage);
   show('r-balance-note', !!G.oldBalance);
+
+  /* 成長點數：只有真的有存檔（G.growthGained 是 saveScore 填的）才顯示 */
+  const gg = G.growthGained;
+  show('r-growth', !!gg);
+  if (gg) {
+    setTxt('r-growth-num', '+' + gg.total);
+    $('r-growth-break').textContent =
+      `保底 ${gg.base}｜擊倒 ${gg.kills} 隻＋到 LV${gg.lv}，乘上` +
+      `${tierOf(G.tier).name} ${gg.tierK}× 與品質 ${gg.qMult}×＝${gg.core}｜速度 ${gg.wpm}` +
+      (gg.capped ? `　（已達單場上限 ${gg.cap}）` : '');
+  }
   setTxt('r-grade-letter', grade.letter);
   setTxt('r-grade-tip', grade.tip);
   $('r-words').textContent    = Math.floor(G.words);
@@ -5196,7 +5971,25 @@ function wireEvents() {
   $('btn-verlog').addEventListener('click', openVerlog);
   $('verlog-close').addEventListener('click', () => show('verlog-modal', false));
 
-  /* 逃脫：戰鬥中回營地 */
+  /* 天賦 */
+  $('btn-talent').addEventListener('click', openTalentPanel);
+  $('tal-close').addEventListener('click', () => show('talent-modal', false));
+  $('tal-reset').addEventListener('click', resetTalents);
+
+  /* 排行榜 */
+  $('btn-rank').addEventListener('click', openRankBoard);
+  $('rank-close').addEventListener('click', () => show('rank-modal', false));
+  $('rank-refresh').addEventListener('click', () => { RANKVIEW.rows = null; loadRankRows(); });
+  const rankSeg = (wrapId, key) => [...$(wrapId).children].forEach(b =>
+    b.addEventListener('click', () => {
+      RANKVIEW[key] = b.dataset.s || b.dataset.m;
+      [...$(wrapId).children].forEach(x => x.setAttribute('aria-pressed', x === b));
+      renderRankBoard();
+    }));
+  rankSeg('rank-scope', 'scope');
+  rankSeg('rank-metric', 'metric');
+
+  /* 結算：提早結束這一場，成績照存 */
   $('btn-escape').addEventListener('click', escapeBattle);
 
   /* 班級或座號一改就重撈歷史成績；姓名一旦自己打過就不再被自動蓋掉 */
@@ -5326,7 +6119,7 @@ function updateTeacherBanner() {
 
 /* ── 比賽控制 ───────────────────────────────────────── */
 async function startRound() {
-  const dur = parseInt($('tc-duration').value) || 600;
+  const dur = parseInt($('tc-duration').value) || 180;
   try {
     await setDoc(REF.round, {
       state: 'running', startAtMs: Date.now(), duration: dur,
@@ -5828,7 +6621,7 @@ async function previewResult() {
   }
   // 沒有實際戰績就捏一筆，方便檢查版面
   if (!G || !G.over) {
-    G = freshGame({ dda: 1.0 });
+    G = freshGame({ tier: BALANCE.tierDefault });
     G.damage = 1240; G.words = 96; G.attacks = 22;
     G.maxCombo = 9; G.perfect = 14; G.kills = 4; G.lv = 9; G.maxLv = 9;
     G.typedChars = 104; G.correctChars = 98;

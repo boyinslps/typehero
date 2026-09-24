@@ -33,14 +33,9 @@ if (!m) {
 // eslint-disable-next-line no-new-func
 const B = new Function('return ' + m[1].slice(0, -1))();
 
-/* 層級表：BALANCE.tier 做好之後（施工項目 M1）就改成直接讀 B.tier，
-   在那之前先用 docs/BALANCE.md §7.2 的規格值。 */
-const TIERS = B.tier || {
-  A: { name: '初階', ctk0: 2.0, slope: 0.30, expMult: 1.00, ptK: 0.8 },
-  B: { name: '中階', ctk0: 4.0, slope: 0.52, expMult: 1.25, ptK: 1.4 },
-  C: { name: '高階', ctk0: 6.0, slope: 0.85, expMult: 1.50, ptK: 2.0 }
-};
-if (!B.tier) console.log('（BALANCE.tier 還沒做，先用 docs/BALANCE.md §7.2 的規格值）\n');
+const TIERS = B.tier;
+if (!TIERS) { console.error('index.html 的 BALANCE 裡沒有 tier'); process.exit(1); }
+const TK = Object.keys(TIERS);
 
 const Q = {
   normal: { mult: 1.5, chars: 2.0, expW: 1.000 },
@@ -96,30 +91,44 @@ function avg(n, o) {
   for (let i = 0; i < n; i++) { const r = one(o); k += r.kills; l += r.lv; z += r.zone; }
   return { kills: k / n, lv: l / n, zone: z / n };
 }
-/* docs/META-GROWTH.md §2 的成長點數 */
-const growthPts = (r, wpm, tier, seconds) =>
-  Math.min(Math.round(6 + (r.kills * 2 + r.lv) * tier.ptK + Math.floor(wpm / 5)),
-           Math.round(30 * seconds / 60));
+/* 跟 index.html 的 growthPointsOf() 同一條公式（docs/META-GROWTH.md §3.1） */
+const growthPts = (r, wpm, tier, seconds, quality = 'normal') => {
+  const g = B.growth;
+  const raw = g.base + (r.kills * g.killW + r.lv * g.lvW) * tier.ptK * (g.qMult[quality] || 1)
+            + Math.floor(wpm / g.wpmDiv);
+  return Math.min(Math.round(raw), Math.max(g.perMinuteCap, Math.round(g.perMinuteCap * seconds / 60)));
+};
 
-const STUDENTS = [
-  ['wpm 2',   2, .85, 'A'], ['wpm 4',   4, .88, 'A'], ['wpm 6',  6, .90, 'A'],
-  ['wpm 7',   7, .90, 'B'], ['wpm 10', 10, .92, 'B'], ['wpm 13', 13, .92, 'B'],
-  ['wpm 14', 14, .93, 'C'], ['wpm 20', 20, .94, 'C'], ['wpm 30', 30, .95, 'C']
-];
+/* 層級由 BALANCE.tierCuts 決定，跟遊戲裡的 tierFromWpm() 同一套 */
+const tierKeyOf = w => w >= B.tierCuts.D ? 'D' : w >= B.tierCuts.C ? 'C' : w >= B.tierCuts.B ? 'B' : 'A';
+const STUDENTS = [2, 4, 6, 7, 10, 13, 14, 20, 27, 28, 40, 60, 85]
+  .map(w => ['wpm ' + w, w, Math.min(0.97, 0.85 + w * 0.004), tierKeyOf(w)]);
 
 console.log(`BALANCE.ver = ${B.ver}\n`);
 
 console.log('=== 1. CTK 曲線（打倒一隻要幾個正確字，docs/BALANCE.md §3）===');
-console.log('LV'.padEnd(5) + ['初階', '中階', '高階'].map(s => s.padStart(7)).join(''));
+console.log('LV'.padEnd(5) + TK.map(k => TIERS[k].name.padStart(7)).join(''));
 for (const lv of [1, 3, 5, 10, 15, 20, 30]) {
   console.log(String(lv).padEnd(5) +
-    ['A', 'B', 'C'].map(k => ctkOf(TIERS[k], lv).toFixed(1).padStart(7)).join(''));
+    TK.map(k => ctkOf(TIERS[k], lv).toFixed(1).padStart(7)).join(''));
 }
 console.log('\n    普通品質「要幾下」（含等級攻擊力成長）');
-console.log('LV'.padEnd(5) + ['初階', '中階', '高階'].map(s => s.padStart(7)).join(''));
+console.log('LV'.padEnd(5) + TK.map(k => TIERS[k].name.padStart(7)).join(''));
 for (const lv of [1, 3, 5, 10, 20, 30]) {
-  console.log(String(lv).padEnd(5) + ['A', 'B', 'C'].map(k =>
+  console.log(String(lv).padEnd(5) + TK.map(k =>
     (ctkOf(TIERS[k], lv) / (WEAPON.staff * atk(lv))).toFixed(1).padStart(7)).join(''));
+}
+
+console.log('\n=== 1b. 品質的權衡（lenPow = ' + B.hp.lenPow + '）===');
+console.log('品質    每字傷害  題長  血量lenAdj  擊倒數相對  總傷害相對  點數qMult');
+const basePer = Q.normal.mult * B.dmgScale * WEAPON.staff;
+for (const [k, q] of Object.entries(Q)) {
+  const per = q.mult * B.dmgScale * WEAPON.staff;
+  const lenAdj = Math.pow(q.chars / 2, B.hp.lenPow);
+  console.log(k.padEnd(7), per.toFixed(0).padStart(7), String(q.chars).padStart(6),
+    lenAdj.toFixed(2).padStart(10), (1 / lenAdj).toFixed(2).padStart(11) + 'x',
+    (per / basePer).toFixed(2).padStart(11) + 'x',
+    String(B.growth.qMult[k]).padStart(10) + 'x');
 }
 
 /* 標準場＝老師設定的 180 秒（3 分鐘），§3/§4 的驗算都用這個長度 */
@@ -137,7 +146,7 @@ for (const secs of durations) {
 }
 
 console.log(`\n=== 3. 升層那一步會不會變虧（${STD} 秒，docs/BALANCE.md §7.5）===`);
-for (const [wpm, acc, lo, hi] of [[6, .90, 'A', 'B'], [13, .92, 'B', 'C']]) {
+for (const [wpm, acc, lo, hi] of [[6, .90, 'A', 'B'], [13, .92, 'B', 'C'], [27, .95, 'C', 'D']]) {
   const l = avg(400, { wpm, acc, tier: TIERS[lo], seconds: STD });
   const h = avg(400, { wpm, acc, tier: TIERS[hi], seconds: STD });
   const pl = growthPts(l, wpm, TIERS[lo], STD), ph = growthPts(h, wpm, TIERS[hi], STD);
@@ -148,7 +157,7 @@ for (const [wpm, acc, lo, hi] of [[6, .90, 'A', 'B'], [13, .92, 'B', 'C']]) {
 }
 
 console.log(`\n=== 4. 天賦看不看得出效果（${STD} 秒場，傷害 +0% / +15% / +30%）===`);
-for (const [name, wpm, acc, tk] of [['初階 wpm 4', 4, .88, 'A'], ['中階 wpm 10', 10, .92, 'B'], ['高階 wpm 20', 20, .94, 'C']]) {
+for (const [name, wpm, acc, tk] of [['初階 wpm 4', 4, .88, 'A'], ['中階 wpm 10', 10, .92, 'B'], ['高階 wpm 20', 20, .94, 'C'], ['大師 wpm 40', 40, .96, 'D']]) {
   const o = [0, .15, .30].map(p => avg(500, { wpm, acc, tier: TIERS[tk], seconds: STD, power: 1 + p }));
   console.log(`  ${name.padEnd(12)} 擊倒 ${o.map(r => r.kills.toFixed(1)).join(' → ')}` +
     `　到達LV ${o.map(r => r.lv.toFixed(1)).join(' → ')}` +
