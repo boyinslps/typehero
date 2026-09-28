@@ -1119,15 +1119,38 @@ select option{background:var(--panel2);color:var(--ink)}
     <!-- ── 分頁：成績管理 ── -->
     <div id="tab-scores" class="tc-panel hidden">
       <div class="panel p-5 mb-4">
-        <div class="flex gap-2 mb-4 flex-wrap">
+        <!-- 篩選列：班級、搜尋、排序、層級，全部即時生效 -->
+        <div class="flex gap-2 mb-3 flex-wrap items-center">
+          <input id="sc-search" type="search" placeholder="查學生（姓名或座號）"
+                 class="p-2 rounded-lg bg-transparent border text-sm" autocomplete="off"
+                 style="border-color:var(--line);min-width:12rem">
           <select id="sc-filter" class="p-2 rounded-lg bg-transparent border text-sm"
                   style="border-color:var(--line)"><option value="">全部班級</option></select>
+          <select id="sc-tier" class="p-2 rounded-lg bg-transparent border text-sm"
+                  style="border-color:var(--line)">
+            <option value="">全部層級</option>
+            <option value="A">初階</option><option value="B">中階</option>
+            <option value="C">高階</option><option value="D">大師</option>
+          </select>
+          <select id="sc-sort" class="p-2 rounded-lg bg-transparent border text-sm"
+                  style="border-color:var(--line)">
+            <option value="score">戰績分 高→低</option>
+            <option value="wpm">打字速度 高→低</option>
+            <option value="level">最高等級 高→低</option>
+            <option value="kills">總擊倒 高→低</option>
+            <option value="plays">場次 多→少</option>
+            <option value="recent">最近上線</option>
+            <option value="seat">班級＋座號</option>
+            <option value="weak">最需要關心（戰績分 低→高）</option>
+          </select>
           <button id="sc-refresh" class="px-3 py-2 rounded-lg text-sm border"
                   style="border-color:var(--line)"><span class="inline-flex items-center gap-1.5"><span class="ico-slot" data-ico="reset" data-ico-size="14"></span>重新整理</span></button>
           <button id="sc-export" class="px-3 py-2 rounded-lg text-sm font-bold"
                   style="background:rgba(74,222,128,.15);border:1px solid #4ade80;color:#4ade80"><span class="inline-flex items-center gap-1.5"><span class="ico-slot" data-ico="chart" data-ico-size="14"></span>匯出 Excel</span></button>
         </div>
+        <p id="sc-count" class="text-xs mb-2" style="color:var(--dim)"></p>
         <div id="sc-table" class="scrolly max-h-[24rem] overflow-y-auto text-sm"></div>
+        <div id="sc-detail" class="hidden mt-4"></div>
       </div>
       <div class="panel p-5" style="border-color:var(--hp)">
         <p class="text-sm font-bold mb-2" style="color:#ff8a9c">危險操作</p>
@@ -6051,6 +6074,10 @@ function wireEvents() {
   $('sc-refresh').addEventListener('click', loadScores);
   $('sc-export').addEventListener('click', exportScoresExcel);
   $('sc-clear').addEventListener('click', clearScores);
+  /* 成績管理的篩選列：任何一個動了就重畫，不用按套用 */
+  ['sc-filter', 'sc-tier', 'sc-sort'].forEach(id =>
+    $(id).addEventListener('change', renderScores));
+  $('sc-search').addEventListener('input', renderScores);
 
   /* 班級數據圖：篩選列上的每個控制項都重畫同一份資料 */
   $('viz-class').addEventListener('change', renderViz);
@@ -6249,7 +6276,6 @@ async function loadScores() {
     const snap = await getDocs(query(REF.scores));
     scoreCache = [];
     snap.forEach(d => scoreCache.push({ id: d.id, ...d.data() }));
-    scoreCache.sort((a, b) => (b.bestDamage || 0) - (a.bestDamage || 0));
   } catch (e) {
     console.error(e);
     $('sc-table').innerHTML = '<p class="text-xs" style="color:#ff6b81">讀取失敗</p>';
@@ -6258,72 +6284,274 @@ async function loadScores() {
   const classes = [...new Set(scoreCache.map(r => r.className).filter(Boolean))].sort();
   const cur = $('sc-filter').value;
   $('sc-filter').innerHTML = '<option value="">全部班級</option>' +
-    classes.map(c => `<option${c === cur ? ' selected' : ''}>${c}</option>`).join('');
-  $('sc-filter').onchange = renderScores;
+    classes.map(c => `<option${c === cur ? ' selected' : ''}>${escHtml(c)}</option>`).join('');
   renderScores();
 }
+
+/* ── 成績管理：篩選 → 排序 → 畫表 ──────────────────────
+   欄位刻意全部改成「一定有資料」的那些（best* / last* / plays）。
+   舊版表頭是「本場傷害／正確率／WPM」，讀的是 damage / accuracy / wpm，
+   而那三個**只有正式比賽才寫**——實測 282 筆裡只有 1 筆有，
+   老師打開看到的幾乎整片都是「-」。
+   ─────────────────────────────────────────────────── */
+const scNum = v => (typeof v === 'number' && isFinite(v)) ? v : undefined;
+const scPick = (...vs) => { for (const v of vs) { const n = scNum(v); if (n !== undefined) return n; } };
+/* 這一筆學生的層級：以雲端寫的為準，舊紀錄用歷史最高手速回推 */
+function scTierKey(r) {
+  if (BALANCE.tier[r.tier]) return r.tier;
+  const w = scNum(r.bestWpm);
+  return w ? tierFromWpm(w) : null;
+}
+const scMs = r => (r.lastPlayedAt && r.lastPlayedAt.toDate)
+  ? r.lastPlayedAt.toDate().getTime()
+  : (r.timestamp && r.timestamp.toDate ? r.timestamp.toDate().getTime() : 0);
+
+function scFiltered() {
+  const cls = $('sc-filter').value;
+  const tier = $('sc-tier').value;
+  const kw = ($('sc-search').value || '').trim().toLowerCase();
+  let rows = scoreCache;
+  if (cls)  rows = rows.filter(r => r.className === cls);
+  if (tier) rows = rows.filter(r => scTierKey(r) === tier);
+  if (kw) rows = rows.filter(r =>
+    String(r.name || '').toLowerCase().includes(kw) ||
+    String(r.seat || '').toLowerCase().includes(kw) ||
+    String(r.className || '').toLowerCase().includes(kw));
+
+  const sort = $('sc-sort').value;
+  if (sort === 'seat') {
+    return [...rows].sort((a, b) =>
+      String(a.className || '').localeCompare(String(b.className || ''), 'zh-Hant') ||
+      (parseInt(a.seat) || 0) - (parseInt(b.seat) || 0));
+  }
+  const by = {
+    score:  r => -(scPick(r.bestScore) ?? -1),
+    wpm:    r => -(scPick(r.bestWpm) ?? -1),
+    level:  r => -(scPick(r.bestLevel) ?? -1),
+    kills:  r => -(scPick(r.totalKills, r.bestKills) ?? -1),
+    plays:  r => -(scPick(r.plays) ?? -1),
+    recent: r => -scMs(r),
+    weak:   r => (scPick(r.bestScore) ?? 9e9)
+  }[sort] || (r => -(scPick(r.bestScore) ?? -1));
+  return [...rows].sort((a, b) => by(a) - by(b));
+}
+
 function renderScores() {
-  const f = $('sc-filter').value;
-  const rows = f ? scoreCache.filter(r => r.className === f) : scoreCache;
-  if (!rows.length) { $('sc-table').innerHTML = '<p class="text-xs" style="color:var(--dim)">沒有紀錄</p>'; return; }
+  const rows = scFiltered();
+  const kw = ($('sc-search').value || '').trim();
+  setTxt('sc-count', `共 ${rows.length} 人` +
+    (rows.length !== scoreCache.length ? `（全部 ${scoreCache.length} 人）` : '') +
+    (kw ? `　搜尋「${kw}」` : '') + '　點一列看那個學生的完整資料');
+
+  if (!rows.length) {
+    $('sc-table').innerHTML =
+      `<p class="text-xs" style="color:var(--dim)">${kw ? '找不到符合的學生' : '沒有紀錄'}</p>`;
+    show('sc-detail', false);
+    return;
+  }
+  const dash = '<span style="color:var(--dim2)">—</span>';
   $('sc-table').innerHTML = `<table class="w-full text-xs">
     <thead><tr style="color:var(--dim)">
-      <th class="text-left p-2">班級</th><th class="text-left p-2">座號</th>
-      <th class="text-left p-2">姓名</th><th class="text-right p-2">本場傷害</th>
-      <th class="text-right p-2">最高紀錄</th><th class="text-right p-2">正確率</th>
-      <th class="text-right p-2">WPM</th><th class="text-right p-2">連擊</th>
+      <th class="text-left p-2">班級</th><th class="text-right p-2">座號</th>
+      <th class="text-left p-2">姓名</th><th class="text-left p-2">階級</th>
+      <th class="text-left p-2">層級</th><th class="text-right p-2">戰績分</th>
+      <th class="text-right p-2">速度</th><th class="text-right p-2">最高LV</th>
+      <th class="text-right p-2">總擊倒</th><th class="text-right p-2">場次</th>
+      <th class="text-right p-2">最近上線</th>
     </tr></thead><tbody>` +
-    rows.map(r => `<tr style="border-top:1px solid var(--line)">
-      <td class="p-2">${r.className || ''}</td><td class="p-2">${r.seat || ''}</td>
-      <td class="p-2 font-bold">${r.name || ''}</td>
-      <td class="p-2 text-right mono" style="color:var(--gold)">${fmt(r.damage || 0)}</td>
-      <td class="p-2 text-right mono">${fmt(r.bestDamage || 0)}</td>
-      <td class="p-2 text-right mono">${r.accuracy ?? '-'}%</td>
-      <td class="p-2 text-right mono">${r.wpm ?? '-'}</td>
-      <td class="p-2 text-right mono">${r.maxCombo ?? '-'}</td>
-    </tr>`).join('') + '</tbody></table>';
+    rows.map(r => {
+      const sc = scPick(r.bestScore);
+      const tk = scTierKey(r);
+      const ms = scMs(r);
+      const badge = sc !== undefined
+        ? `<span style="display:inline-block;width:18px;height:18px;vertical-align:-4px">${rankOf(sc).svg}</span> ${rankOf(sc).title}`
+        : dash;
+      return `<tr class="sc-row" data-id="${escHtml(r.id)}" style="border-top:1px solid var(--line);cursor:pointer">
+      <td class="p-2">${escHtml(r.className || '')}</td>
+      <td class="p-2 text-right mono">${escHtml(String(r.seat ?? ''))}</td>
+      <td class="p-2 font-bold">${escHtml(r.name || '')}</td>
+      <td class="p-2" style="white-space:nowrap">${badge}</td>
+      <td class="p-2">${tk ? tierOf(tk).name : dash}</td>
+      <td class="p-2 text-right mono" style="color:var(--gold)">${sc !== undefined ? (Math.round(sc * 10) / 10) : '-'}</td>
+      <td class="p-2 text-right mono">${scPick(r.bestWpm) ?? '-'}</td>
+      <td class="p-2 text-right mono">${scPick(r.bestLevel) ?? '-'}</td>
+      <td class="p-2 text-right mono">${scPick(r.totalKills, r.bestKills) ?? '-'}</td>
+      <td class="p-2 text-right mono">${scPick(r.plays) ?? '-'}</td>
+      <td class="p-2 text-right" style="color:var(--dim)">${ms ? scAgo(ms) : '-'}</td>
+    </tr>`; }).join('') + '</tbody></table>';
+
+  [...document.querySelectorAll('.sc-row')].forEach(tr =>
+    tr.addEventListener('click', () => showStudentDetail(tr.dataset.id)));
 }
+
+/* 「三天前」這種相對時間，老師掃一眼就知道誰很久沒打了 */
+function scAgo(ms) {
+  const d = (Date.now() - ms) / 86400000;
+  if (d < 1 / 24) return '剛剛';
+  if (d < 1) return Math.round(d * 24) + ' 小時前';
+  if (d < 30) return Math.round(d) + ' 天前';
+  return new Date(ms).toLocaleDateString('zh-TW');
+}
+
+/* 點一列展開：這個學生的完整資料，包含天賦點了哪些 */
+function showStudentDetail(id) {
+  const r = scoreCache.find(x => x.id === id);
+  if (!r) { show('sc-detail', false); return; }
+  const sc = scPick(r.bestScore);
+  const tk = scTierKey(r);
+  const cell = (k, v, hint) =>
+    `<div class="panel-flat p-2">
+       <div class="label">${k}</div>
+       <div class="mono text-lg font-black">${v}</div>
+       ${hint ? `<div class="text-[10px]" style="color:var(--dim2)">${hint}</div>` : ''}
+     </div>`;
+
+  const owned = (r.talents && typeof r.talents === 'object') ? r.talents : {};
+  const talList = Object.keys(owned).filter(k => owned[k] && TALENTS[k]);
+  const talHtml = talList.length
+    ? talList.map(k => {
+        const t = TALENTS[k], meta = TALENT_TREES[t.tree];
+        const star = t.big ? '★' : '';
+        return `<span class="mon-chip" style="border:1px solid ${meta.color};color:${meta.color};background:rgba(0,0,0,.3)">${star}${escHtml(t.name)}</span>`;
+      }).join(' ')
+    : '<span class="text-xs" style="color:var(--dim2)">還沒點任何天賦</span>';
+
+  const tierNote = r.tier ? '' :
+    '<span style="color:var(--dim2)">（層級是用歷史手速推的，還沒打過新手教學）</span>';
+  const lastLine = scNum(r.lastWpm) !== undefined
+    ? `${r.lastWpm} 字/分・正確率 ${r.lastAcc ?? '-'}%・擊倒 ${r.lastKills ?? '-'} 隻・到 LV${r.lastLevel ?? '-'}`
+      + `・${r.lastWeapon && WEAPONS[r.lastWeapon] ? WEAPONS[r.lastWeapon].name : (r.lastWeapon || '-')}`
+      + `${r.lastQuality && QUALITIES[r.lastQuality] ? QUALITIES[r.lastQuality].name : ''}`
+      + `${r.lastPractice === false ? '（正式比賽）' : '（練習）'}`
+    : '這一版之後還沒打過';
+
+  $('sc-detail').innerHTML = `
+    <div class="panel p-4" style="border-color:var(--gold)">
+      <div class="flex items-center justify-between gap-3 mb-3 flex-wrap">
+        <div class="flex items-center gap-3">
+          ${sc !== undefined ? `<span style="display:inline-block;width:40px;height:40px">${rankOf(sc).svg}</span>` : ''}
+          <div>
+            <div class="text-lg font-black">${escHtml(r.name || '（沒有姓名）')}</div>
+            <div class="text-xs" style="color:var(--dim)">
+              ${escHtml(r.className || '')} ${escHtml(String(r.seat ?? ''))} 號
+              ${sc !== undefined ? '　' + rankOf(sc).title : ''}
+              ${tk ? '　' + tierOf(tk).name : ''}
+              ${tierNote}
+            </div>
+          </div>
+        </div>
+        <button id="sc-detail-close" class="px-3 py-1.5 rounded-lg text-xs border"
+                style="border-color:var(--line)">收起</button>
+      </div>
+
+      <div class="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-3">
+        ${cell('戰績分', sc !== undefined ? Math.round(sc * 10) / 10 : '-')}
+        ${cell('打字速度', scPick(r.bestWpm) ?? '-', '每分鐘正確字')}
+        ${cell('正確率', scNum(r.bestAcc) !== undefined ? r.bestAcc + '%' : '-')}
+        ${cell('最高等級', scPick(r.bestLevel) ?? '-')}
+        ${cell('最高連擊', scPick(r.bestCombo) ?? '-')}
+        ${cell('總場次', scPick(r.plays) ?? '-')}
+      </div>
+      <div class="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-3">
+        ${cell('總擊倒', scPick(r.totalKills) ?? '-', '累計')}
+        ${cell('單場最多擊倒', scPick(r.bestKills) ?? '-')}
+        ${cell('最深區域', scNum(r.bestZone) ? 'LV ' + r.bestZone : '-')}
+        ${cell('可用點數', scPick(r.growthPts) ?? 0, '局外成長')}
+        ${cell('累計點數', scPick(r.growthTotal) ?? 0, '含已經花掉的')}
+        ${cell('歷史最高傷害', fmt(scPick(r.bestDamage) ?? 0))}
+      </div>
+
+      <div class="mb-3">
+        <div class="label mb-1">已點亮的天賦（${talList.length} 個）</div>
+        <div class="flex flex-wrap gap-1.5">${talHtml}</div>
+      </div>
+
+      <div class="text-xs leading-relaxed" style="color:var(--dim)">
+        最近一場：${lastLine}
+        <br>最後上線：${scMs(r) ? new Date(scMs(r)).toLocaleString('zh-TW') : '-'}
+        ${r.balanceVer ? `　平衡版本 v${r.balanceVer}` : '　<span style="color:var(--dim2)">舊版紀錄</span>'}
+        <br>文件 ID：<code style="background:var(--panel2);padding:1px 5px;border-radius:4px">${escHtml(r.id)}</code>
+      </div>
+    </div>`;
+  show('sc-detail', true);
+  $('sc-detail-close').addEventListener('click', () => show('sc-detail', false));
+  $('sc-detail').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
 function exportScoresExcel() {
   if (!scoreCache.length) { toast('沒有成績可以匯出'); return; }
-  const f = $('sc-filter').value;
-  const rows = f ? scoreCache.filter(r => r.className === f) : scoreCache;
+  const rows = scFiltered();          // 匯出跟著畫面上的篩選與排序走
+  if (!rows.length) { toast('目前的篩選沒有任何人'); return; }
 
-  const s1 = [['班級', '座號', '姓名', '本場傷害', '歷史最高', '正確字數', '正確率%', 'WPM',
-               '最高連擊', '完美攻擊', '出手次數', '法杖傷害', '弓箭傷害', '匕首傷害', '模式', '時間']];
-  rows.forEach(r => s1.push([
-    r.className || '', r.seat || '', r.name || '', r.damage || 0, r.bestDamage || 0,
-    r.words || 0, r.accuracy || 0, r.wpm || 0, r.maxCombo || 0, r.perfect || 0, r.attacks || 0,
-    (r.byWeapon && r.byWeapon.staff)  || 0,
-    (r.byWeapon && r.byWeapon.bow)    || 0,
-    (r.byWeapon && r.byWeapon.dagger) || 0,
-    r.mode === 'zhuyin' ? '注音' : '中文',
-    r.timestamp && r.timestamp.toDate ? r.timestamp.toDate().toLocaleString('zh-TW') : ''
-  ]));
+  /* 欄位跟畫面同一套：全部用「一定有資料」的 best* / last*。
+     舊版匯出的是 damage / accuracy / wpm，那些只有正式比賽才寫，
+     整張表幾乎都是 0。 */
+  const s1 = [['班級', '座號', '姓名', '階級', '層級', '戰績分', '最佳WPM', '最佳正確率%',
+               '最高等級', '最高連擊', '總擊倒', '單場最多擊倒', '最深區域', '總場次',
+               '可用點數', '累計點數', '天賦數', '歷史最高傷害',
+               '最近WPM', '最近正確率%', '最近擊倒', '最近等級', '最近武器', '最近難度',
+               '平衡版本', '最後上線']];
+  rows.forEach(r => {
+    const sc = scPick(r.bestScore), tk = scTierKey(r);
+    const owned = (r.talents && typeof r.talents === 'object') ? r.talents : {};
+    s1.push([
+      r.className || '', r.seat || '', r.name || '',
+      sc !== undefined ? rankOf(sc).title : '',
+      tk ? tierOf(tk).name : '',
+      sc !== undefined ? Math.round(sc * 10) / 10 : '',
+      scPick(r.bestWpm) ?? '', scPick(r.bestAcc) ?? '',
+      scPick(r.bestLevel) ?? '', scPick(r.bestCombo) ?? '',
+      scPick(r.totalKills) ?? '', scPick(r.bestKills) ?? '',
+      scNum(r.bestZone) || '', scPick(r.plays) ?? '',
+      scPick(r.growthPts) ?? 0, scPick(r.growthTotal) ?? 0,
+      Object.keys(owned).filter(k => owned[k]).length,
+      scPick(r.bestDamage) ?? '',
+      scPick(r.lastWpm) ?? '', scPick(r.lastAcc) ?? '',
+      scPick(r.lastKills) ?? '', scPick(r.lastLevel) ?? '',
+      r.lastWeapon && WEAPONS[r.lastWeapon] ? WEAPONS[r.lastWeapon].name : '',
+      r.lastQuality && QUALITIES[r.lastQuality] ? QUALITIES[r.lastQuality].name : '',
+      r.balanceVer || '',
+      scMs(r) ? new Date(scMs(r)).toLocaleString('zh-TW') : ''
+    ]);
+  });
 
+  /* 班級總表：改用戰績分（跨版本、跨難度可比），不再用會被場次長度
+     與品質倍率帶偏的總傷害 */
   const byClass = {};
   rows.forEach(r => {
     const c = r.className || '未分班';
-    byClass[c] = byClass[c] || { total: 0, n: 0, wpm: 0, acc: 0 };
-    byClass[c].total += r.damage || 0; byClass[c].n++;
-    byClass[c].wpm += r.wpm || 0; byClass[c].acc += r.accuracy || 0;
+    const b = byClass[c] = byClass[c] || { n: 0, score: 0, scoreN: 0, wpm: 0, wpmN: 0,
+                                           acc: 0, accN: 0, kills: 0, plays: 0, tiers: {} };
+    b.n++;
+    const sc = scPick(r.bestScore); if (sc !== undefined) { b.score += sc; b.scoreN++; }
+    const w = scPick(r.bestWpm);    if (w  !== undefined) { b.wpm += w;    b.wpmN++; }
+    const a = scPick(r.bestAcc);    if (a  !== undefined) { b.acc += a;    b.accN++; }
+    b.kills += scPick(r.totalKills, r.bestKills) ?? 0;
+    b.plays += scPick(r.plays) ?? 0;
+    const tk = scTierKey(r); if (tk) b.tiers[tk] = (b.tiers[tk] || 0) + 1;
   });
-  const s2 = [['班級', '人數', '全班總傷害', '平均傷害', '平均WPM', '平均正確率%', '可擊倒怪獸數']];
-  Object.entries(byClass).sort((a, b) => b[1].total - a[1].total).forEach(([c, v]) => {
-    const k = applyDamage(makeBossRun(CFG.difficulty, ROUND.duration || CFG.duration), v.total).kills;
-    s2.push([c, v.n, v.total, Math.round(v.total / v.n), Math.round(v.wpm / v.n),
-             Math.round(v.acc / v.n), k]);
-  });
+  const s2 = [['班級', '人數', '平均戰績分', '平均WPM', '平均正確率%', '總擊倒', '總場次',
+               '初階', '中階', '高階', '大師']];
+  Object.entries(byClass)
+    .sort((a, b) => (b[1].scoreN ? b[1].score / b[1].scoreN : 0) - (a[1].scoreN ? a[1].score / a[1].scoreN : 0))
+    .forEach(([c, v]) => s2.push([
+      c, v.n,
+      v.scoreN ? Math.round(v.score / v.scoreN * 10) / 10 : '',
+      v.wpmN ? Math.round(v.wpm / v.wpmN) : '',
+      v.accN ? Math.round(v.acc / v.accN) : '',
+      v.kills, v.plays,
+      v.tiers.A || 0, v.tiers.B || 0, v.tiers.C || 0, v.tiers.D || 0
+    ]));
 
   const wb = XLSX.utils.book_new();
   const ws1 = XLSX.utils.aoa_to_sheet(s1);
-  ws1['!cols'] = [{ wch: 11 }, { wch: 6 }, { wch: 10 }, { wch: 11 }, { wch: 11 }, { wch: 9 },
-                  { wch: 8 }, { wch: 7 }, { wch: 9 }, { wch: 9 }, { wch: 9 },
-                  { wch: 11 }, { wch: 11 }, { wch: 11 }, { wch: 7 }, { wch: 20 }];
+  ws1['!cols'] = s1[0].map((h, i) => ({ wch: i < 3 ? 11 : Math.max(8, h.length + 3) }));
   XLSX.utils.book_append_sheet(wb, ws1, '個人成績');
   const ws2 = XLSX.utils.aoa_to_sheet(s2);
-  ws2['!cols'] = [{ wch: 12 }, { wch: 7 }, { wch: 13 }, { wch: 11 }, { wch: 10 }, { wch: 12 }, { wch: 13 }];
+  ws2['!cols'] = s2[0].map(h => ({ wch: Math.max(7, h.length + 3) }));
   XLSX.utils.book_append_sheet(wb, ws2, '班級總表');
   XLSX.writeFile(wb, `打字勇者成績_${new Date().toLocaleDateString('zh-TW').replace(/\//g, '-')}.xlsx`);
+  toast(`匯出 ${rows.length} 人`);
 }
 
 async function clearScores() {
