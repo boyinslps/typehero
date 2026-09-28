@@ -190,19 +190,74 @@ body{
 /* ══════════ 營地：三欄橫排、不捲動 ══════════ */
 #screen-lobby:not(.hidden){display:flex;flex-direction:column;height:100dvh;
   padding:14px 20px 16px;gap:10px;max-width:1400px;margin:0 auto}
-#lobby-weapon-rack{flex:1 1 auto;min-height:0;
-  display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
-.weapon.wcol{flex-direction:column;justify-content:center;text-align:center;
-  gap:10px;padding:18px 14px;height:100%}
-.weapon.wcol .weapon-ico{width:70px;height:70px}
+/* 武器改成小卡：一排塞得下 5～6 把，之後加新武器會自己換行，
+   不用再動版面。詳細說明搬進點擊彈出的視窗（#weapon-modal）。 */
+#lobby-weapon-rack{flex:0 0 auto;display:grid;gap:10px;justify-content:start;
+  grid-template-columns:repeat(auto-fill,minmax(128px,150px))}
+.weapon.wcol{position:relative;flex-direction:column;justify-content:center;
+  text-align:center;gap:6px;padding:12px 10px 10px}
+.weapon.wcol .weapon-ico{width:38px;height:38px}
 .weapon.wcol .weapon-txt{width:100%}
-.weapon-long{display:block;font-size:18px;color:var(--dim);margin-top:10px;
-  line-height:1.7}
+.weapon.wcol .weapon-name{font-size:18px}
+.weapon.wcol .weapon-sub{font-size:12px;color:var(--dim);line-height:1.4}
+.weapon-long{display:none}            /* 長說明只在彈窗裡出現 */
+/* 右上角的「ⓘ」：點它看詳細，點卡片本身＝直接選這把 */
+.w-info{position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;
+  color:var(--dim2);background:rgba(0,0,0,.25);border:1px solid var(--line);z-index:2}
+.w-info:hover{color:var(--gold);border-color:var(--gold)}
+.weapon.wcol.sel .w-info{border-color:var(--gold)}
 @media (max-height:720px){
-  .weapon.wcol{padding:12px 10px;gap:6px}
-  .weapon.wcol .weapon-ico{width:54px;height:54px}
-  .weapon-name{font-size:21px} .weapon-sub{font-size:15px}
-  .weapon-long{font-size:16px;margin-top:7px}
+  #lobby-weapon-rack{grid-template-columns:repeat(auto-fill,minmax(112px,132px));gap:8px}
+  .weapon.wcol{padding:9px 8px 8px;gap:4px}
+  .weapon.wcol .weapon-ico{width:30px;height:30px}
+  .weapon.wcol .weapon-name{font-size:16px}
+  .weapon.wcol .weapon-sub{font-size:11px}
+}
+/* ── 營地的訓練場 ── */
+#lobby-train{display:grid;gap:10px;justify-content:start;
+  grid-template-columns:repeat(auto-fill,minmax(260px,330px))}
+.train-btn{display:flex;align-items:center;gap:10px;text-align:left;
+  background:var(--panel2);border:2px solid var(--line);border-radius:var(--r);
+  padding:11px 13px;transition:border-color .15s,background .15s}
+.train-btn:hover{border-color:var(--gold);background:var(--panel3)}
+.train-btn .tb-ico{flex:0 0 auto;width:30px;height:30px;color:var(--gold)}
+.train-btn .tb-name{font-weight:900;font-size:15px}
+.train-btn .tb-sub{font-size:11.5px;color:var(--dim);line-height:1.4}
+.train-btn .tb-tag{margin-left:auto;font-size:11px;font-weight:900;color:var(--gr);
+  white-space:nowrap}
+
+/* ══════════ 標點符號練習 ══════════ */
+#screen-punct:not(.hidden){display:flex;flex-direction:column;height:100dvh;
+  padding:12px 20px 14px;gap:10px;max-width:1100px;margin:0 auto}
+#pt-stage{min-height:0}
+/* 稿紙格：標點單獨放大會看不出是什麼（「。」就是一個圓圈），
+   套進一個十字虛線的格子裡，位置與佔一格的概念一起教。 */
+#pt-cell{position:relative;width:180px;height:180px;flex:0 0 auto;
+  border:3px solid var(--line2);border-radius:10px;background:var(--panel2)}
+#pt-cell::before,#pt-cell::after{content:'';position:absolute;background:var(--line);
+  opacity:.75}
+#pt-cell::before{left:50%;top:6%;bottom:6%;width:1px;transform:translateX(-.5px);
+  background:repeating-linear-gradient(to bottom,var(--line) 0 7px,transparent 7px 14px)}
+#pt-cell::after{top:50%;left:6%;right:6%;height:1px;transform:translateY(-.5px);
+  background:repeating-linear-gradient(to right,var(--line) 0 7px,transparent 7px 14px)}
+#pt-mark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-size:126px;line-height:1;font-weight:900;color:var(--gold);
+  text-shadow:0 3px 0 #6b4a12,0 0 26px rgba(232,182,76,.35)}
+#pt-keys{display:flex;flex-wrap:wrap;gap:6px}
+.ptk{flex:0 0 auto;min-width:74px;padding:6px 10px;border-radius:8px;
+  background:var(--panel2);border:2px solid var(--line);
+  display:flex;flex-direction:column;align-items:center;gap:1px;transition:background .12s}
+.ptk-sym{font-size:20px;font-weight:900;color:var(--ink);line-height:1}
+.ptk-key{font-size:11px;color:var(--dim2);font-family:ui-monospace,Consolas,monospace}
+.ptk.lit{background:rgba(232,182,76,.92);border-color:#fff0c4;transform:translateY(-1px)}
+.ptk.lit .ptk-sym{color:#231c10}
+.ptk.lit .ptk-key{color:#5c4611}
+.ptk.done{opacity:.4}
+@media (max-height:760px){
+  #pt-cell{width:126px;height:126px}
+  #pt-mark{font-size:88px}
+  .ptk{min-width:64px;padding:4px 8px}
 }
 
 /* ══════════ 結算畫面：滿版、不捲動 ══════════ */
@@ -616,9 +671,15 @@ select option{background:var(--panel2);color:var(--ink)}
   <div class="flex items-baseline gap-3 px-1">
     <h3 class="font-black text-2xl">選擇武器</h3>
     <span class="text-base" style="color:var(--dim)">
-      進戰場後<b style="color:var(--gold)">不能更換</b></span>
+      點卡片選武器、點右上角 <b style="color:var(--gold)">ⓘ</b> 看詳細・進戰場後<b style="color:var(--gold)">不能更換</b></span>
   </div>
   <div id="lobby-weapon-rack"></div>
+
+  <div class="flex items-baseline gap-3 px-1">
+    <h3 class="font-black text-2xl">訓練場</h3>
+    <span class="text-base" style="color:var(--dim)">不計成績，練完給成長點數</span>
+  </div>
+  <div id="lobby-train"></div>
 
   <div class="panel px-5 py-3.5 flex flex-wrap items-center gap-x-6 gap-y-3">
     <h3 class="font-black text-2xl">難度</h3>
@@ -950,6 +1011,71 @@ select option{background:var(--panel2);color:var(--ink)}
     <div id="tal-trees" class="grid md:grid-cols-3 gap-4"></div>
   </div>
 </div>
+
+<!-- ══════════ 武器詳細 ══════════
+     武器卡縮小之後，長說明搬到這裡。之後再加武器也不用動版面。 -->
+<div id="weapon-modal" class="hidden fixed inset-0 z-[88] flex items-center justify-center p-4"
+     style="background:rgba(9,8,18,.92)">
+  <div class="panel p-6 w-full max-w-lg">
+    <div id="wm-body"></div>
+    <div class="flex gap-2 mt-5">
+      <button id="wm-pick" class="flex-1 py-3 rounded-xl font-black text-slate-900"
+              style="background:var(--gold)">選這把出戰</button>
+      <button id="wm-close" class="px-5 py-3 rounded-xl font-bold border"
+              style="border-color:var(--line)">關閉</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 標點符號練習 ══════════
+     只有法杖會出標點，而標點又是詠唱題最容易翻車的地方。
+     這裡把標點單獨拉出來練：一次一個，畫面直接告訴你按哪個鍵。 -->
+<section id="screen-punct" class="hidden">
+  <div class="panel px-5 py-3 flex items-center justify-between gap-3 flex-wrap">
+    <div>
+      <h2 class="text-2xl font-black">標點符號練習</h2>
+      <p class="text-sm" style="color:var(--dim)">照著畫面打出那個標點，全部答對就過關</p>
+    </div>
+    <div class="flex items-center gap-4">
+      <div class="text-right leading-none">
+        <div class="mono text-2xl font-black" style="color:var(--gold)" id="pt-progress">0 / 0</div>
+        <div class="label">進度</div>
+      </div>
+      <div class="text-right leading-none">
+        <div class="mono text-2xl font-black" style="color:var(--gr)" id="pt-streak">0</div>
+        <div class="label">連續答對</div>
+      </div>
+      <button id="pt-quit" class="btn btn-ghost text-sm px-3 py-2">離開</button>
+    </div>
+  </div>
+
+  <div id="pt-stage" class="panel flex-1 flex flex-col items-center justify-center gap-3 p-6">
+    <div id="pt-cell"><div id="pt-mark">，</div></div>
+    <div id="pt-name" class="text-3xl font-black">逗號</div>
+    <p id="pt-use" class="text-base text-center" style="color:var(--dim)"></p>
+    <div id="pt-hint" class="text-base" style="color:var(--gold)"></div>
+    <div id="pt-feedback" class="text-xl font-black" style="min-height:30px"></div>
+  </div>
+
+  <div class="panel p-3">
+    <div class="flex items-center gap-3">
+      <input id="pt-input" type="text" autocomplete="off" autocapitalize="off"
+             spellcheck="false" placeholder="在這裡打出上面那個標點…"
+             class="flex-1 p-3 rounded-xl bg-transparent border text-2xl text-center"
+             style="border-color:var(--line2)">
+      <button id="pt-skip" class="px-4 py-3 rounded-xl border text-sm"
+              style="border-color:var(--line);color:var(--dim)">跳過這題</button>
+    </div>
+    <p class="text-xs text-center mt-2" style="color:var(--dim2)">
+      打完按 Enter　·　全形半形都算對</p>
+  </div>
+
+  <!-- 標點鍵盤輔助：該按的鍵會亮起來 -->
+  <div id="pt-pad" class="panel p-3">
+    <p class="label mb-2">標點怎麼打（注音輸入法）</p>
+    <div id="pt-keys"></div>
+  </div>
+</section>
 
 <!-- ══════════ 排行榜 ══════════
      學生自己看得到的榜。排序一律用「戰績分」（每分鐘正確字數 × 品質 × 正確率），
@@ -2233,6 +2359,13 @@ const BALANCE = {
     nodeStep: 20, nodeBase: 10, bigMult: 2
   },
 
+  /* 訓練場（不計成績，練完給成長點數）*/
+  train: {
+    punctFirst: 40,      // 標點練習首次通關
+    punctAgain: 8,       // 之後每次通關（給複習一點回報，但不值得刷）
+    punctPerfect: 10     // 全對再加
+  },
+
   /* 單場評價 S/A/B/C/D，滿分 7.5 */
   grade: { sMin: 6, aMin: 4.5, bMin: 3, cMin: 1.5 }
 };
@@ -2241,8 +2374,22 @@ const BALANCE = {
    版本紀錄：首頁右下角那顆 v2.0.0 按鈕點開看到的內容。
    跟 CHANGELOG.md 是同一份資料，改一邊也要記得改另一邊。
    ══════════════════════════════════════════════════════════════ */
-const APP_VERSION = '3.0.0';
+const APP_VERSION = '3.1.0';
 const VERSION_LOG = [
+  { v:'3.1.0', date:'2026-09-28', title:'備戰區改版・標點符號練習',
+    added: [
+      '訓練場：營地新增「重新遊玩新手教學」與「標點符號練習」，不計成績，練完給成長點數',
+      '標點符號練習：一次練一個標點，畫面直接告訴你按哪個鍵，每個練兩次、順序打散',
+      '首次通關 40 點、之後每次 8 點，全對再加 10 點',
+      '武器卡點右上角的 ⓘ 會跳出完整說明，還會告訴你這把武器的天賦點了幾個'
+    ],
+    changed: [
+      '武器卡縮小成小卡，一排塞得下五六把——之後加新武器不用再重排版面',
+      '教師後台可以直接查學生：搜尋姓名／座號、篩層級、八種排序，點一列看完整資料'
+    ],
+    fixed: [
+      '教師後台的成績表欄位本來讀的是只有正式比賽才寫的數字，整片都是「-」，已經換成一定有資料的那些'
+    ] },
   { v:'3.0.0', date:'2026-09-24', title:'天賦・難度層級・新階級',
     added: [
       '局外成長：每場打完換成「成長點數」，拿去點三棵天賦樹（法杖／弓箭／匕首各一棵）',
@@ -4360,6 +4507,7 @@ function gotoLogin() {
   LOOKUP_ID = ''; LOOKUP_CLOUD_NAME = null;
   show('screen-lobby', false); show('screen-game', false);
   show('screen-result', false); show('screen-boss', false);
+  show('screen-punct', false);
   show('app-header', true);
   show('screen-login', true);
   show('login-err', false);
@@ -4593,14 +4741,17 @@ function paintTalentDot() {
 
 function gotoLobby() {
   BF = BALANCE;                              // 離開戰鬥就把天賦加成收回去
+  PT.active = false;
   show('app-header', false);                 // 營地也是滿版，不需要標題列
   show('screen-lobby', true); show('screen-game', false);
   show('screen-result', false); show('screen-boss', false);
+  show('screen-punct', false);
   show('btn-verlog', true);
   show('btn-escape', false);
   const ls = $('lobby-sub');
   if (ls) ls.textContent = ONLINE ? '' : '離線・成績只留在這台電腦';
   paintTalentDot();                          // 有點數沒花就在天賦按鈕上點紅點
+  buildTrainRack();                          // 訓練場的獎勵標示會隨完成狀態變
 }
 
 /* 「結算」鍵：提早結束這一場，但**成績照算照存**。
@@ -4644,16 +4795,254 @@ function buildWeaponRack() {
     const el = document.createElement('button');
     el.className = 'weapon wcol';
     el.dataset.w = k;
+    /* 卡片只留圖示＋名字＋一行短介紹，長說明搬進 ⓘ 的彈窗。
+       這樣一排塞得下五六把，以後加新武器不用再重排版面。 */
     el.innerHTML =
-      '<span class="weapon-ico" style="color:' + w.raw + '">' + ico(w.icon, 34) + '</span>' +
+      '<span class="w-info" data-info="' + k + '" title="看詳細">i</span>' +
+      '<span class="weapon-ico" style="color:' + w.raw + '">' + ico(w.icon, 22) + '</span>' +
       '<span class="weapon-txt">' +
         '<span class="weapon-name">' + w.name + '</span>' +
         '<span class="weapon-sub block">' + w.blurb + '</span>' +
-        '<span class="weapon-long">' + w.long + '</span>' +
       '</span>';
-    el.addEventListener('click', () => selectWeapon(k));
+    el.addEventListener('click', e => {
+      // 點 ⓘ 是看詳細，點卡片其他地方才是選武器
+      if (e.target.closest('.w-info')) { e.stopPropagation(); openWeaponInfo(k); return; }
+      selectWeapon(k);
+    });
     rack.appendChild(el);
   });
+}
+
+/* 武器詳細：卡片縮小之後，招式說明、數值特性都收在這裡 */
+let _wmKey = null;
+function openWeaponInfo(k) {
+  const w = WEAPONS[k];
+  if (!w) return;
+  _wmKey = k;
+  const sp = w.special || {};
+  $('wm-body').innerHTML = `
+    <div class="flex items-center gap-3 mb-3">
+      <span class="weapon-ico" style="color:${w.raw};width:46px;height:46px">${ico(w.icon, 27)}</span>
+      <div>
+        <div class="text-2xl font-black" style="color:${w.raw}">${escHtml(w.name)}</div>
+        <div class="text-sm" style="color:var(--dim)">${escHtml(w.blurb)}</div>
+      </div>
+    </div>
+    <p class="text-base mb-3" style="line-height:1.7">${escHtml(w.long || '')}</p>
+    <div class="panel-flat p-3 mb-3">
+      <div class="label mb-1">數值特性</div>
+      <p class="text-sm" style="color:var(--dim);line-height:1.65">${escHtml(w.detail || '')}</p>
+    </div>
+    ${sp.name ? `<div class="panel-flat p-3" style="border-color:var(--gold)">
+      <div class="label mb-1" style="color:var(--gold)">特殊攻擊・${escHtml(sp.name)}
+        <span style="color:var(--dim2)">（${escHtml(sp.hint || '')}）</span></div>
+      <p class="text-sm" style="color:var(--dim);line-height:1.65">${escHtml(sp.desc || '')}</p>
+    </div>` : ''}
+    ${talentSummaryFor(k)}`;
+  show('weapon-modal', true);
+}
+/* 順便告訴學生這把武器的天賦點了幾個——天賦只在對應武器身上生效，
+   放在這裡最容易讓他發現「我點的是匕首，可是我一直用法杖」。 */
+function talentSummaryFor(k) {
+  const owned = (MY_HIST && MY_HIST.talents) || {};
+  const list = Object.keys(owned).filter(id => owned[id] && TALENTS[id] && TALENTS[id].tree === k);
+  const meta = TALENT_TREES[k];
+  if (!meta) return '';
+  if (!list.length) {
+    return `<p class="text-xs mt-3" style="color:var(--dim2)">
+      這把武器的天賦（${escHtml(meta.name)}）還沒點任何一個。</p>`;
+  }
+  return `<div class="mt-3">
+    <div class="label mb-1">你在這把武器上點的天賦（${list.length} 個）</div>
+    <div class="flex flex-wrap gap-1.5">${list.map(id => {
+      const t = TALENTS[id];
+      return `<span class="mon-chip" style="border:1px solid ${meta.color};color:${meta.color};background:rgba(0,0,0,.3)">${
+        t.big ? '★' : ''}${escHtml(t.name)}</span>`;
+    }).join('')}</div>
+  </div>`;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   訓練場：不計成績、不進排行，練完給成長點數
+   ══════════════════════════════════════════════════════════════ */
+function buildTrainRack() {
+  const host = $('lobby-train');
+  if (!host) return;
+  const punctDone = !!(MY_HIST && MY_HIST.punctDone);
+  const items = [
+    { id: 'tutorial', icon: 'school', name: '重新遊玩新手教學',
+      sub: '再走一次介面介紹與三把武器的特殊攻擊', tag: '' },
+    { id: 'punct', icon: 'keyboard', name: '標點符號練習',
+      sub: '一次練一個標點，畫面直接告訴你按哪個鍵',
+      tag: punctDone ? `完成可得 ${BALANCE.train.punctAgain} 點`
+                     : `首次完成 ${BALANCE.train.punctFirst} 點` }
+  ];
+  host.innerHTML = items.map(it => `
+    <button class="train-btn" data-train="${it.id}">
+      <span class="tb-ico ico-slot" data-ico="${it.icon}" data-ico-size="24"></span>
+      <span>
+        <span class="tb-name block">${it.name}</span>
+        <span class="tb-sub block">${it.sub}</span>
+      </span>
+      ${it.tag ? `<span class="tb-tag">${it.tag}</span>` : ''}
+    </button>`).join('');
+  hydrateIcons(host);
+  [...host.querySelectorAll('[data-train]')].forEach(b =>
+    b.addEventListener('click', () => {
+      if (b.dataset.train === 'tutorial') replayTutorial();
+      else startPunctDrill();
+    }));
+}
+
+/* 重玩新手教學：教學本身不寫成績，所以隨時可以重來。
+   唯一要小心的是別把 tutorialDone / 層級洗掉——那是第一次量的結果，
+   重玩只是複習，不重新判定層級。 */
+function replayTutorial() {
+  if (!confirm('要重新走一次新手教學嗎？\n（只是複習，不會改動你的難度層級與成績）')) return;
+  TUT.replay = true;
+  startTutorial();
+}
+
+/* ══════════════════════════════════════════════════════════════
+   標點符號練習
+
+   為什麼要單獨做：只有法杖會出標點，而標點正是詠唱題最容易翻車的地方
+   （「不中斷的詠唱」那個天賦就是為了這個做的）。一般題庫裡標點夾在
+   句子中間，學生打錯了也分不出是哪個符號不會打。這裡一次只練一個，
+   而且直接把鍵位寫在畫面上。
+   ══════════════════════════════════════════════════════════════ */
+const PUNCT_LESSONS = [
+  { ch: '，', name: '逗號', key: ',', use: '句子還沒講完，中間喘一口氣的地方' },
+  { ch: '。', name: '句號', key: '.', use: '一句話講完了' },
+  { ch: '、', name: '頓號', key: '\\', use: '並列的東西中間：蘋果、香蕉、芭樂' },
+  { ch: '？', name: '問號', key: 'Shift + /', use: '問別人事情的時候' },
+  { ch: '！', name: '驚嘆號', key: 'Shift + 1', use: '很興奮、很驚訝、大聲喊的時候' },
+  { ch: '：', name: '冒號', key: 'Shift + ;', use: '後面要列出東西或引出說的話' },
+  { ch: '；', name: '分號', key: ';', use: '兩句有關係的話中間，比逗號重、比句號輕' },
+  { ch: '「', name: '上引號', key: 'Shift + [', use: '別人說的話從這裡開始' },
+  { ch: '」', name: '下引號', key: 'Shift + ]', use: '別人說的話到這裡結束' }
+];
+
+const PT = { queue: [], idx: 0, streak: 0, wrong: 0, active: false };
+
+function startPunctDrill() {
+  /* 每個標點練兩次，順序打散——照固定順序背得起來，打散才是真的會 */
+  const pool = [...PUNCT_LESSONS, ...PUNCT_LESSONS];
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  PT.queue = pool; PT.idx = 0; PT.streak = 0; PT.wrong = 0; PT.active = true;
+
+  show('screen-lobby', false); show('screen-login', false);
+  show('app-header', false); show('btn-verlog', false);
+  show('screen-punct', true);
+  buildPunctPad();
+  paintPunctQuestion();
+  setTimeout(() => $('pt-input').focus(), 120);
+}
+
+function buildPunctPad() {
+  const host = $('pt-keys');
+  host.innerHTML = PUNCT_LESSONS.map(p =>
+    `<div class="ptk" data-ch="${escHtml(p.ch)}">
+       <span class="ptk-sym">${escHtml(p.ch)}</span>
+       <span class="ptk-key">${escHtml(p.key)}</span>
+     </div>`).join('');
+}
+
+function paintPunctQuestion() {
+  const q = PT.queue[PT.idx];
+  if (!q) return;
+  setTxt('pt-mark', q.ch);
+  setTxt('pt-name', q.name);
+  setTxt('pt-use', q.use);
+  $('pt-hint').textContent = `按 ${q.key}`;
+  setTxt('pt-progress', `${PT.idx} / ${PT.queue.length}`);
+  setTxt('pt-streak', PT.streak);
+  $('pt-input').value = '';
+  // 輔助面板：現在要打的那一顆亮起來
+  [...$('pt-keys').children].forEach(k =>
+    k.classList.toggle('lit', k.dataset.ch === q.ch));
+}
+
+function submitPunct() {
+  if (!PT.active) return;
+  const q = PT.queue[PT.idx];
+  if (!q) return;
+  const val = ($('pt-input').value || '').trim();
+  if (!val) return;
+  const fb = $('pt-feedback');
+  // 判定沿用遊戲本體的標點等價類：全形半形、形狀相近的都算對
+  const ok = [...val].length === 1 && canon(val) === canon(q.ch);
+  if (ok) {
+    PT.streak++; PT.idx++;
+    fb.textContent = '✓ 對了！';
+    fb.style.color = 'var(--gr)';
+  } else {
+    PT.streak = 0; PT.wrong++;
+    fb.textContent = `✗ 那是「${val}」，要打的是「${q.ch}」`;
+    fb.style.color = '#ff8a9c';
+    $('pt-input').value = '';
+    setTxt('pt-streak', PT.streak);
+    return;                       // 打錯不前進，同一題再來一次
+  }
+  if (PT.idx >= PT.queue.length) { finishPunctDrill(); return; }
+  paintPunctQuestion();
+  setTimeout(() => { if (PT.active) fb.textContent = ''; }, 700);
+}
+
+function skipPunct() {
+  if (!PT.active) return;
+  PT.streak = 0; PT.wrong++;
+  PT.idx++;
+  if (PT.idx >= PT.queue.length) { finishPunctDrill(); return; }
+  paintPunctQuestion();
+}
+
+async function finishPunctDrill() {
+  PT.active = false;
+  const first = !(MY_HIST && MY_HIST.punctDone);
+  const pts = first ? BALANCE.train.punctFirst : BALANCE.train.punctAgain;
+  const perfect = PT.wrong === 0;
+  const bonus = perfect ? BALANCE.train.punctPerfect : 0;
+  const total = pts + bonus;
+
+  $('pt-mark').textContent = '✓';
+  setTxt('pt-name', perfect ? '全對通關！' : '通關！');
+  setTxt('pt-use', `打錯 ${PT.wrong} 次`);
+  $('pt-hint').textContent = '';
+  const fb = $('pt-feedback');
+  fb.style.color = 'var(--gr)';
+  fb.textContent = `成長點數 +${total}` + (bonus ? `（全對再加 ${bonus}）` : '');
+  setTxt('pt-progress', `${PT.queue.length} / ${PT.queue.length}`);
+  [...$('pt-keys').children].forEach(k => { k.classList.remove('lit'); k.classList.add('done'); });
+
+  /* 寫回點數。訓練場不寫 plays、不寫任何 best*／last*——
+     這不是一場戰鬥，不該污染成績與排行。 */
+  MY_HIST = Object.assign({}, MY_HIST, {
+    growthPts: ((MY_HIST && MY_HIST.growthPts) || 0) + total,
+    growthTotal: ((MY_HIST && MY_HIST.growthTotal) || 0) + total,
+    punctDone: true, lastPlayedMs: Date.now()
+  });
+  writeLocalHist(ME.docId, MY_HIST);
+  try {
+    await withTimeout(setDoc(doc(REF.scores, ME.docId), {
+      className: ME.className, seat: ME.seat, name: ME.name,
+      growthPts: MY_HIST.growthPts, growthTotal: MY_HIST.growthTotal,
+      punctDone: true, lastPlayedAt: serverTimestamp()
+    }, { merge: true }), 6000, '上傳逾時');
+  } catch (e) {
+    console.error('標點練習上傳失敗', e);
+    toast('點數拿到了，但還沒存到雲端', 2600);
+  }
+  setTimeout(() => { if (!PT.active) quitPunctDrill(); }, 2600);
+}
+
+function quitPunctDrill() {
+  PT.active = false;
+  show('screen-punct', false);
+  gotoLobby();
 }
 
 function buildQualityRack() {
@@ -4957,6 +5346,7 @@ function startTutorial() {
   TUT.idx = -1;
   G = null;
   show('screen-login', false); show('screen-lobby', false); show('screen-game', false);
+  show('screen-punct', false);
   show('app-header', false);
   show('btn-verlog', false);
   show('btn-escape', false);
@@ -4996,6 +5386,9 @@ function tutorialNext() {
 function tutorialSkip() {
   show('tutorial-intro', false);
   if (G) { clearInterval(G.timer); G = null; }
+  /* 從訓練場點進來的「重玩」中途跳出：只是複習，不該動到層級，
+     更不該把第一次量出來的結果洗掉。 */
+  if (TUT.replay) { TUT.replay = false; BF = BALANCE; gotoLobby(); return; }
   const tier = BALANCE.tierDefault;
   MY_HIST = Object.assign({}, MY_HIST, { tier, tutorialDone: true });
   writeLocalHist(ME.docId, MY_HIST);
@@ -5053,24 +5446,33 @@ async function endTutorialFlow() {
   $('type-input').disabled = true;
   const elapsedSec = Math.max(1, (Date.now() - G.startedAt) / 1000);
   const measuredWpm = Math.round(G.words / elapsedSec * 60);
-  const tier = tierFromWpm(measuredWpm);
+
+  /* 重玩（訓練場點進來的）只是複習：更新歷史最高手速就好，
+     **不重新判定層級**——層級是第一次量的結果，重玩一次就換一個層級的話，
+     學生會發現「故意打慢一點怪就變軟」，整個難度系統就破了。 */
+  const replay = !!TUT.replay;
+  TUT.replay = false;
+  const tier = replay ? (MY_HIST && MY_HIST.tier) : tierFromWpm(measuredWpm);
 
   MY_HIST = Object.assign({}, MY_HIST, {
-    tier, tutorialDone: true,
+    tutorialDone: true,
     bestWpm: Math.max((MY_HIST && MY_HIST.bestWpm) || 0, measuredWpm)
   });
+  if (tier) MY_HIST.tier = tier;
   writeLocalHist(ME.docId, MY_HIST);
   try {
-    await withTimeout(setDoc(doc(REF.scores, ME.docId), {
+    const payload = {
       className: ME.className, seat: ME.seat, name: ME.name,
-      tier, tierSetBy: 'tutorial', tutorialDone: true, bestWpm: MY_HIST.bestWpm,
-      lastPlayedAt: serverTimestamp()
-    }, { merge: true }), 6000, '上傳逾時');
+      tutorialDone: true, bestWpm: MY_HIST.bestWpm, lastPlayedAt: serverTimestamp()
+    };
+    if (!replay) Object.assign(payload, { tier, tierSetBy: 'tutorial' });
+    await withTimeout(setDoc(doc(REF.scores, ME.docId), payload, { merge: true }),
+                      6000, '上傳逾時');
   } catch (e) { console.error('教學結果上傳失敗', e); }
 
   clearInterval(G.timer);
   G = null;
-  toast('準備好了，營地在等你！', 2600);
+  toast(replay ? '複習完成，回營地吧！' : '準備好了，營地在等你！', 2600);
   gotoLobby();
 }
 
@@ -5993,6 +6395,20 @@ function wireEvents() {
   /* 版本紀錄 */
   $('btn-verlog').addEventListener('click', openVerlog);
   $('verlog-close').addEventListener('click', () => show('verlog-modal', false));
+
+  /* 武器詳細 */
+  $('wm-close').addEventListener('click', () => show('weapon-modal', false));
+  $('wm-pick').addEventListener('click', () => {
+    if (_wmKey) selectWeapon(_wmKey);
+    show('weapon-modal', false);
+  });
+
+  /* 標點符號練習 */
+  $('pt-quit').addEventListener('click', quitPunctDrill);
+  $('pt-skip').addEventListener('click', () => { skipPunct(); $('pt-input').focus(); });
+  $('pt-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); submitPunct(); }
+  });
 
   /* 天賦 */
   $('btn-talent').addEventListener('click', openTalentPanel);
