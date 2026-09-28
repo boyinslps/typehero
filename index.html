@@ -189,7 +189,7 @@ body{
 
 /* ══════════ 營地：三欄橫排、不捲動 ══════════ */
 #screen-lobby:not(.hidden){display:flex;flex-direction:column;height:100dvh;
-  padding:14px 20px 16px;gap:10px;max-width:1400px;margin:0 auto}
+  padding:14px 20px 14px;gap:8px;max-width:1400px;margin:0 auto;overflow:hidden}
 /* 武器改成小卡：一排塞得下 5～6 把，之後加新武器會自己換行，
    不用再動版面。詳細說明搬進點擊彈出的視窗（#weapon-modal）。 */
 #lobby-weapon-rack{flex:0 0 auto;display:grid;gap:10px;justify-content:start;
@@ -214,18 +214,28 @@ body{
   .weapon.wcol .weapon-name{font-size:16px}
   .weapon.wcol .weapon-sub{font-size:11px}
 }
-/* ── 營地的訓練場 ── */
-#lobby-train{display:grid;gap:10px;justify-content:start;
-  grid-template-columns:repeat(auto-fill,minmax(260px,330px))}
-.train-btn{display:flex;align-items:center;gap:10px;text-align:left;
-  background:var(--panel2);border:2px solid var(--line);border-radius:var(--r);
-  padding:11px 13px;transition:border-color .15s,background .15s}
-.train-btn:hover{border-color:var(--gold);background:var(--panel3)}
-.train-btn .tb-ico{flex:0 0 auto;width:30px;height:30px;color:var(--gold)}
-.train-btn .tb-name{font-weight:900;font-size:15px}
-.train-btn .tb-sub{font-size:11.5px;color:var(--dim);line-height:1.4}
-.train-btn .tb-tag{margin-left:auto;font-size:11px;font-weight:900;color:var(--gr);
-  white-space:nowrap}
+/* ── 營地三個區域：武器 → 難度 → （留白）→ 選擇戰場 ──
+   留白那一塊吃掉所有多餘高度，所以「選擇戰場」永遠貼在畫面最下面，
+   不會整頁擠在上半部。 */
+.lobby-sec{flex:0 0 auto}
+#lobby-gap{flex:1 1 auto;min-height:0}
+#lobby-battle{display:grid;gap:12px;
+  grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+.battle-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:8px;padding:20px 14px;border-radius:var(--r);
+  background:var(--panel2);border:2px solid var(--line2);
+  font-weight:900;font-size:20px;transition:border-color .15s,background .15s,transform .1s}
+.battle-btn:hover{border-color:var(--gold);background:var(--panel3);transform:translateY(-2px)}
+.battle-btn .bb-ico{width:30px;height:30px;color:var(--gold)}
+/* 主要出擊鍵：金色，一眼看得出是預設要按的那個 */
+.battle-btn.primary{background:linear-gradient(180deg,var(--gold),var(--gold2));
+  border-color:var(--gold);color:#231c10}
+.battle-btn.primary .bb-ico{color:#231c10}
+.battle-btn.primary:hover{background:linear-gradient(180deg,#f2c85c,#d79b33)}
+@media (max-height:720px){
+  .battle-btn{padding:13px 12px;font-size:17px;gap:5px}
+  .battle-btn .bb-ico{width:24px;height:24px}
+}
 
 /* ══════════ 標點符號練習 ══════════ */
 #screen-punct:not(.hidden){display:flex;flex-direction:column;height:100dvh;
@@ -244,16 +254,22 @@ body{
 #pt-mark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   font-size:126px;line-height:1;font-weight:900;color:var(--gold);
   text-shadow:0 3px 0 #6b4a12,0 0 26px rgba(232,182,76,.35)}
-#pt-keys{display:flex;flex-wrap:wrap;gap:6px}
-.ptk{flex:0 0 auto;min-width:74px;padding:6px 10px;border-radius:8px;
-  background:var(--panel2);border:2px solid var(--line);
-  display:flex;flex-direction:column;align-items:center;gap:1px;transition:background .12s}
-.ptk-sym{font-size:20px;font-weight:900;color:var(--ink);line-height:1}
-.ptk-key{font-size:11px;color:var(--dim2);font-family:ui-monospace,Consolas,monospace}
-.ptk.lit{background:rgba(232,182,76,.92);border-color:#fff0c4;transform:translateY(-1px)}
-.ptk.lit .ptk-sym{color:#231c10}
-.ptk.lit .ptk-key{color:#5c4611}
-.ptk.done{opacity:.4}
+/* 鍵盤沿用普通難度那排的樣式（.zk / .zp-row），只是把標點標在鍵上 */
+#pt-keys{display:flex;flex-direction:column;gap:5px}
+#pt-keys .zk{height:44px;position:relative;justify-content:flex-end;padding-bottom:3px}
+#pt-keys .zk .zk-sym{font-size:14px;color:var(--dim2)}
+.ptk-marks{position:absolute;top:2px;left:0;right:0;display:flex;justify-content:center;gap:3px}
+.ptk-mark{font-size:15px;font-weight:900;color:var(--gold);line-height:1}
+.zk.has-punct{border-color:var(--line2)}
+.zk.lit{background:rgba(232,182,76,.92);border-color:#fff0c4}
+.zk.lit .zk-sym{color:#6b5a30}
+.zk.lit .zk-key{color:#5c4611}
+.zk.lit .ptk-mark{color:#3a2c08;opacity:.45}
+.zk.lit .ptk-mark.want{color:#231c10;opacity:1;text-shadow:0 0 8px #fff}
+/* 提示裡的按鍵做成鍵帽的樣子 */
+.pt-key{display:inline-block;min-width:30px;padding:2px 8px;border-radius:6px;
+  background:var(--panel3);border:1px solid var(--line2);color:var(--ink);
+  font-family:ui-monospace,Consolas,monospace;font-size:16px}
 @media (max-height:760px){
   #pt-cell{width:126px;height:126px}
   #pt-mark{font-size:88px}
@@ -668,30 +684,34 @@ select option{background:var(--panel2);color:var(--ink)}
     </div>
   </div>
 
-  <div class="flex items-baseline gap-3 px-1">
-    <h3 class="font-black text-2xl">選擇武器</h3>
-    <span class="text-base" style="color:var(--dim)">
-      點卡片選武器、點右上角 <b style="color:var(--gold)">ⓘ</b> 看詳細・進戰場後<b style="color:var(--gold)">不能更換</b></span>
-  </div>
-  <div id="lobby-weapon-rack"></div>
-
-  <div class="flex items-baseline gap-3 px-1">
-    <h3 class="font-black text-2xl">訓練場</h3>
-    <span class="text-base" style="color:var(--dim)">不計成績，練完給成長點數</span>
-  </div>
-  <div id="lobby-train"></div>
-
-  <div class="panel px-5 py-3.5 flex flex-wrap items-center gap-x-6 gap-y-3">
-    <h3 class="font-black text-2xl">難度</h3>
-    <div id="lobby-quality-rack" class="flex gap-3"></div>
-    <p id="lobby-quality-desc" class="text-base flex-1 min-w-[240px]"
-       style="color:var(--dim)"></p>
+  <!-- ① 武器區 -->
+  <div class="lobby-sec">
+    <div class="flex items-baseline gap-3 px-1 mb-2">
+      <h3 class="font-black text-2xl">選擇武器</h3>
+      <span class="text-base" style="color:var(--dim)">
+        點右上角 <b style="color:var(--gold)">ⓘ</b> 看詳細・進戰場後<b style="color:var(--gold)">不能更換</b></span>
+    </div>
+    <div id="lobby-weapon-rack"></div>
   </div>
 
-  <button id="btn-practice" class="btn btn-ghost w-full py-3.5 text-lg">
-    <span class="ico-slot" data-ico="target" data-ico-size="20"></span>先自己練習</button>
-  <p class="text-base text-center" style="color:var(--dim2)">
-    練習打完一樣會更新你的歷史最高分</p>
+  <!-- ② 難度區 -->
+  <div class="lobby-sec">
+    <div class="panel px-5 py-3.5 flex flex-wrap items-center gap-x-6 gap-y-3">
+      <h3 class="font-black text-2xl">難度</h3>
+      <div id="lobby-quality-rack" class="flex gap-3"></div>
+      <p id="lobby-quality-desc" class="text-base flex-1 min-w-[240px]"
+         style="color:var(--dim)"></p>
+    </div>
+  </div>
+
+  <!-- 武器與戰場之間留白，不要全部擠在畫面上半部 -->
+  <div id="lobby-gap"></div>
+
+  <!-- ③ 選擇戰場：乾淨的大按鈕，不放小字說明 -->
+  <div class="lobby-sec">
+    <h3 class="font-black text-2xl px-1 mb-2">選擇戰場</h3>
+    <div id="lobby-battle"></div>
+  </div>
 </section>
 
 <!-- ══════════ 3. 遊戲主畫面：滿版、不捲動 ══════════ -->
@@ -1034,7 +1054,7 @@ select option{background:var(--panel2);color:var(--ink)}
   <div class="panel px-5 py-3 flex items-center justify-between gap-3 flex-wrap">
     <div>
       <h2 class="text-2xl font-black">標點符號練習</h2>
-      <p class="text-sm" style="color:var(--dim)">照著畫面打出那個標點，全部答對就過關</p>
+      <p class="text-sm" style="color:var(--dim)">照著畫面打出那個標點，下方鍵盤會告訴你按哪一顆</p>
     </div>
     <div class="flex items-center gap-4">
       <div class="text-right leading-none">
@@ -1067,7 +1087,8 @@ select option{background:var(--panel2);color:var(--ink)}
               style="border-color:var(--line);color:var(--dim)">跳過這題</button>
     </div>
     <p class="text-xs text-center mt-2" style="color:var(--dim2)">
-      打完按 Enter　·　全形半形都算對</p>
+      打完按 Enter　·　半形的 <code>, . ? !</code> 也算對，
+      但<b style="color:var(--dim)">逗號「，」和頓號「、」要分清楚</b></p>
   </div>
 
   <!-- 標點鍵盤輔助：該按的鍵會亮起來 -->
@@ -2374,8 +2395,19 @@ const BALANCE = {
    版本紀錄：首頁右下角那顆 v2.0.0 按鈕點開看到的內容。
    跟 CHANGELOG.md 是同一份資料，改一邊也要記得改另一邊。
    ══════════════════════════════════════════════════════════════ */
-const APP_VERSION = '3.1.0';
+const APP_VERSION = '3.1.1';
 const VERSION_LOG = [
+  { v:'3.1.1', date:'2026-09-28', title:'營地分三區・標點鍵盤',
+    added: [],
+    changed: [
+      '營地重新分成三區：上面武器、中間難度、最下面「選擇戰場」，中間留白不再全部擠在上半部',
+      '選擇戰場放三顆乾淨的大按鈕：個人挑戰、新手教學、標點符號挑戰',
+      '標點練習改用普通難度那種完整鍵盤，標點直接標在對應的鍵上，該按的那顆會亮'
+    ],
+    fixed: [
+      '標點的鍵位本來寫錯了：鍵帽下排的符號（， 。 、 ； 「 」）要按 Ctrl，上排的（！ ： ？）才是 Shift',
+      '判定改嚴格：逗號跟頓號要分清楚（戰鬥中是刻意放寬的，但這個練習的目的就是分辨形狀）'
+    ] },
   { v:'3.1.0', date:'2026-09-28', title:'備戰區改版・標點符號練習',
     added: [
       '訓練場：營地新增「重新遊玩新手教學」與「標點符號練習」，不計成績，練完給成長點數',
@@ -4751,7 +4783,7 @@ function gotoLobby() {
   const ls = $('lobby-sub');
   if (ls) ls.textContent = ONLINE ? '' : '離線・成績只留在這台電腦';
   paintTalentDot();                          // 有點數沒花就在天賦按鈕上點紅點
-  buildTrainRack();                          // 訓練場的獎勵標示會隨完成狀態變
+  buildBattleRack();                         // 選擇戰場那三顆按鈕
 }
 
 /* 「結算」鍵：提早結束這一場，但**成績照算照存**。
@@ -4863,33 +4895,28 @@ function talentSummaryFor(k) {
 }
 
 /* ══════════════════════════════════════════════════════════════
-   訓練場：不計成績、不進排行，練完給成長點數
+   營地第三區「選擇戰場」：乾淨的大按鈕，不放小字說明。
+   個人挑戰是主要出口（金色），另外兩個是訓練，樣式一致。
    ══════════════════════════════════════════════════════════════ */
-function buildTrainRack() {
-  const host = $('lobby-train');
+function buildBattleRack() {
+  const host = $('lobby-battle');
   if (!host) return;
-  const punctDone = !!(MY_HIST && MY_HIST.punctDone);
   const items = [
-    { id: 'tutorial', icon: 'school', name: '重新遊玩新手教學',
-      sub: '再走一次介面介紹與三把武器的特殊攻擊', tag: '' },
-    { id: 'punct', icon: 'keyboard', name: '標點符號練習',
-      sub: '一次練一個標點，畫面直接告訴你按哪個鍵',
-      tag: punctDone ? `完成可得 ${BALANCE.train.punctAgain} 點`
-                     : `首次完成 ${BALANCE.train.punctFirst} 點` }
+    { id: 'practice', icon: 'target',   name: '個人挑戰',     primary: true },
+    { id: 'tutorial', icon: 'school',   name: '新手教學' },
+    { id: 'punct',    icon: 'keyboard', name: '標點符號挑戰' }
   ];
   host.innerHTML = items.map(it => `
-    <button class="train-btn" data-train="${it.id}">
-      <span class="tb-ico ico-slot" data-ico="${it.icon}" data-ico-size="24"></span>
-      <span>
-        <span class="tb-name block">${it.name}</span>
-        <span class="tb-sub block">${it.sub}</span>
-      </span>
-      ${it.tag ? `<span class="tb-tag">${it.tag}</span>` : ''}
+    <button class="battle-btn${it.primary ? ' primary' : ''}" data-battle="${it.id}">
+      <span class="bb-ico ico-slot" data-ico="${it.icon}" data-ico-size="26"></span>
+      <span>${it.name}</span>
     </button>`).join('');
   hydrateIcons(host);
-  [...host.querySelectorAll('[data-train]')].forEach(b =>
+  [...host.querySelectorAll('[data-battle]')].forEach(b =>
     b.addEventListener('click', () => {
-      if (b.dataset.train === 'tutorial') replayTutorial();
+      const k = b.dataset.battle;
+      if (k === 'practice') startBattle(true);
+      else if (k === 'tutorial') replayTutorial();
       else startPunctDrill();
     }));
 }
@@ -4909,18 +4936,37 @@ function replayTutorial() {
    為什麼要單獨做：只有法杖會出標點，而標點正是詠唱題最容易翻車的地方
    （「不中斷的詠唱」那個天賦就是為了這個做的）。一般題庫裡標點夾在
    句子中間，學生打錯了也分不出是哪個符號不會打。這裡一次只練一個，
-   而且直接把鍵位寫在畫面上。
+   而且直接把鍵位畫在完整鍵盤上。
+
+   ── 鍵位規則（微軟注音）──
+   鍵帽上「印在下排」的符號（, . ; [ ] \\）要按 **Ctrl**，
+   「印在上排」的符號（! : ?）要按 **Shift**。
+   這是實際輸入法的行為，不是我們自己編的——寫錯的話學生照著按會打不出來。
    ══════════════════════════════════════════════════════════════ */
 const PUNCT_LESSONS = [
-  { ch: '，', name: '逗號', key: ',', use: '句子還沒講完，中間喘一口氣的地方' },
-  { ch: '。', name: '句號', key: '.', use: '一句話講完了' },
-  { ch: '、', name: '頓號', key: '\\', use: '並列的東西中間：蘋果、香蕉、芭樂' },
-  { ch: '？', name: '問號', key: 'Shift + /', use: '問別人事情的時候' },
-  { ch: '！', name: '驚嘆號', key: 'Shift + 1', use: '很興奮、很驚訝、大聲喊的時候' },
-  { ch: '：', name: '冒號', key: 'Shift + ;', use: '後面要列出東西或引出說的話' },
-  { ch: '；', name: '分號', key: ';', use: '兩句有關係的話中間，比逗號重、比句號輕' },
-  { ch: '「', name: '上引號', key: 'Shift + [', use: '別人說的話從這裡開始' },
-  { ch: '」', name: '下引號', key: 'Shift + ]', use: '別人說的話到這裡結束' }
+  { ch: '，', name: '逗號',   key: ',',  mod: 'Ctrl',  use: '句子還沒講完，中間喘一口氣的地方' },
+  { ch: '。', name: '句號',   key: '.',  mod: 'Ctrl',  use: '一句話講完了' },
+  { ch: '、', name: '頓號',   key: '\\', mod: 'Ctrl',  use: '並列的東西中間：蘋果、香蕉、芭樂' },
+  { ch: '？', name: '問號',   key: '/',  mod: 'Shift', use: '問別人事情的時候' },
+  { ch: '！', name: '驚嘆號', key: '1',  mod: 'Shift', use: '很興奮、很驚訝、大聲喊的時候' },
+  { ch: '：', name: '冒號',   key: ';',  mod: 'Shift', use: '後面要列出東西或引出說的話' },
+  { ch: '；', name: '分號',   key: ';',  mod: 'Ctrl',  use: '兩句有關係的話中間，比逗號重、比句號輕' },
+  { ch: '「', name: '上引號', key: '[',  mod: 'Ctrl',  use: '別人說的話從這裡開始' },
+  { ch: '」', name: '下引號', key: ']',  mod: 'Ctrl',  use: '別人說的話到這裡結束' }
+];
+const punctKeyLabel = p => `${p.mod} + ${p.key}`;
+
+/* 完整鍵盤，排法跟普通難度的注音鍵盤一樣，另外補上標點會用到的
+   [ ] \\ 三顆（注音鍵盤沒有那幾顆）。有標點的鍵會在上面標出來。 */
+const PUNCT_KEYBOARD = [
+  [['1','ㄅ'],['2','ㄉ'],['3','ˇ'],['4','ˋ'],['5','ㄓ'],['6','ˊ'],
+   ['7','˙'],['8','ㄚ'],['9','ㄞ'],['0','ㄢ'],['-','ㄦ']],
+  [['Q','ㄆ'],['W','ㄊ'],['E','ㄍ'],['R','ㄐ'],['T','ㄔ'],['Y','ㄗ'],
+   ['U','ㄧ'],['I','ㄛ'],['O','ㄟ'],['P','ㄣ'],['[',''],[']','']],
+  [['A','ㄇ'],['S','ㄋ'],['D','ㄎ'],['F','ㄑ'],['G','ㄕ'],['H','ㄘ'],
+   ['J','ㄨ'],['K','ㄜ'],['L','ㄠ'],[';','ㄤ'],['\\','']],
+  [['Z','ㄈ'],['X','ㄌ'],['C','ㄏ'],['V','ㄒ'],['B','ㄖ'],['N','ㄙ'],
+   ['M','ㄩ'],[',','ㄝ'],['.','ㄡ'],['/','ㄥ']]
 ];
 
 const PT = { queue: [], idx: 0, streak: 0, wrong: 0, active: false };
@@ -4942,13 +4988,30 @@ function startPunctDrill() {
   setTimeout(() => $('pt-input').focus(), 120);
 }
 
+/* 鍵盤長得跟普通難度那排一樣（.zk），只是把標點標在對應的鍵上 */
 function buildPunctPad() {
   const host = $('pt-keys');
-  host.innerHTML = PUNCT_LESSONS.map(p =>
-    `<div class="ptk" data-ch="${escHtml(p.ch)}">
-       <span class="ptk-sym">${escHtml(p.ch)}</span>
-       <span class="ptk-key">${escHtml(p.key)}</span>
-     </div>`).join('');
+  if (!host) return;
+  host.innerHTML = '';
+  const punctOf = key => PUNCT_LESSONS.filter(p => p.key === key);
+  PUNCT_KEYBOARD.forEach((row, ri) => {
+    const r = document.createElement('div');
+    r.className = 'zp-row';
+    if (ri > 0) r.style.paddingLeft = (ri * 10) + 'px';
+    row.forEach(([key, zy]) => {
+      const marks = punctOf(key);
+      const k = document.createElement('div');
+      k.className = 'zk ptk' + (marks.length ? ' has-punct' : '');
+      k.dataset.key = key;
+      k.innerHTML =
+        `<span class="ptk-marks">${marks.map(m =>
+            `<span class="ptk-mark" data-ch="${m.ch}">${m.ch}</span>`).join('')}</span>` +
+        `<span class="zk-sym">${zy || '&nbsp;'}</span>` +
+        `<span class="zk-key">${key}</span>`;
+      r.appendChild(k);
+    });
+    host.appendChild(r);
+  });
 }
 
 function paintPunctQuestion() {
@@ -4957,13 +5020,19 @@ function paintPunctQuestion() {
   setTxt('pt-mark', q.ch);
   setTxt('pt-name', q.name);
   setTxt('pt-use', q.use);
-  $('pt-hint').textContent = `按 ${q.key}`;
+  $('pt-hint').innerHTML =
+    `按 <b class="pt-key">${q.mod}</b> ＋ <b class="pt-key">${q.key}</b>`;
   setTxt('pt-progress', `${PT.idx} / ${PT.queue.length}`);
   setTxt('pt-streak', PT.streak);
   $('pt-input').value = '';
-  // 輔助面板：現在要打的那一顆亮起來
-  [...$('pt-keys').children].forEach(k =>
-    k.classList.toggle('lit', k.dataset.ch === q.ch));
+  /* 輔助面板：該按的那顆鍵亮起來，同一顆鍵上有兩個標點時
+     （分號鍵的 ； 與 ：）只把要打的那一個標紅 */
+  [...$('pt-keys').querySelectorAll('.ptk')].forEach(k => {
+    const on = k.dataset.key === q.key;
+    k.classList.toggle('lit', on);
+    [...k.querySelectorAll('.ptk-mark')].forEach(m =>
+      m.classList.toggle('want', on && m.dataset.ch === q.ch));
+  });
 }
 
 function submitPunct() {
@@ -4973,8 +5042,10 @@ function submitPunct() {
   const val = ($('pt-input').value || '').trim();
   if (!val) return;
   const fb = $('pt-feedback');
-  // 判定沿用遊戲本體的標點等價類：全形半形、形狀相近的都算對
-  const ok = [...val].length === 1 && canon(val) === canon(q.ch);
+  /* 這裡不能用遊戲本體那套放寬的標點等價類——那是為了「打字時不要因為
+     形狀吵架」而放寬的，但這個練習的目的就是分辨形狀，逗號跟頓號
+     必須算不一樣。所以改成嚴格比對，只容許全形／半形的差異。 */
+  const ok = [...val].length === 1 && samePunct(val, q.ch);
   if (ok) {
     PT.streak++; PT.idx++;
     fb.textContent = '✓ 對了！';
@@ -4991,6 +5062,13 @@ function submitPunct() {
   paintPunctQuestion();
   setTimeout(() => { if (PT.active) fb.textContent = ''; }, 700);
 }
+/* 只把「同一個標點的半形寫法」當成對，其餘一律算錯 */
+const PUNCT_SAME = {
+  '，': [',', '，'], '。': ['.', '。'], '、': ['、', '\\'],
+  '？': ['?', '？'], '！': ['!', '！'], '：': [':', '：'], '；': [';', '；'],
+  '「': ['「'], '」': ['」']
+};
+const samePunct = (typed, want) => (PUNCT_SAME[want] || [want]).includes(typed);
 
 function skipPunct() {
   if (!PT.active) return;
@@ -5016,7 +5094,7 @@ async function finishPunctDrill() {
   fb.style.color = 'var(--gr)';
   fb.textContent = `成長點數 +${total}` + (bonus ? `（全對再加 ${bonus}）` : '');
   setTxt('pt-progress', `${PT.queue.length} / ${PT.queue.length}`);
-  [...$('pt-keys').children].forEach(k => { k.classList.remove('lit'); k.classList.add('done'); });
+  [...$('pt-keys').querySelectorAll('.ptk')].forEach(k => k.classList.remove('lit'));
 
   /* 寫回點數。訓練場不寫 plays、不寫任何 best*／last*——
      這不是一場戰鬥，不該污染成績與排行。 */
@@ -5044,6 +5122,7 @@ function quitPunctDrill() {
   show('screen-punct', false);
   gotoLobby();
 }
+
 
 function buildQualityRack() {
   const rack = $('lobby-quality-rack');
@@ -6386,7 +6465,6 @@ const POOL_LABEL_HTML = k => {
 function wireEvents() {
   $('btn-enter').addEventListener('click', doLogin);
   $('in-name').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
-  $('btn-practice').addEventListener('click', () => startBattle(true));
 
   /* 新手教學 */
   $('tut-next').addEventListener('click', tutorialNext);
