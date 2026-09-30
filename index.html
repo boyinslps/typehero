@@ -2395,8 +2395,13 @@ const BALANCE = {
    版本紀錄：首頁右下角那顆 v2.0.0 按鈕點開看到的內容。
    跟 CHANGELOG.md 是同一份資料，改一邊也要記得改另一邊。
    ══════════════════════════════════════════════════════════════ */
-const APP_VERSION = '3.1.1';
+const APP_VERSION = '3.1.2';
 const VERSION_LOG = [
+  { v:'3.1.2', date:'2026-09-30', title:'修正教學中無法攻擊',
+    added: [], changed: [],
+    fixed: [
+      '新手教學（含重新遊玩）裡按 Enter 或「攻擊」都沒反應、整個卡住：教學不吃天賦，但攻擊時直接去讀天賦欄位而出錯，現在沒有天賦時會當作全部沒點'
+    ] },
   { v:'3.1.1', date:'2026-09-28', title:'營地分三區・標點鍵盤',
     added: [],
     changed: [
@@ -5727,7 +5732,10 @@ function submitAttack() {
      echoLeft  詠唱成功後還剩幾題吃 +50%（【餘韻】）
      afterimage 上三題是不是連續全對（【殘影】，這一題才翻倍） */
   const accSoFar = G.typedChars ? G.correctChars / G.typedChars : 1;
-  const afterimage = !!(BF.tal.afterimage && G.perfectStreak >= 3);
+  /* 新手教學時 BF 就是 BALANCE 本人，沒有 tal（不吃天賦），
+     直接讀 BF.tal.xxx 會丟錯，整個攻擊送不出去。 */
+  const T = BF.tal || {};
+  const afterimage = !!(T.afterimage && G.perfectStreak >= 3);
   let { dmg, bonus, kind, note, banner } =
     computeDamage(G.weapon, G.quality, res, effCombo, {
       special: !!G.q.special, sharp, cps, lv: G.lv,
@@ -5759,8 +5767,8 @@ function submitAttack() {
   /* 天賦狀態更新（要在傷害算完之後，這一題才不會吃到自己造成的狀態） */
   G.perfectStreak = res.perfect ? (G.perfectStreak || 0) + 1 : 0;
   if (G.echoLeft > 0) G.echoLeft--;                       // 【餘韻】倒數
-  if (BF.tal.echo && G.q.special && G.weapon === 'staff' && res.perfect) {
-    G.echoLeft = BF.tal.echo;                             // 詠唱成功，接下來幾題加成
+  if (T.echo && G.q.special && G.weapon === 'staff' && res.perfect) {
+    G.echoLeft = T.echo;                            // 詠唱成功，接下來幾題加成
   }
   G.byWeapon[G.weapon] += dmg;
 
