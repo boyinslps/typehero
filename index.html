@@ -995,6 +995,22 @@ select option{background:var(--panel2);color:var(--ink)}
   </div>
 </div>
 
+<!-- ══════════ 天賦介紹：第一次進營地才會出現（天賦面板的「說明」可以再看一次）══════════ -->
+<div id="talent-intro" class="hidden fixed inset-0 z-[89] flex items-center justify-center p-4"
+     style="background:rgba(9,8,18,.9)">
+  <div class="panel p-7 w-full max-w-md text-center">
+    <div class="label mb-2" id="ti-step">1 / 4</div>
+    <div id="ti-art" class="flex justify-center gap-2 mb-3"></div>
+    <h2 class="text-2xl font-black mb-3" id="ti-title"></h2>
+    <p class="text-base mb-6 leading-relaxed" style="color:var(--dim)" id="ti-body"></p>
+    <div class="flex gap-2">
+      <button id="ti-prev" class="btn btn-ghost px-5 py-3.5 text-lg">上一步</button>
+      <button id="ti-next" class="btn btn-gold flex-1 py-3.5 text-lg">繼續</button>
+    </div>
+    <button id="ti-skip" class="text-sm mt-4" style="color:var(--dim2)">之後再看</button>
+  </div>
+</div>
+
 <!-- ══════════ 版本紀錄 ══════════ -->
 <div id="verlog-modal" class="hidden fixed inset-0 z-[86] flex items-center justify-center p-4"
      style="background:rgba(9,8,18,.85)">
@@ -1021,6 +1037,8 @@ select option{background:var(--panel2);color:var(--ink)}
       <div class="flex items-center gap-3">
         <span class="text-sm" style="color:var(--dim)">可用點數</span>
         <span id="tal-pts" class="mono text-3xl font-black" style="color:var(--gold)">0</span>
+        <button id="tal-help" class="px-3 py-2 rounded-lg text-sm border"
+                style="border-color:var(--line)">說明</button>
         <button id="tal-reset" class="px-3 py-2 rounded-lg text-sm border"
                 style="border-color:var(--line)">重置天賦</button>
         <button id="tal-close" class="px-4 py-2 rounded-lg border text-sm"
@@ -2395,8 +2413,14 @@ const BALANCE = {
    版本紀錄：首頁右下角那顆 v2.0.0 按鈕點開看到的內容。
    跟 CHANGELOG.md 是同一份資料，改一邊也要記得改另一邊。
    ══════════════════════════════════════════════════════════════ */
-const APP_VERSION = '3.1.2';
+const APP_VERSION = '3.2.0';
 const VERSION_LOG = [
+  { v:'3.2.0', date:'2026-09-30', title:'天賦介紹',
+    added: [
+      '第一次進營地會跳出天賦介紹（4 頁）：成長點數怎麼來、三棵樹對三把武器、外圈到內圈與費用、可以免費重置',
+      '天賦面板右上角新增「說明」，隨時可以再看一次'
+    ],
+    changed: [], fixed: [] },
   { v:'3.1.2', date:'2026-09-30', title:'修正教學中無法攻擊',
     added: [], changed: [],
     fixed: [
@@ -4277,6 +4301,7 @@ function histFromDoc(d) {
     bestZone:    d.bestZone    || 0,
     totalKills:  d.totalKills  || 0,
     tutorialDone: !!d.tutorialDone,
+    talentIntroDone: !!d.talentIntroDone,
     plays:      d.plays || 0,
     balanceVer: d.balanceVer || 0,
     lastPlayedMs: (ts && ts.toDate) ? ts.toDate().getTime() : 0
@@ -4311,6 +4336,7 @@ function mergeHist(a, b) {
     bestZone:    pick('bestZone'),
     totalKills:  pick('totalKills'),
     tutorialDone: !!((a && a.tutorialDone) || (b && b.tutorialDone)),
+    talentIntroDone: !!((a && a.talentIntroDone) || (b && b.talentIntroDone)),
     balanceVer: Math.max((a && a.balanceVer) || 0, (b && b.balanceVer) || 0),
     lastPlayedMs: pick('lastPlayedMs')
   };
@@ -4776,8 +4802,91 @@ function paintTalentDot() {
   dot.classList.toggle('on', pts >= nextTalentCost(false));
 }
 
+/* ══════════════════════════════════════════════════════════════
+   天賦介紹：第一次進營地時跳出來，一頁一頁講完天賦怎麼玩。
+   看過就記在歷史（本機＋雲端）的 talentIntroDone，換電腦也不會再跳；
+   天賦面板右上角的「說明」隨時可以再看一次。
+   費用的數字直接從 BALANCE 算，改平衡時這裡不用跟著改。
+   ══════════════════════════════════════════════════════════════ */
+function talentIntroPages() {
+  const c1 = talentCost(1, false), c2 = talentCost(2, false), c3 = talentCost(3, false);
+  const trees = Object.values(TALENT_TREES);
+  const chip = (text, color) =>
+    `<span class="px-3 py-1 rounded-lg text-sm font-black" style="border:2px solid ${color};color:${color}">${text}</span>`;
+  return [
+    { title: '天賦：讓你的武器變強',
+      art: `<span class="ico-slot" data-ico="sparkle" data-ico-size="44" style="color:var(--gold)"></span>`,
+      body: '每打完一場（練習也算），都會拿到「成長點數」。點數可以拿來點亮天賦，' +
+            '讓你的武器更厲害。天賦會一直留著，不會因為換學期就不見。' },
+    { title: '三把武器，三棵樹',
+      art: trees.map(t => chip(t.name, t.color)).join(''),
+      body: '法杖、弓箭、匕首各有一棵天賦樹。天賦只有在拿那把武器出戰時才有效，' +
+            '所以先想好你最常用哪一把，再決定要點哪一棵。' },
+    { title: '從外圈點到內圈',
+      art: [1, 2, 3].map(r => chip(`第 ${r} 圈`, r === 1 ? 'var(--gold)' : 'var(--line2)')).join(''),
+      body: `每棵樹有三圈，要先點亮外面那一圈的任何一個，才點得到裡面那一圈。` +
+            `第一個天賦只要 ${c1} 點，之後會越來越貴（${c2}、${c3}…），` +
+            `標著「大」的大節點要兩倍。` },
+    { title: '不滿意？隨時免費重置',
+      art: `<span class="ico-slot" data-ico="back" data-ico-size="40" style="color:var(--gold)"></span>`,
+      body: '點錯了、想換一把武器練，都可以按「重置天賦」把點數全部拿回來，重新分配。' +
+            '營地右上角的「天賦」按鈕出現紅點，就代表你的點數夠點下一個了！',
+      cta: '打開天賦看看' }
+  ];
+}
+const TI = { idx: 0, pages: [] };
+
+function openTalentIntro() {
+  TI.pages = talentIntroPages();
+  TI.idx = 0;
+  show('talent-intro', true);
+  paintTalentIntro();
+}
+function paintTalentIntro() {
+  const p = TI.pages[TI.idx];
+  setTxt('ti-step', `${TI.idx + 1} / ${TI.pages.length}`);
+  setTxt('ti-title', p.title);
+  setTxt('ti-body', p.body);
+  $('ti-art').innerHTML = p.art || '';
+  hydrateIcons($('ti-art'));
+  setTxt('ti-next', p.cta || '繼續');
+  show('ti-prev', TI.idx > 0);
+}
+function talentIntroStep(d) {
+  const i = TI.idx + d;
+  if (i < 0) return;
+  if (i >= TI.pages.length) { closeTalentIntro(true); return; }
+  TI.idx = i;
+  paintTalentIntro();
+}
+/* 看完或按「之後再看」都算看過了，不然每次回營地都跳一次會很煩 */
+function closeTalentIntro(openPanel) {
+  show('talent-intro', false);
+  markTalentIntroDone();
+  if (openPanel) openTalentPanel();
+}
+function markTalentIntroDone() {
+  if (!ME || !ME.docId || (MY_HIST && MY_HIST.talentIntroDone)) return;
+  MY_HIST = Object.assign({}, MY_HIST, { talentIntroDone: true });
+  writeLocalHist(ME.docId, MY_HIST);
+  setDoc(doc(REF.scores, ME.docId), {
+    className: ME.className, seat: ME.seat, name: ME.name, talentIntroDone: true
+  }, { merge: true }).catch(e => console.error('天賦介紹狀態上傳失敗', e));
+}
+/* 營地叫這個：新手教學做完、還沒看過介紹，才跳 */
+function maybeShowTalentIntro() {
+  if (!ME || !MY_HIST || !MY_HIST.tutorialDone || MY_HIST.talentIntroDone) return;
+  clearTimeout(maybeShowTalentIntro._t);
+  // 等營地畫面跟「準備好了」的提示先出來，不要一進來就被卡片蓋住
+  maybeShowTalentIntro._t = setTimeout(() => {
+    if ($('screen-lobby').classList.contains('hidden')) return;   // 這段時間已經被拉去開戰了
+    if (!$('talent-intro').classList.contains('hidden')) return;
+    openTalentIntro();
+  }, 700);
+}
+
 function gotoLobby() {
-  BF = BALANCE;                              // 離開戰鬥就把天賦加成收回去
+  BF = BALANCE;                             // 離開戰鬥就把天賦加成收回去
   PT.active = false;
   show('app-header', false);                 // 營地也是滿版，不需要標題列
   show('screen-lobby', true); show('screen-game', false);
@@ -4789,6 +4898,7 @@ function gotoLobby() {
   if (ls) ls.textContent = ONLINE ? '' : '離線・成績只留在這台電腦';
   paintTalentDot();                          // 有點數沒花就在天賦按鈕上點紅點
   buildBattleRack();                         // 選擇戰場那三顆按鈕
+  maybeShowTalentIntro();                    // 第一次進營地：介紹天賦
 }
 
 /* 「結算」鍵：提早結束這一場，但**成績照算照存**。
@@ -5351,6 +5461,7 @@ function startBattle(practice, opts = {}) {
   show('btn-escape', true);
   show('screen-game', true);
   show('practice-flag', practice);
+  show('talent-intro', false);               // 老師開戰時如果正在看天賦介紹，先收起來
   show('unlock-banner', false); show('levelup-banner', false); show('chainkill-banner', false);
 
   paintSpecialState(false);
@@ -6499,6 +6610,10 @@ function wireEvents() {
   /* 天賦 */
   $('btn-talent').addEventListener('click', openTalentPanel);
   $('tal-close').addEventListener('click', () => show('talent-modal', false));
+  $('tal-help').addEventListener('click', openTalentIntro);
+  $('ti-next').addEventListener('click', () => talentIntroStep(1));
+  $('ti-prev').addEventListener('click', () => talentIntroStep(-1));
+  $('ti-skip').addEventListener('click', () => closeTalentIntro(false));
   $('tal-reset').addEventListener('click', resetTalents);
 
   /* 排行榜 */
