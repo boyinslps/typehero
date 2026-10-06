@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="author" content="資訊老師黃博胤">
 <title>打字勇者 - 全班討伐戰</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
@@ -584,6 +585,10 @@ select option{background:var(--panel2);color:var(--ink)}
   <button id="btn-teacher" class="btn btn-ghost text-sm px-4 py-2.5" style="color:var(--dim)">
     <span class="ico-slot" data-ico="gear" data-ico-size="17"></span>教師</button>
 </header>
+
+<!-- 署名：右下角最底下一行小字，點不到（pointer-events:none），不擋任何按鈕 -->
+<div id="made-by" style="position:fixed;right:18px;bottom:2px;z-index:39;pointer-events:none;
+     font-size:10px;line-height:1;color:var(--dim2);opacity:.6">made by 資訊老師黃博胤</div>
 
 <!-- 版本紀錄：右下角固定按鈕，只在登入／營地畫面出現 -->
 <button id="btn-verlog" class="hidden text-xs px-3 py-1.5 rounded-full"
