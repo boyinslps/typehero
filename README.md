@@ -14,7 +14,8 @@ typing-hero/
 │   └── fx/               攻擊特效，每把武器三組輪播
 ├── docs/
 │   ├── BALANCE.md        血量／傷害／經驗／動態難度的數值規格書
-│   └── PLAN-v2.md         roguelike 改版的施工清單
+│   ├── PLAN-v2.md         roguelike 改版的施工清單
+│   └── PLAN-v4-NEWWORLD.md 新世界（狩獵／素材／合成／星圖天賦）規劃草案
 ├── tools/
 │   └── balance-sim.mjs   平衡驗算器：node tools/balance-sim.mjs
 ├── firestore-rules.txt   要貼進 Firebase 主控台的安全規則
