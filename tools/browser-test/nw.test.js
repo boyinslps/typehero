@@ -20,9 +20,10 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
   // 1. 預告頁
   await p.click('#btn-nw'); await p.waitForTimeout(300);
   ok(await p.isVisible('#nw-modal'), '按鈕打得開預告頁');
-  ok((await p.$$('#nw-preview .nw-grid')).length === 4, '魔物／武器／區域／系統四組卡片');
-  ok((await p.$$('#nw-preview .nw-card canvas')).length === 28, '12 魔物＋9 武器＋7 區域各有一張像素圖');
-  ok((await p.$$('#nw-preview .nw-px canvas')).length === 30, '加上傳送門與獵人共 30 張');
+  ok((await p.$$('#nw-preview .nw-grid')).length === 6, '魔物／武器／區域／系統／裝備／造型六組卡片');
+  ok((await p.$$('#nw-preview .nw-card canvas')).length === 38, '12 魔物＋9 武器＋7 區域＋10 造型各一張像素圖');
+  ok((await p.$$('#nw-preview .nw-px canvas')).length === 41, '加上傳送門、獵人、戰鬥畫面共 41 張');
+  ok((await p.$$('#nw-preview .nwb-tag')).length === 4 && (await p.textContent('#nw-preview .nwb-tag.me')).includes('你'), '戰鬥畫面有 4 位玩家，自己有標示');
   const sc0 = await p.evaluate(() => document.querySelector('#nw-preview [data-k="monster:coo"] canvas').toDataURL());
   await p.click('#nw-preview [data-k="monster:coo"]');
   const sc1 = await p.evaluate(() => document.querySelector('#nw-preview [data-k="monster:coo"] canvas').toDataURL());

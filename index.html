@@ -40,6 +40,24 @@ body{
 .nw-tab[aria-pressed="true"]{background:var(--gold);color:#1a1409;border-color:var(--gold2)}
 .nw-px canvas{display:block;margin:0 auto;image-rendering:pixelated;image-rendering:crisp-edges}
 .nw-stage{background:#0e0b16;border-radius:6px;padding:8px}
+.nwb{position:relative;margin:0 auto;font-size:max(10px,calc(var(--u)*2.6));line-height:1.25}
+.nwb-sc{position:relative}
+.nwb-sc canvas{display:block}
+.nwb-plate{position:absolute;left:1%;top:2%;width:36%;background:rgba(10,8,18,.82);border:1px solid var(--line2);border-radius:6px;padding:.3em .5em;font-weight:800}
+.nwb-bar{height:.6em;background:#2a1c1c;border-radius:99px;overflow:hidden;margin-top:.2em}
+.nwb-bar i{display:block;height:100%;background:#d8402a}
+.nwb-bar.g i{background:#6aa84f}
+.nwb-timer{position:absolute;right:1%;top:2%;background:rgba(10,8,18,.82);border:1px solid var(--line2);border-radius:6px;padding:.3em .6em;font-weight:800}
+.nwb-call{position:absolute;left:50%;top:2%;transform:translateX(-50%);background:#d83a3a;color:#fff;font-weight:900;padding:.25em .8em;border-radius:99px;white-space:nowrap;animation:nwbBlink 1s steps(2) infinite}
+@keyframes nwbBlink{50%{background:#a02828}}
+.nwb-tag{position:absolute;transform:translateX(-50%);background:rgba(10,8,18,.78);border:1px solid var(--line2);border-radius:5px;padding:.05em .4em;font-weight:800;text-align:center;white-space:nowrap}
+.nwb-tag small{display:block;font-weight:400;font-size:.8em;color:var(--dim)}
+.nwb-tag.me{border-color:#ffd24a;color:#ffd24a}
+.nwb-n{position:absolute;width:1.7em;height:1.7em;border-radius:50%;background:var(--gold);color:#1a1409;font-weight:900;display:grid;place-items:center;transform:translate(-50%,-50%)}
+.nwb-bottom{display:flex;align-items:center;gap:.9em;background:#120e1c;border:1px solid var(--line2);border-top:0;padding:.5em .8em}
+.nwb-bottom .nwb-n{position:static;transform:none;flex:none}
+.nwb-q{flex:1;min-width:0;background:var(--panel2);border:1px solid var(--line2);border-radius:6px;padding:.35em .6em;font-weight:800}
+.nwb-in{color:var(--gold);animation:nwbBlink 1s steps(2) infinite}
 .nw-grid.wide{grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
 .nw-card{background:var(--panel2);border:2px solid var(--line);border-radius:var(--r);padding:12px}
 .nw-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
@@ -2476,14 +2494,9 @@ const BALANCE = {
   grade: { sMin: 6, aMin: 4.5, bMin: 3, cMin: 1.5 }
 };
 
-/* ══════════════════════════════════════════════════════════════
-   像素美術（PX）：魔物、武器、區域、傳送門、獵人全部用程式畫成點陣圖，
-   不需要任何圖檔。每張圖是一個小格子（武器 28×28、魔物 40×32、區域 56×28），
-   用 canvas 放大整數倍、不補間，所以邊緣保持銳利。
-   生氣：PX.canvas(kind, key, scale, true) 會把整張圖偏紅。
-   ══════════════════════════════════════════════════════════════ */
+// 像素美術：程式畫的點陣圖。PX.canvas(種類, 名字, 倍率, 生氣)；PX.hero(造型, 倍率)
 const PX = (() => {
-/* ───────── 小小點陣繪圖工具 ───────── */
+
 const mk = (w, h) => ({ w, h, d: new Array(w * h).fill(null) });
 const put = (s, x, y, c) => { x = Math.round(x); y = Math.round(y); if (x >= 0 && y >= 0 && x < s.w && y < s.h) s.d[y * s.w + x] = c; };
 const get = (s, x, y) => (x >= 0 && y >= 0 && x < s.w && y < s.h) ? s.d[y * s.w + x] : null;
@@ -2524,7 +2537,6 @@ function blit(s, scale, angry) {
 }
 const OL = '#1a1209';
 
-/* ───────── 武器（28×28）───────── */
 const W = {};
 W.staff = () => {
   const s = mk(28, 28);
@@ -2626,7 +2638,6 @@ W.bell = () => {
   return s;
 };
 
-/* ───────── 獵人（24×32）───────── */
 function hunter() {
   const s = mk(26, 32);
   tline(s, 21, 29, 21, 8, '#a8763c', '#74491f'); disc(s, 22, 6, 3, '#6a42e8'); put(s, 21, 5, '#e6d9ff'); put(s, 22, 4, '#b79bff');
@@ -2640,14 +2651,11 @@ function hunter() {
   outline(s, OL); return s;
 }
 
-/* ───────── 傳送門場景（80×44）───────── */
 function portal() {
   const s = mk(80, 44), R = rng(7);
   sky(s, ['#0b0818', '#1a1038', '#2d1a5c'], 0, 36);
   for (let i = 0; i < 38; i++) { const x = Math.floor(R() * 80), y = Math.floor(R() * 24); put(s, x, y, R() < .3 ? '#fff' : '#b9a8ff'); }
-  // 遠山
   for (let x = 0; x < 80; x++) { const h = 28 + Math.round(3 * Math.sin(x * .13) + 2 * Math.sin(x * .31)); rect(s, x, h, 1, 12, '#1a1230'); }
-  // 地面
   rect(s, 0, 36, 80, 8, '#241c36'); rect(s, 0, 36, 80, 1, '#3a2f55');
   for (let y = 38; y < 44; y += 3) rect(s, 0, y, 80, 1, '#2e2445');
   for (let x = 0; x < 80; x += 8) for (let y = 37; y < 44; y += 3) put(s, x + ((y / 3 | 0) % 2) * 4, y, '#1a1230');
@@ -2664,25 +2672,20 @@ function portal() {
       const n = (x * 7 + y * 13) % 5; put(s, x, y, n === 0 ? '#575069' : (x < cx ? '#8a829f' : '#6b6580'));
     }
   }
-  // 石塊紋路
   for (let a = -90; a <= 90; a += 18) { const t = a * Math.PI / 180 - Math.PI / 2; for (let r = ri + 1; r < ro; r++) put(s, cx + Math.cos(t) * r, cy + Math.sin(t) * r, '#3d3750'); }
   for (let y = 24; y < 36; y += 4) { rect(s, cx - ro, y, ro - ri, 1, '#3d3750'); rect(s, cx + ri + 1, y, ro - ri, 1, '#3d3750'); }
   rect(s, cx - ro - 1, 35, 2 * ro + 3, 2, '#575069'); rect(s, cx - ro - 1, 35, 2 * ro + 3, 1, '#8a829f');
   put(s, cx - 1, cy - ro, '#e8b64c'); put(s, cx, cy - ro, '#e8b64c'); put(s, cx + 1, cy - ro, '#e8b64c'); put(s, cx, cy - ro + 1, '#e8b64c');
-  // 火把
   [[18, 31], [62, 31]].forEach(([x, y]) => {
     rect(s, x, y, 2, 6, '#7a4a22'); rect(s, x - 1, y, 4, 1, '#5a3a22');
     rect(s, x, y - 3, 2, 3, '#ff9f3c'); put(s, x, y - 4, '#ff6a2e'); put(s, x + 1, y - 2, '#ffe27a'); put(s, x, y - 1, '#ffe27a'); put(s, x - 1, y - 2, '#ff6a2e'); put(s, x + 2, y - 1, '#ff6a2e');
   });
-  // 飄出來的紫光
   for (let i = 0; i < 16; i++) { const a = R() * 6.28, r = 17 + R() * 9; const x = cx + Math.cos(a) * r, y = 26 + Math.sin(a) * r * .8; if (y < 35) put(s, x, y, R() < .5 ? '#a98bff' : '#d9ccff'); }
-  // 小小的獵人背影
   const hx = 40, hy = 28;
   rect(s, hx - 2, hy + 3, 5, 5, '#2f7a78'); rect(s, hx - 3, hy + 6, 7, 2, '#2f7a78'); disc(s, hx, hy + 1, 2, '#3e9a96'); put(s, hx + 3, hy + 2, '#8f6bff'); rect(s, hx + 3, hy + 3, 1, 5, '#a8763c'); rect(s, hx - 2, hy + 8, 2, 2, '#5a3a22'); rect(s, hx + 1, hy + 8, 2, 2, '#5a3a22');
   return s;
 }
 
-/* ───────── 區域（56×28）───────── */
 const RG = {};
 RG.grass = () => {
   const s = mk(56, 28), R = rng(3);
@@ -2720,7 +2723,6 @@ RG.coast = () => {
   rect(s, 0, 22, 56, 6, '#e8d29a'); for (let x = 0; x < 56; x++) { if (x % 3 === 0) put(s, x, 22, '#fff'); put(s, x, 23 + (x % 2), '#f6e6b4'); }
   for (let i = 0; i < 20; i++) put(s, Math.floor(R() * 56), 24 + Math.floor(R() * 4), '#c8b27a');
   for (let x = 0; x < 56; x += 2) put(s, x, 21, '#eaf8fb');
-  // 椰子樹
   tline(s, 47, 25, 49, 12, '#8a5a2b', '#5a3a22'); tline(s, 49, 12, 50, 8, '#8a5a2b', '#5a3a22');
   [[-6, 2], [-5, -3], [5, -2], [6, 3], [0, -5]].forEach(([dx, dy]) => { line(s, 51, 8, 51 + dx, 8 + dy, '#3f9a45'); line(s, 51, 9, 51 + dx, 9 + dy, '#2c7a35'); });
   disc(s, 51, 9, 1, '#6d4320');
@@ -2781,8 +2783,6 @@ RG.abyss = () => {
   return s;
 };
 
-
-/* ───────── 魔物（40×32）───────── */
 const hx2 = c => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16));
 const rgb2 = a => '#' + a.map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
 const mix = (c, t, k) => { const a = hx2(c), b = hx2(t); return rgb2(a.map((v, i) => v + (b[i] - v) * k)); };
@@ -2877,19 +2877,30 @@ M.lava = () => {
   return s;
 };
 M.ink = () => {
-  const s = mk(40, 32), b = '#3a5aa8', belly = '#9ab8f0';
-  const pts = []; for (let i = 0; i <= 28; i++) { const t = i / 28; pts.push([35 - t * 27, 26 - t * 15 + 4 * Math.sin(t * 8.5), 1.4 + t * 3.8]); }
-  pts.forEach(([x, y, r], i) => { if (i % 4 === 2 && i < 25) { tri(s, Math.round(x), Math.round(y - r - 4), Math.round(y - r + 1), 1, '#4ad0e0'); } });
-  tri(s, 37, 22, 28, 1, '#4ad0e0');
-  pts.forEach(([x, y, r]) => disc(s, x, y, Math.round(r), dk(b, .35)));
-  pts.forEach(([x, y, r]) => disc(s, x, y - .5, Math.max(1, Math.round(r) - 1), b));
-  pts.forEach(([x, y, r], i) => { if (r > 2) put(s, x, y + r - 1, belly); if (i % 3 === 0) put(s, x - 1, y - 1, lt(b, .35)); if (i % 3 === 1) put(s, x + 1, y, dk(b, .2)); });
-  const [hx, hy] = pts[pts.length - 1];
-  line(s, hx + 1, hy - 5, hx - 2, hy - 10, '#f6d77a'); line(s, hx + 3, hy - 4, hx + 4, hy - 9, '#f6d77a');
-  rect(s, hx - 2, hy - 2, 4, 3, '#fff'); rect(s, hx - 2, hy - 2, 2, 3, '#222'); put(s, hx - 2, hy - 2, '#fff');
-  line(s, hx - 5, hy + 2, hx + 1, hy + 3, '#12204a'); put(s, hx - 5, hy + 3, '#fff');
+  const s = mk(40, 32), b = '#2f56b0', belly = '#a9c4f2', mane = '#4ad0e0', gold = '#f6d77a';
+  const way = [[14, 13, 4], [19, 15, 4], [24, 17, 4], [29, 16, 3.8], [33, 18, 3.5], [34, 22, 3], [31, 26, 2.5], [26, 28, 2], [21, 29, 1.5], [17, 28, 1]];
+  const body = [];
+  for (let i = 0; i < way.length - 1; i++) {
+    const [ax, ay, ar] = way[i], [bx, by, br] = way[i + 1];
+    for (let t = 0; t < 1; t += .2) body.push([ax + (bx - ax) * t, ay + (by - ay) * t, ar + (br - ar) * t]);
+  }
+  body.forEach(([x, y, r], i) => { if (i % 3 === 1) tri(s, Math.round(x), Math.round(y - r - 3), Math.round(y - r + 1), 1, mane); });
+  [[22, 21], [31, 23]].forEach(([x, y]) => { rect(s, x, y, 3, 5, dk(b, .2)); rect(s, x - 1, y + 5, 5, 1, gold); put(s, x - 1, y + 6, gold); put(s, x + 1, y + 6, gold); put(s, x + 3, y + 6, gold); });
+  body.forEach(([x, y, r]) => disc(s, x, y, Math.round(r), dk(b, .35)));
+  body.forEach(([x, y, r]) => disc(s, x, y - .5, Math.max(1, Math.round(r) - 1), b));
+  body.forEach(([x, y, r], i) => { if (r > 2) put(s, x, y + Math.round(r) - 1, belly); if (i % 4 === 0) put(s, x - 1, y - 1, lt(b, .35)); if (i % 4 === 2) put(s, x + 1, y, dk(b, .2)); });
+  line(s, 12, 6, 15, 1, gold); line(s, 14, 3, 17, 3, gold); line(s, 8, 6, 8, 1, gold); line(s, 8, 3, 5, 2, gold);
+  sell(s, 10, 11, 7, 5, b);
+  sell(s, 4, 13, 4, 3, lt(b, .12));
+  ell(s, 5, 16, 4, 2, dk(b, .1));
+  line(s, 1, 15, 8, 15, '#12204a');
+  put(s, 2, 16, '#fff'); put(s, 4, 16, '#fff'); put(s, 3, 14, '#fff');
+  put(s, 2, 12, '#12204a'); put(s, 3, 12, '#12204a');
+  rect(s, 9, 9, 3, 2, gold); put(s, 10, 9, '#222'); put(s, 10, 10, '#222');
+  line(s, 8, 8, 12, 8, '#12204a');
+  line(s, 3, 17, 0, 21, mane); line(s, 5, 18, 3, 24, mane);
   outline(s, OL);
-  [[3, 22, 2], [9, 29, 1], [2, 15, 1], [35, 29, 2]].forEach(([x, y, r]) => disc(s, x, y, r, '#0e1638'));
+  disc(s, 3, 28, 2, '#0e1638'); disc(s, 8, 30, 1, '#0e1638'); disc(s, 37, 29, 1, '#0e1638');
   return s;
 };
 M.crab = () => {
@@ -2984,29 +2995,112 @@ M.dragon = () => {
   outline(s, OL); return s;
 };
 
-/* ───────── 對外介面 ───────── */
+function hero(look) {
+  const L = Object.assign({ skin: '#f2c7a0', hair: '#5a3a22', style: 'short', helm: 'none', armor: '#4a8fb8', trim: '#e8b64c', cape: null, weapon: 'staff', boots: '#5a3a22' }, look);
+  const s = mk(26, 30), cx = 11, pants = dk(L.armor, .4);
+  rect(s, cx - 5, 23, 4, 4, pants); rect(s, cx + 1, 23, 4, 4, pants);
+  rect(s, cx - 5, 27, 4, 3, L.boots); rect(s, cx + 1, 27, 4, 3, L.boots); rect(s, cx - 5, 27, 4, 1, lt(L.boots, .25)); rect(s, cx + 1, 27, 4, 1, lt(L.boots, .25));
+  rect(s, cx - 5, 13, 11, 10, L.armor); rect(s, cx - 5, 13, 3, 10, lt(L.armor, .2)); rect(s, cx + 3, 13, 3, 10, dk(L.armor, .2));
+  rect(s, cx - 5, 21, 11, 1, L.trim);
+  rect(s, cx - 7, 13, 3, 3, lt(L.armor, .15)); rect(s, cx + 5, 13, 3, 3, dk(L.armor, .1)); rect(s, cx - 7, 13, 3, 1, L.trim); rect(s, cx + 5, 13, 3, 1, L.trim);
+  rect(s, cx - 7, 16, 2, 6, dk(L.armor, .1)); rect(s, cx + 6, 16, 2, 6, dk(L.armor, .2));
+  rect(s, cx - 7, 22, 2, 2, L.skin); rect(s, cx + 6, 22, 2, 2, L.skin);
+  if (L.cape) {
+    rect(s, cx - 5, 14, 11, 13, L.cape); rect(s, cx - 5, 14, 2, 13, lt(L.cape, .2)); rect(s, cx + 4, 14, 2, 13, dk(L.cape, .25));
+    rect(s, cx - 5, 26, 11, 1, L.trim); line(s, cx, 15, cx, 25, dk(L.cape, .2));
+  }
+  rect(s, cx - 1, 11, 3, 3, L.skin);
+  if (L.style === 'long') rect(s, cx - 5, 9, 11, 8, L.hair);
+  if (L.style === 'pony') { rect(s, cx - 1, 11, 3, 9, L.hair); rect(s, cx - 1, 11, 3, 1, L.trim); }
+  sdisc(s, cx, 7, 5, L.hair);
+  put(s, cx - 6, 8, L.skin); put(s, cx + 6, 8, L.skin);
+  if (L.style === 'spiky') { tri(s, cx - 3, 0, 4, 1, L.hair); tri(s, cx, -1, 3, 1, L.hair); tri(s, cx + 3, 0, 4, 1, L.hair); }
+  if (L.style === 'bun') sdisc(s, cx, 1, 2, L.hair);
+  if (L.helm === 'hood') { sdisc(s, cx, 7, 6, L.armor); rect(s, cx - 6, 9, 13, 4, L.armor); rect(s, cx - 6, 12, 13, 1, L.trim); }
+  if (L.helm === 'helm' || L.helm === 'horn') {
+    sell(s, cx, 6, 6, 5, '#aeb8c4'); rect(s, cx, 1, 1, 10, L.trim); rect(s, cx - 6, 10, 13, 2, '#8e9aa6'); rect(s, cx - 6, 10, 13, 1, '#c8d0da');
+  }
+  if (L.helm === 'horn') { line(s, cx - 6, 6, cx - 9, 1, '#f4efe0'); line(s, cx - 6, 5, cx - 8, 1, '#d8d0bc'); line(s, cx + 6, 6, cx + 9, 1, '#f4efe0'); line(s, cx + 6, 5, cx + 8, 1, '#d8d0bc'); }
+  const wood = '#a8763c', steel = '#dfe6ec';
+  if (L.weapon === 'staff') { tline(s, cx + 9, 28, cx + 9, 6, wood, '#74491f'); disc(s, cx + 9, 4, 3, '#6a42e8'); put(s, cx + 8, 3, '#e6d9ff'); }
+  if (L.weapon === 'bow') {
+    for (let a = -62; a <= 62; a += 3) { const t = a * Math.PI / 180; put(s, cx + 3 + 11 * Math.cos(t), 17 + 11 * Math.sin(t), wood); put(s, cx + 4 + 11 * Math.cos(t), 17 + 11 * Math.sin(t), '#74491f'); }
+    line(s, cx + 8, 8, cx + 8, 26, '#efe6c8');
+  }
+  if (L.weapon === 'dagger') { rect(s, cx + 6, 12, 2, 10, steel); rect(s, cx + 7, 12, 1, 10, '#8e9aa6'); rect(s, cx + 5, 22, 4, 1, L.trim); }
+  if (L.weapon === 'sword') {
+    rect(s, cx + 6, 8, 2, 14, steel); rect(s, cx + 7, 8, 1, 14, '#8e9aa6'); rect(s, cx + 5, 22, 4, 1, L.trim);
+    poly(s, [[cx - 12, 16], [cx - 6, 16], [cx - 6, 22], [cx - 9, 26], [cx - 12, 22]], '#3a6ea5'); rect(s, cx - 12, 16, 7, 1, L.trim); rect(s, cx - 10, 18, 3, 1, '#f0f4f8'); rect(s, cx - 9, 17, 1, 6, '#f0f4f8');
+  }
+  if (L.weapon === 'crossbow') { rect(s, cx - 6, 17, 12, 2, '#8a5a2b'); rect(s, cx - 7, 13, 2, 10, wood); rect(s, cx - 6, 14, 12, 1, '#efe6c8'); }
+  outline(s, OL);
+  return s;
+}
+
+function stamp(s, spr, ox, oy, k, o) {
+  const opt = o || {};
+  for (let y = 0; y < spr.h; y++) for (let x = 0; x < spr.w; x++) {
+    const v = spr.d[y * spr.w + x]; if (!v) continue;
+    if (opt.ghost && ((x + y) & 1)) continue;
+    const c = opt.ghost ? '#9fd8ff' : opt.angry ? tint(v) : v;
+    for (let j = 0; j < k; j++) for (let i = 0; i < k; i++) put(s, ox + x * k + i, oy + y * k + j, c);
+  }
+}
+
+function battle() {
+  const W = 160, H = 96, s = mk(W, H), R = rng(23);
+  sky(s, ['#1b0b14', '#5a1c1c', '#d0501f'], 0, 44);
+  for (let i = 0; i < 40; i++) put(s, Math.floor(R() * W), Math.floor(R() * 38), i % 3 ? '#8a7a7a' : '#ff9f3c');
+  tri(s, 24, 14, 44, 30, '#241216'); rect(s, 18, 14, 13, 2, '#ff6a2e'); rect(s, 21, 14, 7, 1, '#ffe27a');
+  tri(s, 138, 24, 44, 22, '#2a1618'); rect(s, 133, 24, 11, 1, '#ff6a2e');
+  sky(s, ['#1d1316', '#2f2226', '#46343c'], 44, H);
+  for (let k = 0; k < 8; k++) { const y = Math.round(44 + (H - 44) * Math.pow(k / 7, 1.7)); line(s, 0, y, W - 1, y, '#15100f'); }
+  for (let xb = -80; xb <= 240; xb += 24) line(s, 80 + (xb - 80) * .25, 44, xb, H - 1, '#15100f');
+  [[8, 58, 26, 62], [128, 50, 152, 55], [140, 88, 158, 82], [2, 80, 16, 86]].forEach(([a, b, c, d]) => { line(s, a, b, c, d, '#ff6a2e'); line(s, a, b + 1, c, d + 1, '#7a2a1a'); });
+  for (let y = 60; y <= 90; y++) {
+    const t = (y - 60) / 30, xl = Math.round(56 - 16 * t), xr = Math.round(106 + 16 * t);
+    for (let x = xl; x <= xr; x++) if (((x + y) & 1) === 0) put(s, x, y, '#d83a3a');
+    put(s, xl, y, '#ff8a6a'); put(s, xr, y, '#ff8a6a');
+  }
+  line(s, 56, 60, 106, 60, '#ff8a6a');
+  ell(s, 80, 61, 32, 4, '#120a0c');
+  stamp(s, M.wolf(), 40, -2, 2);
+
+  const mates = [
+    { x: 90, y: 74, look: { armor: '#9aa6b2', helm: 'helm', weapon: 'sword', hair: '#5a3a22' } },
+    { x: 22, y: 78, look: { armor: '#6a4aa8', helm: 'hood', weapon: 'staff' } },
+    { x: 134, y: 80, look: { armor: '#5fae45', style: 'spiky', hair: '#e8b64c', weapon: 'bow', boots: '#3a5a2a' } },
+    { x: 62, y: 88, look: { armor: '#3e9a96', helm: 'horn', cape: '#c0392b', weapon: 'dagger', hair: '#2a1b10' }, me: true }
+  ];
+  mates.forEach(m => ell(s, m.x, m.y, 8, 2, '#120a0c'));
+  stamp(s, hero(mates[2].look), 112 - 11, 80 - 30, 1, { ghost: true });
+  line(s, 114, 64, 126, 64, '#bfe8ff'); line(s, 112, 68, 124, 68, '#bfe8ff'); line(s, 114, 72, 126, 72, '#bfe8ff');
+  mates.forEach(m => {
+    stamp(s, hero(m.look), m.x - 11, m.y - 30, 1);
+    if (m.me) {
+      for (let a = 0; a < 360; a += 5) put(s, m.x + 11 * Math.cos(a * Math.PI / 180), m.y + 3 * Math.sin(a * Math.PI / 180), '#ffd24a');
+      rect(s, m.x - 2, m.y - 40, 5, 1, '#ffd24a'); rect(s, m.x - 1, m.y - 39, 3, 1, '#ffd24a'); put(s, m.x, m.y - 38, '#ffd24a');
+    }
+  });
+  for (let a = 200; a <= 340; a += 5) put(s, 90 + 14 * Math.cos(a * Math.PI / 180), 60 + 14 * Math.sin(a * Math.PI / 180), '#9fd8ff');
+  [[13, 52], [30, 50], [26, 58], [10, 60], [36, 55]].forEach(([x, y], i) => spark(s, x, y, '#e6d9ff', i % 2 ? '#9d80ff' : '#6a42e8'));
+  return s;
+}
+
 const GRIDS = { weapon: W, region: RG, monster: M };
 const cache = {};
 function grid(kind, key) {
   const id = kind + ':' + key;
-  return cache[id] || (cache[id] = kind === 'portal' ? portal() : kind === 'hunter' ? hunter() : GRIDS[kind][key]());
+  return cache[id] || (cache[id] = kind === 'portal' ? portal() : kind === 'hunter' ? hunter() : kind === 'battle' ? battle() : GRIDS[kind][key]());
 }
 return {
   canvas: (kind, key, scale, angry) => blit(grid(kind, key), scale, !!angry),
+  hero: (look, scale) => blit(hero(look), scale, false),
   width: (kind, key) => grid(kind, key).w
 };
 })();
 
-/* ══════════════════════════════════════════════════════════════
-   新世界預告＋提名投票（GDD §21.0）
-   入口：登入畫面的「🌋 新世界預告・提名投票」。
-
-   資料：mg_config/nw_vote 一份文件（mg_config 規則已經開放，免改 Firestore 規則）
-     noms:   [{ id, cat, text, cls, seat, name, t }]   提名（arrayUnion 一筆一筆加）
-     votes:  { [提名id]: 票數 }                         票數（increment 原子遞增）
-     hidden: [提名id]                                   老師隱藏的
-   文件上限 1MB，一則提名約 100 位元組，全校提名也遠遠用不完。
-   ══════════════════════════════════════════════════════════════ */
+// 新世界預告＋提名投票。資料在 mg_config/nw_vote：noms（提名）、votes（票數）、hidden（隱藏）
 const NW_CATS = [
   { k:'monster', icon:'👾', name:'魔物名字', ph:'例：火焰雞' },
   { k:'region',  icon:'🗺', name:'希望的區域', ph:'例：糖果王國' },
@@ -3017,48 +3111,61 @@ const NW_MAXLEN = 12;
 const NW = { data:{ noms:[], votes:{}, hidden:[] }, unsub:null, admin:false, sort:'votes', built:false };
 const nwRef = () => doc(db, 'mg_config', 'nw_vote');
 
-/* ── 預告頁內容：美術是 PX 畫的像素圖（kind:key 對應 PX 裡的 W／RG／M） ── */
 const NW_WEAPONS = [
-  { k:'staff', n:'法杖', tag:'熟悉的', t:'每 5 題一次「詠唱」，標點很多的長句全對傷害 ×3' },
-  { k:'bow', n:'長弓', tag:'熟悉的', t:'集滿爆擊條進「神射手」，盲打 3 題傷害 ×2' },
-  { k:'dagger', n:'雙刀', tag:'熟悉的', t:'每 5 題一次「連環斬」，打越快越痛' },
-  { k:'crossbow', n:'連弩', tag:'新的', t:'打對一個字裝一支箭，自己決定什麼時候一口氣射出去' },
-  { k:'book', n:'元素書', t:'打字前先選火、水、木，連續換元素會產生反應' },
-  { k:'shield', n:'劍盾', t:'防禦成功會跳出「反擊」，限時打完就是一記重擊' },
-  { k:'fist', n:'拳套', t:'閃避成功進入「爆氣」，每打對一個字就出一拳' },
-  { k:'great', n:'大劍', t:'送出全對後停住擺動的力量條，停在金色區傷害 ×3' },
-  { k:'bell', n:'召喚鈴', t:'打「衝啊」叫寵物攻擊、「守護」叫牠幫你擋，你不用停下來' }
+  { k:'staff', n:'法杖', tag:'熟悉的', t:'每打 5 題會「詠唱」一次，把一長串咒語全部打對，傷害變 3 倍！' },
+  { k:'bow', n:'長弓', tag:'熟悉的', t:'打對會集滿力量條，滿了就變神射手，連打 3 題傷害變 2 倍。' },
+  { k:'dagger', n:'雙刀', tag:'熟悉的', t:'每 5 題砍一次「連環斬」，打得越快越痛。' },
+  { k:'crossbow', n:'連弩', tag:'新的', t:'打對一個字就裝一支箭，什麼時候一口氣射出去，由你決定！' },
+  { k:'book', n:'元素書', t:'打字前先選火、水或木，連續換不同的元素還會產生反應。' },
+  { k:'shield', n:'劍盾', t:'擋住攻擊會跳出「反擊」，趕快打完就是一記重擊。' },
+  { k:'fist', n:'拳套', t:'躲開攻擊就進入「爆氣」，每打對一個字就揮一拳。' },
+  { k:'great', n:'大劍', t:'打完會出現晃來晃去的力量條，在金色的地方按下去，傷害變 3 倍。' },
+  { k:'bell', n:'召喚鈴', t:'打「衝啊」叫寵物攻擊，打「守護」叫牠幫你擋，你不用停下來。' }
 ];
 const NW_REGIONS = [
-  { k:'grass', n:'🌱 新芽草原', t:'沒有特色，最適合新手', open:true },
-  { k:'forest', n:'🌲 迷霧森林', t:'木屬性 +20%，霧氣一直飄', open:true },
-  { k:'coast', n:'🌊 珊瑚海岸', t:'水屬性 +20%，泡泡往上冒' },
-  { k:'volcano', n:'🌋 熔岩火山', t:'火屬性 +20%，岩漿發光' },
-  { k:'snow', n:'❄ 冰封雪原', t:'每 40 秒颳一次風雪，題目會模糊' },
-  { k:'sky', n:'☁ 天空遺跡', t:'光屬性 +20%，浮在空中的島' },
-  { k:'abyss', n:'🌑 深淵裂谷', t:'暗屬性 +20%，地面裂縫透紫光' }
+  { k:'grass', n:'🌱 新芽草原', t:'最適合新手，沒有什麼特別的麻煩。', open:true },
+  { k:'forest', n:'🌲 迷霧森林', t:'木屬性的招式變強，大霧一直飄。', open:true },
+  { k:'coast', n:'🌊 珊瑚海岸', t:'水屬性的招式變強，泡泡會飄上來。' },
+  { k:'volcano', n:'🌋 熔岩火山', t:'火屬性的招式變強，岩漿會發光。' },
+  { k:'snow', n:'❄ 冰封雪原', t:'每隔一會兒就颳大風雪，題目會變模糊。' },
+  { k:'sky', n:'☁ 天空遺跡', t:'光屬性的招式變強，島浮在天空中。' },
+  { k:'abyss', n:'🌑 深淵裂谷', t:'暗屬性的招式變強，地上的裂縫透出紫光。' }
 ];
 const NW_MONSTERS = [
-  { k:'coo', n:'咕咕鳥', e:'🌿', t:'快啄：攻擊很頻繁但很輕，最適合新手', open:true },
-  { k:'frog', n:'泡泡蛙', e:'💧', t:'吐泡泡：泡泡會遮住注音提示', open:true },
-  { k:'shroom', n:'跳跳菇', e:'🌿', t:'孢子：題目的字會變小', open:true },
-  { k:'wolf', n:'炎牙狼', e:'🔥', t:'狂暴：生氣後攻擊間隔減半', open:true },
-  { k:'lava', n:'熔岩龜', e:'🔥', t:'硬殼：殼閉起來時要全對才打得進去' },
-  { k:'ink', n:'墨鱗龍', e:'💧', t:'噴墨：墨跡會蓋住一半的題目' },
-  { k:'crab', n:'機械蟹', e:'🔥', t:'護盾：每 30 秒長一層盾，連 3 題全對打破' },
-  { k:'octo', n:'海盜章魚', e:'💧', t:'八爪：一次出兩題短的，都打完才算一下' },
-  { k:'qilin', n:'石麒麟', e:'☀', t:'石化：打錯會被定住 2 秒' },
-  { k:'crane', n:'詩仙鶴', e:'☀', t:'飛走：10 秒內沒打完一題，牠會回血' },
-  { k:'cat', n:'夜影貓', e:'🌙', t:'隱身：題目只顯示 3 秒，要記住再打' },
-  { k:'dragon', n:'混沌巨龍', e:'✨', t:'變身：每次生氣換題目、換屬性，共 3 段' }
+  { k:'coo', n:'咕咕鳥', e:'🌿', t:'啄得很快，但每下都不太痛，最適合新手。', open:true },
+  { k:'frog', n:'泡泡蛙', e:'💧', t:'會吐泡泡，泡泡會擋住注音提示。', open:true },
+  { k:'shroom', n:'跳跳菇', e:'🌿', t:'會灑孢子，題目的字會變得很小。', open:true },
+  { k:'wolf', n:'炎牙狼', e:'🔥', t:'生氣以後，攻擊會變成兩倍快！', open:true },
+  { k:'lava', n:'熔岩龜', e:'🔥', t:'殼關起來的時候，要全部打對才打得進去。' },
+  { k:'ink', n:'墨鱗龍', e:'💧', t:'會噴墨水，墨水會蓋住一半的題目。' },
+  { k:'crab', n:'機械蟹', e:'🔥', t:'會長出護盾，要連續答對 3 題才打得破。' },
+  { k:'octo', n:'海盜章魚', e:'💧', t:'八隻手一起來，一次出兩個短題目。' },
+  { k:'qilin', n:'石麒麟', e:'☀', t:'打錯字會被石頭定住 2 秒。' },
+  { k:'crane', n:'詩仙鶴', e:'☀', t:'10 秒沒打完一題，牠就會偷偷回血。' },
+  { k:'cat', n:'夜影貓', e:'🌙', t:'題目只亮 3 秒就消失，要先記起來再打。' },
+  { k:'dragon', n:'混沌巨龍', e:'✨', t:'最後的大魔王！生氣就會換題目、換屬性，共有 3 個階段。' }
 ];
 const NW_SYSTEMS = [
-  ['⏳ 讀條', '魔物攻擊前會讀條，你要看準時機。'],
-  ['🌀 閃避與防禦', '讀條結束前打出「閃避」或「防禦」，打對了就不會受傷。'],
-  ['🔥 屬性與狀態', '魔物有怕的屬性，打對傷害 ×1.5；還要小心燃燒、中毒、寒冰。'],
-  ['⚒ 鍛造', '打倒魔物拿素材，在鐵匠鋪打造、強化自己的武器。'],
-  ['👥 組隊', '自己開房間，最多 4 人一起狩獵大魔物。'],
-  ['⭐ 星圖', '獵人升級拿星星，像連連看一樣點亮自己的天賦。']
+  ['⏳ 倒數條', '魔物出招前，頭上會有一條慢慢變滿的條，滿了就攻擊你。'],
+  ['🌀 閃避和防禦', '地上出現紅色區域時，打「閃避」跳出去，或打「防禦」舉盾擋住。'],
+  ['🔥 屬性', '每隻魔物都有怕的屬性，打對了傷害變多；小心被燒到、中毒或結冰。'],
+  ['⚒ 打造', '打贏魔物會掉材料，到鐵匠鋪做出新武器和新裝備。'],
+  ['👥 組隊', '自己開房間，最多 4 個人一起打大魔物，還能看到同學的樣子。'],
+  ['⭐ 星圖', '升級會拿到星星，像連連看一樣點亮自己的特殊能力。']
+];
+const NW_TIERS = [
+  ['灰色・新手布衣', { armor:'#8d8d8d', trim:'#b8b8b8', helm:'none', weapon:'staff' }],
+  ['綠色・森林皮甲', { armor:'#5fae45', trim:'#d6f0b8', helm:'hood', weapon:'staff' }],
+  ['藍色・海岸鎧甲', { armor:'#3a7ad8', trim:'#c4e2ff', helm:'helm', weapon:'sword' }],
+  ['紫色・墨鱗盔甲', { armor:'#8a4ad8', trim:'#e6d2ff', helm:'helm', cape:'#5a2a98', weapon:'sword' }],
+  ['橙色・熔岩戰甲', { armor:'#e0802a', trim:'#ffe2a8', helm:'horn', cape:'#a8401a', weapon:'sword' }],
+  ['金色・傳說戰甲', { armor:'#e8b64c', trim:'#fff4c0', helm:'horn', cape:'#c0392b', weapon:'sword' }]
+];
+const NW_LOOKS = [
+  ['短髮', { style:'short', hair:'#5a3a22', armor:'#3e9a96' }],
+  ['長髮', { style:'long', hair:'#1a1a22', skin:'#e0a878', armor:'#3e9a96' }],
+  ['馬尾', { style:'pony', hair:'#e8b64c', skin:'#f6d7b8', armor:'#3e9a96' }],
+  ['包包頭', { style:'bun', hair:'#ff7aa8', skin:'#8a5a3a', armor:'#3e9a96' }]
 ];
 
 function nwPreviewHTML() {
@@ -3071,29 +3178,55 @@ function nwPreviewHTML() {
       <div class="nw-px nw-stage" data-k="${kind}:${key}" data-s="${scale}"></div>
       <div class="text-sm mt-2" style="color:var(--dim)">${text}</div>
     </div>`;
+  const heroCard = ([name, look]) => `
+    <div class="nw-card text-center">
+      <div class="nw-px nw-stage" data-k="hero:-" data-look='${JSON.stringify(look)}' data-s="5"></div>
+      <div class="font-black mt-2 text-sm">${name}</div>
+    </div>`;
   return `
     <div class="panel p-5">
       <div class="nw-px nw-stage" data-k="portal:-" data-s="8"></div>
       <div class="mt-4">
         <div class="font-black text-xl mb-2">村子後山的石門亮起來了</div>
         <p class="text-base leading-relaxed" style="color:var(--ink)">
-          原世界的魔物越來越強，後山那扇古老的石門，突然亮起紫色的光。<br>
-          那是通往<b style="color:#c9a6ff">「新世界」</b>的傳送門：門的另一邊有七個沒人走過的地方，
-          住著從來沒見過的大魔物。<br>
-          村長說，只有把打字練到<b style="color:var(--gold)">「史詩」</b>的勇者，才有資格穿過去。</p>
+          村子後山有一扇很老很老的石門。有一天，它突然亮起了紫色的光！<br>
+          那是通往<b style="color:#c9a6ff">「新世界」</b>的傳送門。門的另一邊有七個還沒有人去過的地方，
+          住著從來沒看過的大魔物。<br>
+          村長說：只有把打字練到<b style="color:var(--gold)">「史詩」</b>的勇者，才能走進去。</p>
       </div>
     </div>
 
-    ${sec('🏹 你的使命', `
+    ${sec('🏹 你的任務', `
       <div class="panel-flat p-4 flex gap-5 items-center flex-wrap">
         <div class="nw-px nw-stage" data-k="hunter:-" data-s="8" style="flex:0 0 auto"></div>
         <div class="flex-1 text-base leading-relaxed" style="min-width:240px">
-          你是新世界的<b>獵人</b>。<br>
-          挑一個區域、挑一隻大魔物，看清楚牠怕什麼、什麼時候要閃、什麼時候要擋，
-          打倒牠，帶回素材，打造屬於你自己的武器，找出你自己的打法。<br>
-          <span style="color:var(--dim)">原世界練「打得快」，新世界練「怎麼打」。</span>
+          你是新世界的<b>獵人</b>！<br>
+          選一個地方、選一隻大魔物，看看牠怕什麼，想想什麼時候要躲、什麼時候要擋。
+          打贏牠，就能拿到材料，做出屬於你自己的武器。<br>
+          <span style="color:var(--dim)">原來的世界練「打得快」，新世界練「怎麼打」。</span>
         </div>
       </div>`)}
+
+    ${sec('🖼 新的戰鬥畫面', `
+      <div class="panel-flat p-3">
+        <div class="nw-px" data-k="battle:-" data-s="6"></div>
+        <ul class="text-sm mt-3 pl-1" style="color:var(--dim);list-style:none;line-height:1.8">
+          <li><b style="color:var(--gold)">①</b> 大魔物：看牠的名字和血條，生氣的時候會變紅。</li>
+          <li><b style="color:var(--gold)">②</b> 地上的紅色區域：魔物快要攻擊的地方！</li>
+          <li><b style="color:var(--gold)">③</b> 同學：最多 4 個人一起打，每個人在做什麼都看得到。</li>
+          <li><b style="color:var(--gold)">④</b> 你：腳下有金色圈圈，頭上有金色箭頭，一眼就找得到自己。</li>
+          <li><b style="color:var(--gold)">⑤</b> 題目和輸入框：打字就是出招。</li>
+        </ul>
+        <p class="text-sm mt-2" style="color:var(--ink)">看到紅色區域，就打「<b>閃避</b>」跳出去，或打「<b>防禦</b>」舉盾擋住。</p>
+      </div>`)}
+
+    ${sec('🎽 穿什麼，就長什麼樣子', `
+      <p class="text-sm mb-3" style="color:var(--dim)">換了裝備，你的角色和同學看到的你，都會跟著變。裝備的顏色跟材料一樣：灰、綠、藍、紫、橙、金。</p>
+      <div class="nw-grid">${NW_TIERS.map(heroCard).join('')}</div>`)}
+
+    ${sec('💇 自己選造型', `
+      <p class="text-sm mb-3" style="color:var(--dim)">髮型、髮色、膚色都可以自己選，想改隨時可以改。</p>
+      <div class="nw-grid">${NW_LOOKS.map(heroCard).join('')}</div>`)}
 
     ${sec('🐾 十二隻魔物', `<div class="nw-grid wide">${
       NW_MONSTERS.map(m => card(`${m.n} <span class="font-normal">${m.e}</span>`, 'monster', m.k, 6, m.t, openTag(m.open))).join('')}</div>
@@ -3102,30 +3235,53 @@ function nwPreviewHTML() {
     ${sec('⚔ 新武器（9 種）', `<div class="nw-grid">${
       NW_WEAPONS.map(w => card(w.n, 'weapon', w.k, 5, w.t,
         w.tag ? tag(w.tag, w.tag === '新的' ? 'var(--gr)' : 'var(--dim)') : '')).join('')}</div>
-      <p class="text-xs mt-2" style="color:var(--dim2)">第一把武器可以從法杖、長弓、雙刀、連弩四選一，其他靠打造。</p>`)}
+      <p class="text-xs mt-2" style="color:var(--dim2)">第一把武器可以從法杖、長弓、雙刀、連弩裡選，其他的要自己做。</p>`)}
 
-    ${sec('🗺 七個區域', `<div class="nw-grid wide">${
+    ${sec('🗺 七個地方', `<div class="nw-grid wide">${
       NW_REGIONS.map(r => card(r.n, 'region', r.k, 4, r.t, openTag(r.open))).join('')}</div>`)}
 
-    ${sec('🧩 新系統', `<div class="nw-grid">${
+    ${sec('🧩 新玩法', `<div class="nw-grid">${
       NW_SYSTEMS.map(([h, t]) => `<div class="nw-card"><div class="font-black mb-1">${h}</div>
         <div class="text-sm" style="color:var(--dim)">${t}</div></div>`).join('')}</div>`)}
 
     <div class="panel p-4 mt-6 text-center">
       <div class="font-black text-lg mb-1">你想在新世界看到什麼？</div>
-      <div class="text-sm mb-3" style="color:var(--dim)">魔物的名字、想去的地方、想用的武器，都可以提名，大家投票。</div>
+      <div class="text-sm mb-3" style="color:var(--dim)">魔物的名字、想去的地方、想用的武器，都可以提名，大家一起投票。</div>
       <button class="btn btn-gold px-6 py-3 text-lg" data-nwtab="vote">🗳 去提名・投票</button>
     </div>`;
 }
 
-/* 把 .nw-px 佔位換成像素圖。倍率取「放得進欄寬的最大整數倍」，不補間所以不會糊。
-   魔物點一下切換「生氣」。 */
+function nwMountBattle(el, sc) {
+  const w = 160 * sc, at = (x, y) => `left:${x / 1.6}%;top:${y / .96}%`;
+  const tag = (x, y, name, chip, me) => `<div class="nwb-tag${me ? ' me' : ''}" style="${at(x, y + 2)}">${name}<small>${chip}</small></div>`;
+  const num = (n, x, y) => `<span class="nwb-n" style="${at(x, y)}">${n}</span>`;
+  el.innerHTML = `
+    <div class="nwb" style="width:${w}px;--u:${sc}px">
+      <div class="nwb-sc" style="height:${96 * sc}px">
+        <div class="nwb-plate"><div>炎牙狼 Lv25 <span style="color:#ff8a6a">🔥生氣中</span></div><div class="nwb-bar"><i style="width:62%"></i></div></div>
+        <div class="nwb-call">快打「閃避」或「防禦」！</div>
+        <div class="nwb-timer">⏱ 3:12</div>
+        ${tag(22, 78, '小華', '詠唱中 ✨')}${tag(90, 74, '小美', '擋住了 🛡')}${tag(134, 80, '阿傑', '躲開了 💨')}${tag(62, 88, '你・小明', '打字中 ⌨', true)}
+        ${num('①', 116, 8)}${num('②', 46, 70)}${num('③', 150, 56)}${num('④', 74, 54)}
+      </div>
+      <div class="nwb-bottom">
+        <span class="nwb-n">⑤</span>
+        <div style="min-width:5.5em">❤ 120/160<div class="nwb-bar g"><i style="width:75%"></i></div></div>
+        <div class="nwb-q"><span style="color:var(--dim)">題目</span> 持之以恆<span class="nwb-in">▍</span></div>
+        <div style="color:var(--gold);font-weight:800;white-space:nowrap">連擊 ×8</div>
+      </div>
+    </div>`;
+  el.querySelector('.nwb-sc').prepend(PX.canvas('battle', '-', sc, false));
+}
+
 function nwMountPx() {
   document.querySelectorAll('#nw-preview .nw-px').forEach(el => {
     const [kind, key] = el.dataset.k.split(':');
-    const fit = Math.floor(((el.clientWidth || 300) - 16) / PX.width(kind, key));
+    const w = kind === 'hero' ? 26 : PX.width(kind, key);
+    const fit = Math.floor(((el.clientWidth || 300) - 16) / w);
     const sc = Math.max(2, Math.min(+el.dataset.s || 4, fit));
-    el.replaceChildren(PX.canvas(kind, key, sc, false));
+    if (kind === 'battle') return nwMountBattle(el, sc);
+    el.replaceChildren(kind === 'hero' ? PX.hero(JSON.parse(el.dataset.look), sc) : PX.canvas(kind, key, sc, false));
     if (kind === 'monster') {
       el.style.cursor = 'pointer';
       el.onclick = () => {
@@ -3136,7 +3292,6 @@ function nwMountPx() {
   });
 }
 
-/* ── 身分：沿用登入畫面的班級、座號、姓名 ── */
 function nwWho() {
   const cls = ME.className || ($('in-grade').value + $('in-class').value);
   const seat = ME.seat || normSeat($('in-seat').value);
@@ -3215,7 +3370,7 @@ async function nwNominate(cat) {
   const text = inp.value.replace(/\s+/g, ' ').trim();
   if (!text) { toast('先打上你想提名的內容'); inp.focus(); return; }
   if (Array.from(text).length > NW_MAXLEN) { toast(`最多 ${NW_MAXLEN} 個字`); return; }
-  /* 同一類已經有一模一樣的（含被老師隱藏的）：不重複建立，改成幫它投一票 */
+
   const dup = (NW.data.noms || []).find(n => n.cat === cat && n.text === text);
   if (dup) {
     inp.value = '';
@@ -3306,8 +3461,17 @@ function initNw() {
    版本紀錄：首頁右下角那顆 v2.0.0 按鈕點開看到的內容。
    跟 CHANGELOG.md 是同一份資料，改一邊也要記得改另一邊。
    ══════════════════════════════════════════════════════════════ */
-const APP_VERSION = '3.4.1';
+const APP_VERSION = '3.5.0';
 const VERSION_LOG = [
+  { v:'3.5.0', date:'2026-11-03', title:'新世界預告：戰鬥畫面・造型',
+    added: [
+      '預告頁新增「新的戰鬥畫面」：斜著往下看的 2.5D 像素場景，同學和你都看得到，地上的紅色區域是魔物要攻擊的地方',
+      '預告頁新增「穿什麼，就長什麼樣子」與「自己選造型」：換裝備角色會跟著變，髮型、髮色、膚色可以自己選'
+    ],
+    changed: [
+      '墨鱗龍重畫，變成有角、有鬚、有爪子的龍',
+      '預告頁的說明文字改成比較好懂的白話'
+    ], fixed: [] },
   { v:'3.4.1', date:'2026-11-03', title:'新世界預告改成像素風',
     added: [
       '預告頁新增「十二隻魔物」，點一下魔物可以看牠生氣的樣子',
