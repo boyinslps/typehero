@@ -317,6 +317,12 @@ body{
 #talent-dot{display:none;width:8px;height:8px;border-radius:50%;background:#ff6b81;margin-left:5px;
   vertical-align:2px}
 #talent-dot.on{display:inline-block}
+/* v3.3：有點數可以點天賦時，整顆按鈕發亮並寫「可以點了！」——
+   實測 39% 的孩子有點數卻一個天賦都沒點，一顆小紅點太容易忽略 */
+#btn-talent.can-buy{border-color:var(--gold);color:var(--gold);animation:talGlow 1.4s ease-in-out infinite}
+#btn-talent .can-txt{display:none;font-size:12px;margin-left:4px}
+#btn-talent.can-buy .can-txt{display:inline}
+@keyframes talGlow{0%,100%{box-shadow:0 0 0 0 rgba(232,182,76,.0)}50%{box-shadow:0 0 0 4px rgba(232,182,76,.45)}}
 .rank-no{font-family:ui-monospace,Consolas,monospace;font-weight:900;
   width:34px;color:var(--dim)}
 .rank-row.me .rank-no{color:var(--gold)}
@@ -666,7 +672,8 @@ select option{background:var(--panel2);color:var(--ink)}
      <div class="panel-flat p-2 text-center"><div class="label" style="font-size:12px">挑戰次數</div>
        <div class="mono text-xl font-black" id="lh-plays">0</div></div>
    </div>
-   <p id="lh-unlock" class="text-sm mt-3" style="color:var(--gold)"></p>
+   <p id="lh-bestgame" class="text-sm mt-3" style="color:var(--dim)"></p>
+   <p id="lh-unlock" class="text-sm mt-1" style="color:var(--gold)"></p>
    <p id="lh-last" class="text-sm mt-1" style="color:var(--dim2)"></p>
  </div>
 </section>
@@ -679,7 +686,7 @@ select option{background:var(--panel2);color:var(--ink)}
       <span class="text-base" style="color:var(--dim)">在營地待命中・等老師開戰</span>
       <span id="lobby-sub" class="text-sm" style="color:#e5705f"></span>
       <button id="btn-talent" class="btn btn-ghost text-sm px-3 py-2">
-        <span class="ico-slot" data-ico="sparkle" data-ico-size="16"></span>天賦<span id="talent-dot"></span></button>
+        <span class="ico-slot" data-ico="sparkle" data-ico-size="16"></span>天賦<span id="talent-dot"></span><span class="can-txt">可以點了！</span></button>
       <button id="btn-rank" class="btn btn-ghost text-sm px-3 py-2">
         <span class="ico-slot" data-ico="trophy" data-ico-size="16"></span>排行榜</button>
       <button id="btn-relogin" class="btn btn-ghost text-sm px-3 py-2">
@@ -913,6 +920,7 @@ select option{background:var(--panel2);color:var(--ink)}
       <div id="r-rank-art" class="mx-auto my-1"></div>
       <h3 class="text-2xl font-black" id="r-title">見習生</h3>
       <p id="r-quote" class="text-sm mb-2 px-2 leading-relaxed" style="color:var(--dim)"></p>
+      <p id="r-lowacc" class="hidden text-sm mb-2 px-2 font-bold" style="color:#ff8a9c"></p>
 
       <div class="flex items-center gap-3 p-2.5 rounded-xl mb-2"
            style="background:var(--panel2);border:2px solid var(--line2)">
@@ -1144,14 +1152,17 @@ select option{background:var(--panel2);color:var(--ink)}
         <button data-m="level" aria-pressed="false">最高等級</button>
         <button data-m="kills" aria-pressed="false">總擊倒</button>
       </div>
-      <button id="rank-refresh" class="px-3 py-2 rounded-lg text-sm border ml-auto"
+      <label id="rank-old-wrap" class="text-sm flex items-center gap-1.5 ml-auto" style="color:var(--dim)">
+        <input id="rank-old" type="checkbox"> 包含改版前的舊紀錄</label>
+      <button id="rank-refresh" class="px-3 py-2 rounded-lg text-sm border"
               style="border-color:var(--line)">
         <span class="ico-slot" data-ico="reset" data-ico-size="14"></span></button>
     </div>
 
     <div id="rank-list" class="panel p-4"></div>
     <p class="text-[11px] mt-3 text-center" style="color:var(--dim)">
-      戰績分＝每分鐘正確字數 × 難度加成 × 正確率，練習跟比賽都算。</p>
+      戰績分＝每分鐘正確字數 × 難度加成 × 正確率²，練習跟比賽都算；正確率要 85% 以上才會更新最高紀錄。<br>
+      改版前的舊紀錄（正確率幾乎不影響分數）預設不列入，打一場新的就會換成新紀錄。</p>
   </div>
 </div>
 
@@ -2390,6 +2401,10 @@ const BALANCE = {
      ≥35 五人、≥52 四人、≥78 一人。 */
   rank: {
     qBonus: { normal: 0, fine: 0.10, epic: 0.20, legend: 0.30 },
+    /* v3.3（新世界第 0 段・防作弊）：
+       戰績分改成乘「正確率²」，正確率 70% 只剩 49%，亂打快打撈不到好處。
+       正確率低於 minAcc 的場次不更新歷史最高戰績分。scoreVer 2 = 新公式。 */
+    minAcc: 85, scoreVer: 2,
     thresholds: [0, 4, 7, 11, 16, 23, 35, 52, 78]
   },
 
@@ -2418,8 +2433,21 @@ const BALANCE = {
    版本紀錄：首頁右下角那顆 v2.0.0 按鈕點開看到的內容。
    跟 CHANGELOG.md 是同一份資料，改一邊也要記得改另一邊。
    ══════════════════════════════════════════════════════════════ */
-const APP_VERSION = '3.2.0';
+const APP_VERSION = '3.3.0';
 const VERSION_LOG = [
+  { v:'3.3.0', date:'2026-11-03', title:'戰績分防亂打・天賦提示',
+    added: [
+      '營地的「天賦」按鈕在點數夠用時會整顆發亮，寫「可以點了！」',
+      '排行榜的戰績分可以勾選「包含改版前的舊紀錄」，舊紀錄會標「舊版」',
+      '結算時正確率不到 85%，會提醒這場不算進最高戰績分'
+    ],
+    changed: [
+      '戰績分改成乘「正確率²」：正確率 70% 只剩 49%，亂打快打不再划算',
+      '正確率低於 85% 的場次不會更新歷史最高戰績分',
+      '登入畫面的速度與正確率改成顯示「戰績分最高的那一場」，不再是兩場各取最高',
+      '排行榜的戰績分預設只列新公式的紀錄，打一場新的就會換成新紀錄'
+    ],
+    fixed: [] },
   { v:'3.2.0', date:'2026-09-30', title:'天賦介紹',
     added: [
       '第一次進營地會跳出天賦介紹（4 頁）：成長點數怎麼來、三棵樹對三把武器、外圈到內圈與費用、可以免費重置',
@@ -2808,7 +2836,8 @@ const RANK_SVG = (() => {
    ─────────────────────────────────────────────────────── */
 function battleScore(wpm, acc, qualityKey) {
   const qb = BALANCE.rank.qBonus[qualityKey] || 0;
-  return wpm * (1 + qb) * (0.85 + 0.15 * acc);
+  const a = Math.max(0, Math.min(1, acc));
+  return wpm * (1 + qb) * a * a;          // v3.3：正確率平方（舊版是 0.85 + 0.15 × 正確率）
 }
 
 /* ── 成長點數（局外成長，docs/META-GROWTH.md §3）──────────────
@@ -4292,6 +4321,10 @@ function histFromDoc(d) {
     bestAcc:    Math.max(d.bestAcc    || 0, d.lastAcc || 0, d.accuracy || 0),
     bestLevel:  Math.max(d.bestLevel  || 0, d.lastLevel || 0),
     bestScore:  d.bestScore || 0,
+    /* v3.3：戰績分最高的那一場的速度與正確率（同一場），scoreVer 2 才是新公式 */
+    bestScoreWpm: d.bestScoreWpm || 0,
+    bestScoreAcc: d.bestScoreAcc || 0,
+    scoreVer:   d.scoreVer || 0,
     bestCombo:  Math.max(d.bestCombo  || 0, d.maxCombo || 0),
     dda:        typeof d.dda === 'number' ? d.dda : undefined,   // v3 起不再使用，保留不刪
     /* v3：難度層級。舊紀錄沒有這一欄，就用歷史最高手速回推一個，
@@ -4331,7 +4364,15 @@ function mergeHist(a, b) {
     bestDamage: pick('bestDamage'), bestWpm: pick('bestWpm'),
     bestKills:  pick('bestKills'),  plays:   pick('plays'),
     bestAcc:    pick('bestAcc'),
-    bestLevel:  pick('bestLevel'),  bestScore: pick('bestScore'), bestCombo: pick('bestCombo'),
+    bestLevel:  pick('bestLevel'),  bestCombo: pick('bestCombo'),
+    /* 戰績分一組四個欄位要整組跟著同一筆走，不能各取大的：
+       先比公式版本（新公式優先，舊版的高分不能把新版蓋掉），同版本再比分數。 */
+    ...(() => {
+      const ver = h => (h && h.scoreVer) || 0, sc = h => (h && h.bestScore) || 0;
+      const hi = (ver(a) !== ver(b)) ? (ver(a) > ver(b) ? a : b) : (sc(a) >= sc(b) ? a : b);
+      return { bestScore: sc(hi), bestScoreWpm: (hi && hi.bestScoreWpm) || 0,
+               bestScoreAcc: (hi && hi.bestScoreAcc) || 0, scoreVer: ver(hi) };
+    })(),
     dda:        ddaOf(newer) !== undefined ? ddaOf(newer) : (ddaOf(a) !== undefined ? ddaOf(a) : ddaOf(b)),
     tier:       fresh('tier', undefined),
     growthPts:   fresh('growthPts', 0),
@@ -4506,7 +4547,13 @@ function paintLoginHistory(h) {
   $('lh-badge').innerHTML = r.svg || '';
   setTxt('lh-title', r.title);
   setTxt('lh-best',  fmt(h.bestDamage));
-  setTxt('lh-wpm',   h.bestWpm || 0);
+  /* v3.3：速度與正確率顯示「戰績分最高的那一場」的數字（同一場），
+     不再是兩場不同比賽各取最高——那樣會出現「85 字、100%」這種從沒發生過的組合。 */
+  const newScore = (h.scoreVer || 0) >= BALANCE.rank.scoreVer && h.bestScoreWpm;
+  setTxt('lh-wpm',   newScore ? h.bestScoreWpm : (h.bestWpm || 0));
+  setTxt('lh-bestgame', newScore
+    ? `最佳一場：每分鐘 ${h.bestScoreWpm} 字・正確率 ${h.bestScoreAcc}%・戰績分 ${(Math.round(h.bestScore * 10) / 10).toFixed(1)}`
+    : '戰績分改版了：再打一場（正確率 85% 以上），就會換成新的紀錄');
   setTxt('lh-kills', lv);
   setTxt('lh-plays', h.plays || 0);
   setTxt('lh-next', nx
@@ -4594,7 +4641,8 @@ function gotoLogin() {
    另外兩個切面（最高等級、總擊倒）是給不同取向的孩子看的：
    手速慢但很努力的，總擊倒常常排得比戰績分前面。
    ══════════════════════════════════════════════════════════════ */
-const RANKVIEW = { scope: 'class', metric: 'score', rows: null, loading: false };
+const RANKVIEW = { scope: 'class', metric: 'score', rows: null, loading: false, includeOld: false };
+const isNewScore = r => (r.scoreVer || 0) >= BALANCE.rank.scoreVer;
 const RANK_METRICS = {
   score: { label: '戰績分', get: r => r.bestScore, fmt: v => (Math.round(v * 10) / 10).toFixed(1), unit: '' },
   level: { label: '最高等級', get: r => r.bestLevel, fmt: v => 'LV ' + Math.round(v), unit: '' },
@@ -4630,7 +4678,11 @@ function renderRankBoard() {
   const pool = RANKVIEW.scope === 'class'
     ? all.filter(r => r.className === ME.className)
     : all;
+  /* v3.3：戰績分預設只排新公式的紀錄，舊紀錄要勾選才列入（並標「舊版」） */
+  const scoreTab = RANKVIEW.metric === 'score';
+  show('rank-old-wrap', scoreTab);
   const rows = pool
+    .filter(r => !scoreTab || RANKVIEW.includeOld || isNewScore(r))
     .map(r => ({ r, v: m.get(r) }))
     .filter(x => typeof x.v === 'number' && isFinite(x.v) && x.v > 0)
     .sort((a, b) => b.v - a.v);
@@ -4656,7 +4708,8 @@ function renderRankBoard() {
     return `<div class="rank-row${me ? ' me' : ''}">
       <span class="rank-no">${medal || rank}</span>
       ${badge}
-      <span class="rank-name">${escHtml(x.r.name || '')}</span>
+      <span class="rank-name">${escHtml(x.r.name || '')}${scoreTab && !isNewScore(x.r)
+        ? ' <span class="text-[11px] px-1.5 rounded" style="border:1px solid var(--line2);color:var(--dim2)">舊版</span>' : ''}</span>
       <span class="rank-cls">${escHtml(x.r.className || '')} ${escHtml(String(x.r.seat || ''))}</span>
       <span class="rank-val mono">${m.fmt(x.v)}${m.unit}</span>
     </div>`;
@@ -4804,7 +4857,10 @@ function paintTalentDot() {
   const dot = $('talent-dot');
   if (!dot) return;
   const pts = (MY_HIST && MY_HIST.growthPts) || 0;
-  dot.classList.toggle('on', pts >= nextTalentCost(false));
+  const can = pts >= nextTalentCost(false);
+  dot.classList.toggle('on', can);
+  const btn = $('btn-talent');
+  if (btn) btn.classList.toggle('can-buy', can);
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -6193,6 +6249,14 @@ async function saveScore() {
   G.isRecord = G.damage > G.prevBest;
 
   const thisScore = battleScore(G.finalWpm, G.finalAcc / 100, G.quality);
+  /* 防作弊：正確率太低的場次不更新歷史最高戰績分（v3.3）。
+     舊公式的紀錄（scoreVer < 2）一律被新公式的第一場覆蓋，不跟它比大小。 */
+  const RK = BALANCE.rank;
+  const oldScoreVer = (before.scoreVer || 0) < RK.scoreVer;
+  const scoreCounts = G.finalAcc >= RK.minAcc;
+  const prevScore = oldScoreVer ? 0 : (before.bestScore || 0);
+  const newBestScore = scoreCounts && thisScore > prevScore;
+  G.scoreLowAcc = !scoreCounts;                 // 結算畫面要提醒「要 85% 才算」
   const zone = zoneForLevel(G.lv);
   const gained = growthPointsOf(G);              // 這一場賺到的成長點數（局外成長）
   G.growthGained = gained;                       // 結算畫面要顯示
@@ -6204,7 +6268,10 @@ async function saveScore() {
     bestKills:    Math.max(before.bestKills || 0, G.kills),
     bestAcc:      Math.max(before.bestAcc  || 0,  G.finalAcc),
     bestLevel:    Math.max(before.bestLevel || 0, G.lv),
-    bestScore:    Math.max(before.bestScore || 0, thisScore),
+    bestScore:    newBestScore ? thisScore  : (before.bestScore    || 0),
+    bestScoreWpm: newBestScore ? G.finalWpm : (before.bestScoreWpm || 0),
+    bestScoreAcc: newBestScore ? G.finalAcc : (before.bestScoreAcc || 0),
+    scoreVer:     newBestScore ? RK.scoreVer : (before.scoreVer || 0),
     bestCombo:    Math.max(before.bestCombo || 0, G.maxCombo),
     bestZone:     Math.max(before.bestZone  || 0, zone.lvFrom),
     totalKills:   (before.totalKills || 0) + G.kills,
@@ -6231,6 +6298,7 @@ async function saveScore() {
     bestKills: hist.bestKills, bestLevel: hist.bestLevel,
     bestAcc: hist.bestAcc, bestZone: hist.bestZone, totalKills: hist.totalKills,
     bestScore: Math.round(hist.bestScore * 10) / 10, bestCombo: hist.bestCombo,
+    bestScoreWpm: hist.bestScoreWpm, bestScoreAcc: hist.bestScoreAcc, scoreVer: hist.scoreVer,
     tier: hist.tier, tutorialDone: true,
     growthPts: hist.growthPts, growthTotal: hist.growthTotal,
     plays: hist.plays, balanceVer: BALANCE.ver,
@@ -6412,6 +6480,10 @@ function showResult(data, killed) {
   $('r-quote').textContent    = rank.quote;
   $('r-damage').textContent   = fmt(G.damage);
   show('r-balance-note', !!G.oldBalance);
+  /* v3.3 防作弊：正確率不到門檻，這場不算進歷史最高戰績分（跟孩子講清楚為什麼） */
+  show('r-lowacc', !!G.scoreLowAcc);
+  if (G.scoreLowAcc) setTxt('r-lowacc',
+    `這場正確率 ${G.finalAcc}%，要 ${BALANCE.rank.minAcc}% 以上才會算進最高戰績分喔，慢慢打、打對比較重要！`);
 
   /* 成長點數：只有真的有存檔（G.growthGained 是 saveScore 填的）才顯示 */
   const gg = G.growthGained;
@@ -6633,6 +6705,7 @@ function wireEvents() {
     }));
   rankSeg('rank-scope', 'scope');
   rankSeg('rank-metric', 'metric');
+  $('rank-old').addEventListener('change', e => { RANKVIEW.includeOld = e.target.checked; renderRankBoard(); });
 
   /* 結算：提早結束這一場，成績照存 */
   $('btn-escape').addEventListener('click', escapeBattle);
