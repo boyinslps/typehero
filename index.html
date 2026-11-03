@@ -37,6 +37,16 @@ body{
 .mono{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace;
       font-variant-numeric:tabular-nums}
 .label{font-size:14px;letter-spacing:.04em;color:var(--dim)}
+.nw-tab[aria-pressed="true"]{background:var(--gold);color:#1a1409;border-color:var(--gold2)}
+.nw-art{font-family:ui-monospace,Menlo,Consolas,"Courier New",monospace;white-space:pre;line-height:1.15;
+  font-size:13px;color:var(--gold);margin:0;overflow-x:auto}
+.nw-card{background:var(--panel2);border:2px solid var(--line);border-radius:var(--r);padding:12px}
+.nw-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.nw-nom{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;background:var(--panel);
+  border:1px solid var(--line)}
+.nw-nom.hid{opacity:.45}
+.nw-nom.fresh{border-color:var(--gold)}
+
 
 .ico{display:inline-block;vertical-align:-.18em;flex:none}
 [data-ico],.ico-slot{display:inline-flex;align-items:center;justify-content:center}
@@ -644,6 +654,8 @@ select option{background:var(--panel2);color:var(--ink)}
 
   <button id="btn-enter" class="btn btn-gold w-full py-4 text-xl">
     <span class="ico-slot" data-ico="door" data-ico-size="22"></span>進入戰場</button>
+  <button id="btn-nw" class="btn btn-ghost w-full py-3 text-lg mt-3" style="color:var(--gold)">
+    🌋 新世界預告・提名投票</button>
   <p id="login-err" class="text-base mt-3 hidden" style="color:#e5705f"></p>
  </div>
 
@@ -1021,6 +1033,39 @@ select option{background:var(--panel2);color:var(--ink)}
       <button id="ti-next" class="btn btn-gold flex-1 py-3.5 text-lg">繼續</button>
     </div>
     <button id="ti-skip" class="text-sm mt-4" style="color:var(--dim2)">之後再看</button>
+  </div>
+</div>
+
+<!-- ══════════ 新世界預告＋提名投票（GDD §21.0）══════════ -->
+<div id="nw-modal" class="hidden fixed inset-0 z-[87] overflow-y-auto scrolly"
+     style="background:#0b0a14">
+  <div class="max-w-4xl mx-auto p-4 py-6">
+    <div class="flex items-center justify-between mb-4 gap-2">
+      <h2 class="text-2xl font-black">🌋 新世界預告</h2>
+      <button id="nw-close" class="px-4 py-2 rounded-lg border text-sm"
+              style="border-color:var(--line)">關閉</button>
+    </div>
+    <div class="flex gap-2 mb-5">
+      <button id="nw-tab-preview" data-nwtab="preview" class="nw-tab btn btn-ghost px-5 py-2.5 text-base">🔭 預告</button>
+      <button id="nw-tab-vote" data-nwtab="vote" class="nw-tab btn btn-ghost px-5 py-2.5 text-base">🗳 提名投票</button>
+    </div>
+    <div id="nw-preview"></div>
+    <div id="nw-vote" class="hidden">
+      <div id="nw-who" class="panel-flat p-3 mb-3 text-sm"></div>
+      <div class="flex items-center justify-between gap-2 mb-3 flex-wrap">
+        <div class="text-sm" style="color:var(--dim)">想要什麼就提名，覺得讚就按「投一票」，票數不限！每則最多 12 個字。</div>
+        <div class="flex gap-2 items-center">
+          <button id="nw-sort" class="btn btn-ghost text-sm px-3 py-1.5">排序：票數</button>
+          <button id="nw-admin" class="btn btn-ghost text-sm px-3 py-1.5" style="color:var(--dim)">老師管理</button>
+        </div>
+      </div>
+      <div id="nw-admin-box" class="hidden panel-flat p-3 mb-3 flex gap-2 items-center">
+        <input id="nw-admin-pw" type="password" placeholder="教師密碼"
+               class="flex-1 p-2 rounded-lg panel-flat text-center">
+        <button id="nw-admin-ok" class="btn btn-gold px-4 py-2 text-sm">確定</button>
+      </div>
+      <div id="nw-cats"></div>
+    </div>
   </div>
 </div>
 
@@ -1424,7 +1469,8 @@ select option{background:var(--panel2);color:var(--ink)}
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
 import { getFirestore, doc, collection, setDoc, getDoc, getDocs, deleteDoc,
-         onSnapshot, query, orderBy, where, serverTimestamp }
+         onSnapshot, query, orderBy, where, serverTimestamp,
+         increment, arrayUnion, arrayRemove }
   from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
 /* ══════════════════════════════════════════════════════════════
@@ -2430,11 +2476,375 @@ const BALANCE = {
 };
 
 /* ══════════════════════════════════════════════════════════════
+   新世界預告＋提名投票（GDD §21.0）
+   入口：登入畫面的「🌋 新世界預告・提名投票」。
+
+   資料：mg_config/nw_vote 一份文件（mg_config 規則已經開放，免改 Firestore 規則）
+     noms:   [{ id, cat, text, cls, seat, name, t }]   提名（arrayUnion 一筆一筆加）
+     votes:  { [提名id]: 票數 }                         票數（increment 原子遞增）
+     hidden: [提名id]                                   老師隱藏的
+   文件上限 1MB，一則提名約 100 位元組，全校提名也遠遠用不完。
+   ══════════════════════════════════════════════════════════════ */
+const NW_CATS = [
+  { k:'monster', icon:'👾', name:'魔物名字', ph:'例：火焰雞' },
+  { k:'region',  icon:'🗺', name:'希望的區域', ph:'例：糖果王國' },
+  { k:'weapon',  icon:'⚔', name:'希望的武器', ph:'例：回力鏢' },
+  { k:'other',   icon:'💡', name:'其他想要的東西', ph:'例：可以養寵物' }
+];
+const NW_MAXLEN = 12;
+const NW = { data:{ noms:[], votes:{}, hidden:[] }, unsub:null, admin:false, sort:'votes', built:false };
+const nwRef = () => doc(db, 'mg_config', 'nw_vote');
+
+/* ── 預告頁內容：美術全部用 ASCII ── */
+const NW_ART = {
+  portal: String.raw`
+          .-"""""""""""-.
+        .'   .-~~~~~~-.   '.
+       /   .'  .  *  . '.   \
+      |   /  *   _   .   \   |
+      |  |  .  ( @ )  *   |  |
+      |   \  *   '-'  .  /   |
+       \   '.  .   *  .'   /
+        '.   '-.______.-'   .'
+     ____'-.._          _..-'____
+    /_______  '--------'  _______\
+            |__|______|__|`,
+  hunter: String.raw`
+     _____
+    /_____\
+    ( o_o )
+   /|  V  |\
+  / |_____| \
+    /  |  \
+   /__/ \__ `
+};
+const NW_WEAPONS = [
+  { n:'法杖', tag:'熟悉的', t:'每 5 題一次「詠唱」，標點很多的長句全對傷害 ×3',
+    a: String.raw`   .*.
+  ( * )
+   '|'
+    |
+    |` },
+  { n:'長弓', tag:'熟悉的', t:'集滿爆擊條進「神射手」，盲打 3 題傷害 ×2',
+    a: String.raw`  .
+  |'.
+  |  >--->
+  |.'
+  '` },
+  { n:'雙刀', tag:'熟悉的', t:'每 5 題一次「連環斬」，打越快越痛',
+    a: String.raw` \     /
+  \   /
+   \ /
+   / \
+  /    ` },
+  { n:'連弩', tag:'新的', t:'打對一個字裝一支箭，自己決定什麼時候一口氣射出去',
+    a: String.raw`  __|__
+ /  |  \
+<===+===>-->
+    |` },
+  { n:'元素書', t:'打字前先選火、水、木，連續換元素會產生反應',
+    a: String.raw` .-------.
+ |~~~~~~~|
+ |~  *  ~|
+ '-------'` },
+  { n:'劍盾', t:'防禦成功會跳出「反擊」，限時打完就是一記重擊',
+    a: String.raw`  |  .---.
+  |  | + |
+ -+- '. .'
+  |    V` },
+  { n:'拳套', t:'閃避成功進入「爆氣」，每打對一個字就出一拳',
+    a: String.raw`   ___
+  /   \_
+ |  O  |>
+  \___/` },
+  { n:'大劍', t:'送出全對後停住擺動的力量條，停在金色區傷害 ×3',
+    a: String.raw`    /\
+   |  |
+   |  |
+   |  |
+  -+--+-
+    ||` },
+  { n:'召喚鈴', t:'打「衝啊」叫寵物攻擊、「守護」叫牠幫你擋，你不用停下來',
+    a: String.raw`    _
+   (_)
+  .-"-.
+ /     \
+ '--+--'` }
+];
+const NW_REGIONS = [
+  { n:'🌱 新芽草原', t:'沒有特色，最適合新手', open:true,
+    a: String.raw`    _ ,  .-.
+ ,/|\/  '-'  ,/|\
+~~~~~~~~~~~~~~~~~~` },
+  { n:'🌲 迷霧森林', t:'木屬性 +20%，霧氣一直飄', open:true,
+    a: String.raw`  /\   /\   /\
+ /\/\ /\/\ /\/\
+  ||   ||   ||` },
+  { n:'🌊 珊瑚海岸', t:'水屬性 +20%，泡泡往上冒',
+    a: String.raw`  o   O    o
+ ~ ~ ~ ~ ~ ~ ~
+~ ~ ~ ~ ~ ~ ~ ~` },
+  { n:'🌋 熔岩火山', t:'火屬性 +20%，岩漿發光',
+    a: String.raw`     /\
+    /  \  *
+ __/ ** \__
+ ~~~~~~~~~~~` },
+  { n:'❄ 冰封雪原', t:'每 40 秒颳一次風雪，題目會模糊',
+    a: String.raw` *  .  *   .  *
+   .  *  .  *
+ __________/\___` },
+  { n:'☁ 天空遺跡', t:'光屬性 +20%，浮在空中的島',
+    a: String.raw`   ___    |  |
+  /___\   |  |
+ ~~~~~~~  ~~~~~~` },
+  { n:'🌑 深淵裂谷', t:'暗屬性 +20%，地面裂縫透紫光',
+    a: String.raw` ##\  /##\  /##
+ ###\/####\/###
+ ####  ||  ####` }
+];
+const NW_SYSTEMS = [
+  ['⏳ 讀條', '魔物攻擊前會讀條，你要看準時機。'],
+  ['🌀 閃避與防禦', '讀條結束前打出「閃避」或「防禦」，打對了就不會受傷。'],
+  ['🔥 屬性與狀態', '魔物有怕的屬性，打對傷害 ×1.5；還要小心燃燒、中毒、寒冰。'],
+  ['⚒ 鍛造', '打倒魔物拿素材，在鐵匠鋪打造、強化自己的武器。'],
+  ['👥 組隊', '自己開房間，最多 4 人一起狩獵大魔物。'],
+  ['⭐ 星圖', '獵人升級拿星星，像連連看一樣點亮自己的天賦。']
+];
+
+function nwPreviewHTML() {
+  const sec = (title, body) => `<h3 class="font-black text-xl mt-6 mb-3" style="color:var(--gold)">${title}</h3>${body}`;
+  const card = (head, art, text, extra = '') => `
+    <div class="nw-card">
+      <div class="flex items-center justify-between mb-1"><span class="font-black">${head}</span>${extra}</div>
+      <pre class="nw-art">${art.replace(/^\n/, '')}</pre>
+      <div class="text-sm mt-2" style="color:var(--dim)">${text}</div>
+    </div>`;
+  const tag = (t, c) => `<span class="text-xs px-2 py-0.5 rounded-full" style="border:1px solid ${c};color:${c}">${t}</span>`;
+  return `
+    <div class="panel p-5">
+      <div class="flex gap-5 items-center flex-wrap">
+        <pre class="nw-art" style="color:#c9a6ff">${NW_ART.portal.replace(/^\n/, '')}</pre>
+        <div class="flex-1" style="min-width:240px">
+          <div class="font-black text-xl mb-2">村子後山的石門亮起來了</div>
+          <p class="text-base leading-relaxed" style="color:var(--ink)">
+            原世界的魔物越來越強，後山那扇古老的石門，突然亮起紫色的光。<br>
+            那是通往<b style="color:#c9a6ff">「新世界」</b>的傳送門：門的另一邊有七個沒人走過的地方，
+            住著從來沒見過的大魔物。<br>
+            村長說，只有把打字練到<b style="color:var(--gold)">「史詩」</b>的勇者，才有資格穿過去。</p>
+        </div>
+      </div>
+    </div>
+
+    ${sec('🏹 你的使命', `
+      <div class="panel-flat p-4 flex gap-5 items-center flex-wrap">
+        <pre class="nw-art">${NW_ART.hunter.replace(/^\n/, '')}</pre>
+        <div class="flex-1 text-base leading-relaxed" style="min-width:240px">
+          你是新世界的<b>獵人</b>。<br>
+          挑一個區域、挑一隻大魔物，看清楚牠怕什麼、什麼時候要閃、什麼時候要擋，
+          打倒牠，帶回素材，打造屬於你自己的武器，找出你自己的打法。<br>
+          <span style="color:var(--dim)">原世界練「打得快」，新世界練「怎麼打」。</span>
+        </div>
+      </div>`)}
+
+    ${sec('⚔ 新武器（9 種）', `<div class="nw-grid">${
+      NW_WEAPONS.map(w => card(w.n, w.a, w.t,
+        w.tag ? tag(w.tag, w.tag === '新的' ? 'var(--gr)' : 'var(--dim)') : '')).join('')}</div>
+      <p class="text-xs mt-2" style="color:var(--dim2)">第一把武器可以從法杖、長弓、雙刀、連弩四選一，其他靠打造。</p>`)}
+
+    ${sec('🗺 七個區域', `<div class="nw-grid">${
+      NW_REGIONS.map(r => card(r.n, r.a, r.t,
+        tag(r.open ? '最先開放' : '之後開放', r.open ? 'var(--gr)' : 'var(--dim2)'))).join('')}</div>`)}
+
+    ${sec('🧩 新系統', `<div class="nw-grid">${
+      NW_SYSTEMS.map(([h, t]) => `<div class="nw-card"><div class="font-black mb-1">${h}</div>
+        <div class="text-sm" style="color:var(--dim)">${t}</div></div>`).join('')}</div>`)}
+
+    <div class="panel p-4 mt-6 text-center">
+      <div class="font-black text-lg mb-1">你想在新世界看到什麼？</div>
+      <div class="text-sm mb-3" style="color:var(--dim)">魔物的名字、想去的地方、想用的武器，都可以提名，大家投票。</div>
+      <button class="btn btn-gold px-6 py-3 text-lg" data-nwtab="vote">🗳 去提名・投票</button>
+    </div>`;
+}
+
+/* ── 身分：沿用登入畫面的班級、座號、姓名 ── */
+function nwWho() {
+  const cls = ME.className || ($('in-grade').value + $('in-class').value);
+  const seat = ME.seat || normSeat($('in-seat').value);
+  const name = (ME.name || $('in-name').value || '').trim();
+  return (cls && seat && name) ? { cls, seat, name } : null;
+}
+
+function nwSwitchTab(tab) {
+  document.querySelectorAll('.nw-tab').forEach(b => b.setAttribute('aria-pressed', b.dataset.nwtab === tab));
+  show('nw-preview', tab === 'preview');
+  show('nw-vote', tab === 'vote');
+  if (tab === 'vote') nwPaintWho();
+  $('nw-modal').scrollTo({ top: 0 });
+}
+
+function nwPaintWho() {
+  const w = nwWho();
+  const box = $('nw-who');
+  if (!ONLINE) {
+    box.innerHTML = '<span style="color:#e5705f">目前連不上網路，沒辦法提名或投票。先看看預告吧！</span>';
+  } else if (w) {
+    box.innerHTML = `你是：<b>${escHtml(w.cls)}　${escHtml(w.seat)}號　${escHtml(w.name)}</b>
+      <span style="color:var(--dim)">（提名會顯示你的班級、座號、姓名）</span>`;
+  } else {
+    box.innerHTML = '<span style="color:var(--gold)">要先填好班級、座號、姓名才能提名和投票。</span>' +
+      '請關掉這一頁，在首頁填好再回來。（看別人提了什麼不用填）';
+  }
+  const can = ONLINE && !!w;
+  document.querySelectorAll('#nw-cats input, #nw-cats .nw-add, #nw-cats .nw-vote').forEach(e => e.disabled = !can);
+}
+
+function nwBuildCats() {
+  $('nw-cats').innerHTML = NW_CATS.map(c => `
+    <div class="panel p-4 mb-3" id="nw-cat-${c.k}">
+      <div class="font-black text-lg mb-2">${c.icon} ${c.name}
+        <span class="text-xs font-normal" id="nw-cnt-${c.k}" style="color:var(--dim)"></span></div>
+      <div class="flex gap-2 mb-3">
+        <input class="nw-in flex-1 p-2.5 rounded-lg panel-flat text-base" data-cat="${c.k}"
+               maxlength="${NW_MAXLEN}" placeholder="${c.ph}（最多 ${NW_MAXLEN} 字）">
+        <button class="nw-add btn btn-gold px-4 py-2 flex-none whitespace-nowrap" data-cat="${c.k}">提名</button>
+      </div>
+      <div id="nw-list-${c.k}" class="scrolly" style="max-height:340px;overflow-y:auto"></div>
+    </div>`).join('');
+  NW.built = true;
+}
+
+function nwPaintLists() {
+  const hidden = new Set(NW.data.hidden || []);
+  const now = Date.now();
+  const canVote = ONLINE && !!nwWho();
+  for (const c of NW_CATS) {
+    let list = (NW.data.noms || []).filter(n => n.cat === c.k && (NW.admin || !hidden.has(n.id)));
+    const votes = n => Math.max(0, +(NW.data.votes || {})[n.id] || 0);
+    list.sort(NW.sort === 'votes' ? (a, b) => votes(b) - votes(a) || b.t - a.t : (a, b) => b.t - a.t);
+    setTxt(`nw-cnt-${c.k}`, list.length ? `（${list.length} 則）` : '');
+    $(`nw-list-${c.k}`).innerHTML = list.length ? list.map(n => `
+      <div class="nw-nom mb-1.5 ${hidden.has(n.id) ? 'hid' : ''} ${now - n.t < 60000 ? 'fresh' : ''}">
+        <div class="flex-1 min-w-0">
+          <div class="font-bold">${escHtml(n.text)}${now - n.t < 60000 ? ' <span class="text-xs" style="color:var(--gold)">新！</span>' : ''}
+            ${hidden.has(n.id) ? '<span class="text-xs" style="color:#e5705f">（已隱藏）</span>' : ''}</div>
+          <div class="text-xs" style="color:var(--dim2)">${escHtml(n.cls)} ${escHtml(n.seat)}號 ${escHtml(n.name)}</div>
+        </div>
+        <span class="font-black" style="color:var(--gold);min-width:2.5em;text-align:right">${votes(n)}</span>
+        <button class="nw-vote btn btn-ghost text-sm px-3 py-1.5" data-id="${n.id}" ${canVote ? '' : 'disabled'}>👍 投一票</button>
+        ${NW.admin ? `<button class="nw-hide btn btn-ghost text-sm px-2 py-1.5" data-id="${n.id}"
+            data-hid="${hidden.has(n.id) ? 1 : 0}">${hidden.has(n.id) ? '恢復' : '隱藏'}</button>` : ''}
+      </div>`).join('') : '<div class="text-sm" style="color:var(--dim2)">還沒有人提名，你當第一個！</div>';
+  }
+}
+
+async function nwNominate(cat) {
+  const w = nwWho();
+  if (!ONLINE) { toast('目前連不上網路'); return; }
+  if (!w) { toast('要先填好班級、座號、姓名'); return; }
+  const inp = document.querySelector(`.nw-in[data-cat="${cat}"]`);
+  const text = inp.value.replace(/\s+/g, ' ').trim();
+  if (!text) { toast('先打上你想提名的內容'); inp.focus(); return; }
+  if (Array.from(text).length > NW_MAXLEN) { toast(`最多 ${NW_MAXLEN} 個字`); return; }
+  /* 同一類已經有一模一樣的（含被老師隱藏的）：不重複建立，改成幫它投一票 */
+  const dup = (NW.data.noms || []).find(n => n.cat === cat && n.text === text);
+  if (dup) {
+    inp.value = '';
+    if ((NW.data.hidden || []).includes(dup.id)) { toast('這則不能提名'); return; }
+    toast('已經有人提過了，幫你投了一票！');
+    nwVote(dup.id); return;
+  }
+  const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const item = { id, cat, text, cls: w.cls, seat: w.seat, name: w.name, t: Date.now() };
+  inp.value = '';
+  try {
+    await withTimeout(setDoc(nwRef(), { noms: arrayUnion(item) }, { merge: true }), 6000, 'nw-nominate');
+    toast('提名成功！');
+  } catch (e) { console.warn('提名失敗', e); toast('送出失敗，再試一次'); inp.value = text; }
+}
+
+async function nwVote(id) {
+  if (!ONLINE || !nwWho()) return;
+  try {
+    await withTimeout(setDoc(nwRef(), { votes: { [id]: increment(1) } }, { merge: true }), 6000, 'nw-vote');
+  } catch (e) { console.warn('投票失敗', e); toast('投票失敗，再試一次'); }
+}
+
+async function nwHide(id, wasHidden) {
+  if (!NW.admin) return;
+  try {
+    await withTimeout(setDoc(nwRef(), { hidden: wasHidden ? arrayRemove(id) : arrayUnion(id) }, { merge: true }), 6000, 'nw-hide');
+  } catch (e) { console.warn('隱藏失敗', e); toast('操作失敗，再試一次'); }
+}
+
+function openNw() {
+  show('nw-modal', true);
+  $('nw-preview').innerHTML = nwPreviewHTML();
+  if (!NW.built) nwBuildCats();
+  nwSwitchTab('preview');
+  nwPaintLists();
+  nwPaintWho();
+  if (ONLINE && !NW.unsub) {
+    NW.unsub = onSnapshot(nwRef(), snap => {
+      const d = snap.exists() ? snap.data() : {};
+      NW.data = { noms: d.noms || [], votes: d.votes || {}, hidden: d.hidden || [] };
+      nwPaintLists();
+    }, e => console.warn('提名監聽失敗', e));
+  }
+}
+
+function closeNw() {
+  show('nw-modal', false);
+  if (NW.unsub) { NW.unsub(); NW.unsub = null; }
+  NW.admin = false;
+  show('nw-admin-box', false);
+  $('nw-admin').textContent = '老師管理';
+}
+
+function initNw() {
+  $('btn-nw').addEventListener('click', openNw);
+  $('nw-close').addEventListener('click', closeNw);
+  $('nw-modal').addEventListener('click', e => {
+    const tabBtn = e.target.closest('[data-nwtab]');
+    if (tabBtn) { nwSwitchTab(tabBtn.dataset.nwtab); return; }
+    const add = e.target.closest('.nw-add'); if (add) { nwNominate(add.dataset.cat); return; }
+    const vote = e.target.closest('.nw-vote'); if (vote) { nwVote(vote.dataset.id); return; }
+    const hide = e.target.closest('.nw-hide'); if (hide) nwHide(hide.dataset.id, hide.dataset.hid === '1');
+  });
+  $('nw-modal').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.isComposing && e.target.classList.contains('nw-in')) nwNominate(e.target.dataset.cat);
+  });
+  $('nw-sort').addEventListener('click', () => {
+    NW.sort = NW.sort === 'votes' ? 'new' : 'votes';
+    setTxt('nw-sort', NW.sort === 'votes' ? '排序：票數' : '排序：最新');
+    nwPaintLists();
+  });
+  $('nw-admin').addEventListener('click', () => {
+    if (NW.admin) { NW.admin = false; $('nw-admin').textContent = '老師管理'; nwPaintLists(); return; }
+    show('nw-admin-box', true); $('nw-admin-pw').focus();
+  });
+  const adminOk = () => {
+    if ($('nw-admin-pw').value !== ADMIN_PASSWORD) { toast('密碼錯誤'); return; }
+    $('nw-admin-pw').value = ''; show('nw-admin-box', false);
+    NW.admin = true; $('nw-admin').textContent = '結束管理'; nwPaintLists();
+  };
+  $('nw-admin-ok').addEventListener('click', adminOk);
+  $('nw-admin-pw').addEventListener('keydown', e => { if (e.key === 'Enter') adminOk(); });
+}
+
+/* ══════════════════════════════════════════════════════════════
    版本紀錄：首頁右下角那顆 v2.0.0 按鈕點開看到的內容。
    跟 CHANGELOG.md 是同一份資料，改一邊也要記得改另一邊。
    ══════════════════════════════════════════════════════════════ */
-const APP_VERSION = '3.3.0';
+const APP_VERSION = '3.4.0';
 const VERSION_LOG = [
+  { v:'3.4.0', date:'2026-11-03', title:'新世界預告・提名投票',
+    added: [
+      '登入畫面新增「🌋 新世界預告・提名投票」：背景故事、獵人使命、9 種新武器、7 個區域、新系統，全部附 ASCII 小圖',
+      '提名投票：魔物名字、希望的區域、希望的武器、其他想要的東西，每則最多 12 個字，大家提了什麼會即時出現',
+      '每則提名都能按「投一票」，票數不限；要先填好班級、座號、姓名才能提名和投票',
+      '老師可以在投票頁用教師密碼「隱藏」不適當的提名'
+    ],
+    changed: [], fixed: [] },
   { v:'3.3.0', date:'2026-11-03', title:'戰績分防亂打・天賦提示',
     added: [
       '營地的「天賦」按鈕在點數夠用時會整顆發亮，寫「可以點了！」',
@@ -6665,6 +7075,9 @@ function wireEvents() {
   /* 新手教學 */
   $('tut-next').addEventListener('click', tutorialNext);
   $('tutorial-skip').addEventListener('click', tutorialSkip);
+
+  /* 新世界預告＋提名投票 */
+  initNw();
 
   /* 版本紀錄 */
   $('btn-verlog').addEventListener('click', openVerlog);

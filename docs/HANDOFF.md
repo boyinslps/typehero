@@ -10,16 +10,15 @@
 | 新世界企畫書 v2.2 | 完成，老師已審過四輪 | [`GDD-NEWWORLD.md`](GDD-NEWWORLD.md) |
 | 專家審查紀錄（13 輪） | 完成 | [`GDD-REVIEW.md`](GDD-REVIEW.md) |
 | 第 0 段：戰績分防亂打、天賦發亮 | **完成，v3.3.0** | `index.html`，見 [`../CHANGELOG.md`](../CHANGELOG.md) |
-| 新世界預告＋提名投票頁 | 未開始 | 規格：GDD §21.0 |
+| 新世界預告＋提名投票頁 | **完成，v3.4.0** | `index.html` 的 `#nw-modal`／`NW_*`／`nw*()`，見 [`../CHANGELOG.md`](../CHANGELOG.md) |
 | 第 1 段：獵人村開幕 | 未開始 | 規格：GDD §21.3 第 1 列 |
 
 ## 下一步（照順序）
 
-1. **預告＋提名投票頁**（GDD §21.0）
-   - 原本首頁（登入畫面）加「🌋 新世界預告」按鈕 → 預告頁：背景故事、角色使命、新武器、區域、系統，美術用 ASCII。
-   - 提名投票：要先填班級座號；分類提名；即時顯示誰提了什麼；不限票數；每則限 12 字；老師可隱藏。
-   - 資料建議放 `mg_config` 集合下的新文件（例如 `mg_config/nw_vote`），**免改 Firestore 規則**；
-     票數用 `increment()`、提名用 `arrayUnion()`，即時顯示用 `onSnapshot`。
+1. ~~預告＋提名投票頁~~ ✅ v3.4.0 已完成（資料在 `mg_config/nw_vote`，免改規則）。
+   - 上線後可以看投票結果再決定魔物名字、區域、武器；老師在投票頁按「老師管理」可隱藏不適當的提名。
+   - 預告頁的文字與 ASCII 在 `index.html` 的 `NW_ART`／`NW_WEAPONS`／`NW_REGIONS`／`NW_SYSTEMS`，
+     企畫有改（例如武器、區域改名）要一起改。故事文字在 `nwPreviewHTML()`，是草稿，老師可改。
 2. **第 1 段**（GDD §21.3）：新世界入口（歷史最高 LV8＝解鎖史詩）、獵人村全部介面（未開放的掛「🔗 施工中」）、
    初心武器四選一（法杖、長弓、雙刀、連弩）、世界地圖（草原、森林）、咕咕鳥／泡泡蛙／跳跳菇／炎牙狼、
    讀條＋打「閃避」「防禦」、生命／倒下／生氣、魔物攻擊帶的狀態、HR、新排行、防作弊、主線第 1 章、素材字元先存著。
@@ -53,6 +52,10 @@
 | `showResult()`、`#r-lowacc` | 正確率不足提醒 |
 
 ## 開發環境注意
+
+- 版面要看真的樣子：雲端連不到 Tailwind CDN，可以 `npm i tailwindcss@3` 後用
+  `npx tailwindcss -i in.css -o tw.css`（content 指向 `index.html`）產生 CSS，再讓 Playwright 把 `cdn.tailwindcss.com` 攔截成注入這份 CSS 的腳本。
+- 在 `String.raw` 模板裡畫 ASCII：**最後一個字元是 `\` 時會把結尾的反引號跳脫掉**（整支 script 語法錯誤、整個遊戲開不起來），結尾要補空白。
 
 - 雲端環境連不到 CDN（Firebase、Tailwind、jsdelivr 都被擋），瀏覽器實測用 [`../tools/browser-test/`](../tools/browser-test/README.md) 的假 Firebase。
 - 主程式是 `index.html` 裡的單一 `<script type="module">`，改完可以抽出來用 `node --check` 檢查語法。

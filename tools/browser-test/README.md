@@ -21,3 +21,10 @@ NODE_PATH=$(npm root -g) node tools/browser-test/seg0.test.js /tmp
 
 測試資料放在檔案開頭的 `seed`，文件路徑格式是 `集合/文件ID`。
 新增的 Firebase 函式（例如 `increment`、`arrayUnion`）要記得在 `mock/fs.js` 補上。
+
+`nw.test.js` 測新世界預告＋提名投票（v3.4.0）：
+- 預告頁卡片數量、沒填身分時輸入框停用、提名／投票／重複提名、老師隱藏與恢復、排序、手機寬度、無 JS 錯誤
+
+```bash
+NODE_PATH=$(npm root -g) node tools/browser-test/nw.test.js /tmp
+```
