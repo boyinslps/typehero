@@ -10,15 +10,16 @@
 | 新世界企畫書 v2.2 | 完成，老師已審過四輪 | [`GDD-NEWWORLD.md`](GDD-NEWWORLD.md) |
 | 專家審查紀錄（13 輪） | 完成 | [`GDD-REVIEW.md`](GDD-REVIEW.md) |
 | 第 0 段：戰績分防亂打、天賦發亮 | **完成，v3.3.0** | `index.html`，見 [`../CHANGELOG.md`](../CHANGELOG.md) |
-| 新世界預告＋提名投票頁 | **完成，v3.4.0** | `index.html` 的 `#nw-modal`／`NW_*`／`nw*()`，見 [`../CHANGELOG.md`](../CHANGELOG.md) |
+| 新世界預告＋提名投票頁 | **完成，v3.4.1（像素風）** | `index.html` 的 `#nw-modal`／`NW_*`／`nw*()`，見 [`../CHANGELOG.md`](../CHANGELOG.md) |
 | 第 1 段：獵人村開幕 | 未開始 | 規格：GDD §21.3 第 1 列 |
 
 ## 下一步（照順序）
 
 1. ~~預告＋提名投票頁~~ ✅ v3.4.0 已完成（資料在 `mg_config/nw_vote`，免改規則）。
    - 上線後可以看投票結果再決定魔物名字、區域、武器；老師在投票頁按「老師管理」可隱藏不適當的提名。
-   - 預告頁的文字與 ASCII 在 `index.html` 的 `NW_ART`／`NW_WEAPONS`／`NW_REGIONS`／`NW_SYSTEMS`，
-     企畫有改（例如武器、區域改名）要一起改。故事文字在 `nwPreviewHTML()`，是草稿，老師可改。
+   - 預告頁的文字在 `index.html` 的 `NW_WEAPONS`／`NW_REGIONS`／`NW_MONSTERS`／`NW_SYSTEMS`／`nwPreviewHTML()`；
+     故事文字是草稿，老師可改。企畫有改（武器、區域、魔物改名）要一起改。
+   - 美術在 `PX`（程式畫的像素圖：12 魔物、9 武器、7 區域、傳送門、獵人），第 1 段的戰鬥畫面直接用 `PX.canvas('monster', 'coo', 6, angry)`。
 2. **第 1 段**（GDD §21.3）：新世界入口（歷史最高 LV8＝解鎖史詩）、獵人村全部介面（未開放的掛「🔗 施工中」）、
    初心武器四選一（法杖、長弓、雙刀、連弩）、世界地圖（草原、森林）、咕咕鳥／泡泡蛙／跳跳菇／炎牙狼、
    讀條＋打「閃避」「防禦」、生命／倒下／生氣、魔物攻擊帶的狀態、HR、新排行、防作弊、主線第 1 章、素材字元先存著。
@@ -31,7 +32,7 @@
 - 召喚鈴寵物要有血條（GDD §10.3）。
 - 英文魔物的閃避／防禦接受 jump／stop，要提醒。
 - 讀條與有效時間：先寬，看資料再收；狀態數字：先這樣，看資料再調。
-- 魔物、武器美術一律 ASCII；介面可用 emoji。
+- 魔物、武器、區域美術一律**像素風**（11/03 改，取代 ASCII）；介面可用 emoji。第 1 段要補：武器第一人稱圖、寵物（史萊姆、小樹精、小黑龍）、攻擊特效、粒子，沿用 `PX` 的畫法。
 - 陷阱、戰鎚刪除；武器不分系；每種武器要有獨特操作，不能只是「打對 X 次觸發 X」。
 
 ## 還沒決定的
@@ -55,7 +56,7 @@
 
 - 版面要看真的樣子：雲端連不到 Tailwind CDN，可以 `npm i tailwindcss@3` 後用
   `npx tailwindcss -i in.css -o tw.css`（content 指向 `index.html`）產生 CSS，再讓 Playwright 把 `cdn.tailwindcss.com` 攔截成注入這份 CSS 的腳本。
-- 在 `String.raw` 模板裡畫 ASCII：**最後一個字元是 `\` 時會把結尾的反引號跳脫掉**（整支 script 語法錯誤、整個遊戲開不起來），結尾要補空白。
+- 外網素材站（OpenGameArt、Kenney、itch.io）在雲端環境被擋；像素圖全部自己用程式畫（`PX`），也避免授權與風格不一。
 
 - 雲端環境連不到 CDN（Firebase、Tailwind、jsdelivr 都被擋），瀏覽器實測用 [`../tools/browser-test/`](../tools/browser-test/README.md) 的假 Firebase。
 - 主程式是 `index.html` 裡的單一 `<script type="module">`，改完可以抽出來用 `node --check` 檢查語法。
