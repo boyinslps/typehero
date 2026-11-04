@@ -737,56 +737,87 @@ function grayOut(c) {
   return c;
 }
 
+function decorGrid(k) {
+  const s = mk(18, 24);
+  if (k === 'barrel') { sell(s, 9, 15, 6, 7, '#8a5a2b'); rect(s, 3, 11, 12, 1, '#3a2a1a'); rect(s, 3, 17, 12, 1, '#3a2a1a'); rect(s, 5, 9, 8, 1, '#a8763c'); }
+  else if (k === 'crate') { rect(s, 3, 12, 12, 11, '#c8964f'); rect(s, 3, 12, 12, 1, '#e8c07a'); line(s, 3, 12, 14, 22, '#8a5a2b'); line(s, 14, 12, 3, 22, '#8a5a2b'); rect(s, 3, 22, 12, 1, '#8a5a2b'); }
+  else if (k === 'lamp') { rect(s, 8, 8, 2, 15, '#3a3a44'); rect(s, 6, 3, 6, 6, '#ffe27a'); rect(s, 7, 4, 4, 4, '#fff6c0'); rect(s, 5, 2, 8, 2, '#3a3a44'); rect(s, 6, 22, 6, 2, '#3a3a44'); }
+  else if (k === 'bench') { rect(s, 1, 14, 16, 3, '#a8763c'); rect(s, 1, 14, 16, 1, '#c8964f'); rect(s, 2, 17, 2, 5, '#5a3a22'); rect(s, 14, 17, 2, 5, '#5a3a22'); rect(s, 1, 10, 16, 2, '#8a5a2b'); }
+  else if (k === 'sign') { rect(s, 8, 12, 2, 11, '#5a3a22'); rect(s, 2, 5, 14, 8, '#c8a56a'); rect(s, 2, 5, 14, 1, '#e8c88a'); rect(s, 4, 8, 10, 1, '#7a5a3a'); rect(s, 4, 10, 7, 1, '#7a5a3a'); }
+  else if (k === 'flowers') { rect(s, 1, 17, 16, 5, '#6a4a2a'); for (let i = 0; i < 9; i++) { const x = 2 + i * 1.7, c = ['#ff9ec4', '#ffe27a', '#fff', '#ff6a8a'][i % 4]; rect(s, x, 12 + (i % 3) * 2, 2, 2, c); rect(s, x, 14 + (i % 3) * 2, 1, 4, '#3a7d2c'); } }
+  else if (k === 'hay') { sell(s, 9, 16, 8, 6, '#e8c060'); for (let i = 0; i < 6; i++) line(s, 3 + i * 2, 12, 5 + i * 2, 21, '#c89a30'); }
+  outline(s, OL);
+  return s;
+}
+
 function villageCanvas(V, openIds) {
   const T = 16, W = V.cols * T, H = V.rows * T, R = rng(5);
-  const s = mk(W, H);
-  const pathSet = new Set(), free = (x, y) => !pathSet.has(x + ',' + y);
-  for (let y = 0; y < V.rows - 1; y++) { pathSet.add(V.path[0] + ',' + y); pathSet.add(V.path[1] + ',' + y); }
-  const foot = new Set();
-  V.buildings.forEach(b => {
-    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) foot.add((b.x + i) + ',' + (b.y + j));
-    const door = b.x + 1, row = b.y + 3, lo = b.side === 'L' ? door : V.path[1], hi = b.side === 'L' ? V.path[0] : door;
-    for (let x = lo; x <= hi; x++) pathSet.add(x + ',' + row);
-  });
+  const s = mk(W, H), tk = (x, y) => x + ',' + y;
+  const plaza = [V.plaza.x * T, V.plaza.y * T], PR = 52;
   for (let ty = 0; ty < V.rows; ty++) for (let tx = 0; tx < V.cols; tx++) {
     rect(s, tx * T, ty * T, T, T, (tx + ty) % 2 ? '#5fae45' : '#68b84c');
     for (let k = 0; k < 4; k++) put(s, tx * T + Math.floor(R() * 16), ty * T + Math.floor(R() * 16), R() < .5 ? '#4a9a3a' : '#7cc35a');
-    if (R() < .12) { const fx = tx * T + 3 + Math.floor(R() * 10), fy = ty * T + 3 + Math.floor(R() * 10); put(s, fx, fy, ['#fff', '#ff9ec4', '#ffe27a'][Math.floor(R() * 3)]); put(s, fx, fy + 1, '#3a7d2c'); }
+    if (R() < .1) { const fx = tx * T + 3 + Math.floor(R() * 10), fy = ty * T + 3 + Math.floor(R() * 10); put(s, fx, fy, ['#fff', '#ff9ec4', '#ffe27a'][Math.floor(R() * 3)]); put(s, fx, fy + 1, '#3a7d2c'); }
   }
-  pathSet.forEach(k => {
-    const [tx, ty] = k.split(',').map(Number);
-    rect(s, tx * T, ty * T, T, T, '#c9a66b');
-    for (let i = 0; i < 5; i++) put(s, tx * T + Math.floor(R() * 16), ty * T + Math.floor(R() * 16), R() < .5 ? '#a88550' : '#dcc088');
-    if (!pathSet.has((tx - 1) + ',' + ty)) rect(s, tx * T, ty * T, 1, T, '#a88550');
-    if (!pathSet.has((tx + 1) + ',' + ty)) rect(s, tx * T + 15, ty * T, 1, T, '#a88550');
-    if (!pathSet.has(tx + ',' + (ty - 1))) rect(s, tx * T, ty * T, T, 1, '#dcc088');
-    if (!pathSet.has(tx + ',' + (ty + 1))) rect(s, tx * T, ty * T + 15, T, 1, '#a88550');
+  const pathTiles = new Set(), stamp = (x, y, r, c) => { for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (dx * dx + dy * dy <= r * r) put(s, Math.round(x + dx), Math.round(y + dy), c); };
+  const targets = V.buildings.map(b => [(b.x + 1) * T + 8, (b.y + 3) * T + 8]).concat([[V.gate.approach[0] * T + 8, V.gate.approach[1] * T + 8]]);
+  const lines = targets.map((t, i) => {
+    const a = t, b = plaza, mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
+    const off = (i % 2 ? 1 : -1) * (14 + (i * 7) % 18);
+    return [a, [mx - dy / L * off, my + dx / L * off], b];
   });
-  const trees = [];
-  for (let ty = 0; ty < V.rows - 2; ty++) for (const tx of [0, V.cols - 1, 4, 7]) {
-    if (foot.has(tx + ',' + ty) || foot.has(tx + ',' + (ty + 1)) || !free(tx, ty) || ((tx === 4 || tx === 7) && R() > .18) || ((tx === 0 || tx === V.cols - 1) && R() > .5)) continue;
-    const near = V.buildings.some(b => Math.abs(b.x + 1 - tx) <= 2 && ty >= b.y - 1 && ty <= b.y + 4 && (tx === 4 || tx === 7));
-    if (near) continue;
-    trees.push([tx, ty]);
+  [[8, '#a88550'], [7, '#c9a66b']].forEach(([r, c]) => lines.forEach(([a, m, b]) => {
+    for (let t = 0; t <= 1; t += .008) {
+      const x = (1 - t) * (1 - t) * a[0] + 2 * (1 - t) * t * m[0] + t * t * b[0], y = (1 - t) * (1 - t) * a[1] + 2 * (1 - t) * t * m[1] + t * t * b[1];
+      stamp(x + (R() - .5) * 1.5, y + (R() - .5) * 1.5, r, c);
+      if (r === 7) pathTiles.add(tk(Math.floor(x / T), Math.floor(y / T)));
+    }
+  }));
+  for (let i = 0; i < 260; i++) { const [a, m, b] = lines[Math.floor(R() * lines.length)], t = R(); put(s, (1 - t) * (1 - t) * a[0] + 2 * (1 - t) * t * m[0] + t * t * b[0] + (R() - .5) * 10, (1 - t) * (1 - t) * a[1] + 2 * (1 - t) * t * m[1] + t * t * b[1] + (R() - .5) * 10, R() < .5 ? '#dcc088' : '#a88550'); }
+  stamp(plaza[0], plaza[1], PR + 2, '#8a8478'); stamp(plaza[0], plaza[1], PR, '#bdb5a4');
+  for (let y = -PR; y <= PR; y += 4) for (let x = -PR; x <= PR; x += 4) if (x * x + y * y <= PR * PR - 20) { rect(s, plaza[0] + x, plaza[1] + y, 4, 4, ((x + y) / 4) % 2 ? '#b0a898' : '#c4bcab'); }
+  stamp(plaza[0], plaza[1], 15, '#6a645a'); stamp(plaza[0], plaza[1], 13, '#9a9488'); stamp(plaza[0], plaza[1], 10, '#3a8ac8'); stamp(plaza[0], plaza[1], 8, '#4aa8e0');
+  rect(s, plaza[0] - 1, plaza[1] - 6, 3, 10, '#bfe8f6'); rect(s, plaza[0] - 2, plaza[1] - 7, 5, 2, '#e8f7ff');
+  const pd = V.pond;
+  if (pd) {
+    const px0 = pd.x0 * T, py0 = pd.y0 * T, pw = (pd.x1 - pd.x0 + 1) * T, ph = (pd.y1 - pd.y0 + 1) * T;
+    ell(s, px0 + pw / 2, py0 + ph / 2, pw / 2, ph / 2, '#e8d29a'); ell(s, px0 + pw / 2, py0 + ph / 2, pw / 2 - 3, ph / 2 - 3, '#3ca4d4'); ell(s, px0 + pw / 2 - 4, py0 + ph / 2 - 4, pw / 4, ph / 5, '#5ab8e6');
+    [[10, 12], [24, 22], [34, 10]].forEach(([x, y]) => { ell(s, px0 + x + 6, py0 + y + 6, 4, 2, '#3f9a45'); put(s, px0 + x + 6, py0 + y + 4, '#ff9ec4'); });
+    for (let i = 0; i < 5; i++) { const x = px0 + 4 + i * 9, y = py0 + ph - 5; rect(s, x, y - 7, 1, 8, '#3a7d2c'); rect(s, x + 2, y - 5, 1, 6, '#4a9a3a'); }
   }
-  V.trees = trees;
+  const blocked = new Set();
+  V.buildings.forEach(b => { for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) blocked.add(tk(b.x + i, b.y + j)); });
+  const gb = V.gateBlock; for (let y = gb.y0; y <= gb.y1; y++) for (let x = gb.x0; x <= gb.x1; x++) blocked.add(tk(x, y));
+  if (pd) for (let y = pd.y0; y <= pd.y1; y++) for (let x = pd.x0; x <= pd.x1; x++) blocked.add(tk(x, y));
+  for (let y = 0; y < V.rows; y++) for (let x = 0; x < V.cols; x++) if (Math.hypot(x * T + 8 - plaza[0], y * T + 8 - plaza[1]) < 18) blocked.add(tk(x, y));
+  const keep = new Set(); V.buildings.forEach(b => { for (let j = 3; j <= 4; j++) for (let i = -1; i <= 1; i++) keep.add(tk(b.x + 1 + i, b.y + j)); });
+  keep.add(tk(...V.start));
+  (V.decor || []).forEach(d => { const g = blit(decorGrid(d.k), 1, false); s.__d = s.__d || []; s.__d.push([g, d]); if (d.b) blocked.add(tk(d.x, d.y)); keep.add(tk(d.x, d.y)); });
+  const trees = [];
+  for (let ty = 0; ty < V.rows; ty++) for (let tx = 0; tx < V.cols; tx++) {
+    const k = tk(tx, ty);
+    if (blocked.has(k) || keep.has(k) || pathTiles.has(k) || pathTiles.has(tk(tx, ty - 1)) || blocked.has(tk(tx, ty + 1)) || blocked.has(tk(tx, ty + 2))) continue;
+    const edge = tx === 0 || tx === V.cols - 1 || ty === 0 || ty >= V.rows - 1;
+    if (R() < (edge ? .45 : .07)) trees.push([tx, ty]);
+  }
+  trees.forEach(([tx, ty]) => blocked.add(tk(tx, ty)));
+  V.trees = trees; V.blocked = blocked;
   trees.forEach(([tx, ty]) => {
     const x = tx * T + 8, y = ty * T + 15;
-    rect(s, x - 1, y - 5, 3, 6, '#5a3a22'); sdisc(s, x, y - 11, 7, '#3f9a45'); sdisc(s, x - 3, y - 8, 4, '#4faa55'); put(s, x + 2, y - 13, '#7cc35a');
-    ell(s, x, y + 1, 6, 2, '#3b8a3a');
+    ell(s, x, y + 1, 6, 2, '#3b8a3a'); rect(s, x - 1, y - 5, 3, 6, '#5a3a22'); sdisc(s, x, y - 11, 7, '#3f9a45'); sdisc(s, x - 3, y - 8, 4, '#4faa55'); put(s, x + 2, y - 13, '#7cc35a');
   });
   return s;
 }
 
 function villageDraw(V, openIds) {
   const T = 16, W = V.cols * T, H = V.rows * T;
-  const c = blit(villageCanvas(V, openIds), 1, false), g = c.getContext('2d');
+  const grid = villageCanvas(V, openIds), c = blit(grid, 1, false), g = c.getContext('2d');
+  (grid.__d || []).forEach(([gc, d]) => g.drawImage(gc, d.x * T - 1, d.y * T - 8));
   V.buildings.forEach(b => {
     const bc = blit(buildingGrid(b.kind), 1, false), open = openIds.includes(b.id);
     if (!open) grayOut(bc);
     g.drawImage(bc, b.x * T, b.y * T);
     if (!open) {
-      g.fillStyle = '#c8ccd4'; g.strokeStyle = '#5a5f6a';
       const x0 = b.x * T + 3, y0 = b.y * T + 14;
       for (let i = 0; i < 40; i += 2) { g.fillStyle = (i / 2) % 2 ? '#c8ccd4' : '#6a6f7a'; g.fillRect(x0 + i, y0 + i * .6, 2, 2); g.fillRect(x0 + i, y0 + 26 - i * .6, 2, 2); }
       g.fillStyle = '#e8b64c'; g.fillRect(b.x * T + 20, b.y * T + 26, 8, 7); g.fillStyle = '#8f6416'; g.fillRect(b.x * T + 20, b.y * T + 32, 8, 1);
@@ -794,8 +825,7 @@ function villageDraw(V, openIds) {
       g.fillStyle = '#e8b64c'; g.fillRect(b.x * T + 21, b.y * T + 23, 2, 4); g.fillRect(b.x * T + 25, b.y * T + 23, 2, 4); g.fillRect(b.x * T + 21, b.y * T + 22, 6, 2);
     }
   });
-  const gate = blit(doorGrid('open', 0), 1, false);
-  g.drawImage(gate, V.gate.x * T - 4, (V.gate.y - 2) * T - 8);
+  g.drawImage(blit(doorGrid('open', 0), 1, false), V.gate.x * T - 4, V.gate.y * T - 56);
   return c;
 }
 
@@ -835,6 +865,81 @@ function zoneGridW(W, col, edge) {
   return s;
 }
 
+function patchGrid(k) {
+  const s = mk(44, 34), R = rng(k.length * 7 + 3);
+  const inE = (x, y) => ((x - 22) / 21) ** 2 + ((y - 17) / 16) ** 2 <= 1;
+  const base = { grass: '#68b84c', forest: '#2f6a40', coast: '#e8d29a', volcano: '#4a3434', snow: '#e8f1f8', sky: '#eaf4ff', abyss: '#241438' }[k];
+  for (let y = 0; y < 34; y++) for (let x = 0; x < 44; x++) if (inE(x, y)) {
+    put(s, x, y, base);
+    if (R() < .18) put(s, x, y, k === 'abyss' ? '#35204f' : k === 'snow' || k === 'sky' ? '#ffffff' : dk(base, .12));
+  }
+  const rim = dk(base, .28);
+  for (let y = 0; y < 34; y++) for (let x = 0; x < 44; x++) if (inE(x, y) && !(inE(x - 1, y) && inE(x + 1, y) && inE(x, y - 1) && inE(x, y + 1))) put(s, x, y, rim);
+  const tree = (x, y, c1, c2) => { rect(s, x - 1, y, 3, 4, '#5a3a22'); sdisc(s, x, y - 3, 4, c1); put(s, x - 1, y - 5, c2); };
+  const pineW = (x, y) => { rect(s, x, y + 5, 1, 3, '#5a3a22'); tri(s, x, y, y + 7, 3, '#2f7a50'); tri(s, x, y, y + 3, 2, '#f4f8fc'); };
+  if (k === 'grass') {
+    for (let i = 0; i < 14; i++) { const x = 6 + Math.floor(R() * 32), y = 5 + Math.floor(R() * 24); if (inE(x, y)) { put(s, x, y, ['#fff', '#ff9ec4', '#ffe27a'][i % 3]); put(s, x, y + 1, '#3a7d2c'); } }
+    poly(s, [[15, 12], [22, 5], [29, 12]], '#c0392b'); rect(s, 16, 12, 12, 8, '#f0e4cc'); rect(s, 16, 19, 12, 1, '#b8a888'); rect(s, 20, 14, 4, 6, '#5a3a22'); rect(s, 17, 14, 2, 2, '#26345a'); rect(s, 25, 14, 2, 2, '#26345a');
+    tree(9, 22, '#3f9a45', '#7cc35a'); tree(35, 24, '#3f9a45', '#7cc35a');
+  } else if (k === 'forest') {
+    [[8, 14], [14, 9], [22, 7], [30, 10], [36, 16], [10, 22], [18, 18], [26, 17], [32, 24], [22, 26], [14, 27], [38, 22]].forEach(([x, y], i) => tree(x, y + 2, i % 2 ? '#1f5a32' : '#2a6a38', '#4faa55'));
+    for (let i = 0; i < 6; i++) put(s, 8 + Math.floor(R() * 28), 8 + Math.floor(R() * 20), '#e0933c');
+  } else if (k === 'coast') {
+    for (let y = 0; y < 34; y++) for (let x = 23; x < 44; x++) if (inE(x, y) && inE(x - 1, y)) { put(s, x, y, (x + y) % 5 === 0 ? '#bfe8f6' : (x < 25 ? '#8fd0ea' : '#3ca4d4')); }
+    for (let y = 8; y < 28; y += 4) for (let x = 26; x < 40; x += 6) if (inE(x, y)) { rect(s, x, y, 3, 1, '#bfe8f6'); put(s, x + 3, y + 1, '#8fd0ea'); }
+    tline(s, 10, 22, 12, 11, '#8a5a2b', '#5a3a22'); [[-5, 2], [-4, -3], [4, -2], [5, 3], [0, -5]].forEach(([dx, dy]) => { line(s, 13, 11, 13 + dx, 11 + dy, '#3f9a45'); line(s, 13, 12, 13 + dx, 12 + dy, '#2c7a35'); });
+    poly(s, [[28, 20], [38, 20], [35, 25], [31, 25]], '#8a5a2b'); rect(s, 33, 12, 1, 8, '#e8d8c0'); poly(s, [[34, 12], [34, 19], [39, 19]], '#fff6dc');
+  } else if (k === 'volcano') {
+    tri(s, 22, 5, 27, 15, '#3a2a2a'); for (let y = 5; y <= 27; y++) { const w = Math.round(15 * (y - 5) / 22); rect(s, 22 + w - 5, y, 5, 1, '#2a1c1c'); rect(s, 22 - w, y, 4, 1, '#5a4040'); }
+    rect(s, 17, 5, 10, 2, '#ff6a2e'); rect(s, 19, 5, 6, 1, '#ffe27a');
+    for (let y = 7; y < 29; y++) { const x = 22 + Math.round(Math.sin(y * .6) * 2); rect(s, x, y, 2, 1, '#ff6a2e'); }
+    for (let i = 0; i < 8; i++) put(s, 6 + Math.floor(R() * 30), 4 + Math.floor(R() * 24), i % 2 ? '#ffb35a' : '#8a7a7a');
+    ell(s, 8, 24, 3, 2, '#2a1c1c'); ell(s, 36, 22, 3, 2, '#2a1c1c');
+  } else if (k === 'snow') {
+    ell(s, 30, 24, 7, 3, '#bfe0f4'); ell(s, 12, 24, 5, 2, '#bfe0f4');
+    [[8, 10], [16, 6], [24, 9], [32, 8], [12, 16], [28, 15], [20, 18], [36, 18]].forEach(([x, y]) => pineW(x, y));
+    for (let i = 0; i < 14; i++) put(s, 4 + Math.floor(R() * 36), 3 + Math.floor(R() * 28), '#fff');
+  } else if (k === 'sky') {
+    [[10, 22, 6], [34, 22, 5], [22, 27, 6]].forEach(([x, y, r]) => ell(s, x, y, r + 3, 3, '#ffffff'));
+    rect(s, 12, 8, 3, 14, '#f1ead8'); rect(s, 12, 8, 1, 14, '#fff'); rect(s, 29, 10, 3, 12, '#f1ead8'); rect(s, 29, 10, 1, 12, '#fff'); rect(s, 11, 7, 5, 1, '#e8b64c'); rect(s, 28, 9, 5, 1, '#e8b64c');
+    rect(s, 20, 12, 5, 10, '#f1ead8'); rect(s, 19, 11, 7, 1, '#e8b64c'); rect(s, 15, 20, 14, 2, '#cfc4a8');
+    for (let i = 0; i < 8; i++) { const x = 6 + Math.floor(R() * 32), y = 3 + Math.floor(R() * 24); put(s, x, y, '#ffe9a0'); }
+  } else if (k === 'abyss') {
+    [[8, 18, 12], [16, 14, 9], [30, 12, 13], [37, 18, 9]].forEach(([x, y, h]) => { tri(s, x, y, y + h, 3, '#120a1e'); line(s, x - 2, y + h - 2, x, y, '#4a2a80'); });
+    let x = 4, y = 26; while (x < 40) { const nx = x + 2 + Math.floor(R() * 3), ny = Math.max(22, Math.min(30, y + Math.floor(R() * 3) - 1)); line(s, x, y, nx, ny, '#b36bff'); x = nx; y = ny; }
+    put(s, 20, 17, '#ff4a4a'); put(s, 23, 17, '#ff4a4a');
+  }
+  return s;
+}
+
+function worldMapCanvas(L, states) {
+  const s = mk(L.w, L.h), R = rng(9);
+  sky(s, ['#2c6fb8', '#3a86c8', '#4a9ad8'], 0, L.h);
+  for (let i = 0; i < 70; i++) { const x = Math.floor(R() * L.w), y = Math.floor(R() * L.h); rect(s, x, y, 3, 1, '#7fc0ee'); put(s, x + 3, y + 1, '#5aa6e0'); }
+  const land = new Set(), key = (x, y) => y * L.w + x;
+  const blob = (cx, cy, rx, ry) => { for (let y = cy - ry; y <= cy + ry; y++) for (let x = cx - rx; x <= cx + rx; x++) if (((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1 && x >= 0 && y >= 0 && x < L.w && y < L.h) land.add(key(x, y)); };
+  Object.entries(L.pos).forEach(([k, [x, y]]) => { if (k !== 'sky') blob(x, y, 28, 22); });
+  L.links.forEach(([a, b]) => { const [x1, y1] = L.pos[a], [x2, y2] = L.pos[b]; if (a === 'sky' || b === 'sky') return; for (let t = 0; t <= 1; t += .02) blob(Math.round(x1 + (x2 - x1) * t), Math.round(y1 + (y2 - y1) * t), 7, 7); });
+  land.forEach(k => { const x = k % L.w, y = Math.floor(k / L.w); put(s, x, y, (x + y) % 2 ? '#5fae45' : '#68b84c'); if (R() < .12) put(s, x, y, '#4a9a3a'); });
+  land.forEach(k => { const x = k % L.w, y = Math.floor(k / L.w); if (![[1, 0], [-1, 0], [0, 1], [0, -1]].every(([dx, dy]) => land.has(key(x + dx, y + dy)))) put(s, x, y, '#e8d29a'); });
+  L.links.forEach(([a, b]) => {
+    const [x1, y1] = L.pos[a], [x2, y2] = L.pos[b], n = Math.round(Math.hypot(x2 - x1, y2 - y1));
+    for (let i = 0; i <= n; i += 3) { const t = i / n; rect(s, Math.round(x1 + (x2 - x1) * t), Math.round(y1 + (y2 - y1) * t), 2, 2, a === 'sky' || b === 'sky' ? '#ffffff' : '#c9a66b'); }
+  });
+  const c = blit(s, 1, false), g = c.getContext('2d');
+  Object.entries(L.pos).forEach(([k, [x, y]]) => {
+    const p = blit(patchGrid(k), 1, false), open = states[k] && states[k].open;
+    if (!open) grayOut(p);
+    g.drawImage(p, x - 22, y - 17);
+    if (!open) {
+      for (let i = 0; i < 32; i += 2) { g.fillStyle = (i / 2) % 2 ? '#c8ccd4' : '#6a6f7a'; g.fillRect(x - 16 + i, y - 12 + i * .7, 2, 2); g.fillRect(x - 16 + i, y + 10 - i * .7, 2, 2); }
+      g.fillStyle = '#e8b64c'; g.fillRect(x - 4, y - 3, 8, 7); g.fillStyle = '#8f6416'; g.fillRect(x - 4, y + 3, 8, 1); g.fillStyle = '#2a1a10'; g.fillRect(x - 2, y - 1, 4, 2);
+      g.fillStyle = '#e8b64c'; g.fillRect(x - 3, y - 6, 2, 4); g.fillRect(x + 1, y - 6, 2, 4); g.fillRect(x - 3, y - 7, 6, 2);
+    }
+  });
+  return c;
+}
+
 const GRIDS = { weapon: W, region: RG, monster: M };
 const cache = {};
 function grid(kind, key) {
@@ -850,6 +955,7 @@ return {
   door: (state, phase, scale) => blit(doorGrid(state, phase || 0), scale || 1, false),
   building: (kind, scale, gray) => { const c = blit(buildingGrid(kind), scale || 1, false); return gray ? grayOut(c) : c; },
   village: (V, openIds) => villageDraw(V, openIds),
+  worldMap: (L, states) => worldMapCanvas(L, states),
   width: (kind, key) => grid(kind, key).w
 };
 })();

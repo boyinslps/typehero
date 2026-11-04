@@ -200,18 +200,34 @@ export function zoneOpen(nw, rk) {
 export const starOpen = (nw, rk, star) => star <= 1 || (nw.zone[rk] || 0) >= star - 1;
 
 export const VILLAGE = {
-  cols: 12, rows: 36, path: [5, 6], start: [5, 31], gate: { x: 5, y: 35 },
+  cols: 22, rows: 15, plaza: { x: 11, y: 7 }, start: [11, 11],
+  gate: { x: 10, y: 15, approach: [11, 11] }, gateBlock: { x0: 10, y0: 12, x1: 12, y1: 14 },
+  pond: { x0: 18, y0: 11, x1: 20, y1: 13 },
   buildings: [
-    { id: 'star', kind: 'star', side: 'R', x: 8, y: 1, name: '星圖台', wip: 5, text: '升級拿到的星星，可以在這裡點亮，讓閃避和防禦變得更強。' },
-    { id: 'rooms', kind: 'rooms', side: 'L', x: 1, y: 4, name: '組隊酒館', wip: 4, text: '開房間或加入同學的房間，最多 4 個人一起打大魔物。' },
-    { id: 'armor', kind: 'armor', side: 'R', x: 8, y: 7, name: '防具店', wip: 3, text: '頭盔、鎧甲、手套、靴子，穿上就會出現在你身上！' },
-    { id: 'shop', kind: 'shop', side: 'L', x: 1, y: 10, name: '商店', wip: 3, text: '用字元買回復藥，也可以賣掉用不到的材料。' },
-    { id: 'storage', kind: 'storage', side: 'R', x: 8, y: 13, name: '倉庫', wip: 2, text: '所有材料和圖紙都放在這裡，一目了然。' },
-    { id: 'forge', kind: 'forge', side: 'L', x: 1, y: 16, name: '鐵匠鋪', wip: 2, text: '用打到的材料，打造、強化自己的武器和裝備！' },
-    { id: 'rank', kind: 'rank', side: 'R', x: 8, y: 19, name: '榮譽碑', act: 'rank', text: '看看誰是最強獵人。' },
-    { id: 'equip', kind: 'equip', side: 'L', x: 1, y: 22, name: '造型屋', act: 'equip', text: '換武器、換髮型，看武器圖鑑。' },
-    { id: 'quest', kind: 'quest', side: 'R', x: 8, y: 25, name: '獵人公會', act: 'quest', text: '接任務、領獎勵。' },
-    { id: 'board', kind: 'board', side: 'L', x: 1, y: 28, name: '委託板', act: 'map', text: '選地方、選魔物，出發狩獵！' }
+    { id: 'forge', kind: 'forge', x: 2, y: 1, name: '鐵匠鋪', wip: 2, text: '用打到的材料，打造、強化自己的武器和裝備！' },
+    { id: 'storage', kind: 'storage', x: 7, y: 0, name: '倉庫', wip: 2, text: '所有材料和圖紙都放在這裡，一目了然。' },
+    { id: 'shop', kind: 'shop', x: 13, y: 1, name: '商店', wip: 3, text: '用字元買回復藥，也可以賣掉用不到的材料。' },
+    { id: 'armor', kind: 'armor', x: 18, y: 0, name: '防具店', wip: 3, text: '頭盔、鎧甲、手套、靴子，穿上就會出現在你身上！' },
+    { id: 'rooms', kind: 'rooms', x: 1, y: 6, name: '組隊酒館', wip: 4, text: '開房間或加入同學的房間，最多 4 個人一起打大魔物。' },
+    { id: 'star', kind: 'star', x: 18, y: 6, name: '星圖台', wip: 5, text: '升級拿到的星星，可以在這裡點亮，讓閃避和防禦變得更強。' },
+    { id: 'board', kind: 'board', x: 6, y: 10, name: '委託板', act: 'map', text: '選地方、選魔物，出發狩獵！' },
+    { id: 'rank', kind: 'rank', x: 14, y: 10, name: '榮譽碑', act: 'rank', text: '看看誰是最強獵人。' }
+  ],
+  decor: [
+    { k: 'lamp', x: 7, y: 5, b: 1 }, { k: 'lamp', x: 15, y: 5, b: 1 }, { k: 'lamp', x: 7, y: 9, b: 1 }, { k: 'lamp', x: 15, y: 9, b: 1 },
+    { k: 'barrel', x: 5, y: 3, b: 1 }, { k: 'barrel', x: 1, y: 4, b: 1 }, { k: 'crate', x: 10, y: 2, b: 1 }, { k: 'crate', x: 11, y: 3, b: 1 },
+    { k: 'bench', x: 9, y: 10 }, { k: 'flowers', x: 12, y: 3 }, { k: 'flowers', x: 4, y: 8 }, { k: 'sign', x: 10, y: 11, b: 1 }, { k: 'hay', x: 20, y: 4, b: 1 }
+  ],
+  npcs: [
+    { id: 'elder', name: '村長', x: 9, y: 8, look: { style: 'short', hair: '#e8e8e8', armor: '#8a4ad8', trim: '#e0c8ff' }, say: ['歡迎來到新世界！到委託板選魔物，出發狩獵吧。', '按 B 或點右上角的背包，可以看你的東西和任務。'] },
+    { id: 'kid', name: '小朋友', x: 13, y: 8, look: { style: 'pony', hair: '#ff7aa8', armor: '#e0802a', trim: '#ffe2a8' }, say: ['灰色的店還沒開張，再等一等！', '打倒草原的魔物，就能去迷霧森林囉。'] },
+    { id: 'smith', name: '鐵匠', x: 5, y: 5, look: { style: 'spiky', hair: '#5a3a22', armor: '#6a4a3a', trim: '#b8b8b8' }, say: ['鐵匠鋪還在蓋，快好了！打到的材料先幫你存著。'] }
   ]
+};
+
+export const WORLD = {
+  w: 160, h: 120,
+  pos: { grass: [30, 96], forest: [60, 64], coast: [20, 56], volcano: [100, 90], snow: [60, 24], sky: [118, 20], abyss: [136, 56] },
+  links: [['grass', 'forest'], ['forest', 'coast'], ['forest', 'snow'], ['forest', 'volcano'], ['snow', 'sky'], ['volcano', 'abyss']]
 };
 export const doorTile = b => [b.x + 1, b.y + 3];

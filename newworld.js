@@ -2,10 +2,10 @@ import { PX } from './pixel.js';
 import {
   LOOK, DEFAULT_LOOK, heroLook, STARTERS, LOCKED_WEAPONS, REGIONS, MAP_POS, ELEM, STATUS, MONSTERS,
   regionLv, MAIN_QUESTS, normalizeNw, currentQuest, zoneOpen, starOpen, addHrExp, hrNeed, huntExp, huntCoins,
-  COLOR_NAME, COLOR_HEX, HR_MAX, VILLAGE
+  COLOR_NAME, COLOR_HEX, HR_MAX, VILLAGE, doorTile
 } from './nw-data.js';
 import { injectUi } from './nw-ui.js';
-import { mountVillage } from './nw-village.js';
+import { mountVillage, mountWorldMap } from './nw-village.js';
 import { startBattle } from './nw-battle.js';
 import { DEFAULT_CODE_HASH, sha256Hex, cleanCode } from './nw-access.js';
 
@@ -49,6 +49,7 @@ const CSS = `
 .nwm-pin.wip .dot{border-color:#5a4a1a;filter:grayscale(.7) brightness(.6)}
 .nwm-pin.lock .dot{border-color:var(--line2);filter:grayscale(.6)}
 .nwm-pin span{font-weight:800;font-size:13px;background:rgba(10,8,18,.78);padding:1px 6px;border-radius:5px;white-space:nowrap}
+.px-btn[aria-pressed="true"]{background:#e8b64c;color:#2a1a00;text-shadow:none}
 .nwh-card{border-radius:0!important;border:3px solid #0a0714!important;box-shadow:inset 0 0 0 2px #3a3070;background:#141030!important}
 .nwh-card:hover{box-shadow:inset 0 0 0 2px #ffd98a}
 .nw-chip{border-radius:0;border:3px solid #0a0714;background:#2a2358;box-shadow:inset 0 -3px 0 #231d55;text-shadow:1px 1px 0 #000;color:#fff}
@@ -217,9 +218,10 @@ export function initNewWorld(C) {
   const myChibi = () => heroLook(NW.look, NW.starter || 'staff');
 
   function enterBuilding(b) {
-    NW.pos = village ? village.pos() : null;
     if (b.id === 'gate') { leave(); return; }
-    if (b.act) { ({ map: viewMap, quest: viewQuest, equip: viewEquip, rank: openRank }[b.act] || (() => {}))(); return; }
+    const d = doorTile(b);
+    NW.pos = [d[0], d[1] + 1];
+    if (b.act) { ({ map: viewMap, rank: openRank }[b.act] || (() => {}))(); return; }
     openWip(b);
   }
 
@@ -238,13 +240,14 @@ export function initNewWorld(C) {
               <div class="px-bar xp flex-1"><i style="width:${pct}%"></i></div>
               <span class="text-xs mono">${NW.hr >= HR_MAX ? '滿級' : `${NW.hrExp}/${need}`}</span></div>
             <div class="flex gap-4 mt-1 text-sm flex-wrap px-text"><span>🪙 ${NW.coins}</span><span>📦 ${matN}</span><span>⭐ ${NW.stars}</span>
-              ${q ? `<span style="color:#ffd98a">📌 ${escHtml(q.t)}</span>` : ''}</div>
+              ${q ? `<button class="px-chip" data-act="bagq" style="color:#ffd98a;cursor:pointer">📌 ${escHtml(q.t)}</button>` : ''}</div>
           </div>
-          <button class="px-btn" data-act="leave">← 回營地</button>
+          <button class="px-btn gold" data-act="bagopen">🎒 背包</button>
+          <button class="px-btn" data-act="leave">← 回舊世界</button>
         </div>
       </div>
       <div id="vmap"></div>
-      <p class="px-text text-sm mt-3 text-center">點地圖上的任何地方，角色就會走過去。走到建築的門口，就會打開那棟建築。灰色的建築還在施工中。</p>`, el => {
+      <p class="px-text text-sm mt-3 text-center">電腦：用 WASD 或方向鍵走路，也可以點地圖。走進建築的門口就會打開。按 B 打開背包。手機：點地圖就會走過去。灰色的建築還在施工中。</p>`, el => {
       el.querySelector('[data-hero]').replaceChildren(PX.chibi(myChibi(), 'down', 0, 3));
       village = mountVillage(el.querySelector('#vmap'), {
         PX, look: myChibi(), open: VILLAGE.buildings.filter(b => b.act).map(b => b.id),
@@ -294,7 +297,7 @@ export function initNewWorld(C) {
   function viewCreator(first) {
     const look = Object.assign({}, DEFAULT_LOOK, NW.look || {});
     setView('creator', `
-      ${first ? '' : topbar('自己選造型', 'equip', '← 回上一頁')}
+      ${first ? '' : topbar('自己選造型', 'bag', '← 回背包')}
       <div class="px-panel p-5">
         ${first ? `<div class="mb-4"><div class="text-2xl font-black">歡迎來到新世界！</div>
           <p class="mt-1" style="color:var(--dim)">村長說：「先決定你長什麼樣子吧。」之後隨時都可以再改。</p></div>` : ''}
@@ -310,7 +313,7 @@ export function initNewWorld(C) {
       wireLook(el, look, redraw);
       el.querySelector('[data-save]').addEventListener('click', () => {
         NW.look = look; saveNw();
-        if (!NW.starter) viewStarter(); else viewEquip();
+        if (!NW.starter) viewStarter(); else { viewHub(); openBackpack('equip'); }
       });
     });
   }
@@ -326,7 +329,7 @@ export function initNewWorld(C) {
         <div class="text-sm mt-2" style="color:var(--dim)">${s.kind}：${s.desc}</div>
       </div>`).join('');
     setView('starter', `
-      ${NW.starter ? topbar('換一把武器', 'equip', '← 回上一頁') : ''}
+      ${NW.starter ? topbar('換一把武器', 'bag', '← 回背包') : ''}
       <div class="px-panel p-5">
         <div class="text-2xl font-black">選擇你的第一把武器</div>
         <p class="mt-1 mb-4" style="color:var(--dim)">${NW.starter ? `前 3 場狩獵可以免費換，你已經打了 ${NW.hunts} 場。` : '前 3 場狩獵都可以免費換，不用擔心選錯！'}</p>
@@ -394,73 +397,116 @@ export function initNewWorld(C) {
     return () => { alive = false; cancelAnimationFrame(raf); };
   }
 
-  function viewEquip() {
-    stopAnims();
-    const w = STARTERS[NW.starter];
-    const swapLeft = Math.max(0, 3 - NW.hunts);
-    const locked = LOCKED_WEAPONS.map(([k, n, seg]) => `
-      <div class="nwh-card wip" style="min-height:140px;padding:10px"><div class="nwh-in text-center">
-        <div class="nw-px" data-sprite="weapon:${k}:3" style="display:inline-block"></div><div class="font-black mt-1">${n}</div></div>
-        <div class="nwh-stripe"><span>${n}<small>施工中・第 ${seg} 段</small></span></div></div>`).join('');
-    const own = Object.entries(STARTERS).map(([k, s]) => `
-      <div class="nwh-card" style="min-height:140px;padding:10px;cursor:default;${k === NW.starter ? 'border-color:var(--gold)' : ''}">
-        <div class="text-center"><div class="nw-px" data-sprite="weapon:${{ staff: 'staff', bow: 'bow', dagger: 'dagger', crossbow: 'crossbow' }[k]}:3" style="display:inline-block"></div>
-        <div class="font-black mt-1">${s.kind}</div><div class="text-xs" style="color:var(--dim)">${s.name}${k === NW.starter ? '（使用中）' : ''}</div></div></div>`).join('');
-    setView('equip', `
-      ${topbar('裝備與造型', 'hub')}
-      <div class="px-panel p-4 flex gap-5 flex-wrap items-center">
-        <div class="nw-px" data-hero="1" style="background:#0e0b16;border-radius:8px;padding:8px"></div>
-        <div class="flex-1 min-w-[220px]">
-          <div class="text-sm" style="color:var(--dim)">現在的武器</div>
-          <div class="text-xl font-black">${w ? w.name : '還沒選'} <span class="text-sm" style="color:var(--dim)">${w ? w.kind : ''}</span></div>
-          <p class="text-sm mt-1" style="color:var(--dim)">${w ? w.desc : ''}</p>
-          <div class="flex gap-2 mt-3 flex-wrap">
-            <button class="px-btn gold px-4 py-2" data-act="starter">${swapLeft > 0 ? '換武器' : '武器（不能再免費換）'}</button>
-            <button class="px-btn px-4 py-2" data-act="creator">💇 改造型</button></div>
-          <p class="text-xs mt-2" style="color:var(--dim2)">${swapLeft > 0 ? `前 3 場狩獵可以免費換，還剩 ${swapLeft} 場。` : '前 3 場已經過了，之後要打造新武器才能換。'}穿上新的裝備，角色也會跟著變（第 2～3 段）。</p>
-        </div>
-      </div>
-      <h3 class="font-black text-xl mt-5 mb-3" style="color:var(--gold)">武器圖鑑</h3>
-      <div class="grid gap-3" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">${own}${locked}</div>`, el => {
-      el.querySelector('[data-hero]').replaceChildren(PX.hero(myHero(), 6));
-      mountSprites(el);
+  const MAT = (() => {
+    const m = {};
+    Object.values(MONSTERS).forEach(mo => {
+      mo.drops.forEach(([id, name, color]) => { m[id] = [name, color]; });
+      mo.rare.forEach(([id, name, color]) => { m[id] = [name.replace('📜 ', ''), color]; });
     });
+    Object.entries(STARTERS).forEach(([k, st]) => { m['bp_' + k] = [st.name + '圖紙', 'gray']; });
+    return m;
+  })();
+  const matName = id => MAT[id] || [id, 'gray'];
+
+  function questBody() {
+    const q = currentQuest(NW), done = MAIN_QUESTS.filter(x => NW.quest.done.includes(x.id));
+    return `
+      <div class="label mb-1">主線 第 1 章　新芽草原</div>
+      ${q ? `<div class="text-2xl px-title">${escHtml(q.t)}</div>
+        <p class="mt-2 px-text">${escHtml(q.hint)}</p>
+        ${q.prog ? `<p class="mt-2 font-bold" style="color:#ffd98a">${q.prog(NW)}</p>` : ''}
+        <p class="mt-2 text-sm px-text">獎勵：<b style="color:#ffd98a">${escHtml(q.rewardText)}</b></p>`
+      : '<div class="text-xl px-title">第 1 章完成了！之後的任務會陸續開放。</div>'}
+      ${done.length ? `<h3 class="text-lg mt-4 mb-2">完成了</h3><div class="grid gap-2">${done.map(d => `<div class="px-panel in flex justify-between"><span>✅ ${escHtml(d.t)}</span>
+        <span class="text-sm" style="color:#aab0d8">${escHtml(d.rewardText)}</span></div>`).join('')}</div>` : ''}
+      <p class="text-xs mt-3" style="color:#aab0d8">還有幾個任務要等鐵匠鋪開張才會出現。每日任務在第 3 段開放。</p>`;
   }
 
-  function viewQuest() {
-    const q = currentQuest(NW);
-    const done = MAIN_QUESTS.filter(x => NW.quest.done.includes(x.id));
-    setView('quest', `
-      ${topbar('🧭 任務', 'hub')}
-      <div class="px-panel p-5">
-        <div class="label mb-1">主線 第 1 章　新芽草原</div>
-        ${q ? `<div class="text-2xl font-black">${escHtml(q.t)}</div>
-          <p class="mt-2" style="color:var(--dim)">${escHtml(q.hint)}</p>
-          ${q.prog ? `<p class="mt-2 font-bold" style="color:var(--gold)">${q.prog(NW)}</p>` : ''}
-          <p class="mt-2 text-sm">獎勵：<b style="color:var(--gold)">${escHtml(q.rewardText)}</b></p>`
-        : '<div class="text-xl font-black">第 1 章完成了！之後的任務會陸續開放。</div>'}
-      </div>
-      ${done.length ? `<h3 class="font-black text-lg mt-5 mb-2" style="color:var(--gold)">完成了</h3>
-        <div class="grid gap-2">${done.map(d => `<div class="px-panel in p-3 flex justify-between"><span>✅ ${escHtml(d.t)}</span>
-        <span class="text-sm" style="color:var(--dim)">${escHtml(d.rewardText)}</span></div>`).join('')}</div>` : ''}
-      <p class="text-xs mt-4" style="color:var(--dim2)">還有幾個任務要等鐵匠鋪開張才會出現。每日任務在第 3 段開放。</p>`);
+  function bagBody(tab) {
+    if (tab === 'equip') {
+      const w = STARTERS[NW.starter], swapLeft = Math.max(0, 3 - NW.hunts);
+      return `
+        <div class="flex gap-4 flex-wrap items-center">
+          <div class="px-img" data-hero style="background:#0e0b16;padding:8px;border:3px solid #0a0714"></div>
+          <div class="flex-1" style="min-width:200px">
+            <div class="label">現在的武器</div>
+            <div class="text-xl px-title">${w ? w.name : '還沒選'} <span class="text-sm" style="color:#aab0d8">${w ? w.kind : ''}</span></div>
+            <p class="text-sm mt-1 px-text">${w ? w.desc : ''}</p>
+            <div class="flex gap-2 mt-3 flex-wrap">
+              <button class="px-btn gold" data-bag-act="starter">${swapLeft > 0 ? '換武器' : '武器（不能再免費換）'}</button>
+              <button class="px-btn" data-bag-act="creator">💇 改造型</button></div>
+            <p class="text-xs mt-2" style="color:#aab0d8">${swapLeft > 0 ? `前 3 場狩獵可以免費換，還剩 ${swapLeft} 場。` : '前 3 場已經過了，之後要打造新武器才能換。'}穿上新的裝備，角色也會跟著變（第 2～3 段）。</p>
+          </div>
+        </div>`;
+    }
+    if (tab === 'items') {
+      const rows = Object.entries(NW.items).filter(([, n]) => n > 0).map(([id, n]) => `<div class="px-panel in flex justify-between"><span>🧪 ${id === 'potion' ? '回復藥' : id}</span><b>×${n}</b></div>`);
+      return `<h3 class="text-lg mb-2">道具</h3>${rows.length ? `<div class="grid gap-2">${rows.join('')}</div>` : '<p class="px-text">還沒有道具。</p>'}
+        <p class="text-xs mt-3" style="color:#aab0d8">回復藥要等商店開張（第 3 段）才能在戰鬥中使用，先幫你存著。</p>`;
+    }
+    if (tab === 'mats') {
+      const rows = Object.entries(NW.mats).filter(([, n]) => n > 0).map(([id, n]) => { const [nm, c] = matName(id); return `<div class="px-panel in flex justify-between"><span><span style="color:${COLOR_HEX[c]}">■</span> ${nm}</span><b>×${n}</b></div>`; });
+      return `<h3 class="text-lg mb-2">材料</h3>${rows.length ? `<div class="grid gap-2" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr))">${rows.join('')}</div>` : '<p class="px-text">還沒有材料。打倒魔物就會掉。</p>'}
+        <p class="text-xs mt-3" style="color:#aab0d8">鐵匠鋪開張（第 2 段）就能用來打造武器和裝備。</p>`;
+    }
+    if (tab === 'bp') {
+      const rows = NW.bp.map(id => { const [nm, c] = matName(id); return `<div class="px-panel in"><span style="color:${COLOR_HEX[c]}">📜</span> ${nm}</div>`; });
+      return `<h3 class="text-lg mb-2">圖紙</h3>${rows.length ? `<div class="grid gap-2" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr))">${rows.join('')}</div>` : '<p class="px-text">還沒有圖紙。打倒魔物有機會掉。</p>'}`;
+    }
+    if (tab === 'quest') return questBody();
+    const mons = Object.entries(MONSTERS).map(([k, m]) => `<div class="px-panel in text-center" style="padding:6px"><div class="px-img" data-sprite="monster:${k}:3" style="${(NW.dex[k] || 0) ? '' : 'filter:grayscale(1) brightness(.35)'}"></div>
+      <div class="text-sm font-bold">${(NW.dex[k] || 0) ? m.name : '？？？'}</div><div class="text-xs" style="color:#aab0d8">打過 ${NW.dex[k] || 0} 次</div></div>`).join('');
+    const own = Object.entries(STARTERS).map(([k, st]) => `<div class="px-panel in text-center" style="padding:6px;${k === NW.starter ? 'outline:3px solid #e8b64c' : ''}"><div class="px-img" data-sprite="weapon:${k}:3"></div><div class="text-sm font-bold">${st.kind}</div></div>`).join('');
+    const locked = LOCKED_WEAPONS.map(([k, n, seg]) => `<div class="px-panel in text-center" style="padding:6px"><div class="px-img" data-sprite="weapon:${k}:3" style="filter:grayscale(1) brightness(.4)"></div><div class="text-sm font-bold" style="color:#aab0b8">🔒 ${n}</div><div class="text-xs" style="color:#aab0d8">第 ${seg} 段</div></div>`).join('');
+    return `<h3 class="text-lg mb-2">魔物圖鑑</h3><div class="grid gap-2" style="grid-template-columns:repeat(auto-fill,minmax(110px,1fr))">${mons}</div>
+      <h3 class="text-lg mt-4 mb-2">武器圖鑑</h3><div class="grid gap-2" style="grid-template-columns:repeat(auto-fill,minmax(110px,1fr))">${own}${locked}</div>`;
   }
+
+  function closeBag() { const b = document.getElementById('nw-bag'); if (b) b.remove(); }
+  function openBackpack(tab) {
+    closeBag();
+    const TABS = [['equip', '⚔', '裝備'], ['items', '🧪', '道具'], ['mats', '📦', '材料'], ['bp', '📜', '圖紙'], ['quest', '🧭', '任務'], ['dex', '📖', '圖鑑']];
+    const sheet = document.createElement('div');
+    sheet.id = 'nw-bag'; sheet.className = 'fixed inset-0 z-[75] overflow-y-auto'; sheet.style.background = 'rgba(9,8,18,.9)';
+    sheet.innerHTML = `<div class="max-w-4xl mx-auto p-3"><div class="px-panel" style="padding:12px">
+      <div class="flex items-center justify-between mb-3"><div class="px-title text-2xl">🎒 背包</div><button class="px-btn" data-bag-close>關閉（B）</button></div>
+      <div class="flex gap-3 flex-wrap"><div class="flex flex-col gap-2" style="min-width:120px">${TABS.map(([k, i, n]) => `<button class="px-btn" data-bag-tab="${k}">${i} ${n}</button>`).join('')}</div>
+        <div class="flex-1 px-panel in" style="min-width:260px;min-height:320px" data-body></div></div></div></div>`;
+    const render = t => {
+      sheet.querySelectorAll('[data-bag-tab]').forEach(b => b.setAttribute('aria-pressed', b.dataset.bagTab === t));
+      const body = sheet.querySelector('[data-body]');
+      body.innerHTML = bagBody(t);
+      mountSprites(body);
+      const h = body.querySelector('[data-hero]'); if (h) h.replaceChildren(PX.hero(myHero(), 6));
+    };
+    sheet.addEventListener('click', e => {
+      if (e.target === sheet || e.target.closest('[data-bag-close]')) { closeBag(); return; }
+      const t = e.target.closest('[data-bag-tab]'); if (t) { render(t.dataset.bagTab); return; }
+      const a = e.target.closest('[data-bag-act]');
+      if (a) { closeBag(); if (a.dataset.bagAct === 'starter') viewStarter(); else viewCreator(false); }
+    });
+    document.body.appendChild(sheet);
+    render(tab || 'equip');
+  }
+  addEventListener('keydown', e => {
+    const k = e.key.toLowerCase();
+    if (/INPUT|TEXTAREA|SELECT/.test((e.target && e.target.tagName) || '') || root.classList.contains('hidden') || !NW) return;
+    if (k === 'b' && ['hub', 'map', 'region', 'monster'].includes(view)) { document.getElementById('nw-bag') ? closeBag() : openBackpack('equip'); }
+    if (k === 'escape') closeBag();
+  });
 
   function viewMap() {
-    const pins = Object.entries(REGIONS).map(([k, r]) => {
-      const [x, y] = MAP_POS[k];
+    const states = {};
+    Object.entries(REGIONS).forEach(([k, r]) => {
       const open = zoneOpen(NW, k);
-      const cls = r.wip ? 'wip' : (open ? '' : 'lock');
-      const sub = r.wip ? `🔗 第 ${r.wip} 段` : (open ? `★${NW.zone[k] || 0}/5` : `🔒 ${REGIONS[r.needs].name} ★5`);
-      return `<button class="nwm-pin ${cls}" style="left:${x}%;top:${y}%" data-region="${k}"><div class="dot">${r.icon}</div><span>${r.name}</span><br><span style="color:var(--dim);font-weight:600">${sub}</span></button>`;
-    }).join('');
+      states[k] = { open, wip: !!r.wip, name: r.name, icon: r.icon, sub: r.wip ? `第 ${r.wip} 段` : open ? `★${NW.zone[k] || 0}/5` : `${REGIONS[r.needs].name} ★5` };
+    });
     setView('map', `
       ${topbar('📜 委託板：世界地圖', 'hub')}
-      <div class="px-panel p-3"><div style="position:relative;height:420px;border-radius:10px;overflow:hidden;background:linear-gradient(180deg,#1a1830,#2a2a3a 50%,#2a3a2a)">
-        <svg style="position:absolute;inset:0;width:100%;height:100%" viewBox="0 0 100 100" preserveAspectRatio="none">
-          <path d="M14 74 L38 52 L14 36 M38 52 L64 70 M38 52 L38 20 L66 12 M64 70 L88 44" stroke="#6a5a3a" stroke-width=".7" fill="none" stroke-dasharray="2 1.5" vector-effect="non-scaling-stroke"/></svg>
-        ${pins}</div></div>
-      <p class="text-sm mt-3" style="color:var(--dim)">點一個地方，看看那裡有哪些魔物。打倒草原的 ★5 魔物，就會開放迷霧森林。</p>`);
+      <div class="px-panel" style="padding:8px"><div id="wmap"></div></div>
+      <p class="px-text text-sm mt-3 text-center">點一個地方，看看那裡有哪些魔物。打倒草原的 ★5 魔物，就會開放迷霧森林。</p>`, el => {
+      village = mountWorldMap(el.querySelector('#wmap'), { PX, look: myChibi(), states, current: cur.rk || 'grass', onPick: () => {} });
+    });
   }
 
   const askName = a => a === 'zhuyin' ? '注音' : '詞語';
@@ -613,7 +659,8 @@ export function initNewWorld(C) {
     const a = e.target.closest('[data-act]');
     if (a) {
       const act = a.dataset.act;
-      ({ leave, hub: viewHub, map: viewMap, quest: viewQuest, equip: viewEquip, creator: () => viewCreator(false),
+      ({ leave, hub: viewHub, map: viewMap, bagopen: () => openBackpack('equip'), bagq: () => openBackpack('quest'),
+         bag: () => { viewHub(); openBackpack('equip'); }, creator: () => viewCreator(false),
          starter: viewStarter, region: () => viewRegion(cur.rk), rank: () => openRank() }[act] || (() => {}))();
       return;
     }

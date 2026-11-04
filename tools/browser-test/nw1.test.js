@@ -72,24 +72,32 @@ const seed = {
   ok(await p.evaluate(() => window.__FS['mg_scores/五年級3班_5號'].bestLevel) === 10, '原世界紀錄沒被動到');
   await p.screenshot({ path: OUT + '/nw1-hub.png' });
 
-  ok((await p.$$('.vb')).length === 11, '村莊有 10 棟建築與 1 個傳送門');
+  ok((await p.$$('.vb')).length === 9, '村莊有 8 棟建築與 1 個傳送門');
   ok((await p.$$eval('.vb', els => els.filter(e => e.textContent.includes('🔒')).length)) === 6, '六棟還沒開放的建築有鎖');
   await p.click('.vb[data-bld="forge"]'); await p.waitForTimeout(900);
   ok((await p.textContent('body')).includes('施工中・第 2 段開放'), '走到施工中的建築門口：跳出預告卡');
   await p.screenshot({ path: OUT + '/nw1-wip.png' });
   await p.click('[data-close]');
 
-  await p.click('.vb[data-bld="equip"]'); await p.waitForTimeout(900);
-  ok((await p.$$('#nw-root .nwh-card.wip')).length === 5, '武器圖鑑 5 把鎖著');
-  await p.screenshot({ path: OUT + '/nw1-equip.png' });
-  await p.click('[data-act="hub"]');
-  await p.click('.vb[data-bld="quest"]'); await p.waitForTimeout(900);
-  ok((await p.textContent('#nw-root')).includes('討伐泡泡蛙'), '任務面板顯示 1-1');
-  await p.click('[data-act="hub"]');
+  await p.click('[data-act="bagopen"]'); await p.waitForTimeout(300);
+  ok(await p.isVisible('#nw-bag'), '背包打得開');
+  ok((await p.textContent('#nw-bag')).includes('現在的武器'), '背包的裝備頁看得到武器');
+  await p.screenshot({ path: OUT + '/nw1-bag.png' });
+  await p.click('[data-bag-tab="dex"]'); await p.waitForTimeout(200);
+  ok(((await p.textContent('#nw-bag')).match(/🔒/g) || []).length === 5, '圖鑑裡 5 把武器鎖著');
+  await p.click('[data-bag-tab="quest"]'); await p.waitForTimeout(200);
+  ok((await p.textContent('#nw-bag')).includes('討伐泡泡蛙'), '背包的任務頁顯示 1-1');
+  await p.click('[data-bag-tab="mats"]'); await p.click('[data-bag-tab="items"]');
+  ok((await p.textContent('#nw-bag')).includes('回復藥'), '道具裡有任務給的回復藥');
+  await p.click('[data-bag-close]'); await p.waitForTimeout(100);
+  ok(await p.isHidden('#nw-bag'), '關得掉背包');
+  await p.keyboard.press('b'); await p.waitForTimeout(150);
+  ok(await p.isVisible('#nw-bag'), '按 B 也能開背包');
+  await p.keyboard.press('Escape'); await p.waitForTimeout(100);
 
   await p.click('.vb[data-bld="board"]'); await p.waitForTimeout(900);
-  ok((await p.$$('.nwm-pin')).length === 7, '地圖七個地方');
-  ok((await p.$$('.nwm-pin.wip')).length === 5, '五個施工中');
+  ok((await p.$$('.wmr')).length === 7, '地圖七個地方');
+  ok((await p.$$('.wmr.wip')).length === 5, '五個施工中');
   await p.screenshot({ path: OUT + '/nw1-map.png' });
   await p.click('[data-region="forest"]'); await p.waitForTimeout(200);
   ok((await p.$('[data-view="region"]')) === null, '森林還沒開');
