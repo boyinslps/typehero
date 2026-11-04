@@ -1332,6 +1332,8 @@ select option{background:var(--panel2);color:var(--ink)}
             <option value="epic">開放給歷史最高 LV8 以上的同學</option>
             <option value="all">全部開放</option>
           </select>
+          <input id="tc-nwcode" type="text" autocomplete="off" placeholder="想換通關密語就在這裡輸入新的（留空＝不改）"
+                 class="w-full mt-2 p-3 rounded-lg bg-transparent border text-sm" style="border-color:var(--line)">
         </div>
         <div class="md:col-span-2">
           <button id="tc-save-cfg" class="w-full py-3 rounded-xl font-black text-slate-900"
@@ -1497,6 +1499,7 @@ select option{background:var(--panel2);color:var(--ink)}
 <script type="module">
 import { PX } from './pixel.js';
 import { initNewWorld } from './newworld.js';
+import { sha256Hex } from './nw-access.js';
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
 import { getFirestore, doc, collection, setDoc, getDoc, getDocs, deleteDoc,
@@ -4903,6 +4906,7 @@ function applyConfig(d) {
   CFG.difficulty = legacy ? 1.0 : (d.difficulty ?? CFG.difficulty);
   CFG.mode       = d.mode       ?? CFG.mode;
   CFG.nwMode     = d.nwMode     ?? 'off';
+  CFG.nwCodeHash = d.nwCodeHash ?? '';
   CFG.rankLimit  = d.rankLimit  ?? CFG.rankLimit;
   if (Array.isArray(d.grades)  && d.grades.length)  CFG.grades  = d.grades;
   if (Array.isArray(d.classes) && d.classes.length) CFG.classes = d.classes;
@@ -7135,6 +7139,7 @@ function wireEvents() {
     bestLevel: myBestLevel,
     unlockLevel: BALANCE.unlockLevel.epic,
     nwMode: () => CFG.nwMode || 'off',
+    nwCodeHash: () => CFG.nwCodeHash || '',
     q: { questionUnits, judge, canon, splitZhuyin, IS_PUNCT,
          pool: name => (BANK[name] && BANK[name].length) ? BANK[name] : (DEFAULT_BANK[name] || []) }
   });
@@ -7290,6 +7295,7 @@ function tryAuth() {
   $('tc-grades').value     = CFG.grades.join(',');
   $('tc-classes').value    = CFG.classes.join(',');
   $('tc-nwmode').value     = CFG.nwMode || 'off';
+  $('tc-nwcode').value     = '';
   updateTeacherBanner();
   const showLegacy = !!CFG.legacyConfig && CFG.legacyDifficulty != null;
   show('tc-legacy-notice', showLegacy);
@@ -7357,6 +7363,7 @@ async function saveConfig() {
     grades:     $('tc-grades').value.split(',').map(s => s.trim()).filter(Boolean),
     classes:    $('tc-classes').value.split(',').map(s => s.trim()).filter(Boolean),
     nwMode:     $('tc-nwmode').value,
+    ...($('tc-nwcode').value.trim() ? { nwCodeHash: await sha256Hex($('tc-nwcode').value.trim()) } : {}),
     balanceVer: BALANCE.ver          // 存進去之後 applyConfig() 就不會再判定成舊版設定
   };
   try {

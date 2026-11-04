@@ -1,13 +1,6 @@
 const { chromium } = require('playwright'); const fs = require('fs');
 const path = require('path'); const M = path.join(__dirname, 'mock') + '/'; const OUT = process.argv[2] || require('os').tmpdir();
 const css = fs.existsSync(OUT + '/tw.css') ? fs.readFileSync(OUT + '/tw.css', 'utf8') : '';
-let KEYS = null;
-async function keys() {
-  if (KEYS) return KEYS;
-  const kp = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
-  KEYS = { pub: await crypto.subtle.exportKey('jwk', kp.publicKey), prv: await crypto.subtle.exportKey('jwk', kp.privateKey) };
-  return KEYS;
-}
 let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++; };
 const ID = '五年級3班_5號';
 const seedFor = (starter, extra) => ({
@@ -21,10 +14,9 @@ async function open(browser, starter, extra) {
   const errs = []; p.on('dialog', d => d.accept());
   p.on('pageerror', e => errs.push('pageerror: ' + e.message));
   p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push('console: ' + m.text()); });
-  const { signCode } = await import('../../nw-access.js');
-  const k = await keys();
-  const code = await signCode(ID, k.prv);
-  await p.addInitScript(a => { window.__FS = a.s; localStorage.clear(); window.__NW_PUBKEY__ = a.pub; localStorage.setItem('mg_nw_code_' + a.id, a.code); window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas'); }, { s: seedFor(starter, extra), pub: k.pub, code, id: ID });
+  const { sha256Hex } = await import('../../nw-access.js');
+  const hash = await sha256Hex('Test-Pass_9!x');
+  await p.addInitScript(a => { window.__FS = a.s; localStorage.clear(); window.__NW_CODE_HASH__ = a.hash; localStorage.setItem('mg_nw_code', a.hash); window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas'); }, { s: seedFor(starter, extra), hash });
   await p.route('**/*', r => {
     const u = r.request().url();
     if (u.startsWith('http://localhost')) return r.continue();

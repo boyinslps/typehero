@@ -5,7 +5,7 @@ import {
   COLOR_NAME, COLOR_HEX, HR_MAX
 } from './nw-data.js';
 import { startBattle } from './nw-battle.js';
-import { verifyCode } from './nw-access.js';
+import { DEFAULT_CODE_HASH, sha256Hex, cleanCode } from './nw-access.js';
 
 const CSS = `
 #nw-root{position:fixed;inset:0;z-index:60;overflow-y:auto;background:var(--bg);
@@ -88,31 +88,22 @@ export function initNewWorld(C) {
 
   const unlocked = () => C.bestLevel() >= C.unlockLevel;
   let access = false;
-  const pubKey = () => (location.hostname === 'localhost' && window.__NW_PUBKEY__) || undefined;
-  const codeKey = () => 'mg_nw_code_' + ME.docId;
-  const cleanCode = v => String(v || '').replace(/[\s\u200b-\u200d\ufeff]/g, '');
+  const HKEY = 'mg_nw_code';
+  const effHash = () => (location.hostname === 'localhost' && window.__NW_CODE_HASH__) || C.nwCodeHash() || DEFAULT_CODE_HASH;
 
   async function refreshAccess() {
-    access = false;
-    let code = '';
-    try { code = localStorage.getItem(codeKey()) || ''; } catch (e) { code = ''; }
-    if (!code || !ME.docId || !(await verifyCode(ME.docId, code, pubKey()))) return false;
-    access = true;
-    if (C.online()) {
-      try {
-        const s = await C.withTimeout(C.getDoc(C.doc(C.db, 'mg_config', 'nw_access')), 4000, 'nw-access');
-        const revoked = s.exists() ? (s.data().revoked || []) : [];
-        if (revoked.includes(ME.docId)) { access = false; try { localStorage.removeItem(codeKey()); } catch (e) { /* 沒關係 */ } }
-      } catch (e) { console.warn('通關密語撤銷名單讀取失敗', e); }
-    }
+    let h = '';
+    try { h = localStorage.getItem(HKEY) || ''; } catch (e) { h = ''; }
+    access = !!h && h === effHash();
     return access;
   }
 
   async function redeem(raw) {
-    const code = cleanCode(raw);
-    if (!(await verifyCode(ME.docId, code, pubKey()))) return false;
-    try { localStorage.setItem(codeKey(), code); } catch (e) { /* 存不了就這次有效 */ }
-    return refreshAccess();
+    const h = await sha256Hex(cleanCode(raw));
+    if (h !== effHash()) return false;
+    try { localStorage.setItem(HKEY, h); } catch (e) { /* 存不了就只有這次有效 */ }
+    access = true;
+    return true;
   }
 
   function gate() {
@@ -129,8 +120,8 @@ export function initNewWorld(C) {
     sheet.style.background = 'rgba(9,8,18,.88)';
     sheet.innerHTML = `<div class="panel p-6 w-full max-w-md">
       <div class="text-xl font-black mb-1">🔑 搶先體驗</div>
-      <p class="text-sm mb-3" style="color:var(--dim)">老師有傳給你專屬的通關密語嗎？貼在下面。這組密語只有你自己能用喔。</p>
-      <input id="nw-code-in" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="貼上通關密語"
+      <p class="text-sm mb-3" style="color:var(--dim)">老師有給你通關密語嗎？輸入在下面。</p>
+      <input id="nw-code-in" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="輸入通關密語"
         class="w-full p-3 rounded-lg panel-flat mono text-sm">
       <div id="nw-code-err" class="text-sm mt-2" style="color:#e5705f;min-height:1.2em"></div>
       <div class="flex gap-2 justify-end mt-3">
@@ -138,10 +129,10 @@ export function initNewWorld(C) {
         <button class="btn btn-gold px-5 py-2" data-ok>確定</button></div></div>`;
     const inp = sheet.querySelector('#nw-code-in'), err = sheet.querySelector('#nw-code-err');
     const submit = async () => {
-      if (!cleanCode(inp.value)) { err.textContent = '先貼上密語。'; return; }
+      if (!cleanCode(inp.value)) { err.textContent = '先輸入密語。'; return; }
       err.textContent = '檢查中…';
       if (await redeem(inp.value)) { sheet.remove(); toast('歡迎搶先體驗新世界！', 2600); after && after(); }
-      else err.textContent = '密語不對，或這組密語不是你的。請再確認一次。';
+      else err.textContent = '密語不對，再確認一次（要分大小寫）。';
     };
     sheet.addEventListener('click', e => { if (e.target === sheet || e.target.closest('[data-close]')) sheet.remove(); if (e.target.closest('[data-ok]')) submit(); });
     inp.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
