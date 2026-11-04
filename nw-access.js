@@ -1,4 +1,4 @@
-export const DEFAULT_CODE_HASH = '34db4e6a86bbba5ad1574338ad700909081f2b072dd2ecf0fc0fda7c689270b5';
+export const DEFAULT_CODE_HASH = '745b7ae6ef73cb5e8985b0dabf828c29e01c8ca8282b1508e6eb92b667fd4bd1';
 
 export async function sha256Hex(text) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
