@@ -717,6 +717,7 @@ select option{background:var(--panel2);color:var(--ink)}
       <span class="text-base" style="color:var(--dim)">在營地待命中・等老師開戰</span>
       <span id="lobby-sub" class="text-sm" style="color:#e5705f"></span>
       <button id="btn-nw-enter" class="hidden btn btn-gold text-sm px-3 py-2">🌋 新世界<span id="nw-lock-txt"></span></button>
+      <button id="btn-nw-code" class="hidden btn btn-ghost text-sm px-3 py-2" style="color:var(--dim)">🔑 搶先體驗</button>
       <button id="btn-talent" class="btn btn-ghost text-sm px-3 py-2">
         <span class="ico-slot" data-ico="sparkle" data-ico-size="16"></span>天賦<span id="talent-dot"></span><span class="can-txt">可以點了！</span></button>
       <button id="btn-rank" class="btn btn-ghost text-sm px-3 py-2">
@@ -1323,6 +1324,14 @@ select option{background:var(--panel2);color:var(--ink)}
             <input id="tc-classes" type="text" value="1班,2班,3班,4班,5班,6班"
                    class="w-full p-3 rounded-lg bg-transparent border text-sm" style="border-color:var(--line)">
           </div>
+        </div>
+        <div class="md:col-span-2">
+          <label class="label block mb-2">新世界</label>
+          <select id="tc-nwmode" class="w-full p-3 rounded-lg bg-transparent border text-sm" style="border-color:var(--line)">
+            <option value="off">還沒開放（只有拿到通關密語的同學能進）</option>
+            <option value="epic">開放給歷史最高 LV8 以上的同學</option>
+            <option value="all">全部開放</option>
+          </select>
         </div>
         <div class="md:col-span-2">
           <button id="tc-save-cfg" class="w-full py-3 rounded-xl font-black text-slate-900"
@@ -4893,6 +4902,7 @@ function applyConfig(d) {
   CFG.duration   = d.duration   ?? CFG.duration;
   CFG.difficulty = legacy ? 1.0 : (d.difficulty ?? CFG.difficulty);
   CFG.mode       = d.mode       ?? CFG.mode;
+  CFG.nwMode     = d.nwMode     ?? 'off';
   CFG.rankLimit  = d.rankLimit  ?? CFG.rankLimit;
   if (Array.isArray(d.grades)  && d.grades.length)  CFG.grades  = d.grades;
   if (Array.isArray(d.classes) && d.classes.length) CFG.classes = d.classes;
@@ -5411,10 +5421,13 @@ function gotoLobby() {
   paintNwButton();
 }
 
-function paintNwButton() {
-  show('btn-nw-enter', NW_ON);
-  const g = NWG && NWG.gate();
-  setTxt('nw-lock-txt', g && !g.ok ? `　🔒 LV ${BALANCE.unlockLevel.epic}` : '');
+async function paintNwButton() {
+  if (!NWG) return;
+  await NWG.refresh();
+  const g = NWG.gate();
+  show('btn-nw-enter', g.ok || !g.closed);
+  show('btn-nw-code', !!g.closed);
+  setTxt('nw-lock-txt', !g.ok && !g.closed ? `　🔒 LV ${BALANCE.unlockLevel.epic}` : '');
 }
 
 /* 「結算」鍵：提早結束這一場，但**成績照算照存**。
@@ -7113,20 +7126,20 @@ const POOL_LABEL_HTML = k => {
 };
 
 /* ── 事件綁定 ───────────────────────────────────────── */
-const NW_ON = new URLSearchParams(location.search).get('nw') === '1';
 let NWG = null;
 function wireEvents() {
   NWG = initNewWorld({
-    $, show, toast, escHtml, ME, doc, getDoc, setDoc, REF, withTimeout, gotoLobby,
+    $, show, toast, escHtml, ME, db, doc, getDoc, setDoc, REF, withTimeout, gotoLobby,
     online: () => ONLINE,
     getHist: () => MY_HIST,
     bestLevel: myBestLevel,
     unlockLevel: BALANCE.unlockLevel.epic,
-    nwMode: () => NW_ON ? (CFG.nwMode || 'epic') : 'off',
+    nwMode: () => CFG.nwMode || 'off',
     q: { questionUnits, judge, canon, splitZhuyin, IS_PUNCT,
          pool: name => (BANK[name] && BANK[name].length) ? BANK[name] : (DEFAULT_BANK[name] || []) }
   });
   $('btn-nw-enter').addEventListener('click', () => NWG.enter());
+  $('btn-nw-code').addEventListener('click', () => NWG.openCode(paintNwButton));
   $('btn-enter').addEventListener('click', doLogin);
   $('in-name').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 
@@ -7276,6 +7289,7 @@ function tryAuth() {
   $('tc-ranklimit').value  = CFG.rankLimit;
   $('tc-grades').value     = CFG.grades.join(',');
   $('tc-classes').value    = CFG.classes.join(',');
+  $('tc-nwmode').value     = CFG.nwMode || 'off';
   updateTeacherBanner();
   const showLegacy = !!CFG.legacyConfig && CFG.legacyDifficulty != null;
   show('tc-legacy-notice', showLegacy);
@@ -7342,6 +7356,7 @@ async function saveConfig() {
     rankLimit:  parseInt($('tc-ranklimit').value) || 10,
     grades:     $('tc-grades').value.split(',').map(s => s.trim()).filter(Boolean),
     classes:    $('tc-classes').value.split(',').map(s => s.trim()).filter(Boolean),
+    nwMode:     $('tc-nwmode').value,
     balanceVer: BALANCE.ver          // 存進去之後 applyConfig() 就不會再判定成舊版設定
   };
   try {

@@ -1,6 +1,13 @@
 const { chromium } = require('playwright'); const fs = require('fs');
 const path = require('path'); const M = path.join(__dirname, 'mock') + '/'; const OUT = process.argv[2] || require('os').tmpdir();
 const css = fs.existsSync(OUT + '/tw.css') ? fs.readFileSync(OUT + '/tw.css', 'utf8') : '';
+let KEYS = null;
+async function keys() {
+  if (KEYS) return KEYS;
+  const kp = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+  KEYS = { pub: await crypto.subtle.exportKey('jwk', kp.publicKey), prv: await crypto.subtle.exportKey('jwk', kp.privateKey) };
+  return KEYS;
+}
 let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++; };
 const ID = '五年級3班_5號';
 const seedFor = (starter, extra) => ({
@@ -14,7 +21,10 @@ async function open(browser, starter, extra) {
   const errs = []; p.on('dialog', d => d.accept());
   p.on('pageerror', e => errs.push('pageerror: ' + e.message));
   p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push('console: ' + m.text()); });
-  await p.addInitScript(s => { window.__FS = s; localStorage.clear(); window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas'); }, seedFor(starter, extra));
+  const { signCode } = await import('../../nw-access.js');
+  const k = await keys();
+  const code = await signCode(ID, k.prv);
+  await p.addInitScript(a => { window.__FS = a.s; localStorage.clear(); window.__NW_PUBKEY__ = a.pub; localStorage.setItem('mg_nw_code_' + a.id, a.code); window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas'); }, { s: seedFor(starter, extra), pub: k.pub, code, id: ID });
   await p.route('**/*', r => {
     const u = r.request().url();
     if (u.startsWith('http://localhost')) return r.continue();
@@ -23,7 +33,7 @@ async function open(browser, starter, extra) {
     if (m) return r.fulfill({ contentType: 'application/javascript', body: fs.readFileSync(M + m, 'utf8') });
     return r.abort();
   });
-  await p.goto('http://localhost:8765/index.html?nw=1'); await p.waitForTimeout(1300);
+  await p.goto('http://localhost:8765/index.html'); await p.waitForTimeout(1300);
   await p.selectOption('#in-grade', '五年級'); await p.selectOption('#in-class', '3班');
   await p.fill('#in-seat', '5'); await p.waitForTimeout(900); await p.click('#btn-enter'); await p.waitForTimeout(1000);
   await p.click('#btn-nw-enter'); await p.waitForTimeout(900);
@@ -75,8 +85,8 @@ async function playUntil(p, pred, max = 80) {
     const type = (await p.getAttribute('#nwb-cast', 'class')).includes('defend') ? 'defend' : 'dodge';
     ok(true, `魔物出招：${type === 'dodge' ? '閃避型（紅）' : '防禦型（藍）'}`);
     await p.screenshot({ path: OUT + '/nw2-cast.png' });
-    await p.waitForFunction(t => parseFloat(document.getElementById('nwb-cast-i').style.width) >= (t === 'dodge' ? 78 : 50), type, { timeout: 12000, polling: 50 });
-    await p.fill('#nwb-in', type === 'dodge' ? '閃避' : '防禦');
+    await p.waitForFunction(t => parseFloat(document.getElementById('nwb-cast-i').style.width) >= (t === 'dodge' ? 90 : 70), type, { timeout: 12000, polling: 50 });
+    await p.fill('#nwb-in', type === 'dodge' ? '閃' : '防');
     await p.waitForTimeout(150);
     ok(await p.isDisabled('#nwb-in'), '打出動作詞後輸入框變灰');
     ok(await p.$eval('#nwb-actw', e => e.style.visibility) === 'visible', '出現動作條');

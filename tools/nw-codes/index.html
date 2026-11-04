@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>新世界通關密語產生器</title>
+<style>
+:root{--ink:#f0eee8;--dim:#9a927f;--bg:#14110d;--panel:#221d16;--line:#453b2c;--gold:#e8b64c}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,"Noto Sans TC","PingFang TC",sans-serif}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+h1{font-size:22px;margin:0 0 6px}
+.sub{color:var(--dim);font-size:14px;line-height:1.6}
+label{display:block;font-weight:800;margin:18px 0 6px}
+textarea{width:100%;box-sizing:border-box;background:var(--panel);color:var(--ink);border:2px solid var(--line);border-radius:10px;padding:10px;font:14px ui-monospace,Menlo,Consolas,monospace}
+button{background:var(--gold);color:#1a1409;border:0;border-radius:10px;padding:10px 18px;font-weight:900;font-size:15px;cursor:pointer}
+button.ghost{background:var(--panel);color:var(--ink);border:2px solid var(--line)}
+table{width:100%;border-collapse:collapse;margin-top:14px}
+td,th{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left;vertical-align:top;font-size:14px}
+code{display:block;word-break:break-all;font:13px ui-monospace,Menlo,Consolas,monospace;color:#ffd98a;max-width:560px}
+.warn{background:#3a2a12;border:2px solid #7a5a1a;border-radius:10px;padding:10px 14px;margin:14px 0;font-size:14px;line-height:1.6}
+.err{color:#ff8a7a;margin-top:8px;font-weight:700}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🔑 新世界通關密語產生器</h1>
+  <div class="sub">每位同學一組專屬密語，只對他自己的「班級＋座號」有效。別人拿到也打不進去。<br>
+    這個頁面只在你的電腦上運算，私鑰不會送到任何地方。</div>
+  <div class="warn">⚠ 私鑰是一個檔案（<b>nw-access-private.jwk</b>）。誰有它，誰就能替任何人產生密語，請只放在自己的電腦，不要傳給學生、不要放進 GitHub。弄丟了就要換一組鑰匙，之前發出去的密語會全部失效。</div>
+
+  <label for="key">① 貼上私鑰（整個檔案的內容）</label>
+  <textarea id="key" rows="3" placeholder='{"kty":"EC","crv":"P-256", ... }'></textarea>
+
+  <label for="roster">② 要發的同學（一行一位：班級 座號）</label>
+  <textarea id="roster" rows="6" placeholder="五年級3班 5&#10;五年級3班 12&#10;四年級2班 7"></textarea>
+
+  <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
+    <button id="go">產生密語</button>
+    <button id="copyall" class="ghost" disabled>全部複製成文字</button>
+    <button id="csv" class="ghost" disabled>下載 CSV</button>
+  </div>
+  <div id="err" class="err"></div>
+  <table id="tbl" style="display:none"><thead><tr><th>班級</th><th>座號</th><th>密語（約 80 個字元，直接複製貼給同學）</th><th></th></tr></thead><tbody></tbody></table>
+</div>
+
+<script>
+const SCOPE = 'nw1';
+const Z85 = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.-:+=^!/*?&<>()[]{}@%$#';
+const safeId = s => String(s).replace(/[\/\\.#$\[\]]/g, '_').trim();
+function z85encode(bytes) {
+  let out = '';
+  for (let i = 0; i < bytes.length; i += 4) {
+    let v = ((bytes[i] << 24) | (bytes[i + 1] << 16) | (bytes[i + 2] << 8) | bytes[i + 3]) >>> 0;
+    const ch = [];
+    for (let k = 0; k < 5; k++) { ch.unshift(Z85[v % 85]); v = Math.floor(v / 85); }
+    out += ch.join('');
+  }
+  return out;
+}
+let rows = [];
+const $ = id => document.getElementById(id);
+$('go').addEventListener('click', async () => {
+  $('err').textContent = ''; rows = [];
+  let jwk;
+  try { jwk = JSON.parse($('key').value); } catch (e) { $('err').textContent = '私鑰格式不對，請貼上整個 .jwk 檔案的內容。'; return; }
+  let key;
+  try { key = await crypto.subtle.importKey('jwk', jwk, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']); }
+  catch (e) { $('err').textContent = '這不是有效的私鑰。'; return; }
+  const lines = $('roster').value.split('\n').map(s => s.trim()).filter(Boolean);
+  for (const ln of lines) {
+    const m = ln.match(/^(.+?)[\s,，:：]+(\d{1,2})\s*號?$/);
+    if (!m) { $('err').textContent = '看不懂這一行：' + ln + '（格式：五年級3班 5）'; return; }
+    const cls = m[1].trim(), seat = String(parseInt(m[2], 10));
+    const docId = safeId(`${cls}_${seat}號`);
+    const sig = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, key, new TextEncoder().encode(`${SCOPE}|${docId}`));
+    rows.push({ cls, seat, code: z85encode(new Uint8Array(sig)) });
+  }
+  const tb = $('tbl').querySelector('tbody'); tb.innerHTML = '';
+  rows.forEach((r, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td></td><td></td><td><code></code></td><td><button class="ghost">複製</button></td>`;
+    tr.children[0].textContent = r.cls; tr.children[1].textContent = r.seat; tr.querySelector('code').textContent = r.code;
+    tr.querySelector('button').addEventListener('click', async e => { await navigator.clipboard.writeText(r.code); e.target.textContent = '已複製'; setTimeout(() => e.target.textContent = '複製', 1200); });
+    tb.appendChild(tr);
+  });
+  $('tbl').style.display = rows.length ? 'table' : 'none';
+  $('copyall').disabled = $('csv').disabled = !rows.length;
+});
+$('copyall').addEventListener('click', async () => {
+  await navigator.clipboard.writeText(rows.map(r => `${r.cls} ${r.seat}號\n${r.code}`).join('\n\n'));
+  $('copyall').textContent = '已複製'; setTimeout(() => $('copyall').textContent = '全部複製成文字', 1200);
+});
+$('csv').addEventListener('click', () => {
+  const csv = '﻿班級,座號,密語\n' + rows.map(r => `"${r.cls}",${r.seat},"${r.code}"`).join('\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = '新世界密語.csv'; a.click();
+});
+</script>
+</body>
+</html>

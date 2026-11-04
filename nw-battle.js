@@ -37,7 +37,7 @@ const CSS = `
 .nwb2-chip{display:inline-block;padding:1px 8px;border-radius:99px;font-size:.8em;font-weight:800;background:rgba(0,0,0,.35);border:1px solid var(--line2)}
 `;
 
-const ACTIONS = [['閃避', 'dodge'], ['防禦', 'defend'], ['ㄕㄢˇㄅㄧˋ', 'dodge'], ['ㄈㄤˊㄩˋ', 'defend'], ['jump', 'dodge'], ['stop', 'defend']];
+const ACTIONS = [['閃', 'dodge'], ['防', 'defend'], ['jump', 'dodge'], ['stop', 'defend']];
 const TIER_KEYS = ['normal', 'fine', 'epic', 'legend'];
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const rnd = arr => arr[Math.floor(Math.random() * arr.length)];
@@ -111,7 +111,7 @@ export function startBattle(env, cfg, done) {
 
   const T0 = nowS();
   const S = {
-    over: false, T0, mon: { hp: monMaxHp(cfg.mk, lv), max: monMaxHp(cfg.mk, lv), angry: false, flashUntil: 0, lungeAt: -9 },
+    over: false, T0, mon: { hp: monMaxHp(cfg.mk, lv, tier), max: monMaxHp(cfg.mk, lv), angry: false, flashUntil: 0, lungeAt: -9 },
     me: { hp: BAL.playerHp, max: BAL.playerHp, down: false, downUntil: 0, downs: 0, hitAt: -9, x: 0, atkAt: -9 },
     st: { burn: 0, poison: [], ice: 0, lastTick: T0 },
     cast: null, nextCast: T0 + 6, action: null,
@@ -125,7 +125,7 @@ export function startBattle(env, cfg, done) {
 
   $q('nwb-mname').textContent = `${mon0.name} Lv ${lv}`;
   $q('nwb-wlabel').textContent = weapon === 'staff' ? '下一次詠唱' : weapon === 'bow' ? '力量條' : weapon === 'dagger' ? '下一次連環斬' : '彈匣';
-  $q('nwb-hint').innerHTML = '看到地上的紅色／藍色區域：打「<b style="color:var(--gold)">閃避</b>」躲開，或打「<b style="color:var(--gold)">防禦</b>」擋住（英文：jump／stop）　Esc 換題' + (weapon === 'crossbow' ? '　輸入框空著按 Enter＝射箭' : '');
+  $q('nwb-hint').innerHTML = '看到地上的紅色／藍色區域：打「<b style="color:var(--gold)">閃</b>」躲開，或打「<b style="color:var(--gold)">防</b>」擋住（英文：jump／stop）　Esc 換題' + (weapon === 'crossbow' ? '　輸入框空著按 Enter＝射箭' : '');
 
   const tierIdx = () => Math.min(3, (lv < 10 ? 0 : lv < 20 ? 1 : 2) + (S.mon.angry ? 1 : 0));
   function pickWord() {
@@ -342,7 +342,10 @@ export function startBattle(env, cfg, done) {
     const box = $q('nwb-cast');
     box.style.display = 'block'; box.className = 'nwb2-cast ' + atk.type;
     $q('nwb-cast-t').textContent = `${atk.type === 'dodge' ? '💨' : '🛡'} ${mon0.name}要用「${atk.name}」！`;
-    $q('nwb-cast-h').textContent = atk.type === 'dodge' ? '紅色：快滿的時候打「閃避」' : '藍色：過一半就可以打「防禦」';
+    const learn = NW.hunts < 3;
+    $q('nwb-cast-h').textContent = atk.type === 'dodge'
+      ? (learn ? '👉 條快滿了，快打「閃」！' : '紅色：快滿的時候打「閃」')
+      : (learn ? '👉 現在就打「防」，擋得住！' : '藍色：過一半就可以打「防」');
     if (mon0.spKey === 'bubble') { S.bubUntil = T + 5; showBubbles(); }
     if (mon0.spKey === 'spore') { S.sporeUntil = T + 5; host.classList.add('nwb2-spore'); }
   }
@@ -473,8 +476,14 @@ export function startBattle(env, cfg, done) {
   }
 
   function detectAction(val) {
-    const low = val.toLowerCase();
-    for (const [w, type] of ACTIONS) if (low.endsWith(w)) return { w, type };
+    const low = val.toLowerCase(), typed = [...val];
+    for (const [w, type] of ACTIONS) {
+      if (!low.endsWith(w)) continue;
+      const at = typed.length - [...w].length;
+      const expected = S.units.slice(at, at + [...w].length).map(u => u.want).join('').toLowerCase();
+      if (expected === w) continue;
+      return { w, type };
+    }
     return null;
   }
   function onInput() {

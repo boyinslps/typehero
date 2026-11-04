@@ -1,18 +1,28 @@
 const { chromium } = require('playwright'); const fs = require('fs');
 const path = require('path'); const M = path.join(__dirname, 'mock') + '/'; const OUT = process.argv[2] || require('os').tmpdir();
 const css = fs.existsSync(OUT + '/tw.css') ? fs.readFileSync(OUT + '/tw.css', 'utf8') : '';
+let KEYS = null;
+async function keys() {
+  if (KEYS) return KEYS;
+  const kp = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+  KEYS = { pub: await crypto.subtle.exportKey('jwk', kp.publicKey), prv: await crypto.subtle.exportKey('jwk', kp.privateKey) };
+  return KEYS;
+}
 let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++; };
 const seed = {
   'mg_scores/五年級3班_5號': { className: '五年級3班', seat: 5, name: '小明', bestLevel: 10, bestScore: 20, scoreVer: 2, plays: 9, tutorialDone: true, talentIntroDone: true, tier: 'B', balanceVer: 3 },
   'mg_scores/五年級3班_6號': { className: '五年級3班', seat: 6, name: '新手', bestLevel: 3, plays: 2, tutorialDone: true, talentIntroDone: true, tier: 'B', balanceVer: 3 }
 };
 (async () => {
+  const { signCode } = await import('../../nw-access.js');
+  const K = await keys();
+  const code5 = await signCode('五年級3班_5號', K.prv), code6 = await signCode('五年級3班_6號', K.prv);
   const b = await chromium.launch();
   const p = await b.newPage({ viewport: { width: 1200, height: 900 } });
   const errs = []; p.on('dialog', d => d.accept());
   p.on('pageerror', e => errs.push('pageerror: ' + e.message));
   p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push('console: ' + m.text()); });
-  await p.addInitScript(s => { window.__FS = s; localStorage.clear(); window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas'); }, seed);
+  await p.addInitScript(a => { const s = a.s; window.__NW_PUBKEY__ = a.pub; window.__FS = s; localStorage.clear(); window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas'); }, { s: seed, pub: K.pub });
   await p.route('**/*', r => {
     const u = r.request().url();
     if (u.startsWith('http://localhost')) return r.continue();
@@ -25,20 +35,32 @@ const seed = {
     await p.selectOption('#in-grade', '五年級'); await p.selectOption('#in-class', '3班');
     await p.fill('#in-seat', String(seat)); await p.waitForTimeout(900); await p.click('#btn-enter'); await p.waitForTimeout(1200);
   };
+  const redeem = async c => { await p.click('#btn-nw-code'); await p.fill('#nw-code-in', c); await p.press('#nw-code-in', 'Enter'); await p.waitForTimeout(600); };
   await p.goto('http://localhost:8765/index.html'); await p.waitForTimeout(1500);
   await login(6);
-  ok(await p.isHidden('#btn-nw-enter'), '沒有 ?nw=1 時看不到「新世界」按鈕（新世界尚未開放）');
-  await p.goto('http://localhost:8765/index.html?nw=1'); await p.waitForTimeout(1500);
-
+  ok(await p.isHidden('#btn-nw-enter'), '新世界還沒開放：一般同學看不到「新世界」按鈕');
+  ok(await p.isVisible('#btn-nw-code'), '只有「搶先體驗」輸入密語的小按鈕');
+  await redeem('亂打的密語');
+  ok(await p.isVisible('#nw-code-in') && (await p.textContent('#nw-code-err')).includes('密語不對'), '亂打的密語被擋下');
+  await p.fill('#nw-code-in', code5); await p.press('#nw-code-in', 'Enter'); await p.waitForTimeout(600);
+  ok(await p.isVisible('#nw-code-in'), '別人（座號 5）的密語，座號 6 用不了');
+  await p.fill('#nw-code-in', code6 + ' \n'); await p.press('#nw-code-in', 'Enter'); await p.waitForTimeout(900);
+  ok(await p.isHidden('#nw-code-in') && await p.isVisible('#btn-nw-enter'), '自己的密語通過（前後有空白也行）：出現「新世界」按鈕');
+  ok(await p.isHidden('#btn-nw-code'), '通過後不再顯示輸入密語的按鈕');
+  await p.click('#btn-nw-enter'); await p.waitForTimeout(500);
+  ok(await p.isVisible('#nw-root'), 'LV3 的同學拿到密語，不用到 LV8 也能進');
+  await p.click('[data-save]'); await p.click('[data-card="staff"]'); await p.click('[data-ok]'); await p.waitForTimeout(400);
+  await p.click('[data-act="leave"]'); await p.waitForTimeout(300);
+  await p.evaluate(() => { window.__FS['mg_config/nw_access'] = { revoked: ['五年級3班_6號'] }; });
+  await p.click('#btn-relogin'); await p.waitForTimeout(500);
   await login(6);
-  ok(await p.isVisible('#btn-nw-enter'), '營地有「新世界」按鈕');
-  ok((await p.textContent('#nw-lock-txt')).includes('LV 8'), 'LV3 的學生看到鎖與門檻');
-  await p.click('#btn-nw-enter'); await p.waitForTimeout(300);
-  ok(await p.isHidden('#nw-root'), 'LV3 進不去');
+  ok(await p.isHidden('#btn-nw-enter') && await p.isVisible('#btn-nw-code'), '老師把他列入撤銷名單：密語失效');
   await p.click('#btn-relogin'); await p.waitForTimeout(500);
 
   await login(5);
-  ok(!(await p.textContent('#nw-lock-txt')).includes('LV'), '最高 LV10 的學生沒有鎖');
+  ok(await p.isHidden('#btn-nw-enter'), '換成座號 5：沒有密語，看不到按鈕（座號 6 的密語不會跟著電腦走）');
+  await redeem(code5);
+  ok(await p.isVisible('#btn-nw-enter'), '座號 5 貼上自己的密語');
   await p.click('#btn-nw-enter'); await p.waitForTimeout(800);
   ok(await p.isVisible('#nw-root') && (await p.textContent('#nw-root')).includes('歡迎來到新世界'), '第一次進來先選造型');
   await p.click('[data-k="style"][data-i="2"]'); await p.click('[data-k="hair"][data-i="4"]'); await p.click('[data-k="skin"][data-i="3"]');

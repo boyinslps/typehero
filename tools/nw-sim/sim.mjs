@@ -19,7 +19,7 @@ export const DEFAULT_ASSUME = {
   windowMul: 1,
   castMul: 1,
   hpMul: 1,
-  actionWord: 2
+  actionWord: 1
 };
 
 function poolChars(lv, angry) {
@@ -39,7 +39,7 @@ export function simulate(p, mk, rk, star, exp, seed, A = DEFAULT_ASSUME, overrid
   const pRight = A.rightType[0] + (A.rightType[1] - A.rightType[0]) * exp;
   const pAimed = A.aimed[0] + (A.aimed[1] - A.aimed[0]) * exp;
 
-  const mon = { max: Math.round(monMaxHp(mk, lv) * A.hpMul), angry: false };
+  const mon = { max: Math.round(monMaxHp(mk, lv, tier) * A.hpMul), angry: false };
   mon.hp = mon.max;
   const me = { hp: BAL.playerHp, down: false, downUntil: 0, downs: 0 };
   const st = { burn: 0, poison: 0, ice: 0, lastTick: 0 };

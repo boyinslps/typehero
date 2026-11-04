@@ -1,30 +1,30 @@
-# ═══════════════════════════════════════════════════════════
+
+#    長期存取權，一旦推上 GitHub 就算刪掉也已經外洩）
 #  絕對不要進版控的東西
 #  （Google OAuth 的 client_secret + refresh_token 等於帳號的
-#    長期存取權，一旦推上 GitHub 就算刪掉也已經外洩）
+# ── 作業系統 / 編輯器 ──
+# ── 暫存與測試產物 ──
 # ═══════════════════════════════════════════════════════════
-*client_secret*.json
-client_secret*.apps.googleusercontent.com.json
-token.json
-token_*.json
-credentials.json
-service-account*.json
-*.pem
+*.bak
+*.jwk
 *.key
 *.p12
+*.pem
+*.swp
+*.tmp
+*client_secret*.json
+.DS_Store
 .env
 .env.*
-
-# ── 作業系統 / 編輯器 ──
-Thumbs.db
-desktop.ini
-.DS_Store
-.vscode/
 .idea/
-*.swp
-
-# ── 暫存與測試產物 ──
+.nw-private/
+.vscode/
+Thumbs.db
 _test_*.html
-*.tmp
-*.bak
+client_secret*.apps.googleusercontent.com.json
+credentials.json
+desktop.ini
 node_modules/
+service-account*.json
+token.json
+token_*.json

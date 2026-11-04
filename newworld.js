@@ -5,6 +5,7 @@ import {
   COLOR_NAME, COLOR_HEX, HR_MAX
 } from './nw-data.js';
 import { startBattle } from './nw-battle.js';
+import { verifyCode } from './nw-access.js';
 
 const CSS = `
 #nw-root{position:fixed;inset:0;z-index:60;overflow-y:auto;background:var(--bg);
@@ -86,10 +87,66 @@ export function initNewWorld(C) {
   }
 
   const unlocked = () => C.bestLevel() >= C.unlockLevel;
+  let access = false;
+  const pubKey = () => (location.hostname === 'localhost' && window.__NW_PUBKEY__) || undefined;
+  const codeKey = () => 'mg_nw_code_' + ME.docId;
+  const cleanCode = v => String(v || '').replace(/[\s\u200b-\u200d\ufeff]/g, '');
+
+  async function refreshAccess() {
+    access = false;
+    let code = '';
+    try { code = localStorage.getItem(codeKey()) || ''; } catch (e) { code = ''; }
+    if (!code || !ME.docId || !(await verifyCode(ME.docId, code, pubKey()))) return false;
+    access = true;
+    if (C.online()) {
+      try {
+        const s = await C.withTimeout(C.getDoc(C.doc(C.db, 'mg_config', 'nw_access')), 4000, 'nw-access');
+        const revoked = s.exists() ? (s.data().revoked || []) : [];
+        if (revoked.includes(ME.docId)) { access = false; try { localStorage.removeItem(codeKey()); } catch (e) { /* 沒關係 */ } }
+      } catch (e) { console.warn('通關密語撤銷名單讀取失敗', e); }
+    }
+    return access;
+  }
+
+  async function redeem(raw) {
+    const code = cleanCode(raw);
+    if (!(await verifyCode(ME.docId, code, pubKey()))) return false;
+    try { localStorage.setItem(codeKey(), code); } catch (e) { /* 存不了就這次有效 */ }
+    return refreshAccess();
+  }
+
   function gate() {
-    if (C.nwMode() === 'off') return { ok: false, why: '老師暫時把新世界關起來了。' };
-    if (C.nwMode() === 'all' || unlocked()) return { ok: true };
+    if (access) return { ok: true, early: true };
+    const mode = C.nwMode();
+    if (mode === 'off') return { ok: false, closed: true, why: '新世界還沒開放，敬請期待！' };
+    if (mode === 'all' || unlocked()) return { ok: true };
     return { ok: false, why: `把打字練到 LV ${C.unlockLevel}（解鎖史詩）才能穿過傳送門！你目前最高 LV ${C.bestLevel()}。` };
+  }
+
+  function openCodeSheet(after) {
+    const sheet = document.createElement('div');
+    sheet.className = 'fixed inset-0 z-[80] grid place-items-center p-4';
+    sheet.style.background = 'rgba(9,8,18,.88)';
+    sheet.innerHTML = `<div class="panel p-6 w-full max-w-md">
+      <div class="text-xl font-black mb-1">🔑 搶先體驗</div>
+      <p class="text-sm mb-3" style="color:var(--dim)">老師有傳給你專屬的通關密語嗎？貼在下面。這組密語只有你自己能用喔。</p>
+      <input id="nw-code-in" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="貼上通關密語"
+        class="w-full p-3 rounded-lg panel-flat mono text-sm">
+      <div id="nw-code-err" class="text-sm mt-2" style="color:#e5705f;min-height:1.2em"></div>
+      <div class="flex gap-2 justify-end mt-3">
+        <button class="btn btn-ghost px-4 py-2" data-close>取消</button>
+        <button class="btn btn-gold px-5 py-2" data-ok>確定</button></div></div>`;
+    const inp = sheet.querySelector('#nw-code-in'), err = sheet.querySelector('#nw-code-err');
+    const submit = async () => {
+      if (!cleanCode(inp.value)) { err.textContent = '先貼上密語。'; return; }
+      err.textContent = '檢查中…';
+      if (await redeem(inp.value)) { sheet.remove(); toast('歡迎搶先體驗新世界！', 2600); after && after(); }
+      else err.textContent = '密語不對，或這組密語不是你的。請再確認一次。';
+    };
+    sheet.addEventListener('click', e => { if (e.target === sheet || e.target.closest('[data-close]')) sheet.remove(); if (e.target.closest('[data-ok]')) submit(); });
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
+    document.body.appendChild(sheet);
+    inp.focus();
   }
 
   const tier = () => (C.getHist() && C.getHist().tier) || 'B';
@@ -462,7 +519,7 @@ export function initNewWorld(C) {
         <div class="flex gap-2 flex-wrap">${stars}</div>
         <div class="mt-4 flex items-center gap-3 flex-wrap">
           <button class="btn btn-gold px-8 py-3 text-xl" data-go>⚔ 出發！</button>
-          <span class="text-sm" style="color:var(--dim)">一場最多 5 分鐘。看到紅色區域，打「閃避」或「防禦」！</span></div>
+          <span class="text-sm" style="color:var(--dim)">一場最多 5 分鐘。看到紅色區域，打「閃」或「防」！</span></div>
       </div>`, el => {
       mountSprites(el);
       el.querySelectorAll('[data-star]').forEach(b => b.addEventListener('click', () => viewMonster(rk, mk, +b.dataset.star)));
@@ -569,5 +626,5 @@ export function initNewWorld(C) {
     const mo = e.target.closest('[data-mon]'); if (mo) viewMonster(cur.rk, mo.dataset.mon);
   });
 
-  return { enter, gate, leave, get nw() { return NW; }, isOpen: () => !root.classList.contains('hidden') };
+  return { enter, gate, leave, refresh: refreshAccess, openCode: openCodeSheet, get nw() { return NW; }, isOpen: () => !root.classList.contains('hidden') };
 }
