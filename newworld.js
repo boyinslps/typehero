@@ -489,7 +489,7 @@ export function initNewWorld(C) {
     const s = NW.stat;
     NW.hunts++;
     s.dodgeOk += res.dodgeOk; s.dodgeAll += res.dodgeAll; s.defOk += res.defOk; s.defAll += res.defAll;
-    const sum = { lv, win: res.result === 'win', exp: 0, coins: 0, drops: [], rare: [], ups: 0, quests: [], star };
+    const sum = { lv, win: res.result === 'win', exp: 0, coins: 0, drops: [], rare: [], ups: 0, quests: [], star: res.star };
     if (res.valid) {
       if (sum.win) {
         s.wins++;
@@ -524,6 +524,7 @@ export function initNewWorld(C) {
     const rare = sum.rare.map(d => `<b style="color:${COLOR_HEX[d.color]}">${d.name}（新！）</b>`).join('　');
     const sheet = document.createElement('div');
     sheet.className = 'fixed inset-0 z-[90] overflow-y-auto';
+    sheet.id = 'nw-result';
     sheet.style.background = 'rgba(9,8,18,.94)';
     sheet.innerHTML = `<div class="max-w-xl mx-auto p-4 py-8"><div class="panel p-6">
       <div class="text-3xl font-black" style="color:${sum.win ? 'var(--gold)' : '#e5705f'}">${title}</div>

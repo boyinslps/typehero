@@ -101,9 +101,9 @@ export const regionLv = (rk, star) => {
 
 export const BAL = {
   playerHp: 100,
-  perChar: 10,
-  hpBase: 240,
-  hpPerLv: 30,
+  perChar: 9,
+  hpBase: 440,
+  hpPerLv: 20,
   atkBase: 6,
   atkPerLv: 0.9,
   timeLimit: 300,

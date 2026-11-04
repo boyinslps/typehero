@@ -591,6 +591,44 @@ function battle() {
   return s;
 }
 
+function floorLines(s, col, top) {
+  for (let k = 0; k < 8; k++) { const y = Math.round(top + (s.h - top) * Math.pow(k / 7, 1.7)); line(s, 0, y, s.w - 1, y, col); }
+  for (let xb = -80; xb <= 240; xb += 24) line(s, 80 + (xb - 80) * .25, top, xb, s.h - 1, col);
+}
+function bgGrass() {
+  const s = mk(160, 96), R = rng(31);
+  sky(s, ['#6ec1ee', '#a5dcf5', '#d9f2fa'], 0, 44);
+  disc(s, 134, 10, 6, '#ffe9a0'); disc(s, 134, 10, 5, '#fff3c4');
+  [[20, 9, 7], [70, 16, 5], [112, 6, 4]].forEach(([x, y, r]) => { ell(s, x, y, r + 4, 2, '#fff'); ell(s, x - 3, y - 1, r, 3, '#fff'); });
+  for (let x = 0; x < 160; x++) rect(s, x, 32 + Math.round(3 * Math.sin(x * .07)), 1, 14, '#93d46d');
+  for (let x = 0; x < 160; x++) rect(s, x, 38 + Math.round(2 * Math.sin(x * .11 + 2)), 1, 8, '#7cc35a');
+  sky(s, ['#4f9a3c', '#5fae45', '#79c85a'], 44, 96);
+  floorLines(s, '#3d7e2f', 44);
+  for (let i = 0; i < 40; i++) { const x = Math.floor(R() * 160), y = 46 + Math.floor(R() * 50); put(s, x, y, ['#fff', '#ff9ec4', '#ffe27a', '#fff'][i % 4]); }
+  return s;
+}
+function bgForest() {
+  const s = mk(160, 96), R = rng(37);
+  sky(s, ['#2a4a3e', '#4d7a64', '#9cc0aa'], 0, 48);
+  for (let x = 6; x < 160; x += 14) pine(s, x, 40, 22 + (x % 3) * 3, '#2f5a43', '#3f7256');
+  for (let y = 26; y < 46; y++) for (let x = 0; x < 160; x++) if (dth(x, y) < .4 * (1 - Math.abs(y - 36) / 11)) put(s, x, y, '#a9cbb7');
+  [24, 70, 118, 150].forEach((x, i) => pine(s, x, 46, 32 + i % 2 * 4, '#1f4a32', '#2a6044'));
+  sky(s, ['#1f3a28', '#2a4a32', '#3a6040'], 46, 96);
+  floorLines(s, '#142a1c', 46);
+  for (let i = 0; i < 16; i++) put(s, Math.floor(R() * 160), Math.floor(R() * 96), i % 2 ? '#e0933c' : '#c8602a');
+  return s;
+}
+function zoneGrid(col, edge) {
+  const s = mk(160, 96);
+  for (let y = 60; y <= 90; y++) {
+    const t = (y - 60) / 30, xl = Math.round(56 - 16 * t), xr = Math.round(106 + 16 * t);
+    for (let x = xl; x <= xr; x++) if (((x + y) & 1) === 0) put(s, x, y, col);
+    put(s, xl, y, edge); put(s, xr, y, edge);
+  }
+  line(s, 56, 60, 106, 60, edge); line(s, 40, 90, 122, 90, edge);
+  return s;
+}
+
 const GRIDS = { weapon: W, region: RG, monster: M };
 const cache = {};
 function grid(kind, key) {
@@ -600,6 +638,8 @@ function grid(kind, key) {
 return {
   canvas: (kind, key, scale, angry) => blit(grid(kind, key), scale, !!angry),
   hero: (look, scale) => blit(hero(look), scale, false),
+  bg: kind => blit(kind === 'forest' ? bgForest() : bgGrass(), 1, false),
+  zone: kind => blit(kind === 'defend' ? zoneGrid('#3a7ad8', '#9fd8ff') : zoneGrid('#d83a3a', '#ff8a6a'), 1, false),
   width: (kind, key) => grid(kind, key).w
 };
 })();

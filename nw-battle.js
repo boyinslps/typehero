@@ -1,5 +1,523 @@
+import { BAL, TIERS, MONSTERS, regionLv, monMaxHp, monDmg, atkInterval, castTime, STATUS } from './nw-data.js';
+
+const CSS = `
+#nwb-root{position:fixed;inset:0;z-index:70;overflow:auto;background:#0b0910;color:var(--ink)}
+.nwb2-wrap{margin:0 auto;padding:8px 10px 14px}
+.nwb2-top{display:flex;gap:10px;align-items:center;justify-content:space-between;margin:0 auto 6px}
+.nwb2-plate{flex:1;min-width:0;background:rgba(20,16,30,.92);border:2px solid var(--line2);border-radius:10px;padding:6px 10px;font-weight:800}
+.nwb2-bar{height:12px;background:#2a1c1c;border-radius:99px;overflow:hidden;margin-top:4px}
+.nwb2-bar>i{display:block;height:100%;width:100%;background:#d8402a;transition:width .2s}
+.nwb2-bar.g>i{background:#6aa84f}
+.nwb2-bar.y>i{background:linear-gradient(90deg,#e8b64c,#ffd98a)}
+.nwb2-stage{position:relative;margin:0 auto;border:2px solid var(--line2);border-radius:8px;overflow:hidden;background:#000}
+.nwb2-stage canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges}
+.nwb2-ov{position:absolute;inset:0;pointer-events:none}
+.nwb2-cast{position:absolute;left:50%;top:3%;transform:translateX(-50%);min-width:46%;text-align:center;font-weight:900;
+  background:rgba(10,8,18,.88);border:2px solid #ff8a6a;border-radius:10px;padding:4px 10px;display:none}
+.nwb2-cast.defend{border-color:#9fd8ff}
+.nwb2-cast .bar{height:12px;background:#2a1c1c;border-radius:99px;overflow:hidden;margin-top:3px}
+.nwb2-cast .bar i{display:block;height:100%;width:0;background:#d83a3a}
+.nwb2-cast.defend .bar i{background:#3a7ad8}
+.nwb2-cast small{display:block;font-weight:700;color:var(--dim)}
+.nwb2-float{position:absolute;transform:translate(-50%,0);font-weight:900;white-space:nowrap;text-shadow:0 2px 0 #000,0 0 6px #000;animation:nwbRise 1s ease-out forwards}
+@keyframes nwbRise{0%{opacity:0;margin-top:6px}15%{opacity:1}100%{opacity:0;margin-top:-34px}}
+.nwb2-banner{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);font-weight:900;font-size:2.2em;color:#fff;
+  text-shadow:0 3px 0 #000,0 0 12px #000;animation:nwbBan 1.1s ease-out forwards;white-space:nowrap}
+@keyframes nwbBan{0%{opacity:0;transform:translate(-50%,-50%) scale(.6)}20%{opacity:1;transform:translate(-50%,-50%) scale(1.1)}100%{opacity:0;transform:translate(-50%,-70%) scale(1)}}
+.nwb2-down{position:absolute;inset:0;display:none;place-items:center;background:rgba(10,8,18,.6);font-weight:900;font-size:1.6em;text-align:center}
+.nwb2-bottom{margin:8px auto 0;display:grid;gap:8px}
+.nwb2-panel{background:var(--panel2);border:2px solid var(--line2);border-radius:10px;padding:8px 12px}
+.nwb2-q{font-weight:900;min-height:2.4em;display:flex;flex-wrap:wrap;gap:.1em .15em;align-items:flex-start;transform-origin:left top}
+#nwb-in{width:100%;margin-top:8px;padding:10px 12px;border-radius:10px;background:#14110d;border:2px solid var(--line2);color:var(--ink);font-weight:800}
+#nwb-in:focus{border-color:var(--gold);outline:none}
+#nwb-in:disabled{opacity:.45}
+.nwb2-spore{transform:scale(.62)}
+.nwb2-bubbles{position:absolute;inset:0;pointer-events:none;display:none;overflow:hidden}
+.nwb2-bubbles i{position:absolute;width:2.2em;height:2.2em;border-radius:50%;border:3px solid #bfe8ff;background:rgba(191,232,255,.25)}
+.nwb2-chip{display:inline-block;padding:1px 8px;border-radius:99px;font-size:.8em;font-weight:800;background:rgba(0,0,0,.35);border:1px solid var(--line2)}
+`;
+
+const ACTIONS = [['閃避', 'dodge'], ['防禦', 'defend'], ['ㄕㄢˇㄅㄧˋ', 'dodge'], ['ㄈㄤˊㄩˋ', 'defend'], ['jump', 'dodge'], ['stop', 'defend']];
+const TIER_KEYS = ['normal', 'fine', 'epic', 'legend'];
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const rnd = arr => arr[Math.floor(Math.random() * arr.length)];
+
 export function startBattle(env, cfg, done) {
-  env.C.toast('戰鬥畫面做中', 1500);
-  done({ rk: cfg.rk, mk: cfg.mk, star: cfg.star, result: 'retreat', valid: false, invalidWhy: '戰鬥還沒做好',
-    secs: 0, accuracy: 0, dodgeOk: 0, dodgeAll: 0, defOk: 0, defAll: 0 });
+  const { C, PX } = env;
+  const NW = env.NW();
+  const mon0 = MONSTERS[cfg.mk];
+  const lv = regionLv(cfg.rk, cfg.star);
+  const tier = env.tier();
+  const weapon = NW.starter || 'staff';
+  const mode = mon0.ask === 'zhuyin' ? 'zhuyin' : 'hanzi';
+  const nowS = () => performance.now() / 1000;
+
+  if (!document.getElementById('nwb-style')) {
+    const st = document.createElement('style'); st.id = 'nwb-style'; st.textContent = CSS; document.head.appendChild(st);
+  }
+
+  const sc = clamp(Math.floor(Math.min(innerWidth - 28, (innerHeight - 270) * 160 / 96) / 160), 2, 6);
+  const W = 160 * sc, H = 96 * sc;
+  const fs = Math.max(11, Math.round(sc * 2.7));
+
+  const root = document.createElement('div');
+  root.id = 'nwb-root';
+  root.innerHTML = `
+    <div class="nwb2-wrap" style="width:${W + 4}px;max-width:100%;font-size:${fs}px">
+      <div class="nwb2-top">
+        <div class="nwb2-plate"><div class="flex justify-between gap-2"><span id="nwb-mname"></span><span id="nwb-mflag"></span></div>
+          <div class="nwb2-bar"><i id="nwb-mhp"></i></div></div>
+        <div class="nwb2-plate" style="flex:none;text-align:center"><div style="color:var(--dim);font-size:.75em">時間</div><div id="nwb-time" class="mono" style="color:var(--gold)">5:00</div></div>
+        <button id="nwb-quit" class="btn btn-ghost px-3 py-2" style="font-size:.85em">撤退</button>
+      </div>
+      <div class="nwb2-stage" style="width:${W}px;height:${H}px">
+        <canvas id="nwb-cv" width="160" height="96" style="width:${W}px;height:${H}px"></canvas>
+        <div class="nwb2-ov" id="nwb-ov">
+          <div class="nwb2-cast" id="nwb-cast"><div id="nwb-cast-t"></div><div class="bar"><i id="nwb-cast-i"></i></div><small id="nwb-cast-h"></small></div>
+        </div>
+        <div class="nwb2-down" id="nwb-down"></div>
+      </div>
+      <div class="nwb2-bottom">
+        <div class="nwb2-panel" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+          <div style="min-width:9em;flex:1"><div style="font-size:.8em;color:var(--dim)">❤ 生命 <b id="nwb-hpt" style="color:var(--ink)"></b> <span id="nwb-st"></span></div>
+            <div class="nwb2-bar g"><i id="nwb-hp"></i></div>
+            <div class="nwb2-bar y" id="nwb-actw" style="visibility:hidden;margin-top:3px"><i id="nwb-act" style="width:0;transition:none"></i></div></div>
+          <div style="min-width:9em;flex:1"><div style="font-size:.8em;color:var(--dim)" id="nwb-wlabel"></div>
+            <div class="nwb2-bar y"><i id="nwb-wg" style="width:0"></i></div></div>
+          <div style="text-align:right"><div style="font-size:.75em;color:var(--dim)">連擊</div><div id="nwb-combo" class="mono" style="color:var(--gold);font-weight:900">0</div></div>
+        </div>
+        <div class="nwb2-panel" style="position:relative">
+          <div class="nwb2-q" id="nwb-q"></div>
+          <div class="nwb2-bubbles" id="nwb-bub"></div>
+          <input id="nwb-in" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="打字攻擊，按 Enter 送出">
+          <div style="font-size:.78em;color:var(--dim);margin-top:5px" id="nwb-hint"></div>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(root);
+  const $q = id => root.querySelector('#' + id);
+  const cvs = $q('nwb-cv'), g = cvs.getContext('2d');
+  g.imageSmoothingEnabled = false;
+  const inp = $q('nwb-in'), host = $q('nwb-q'), ov = $q('nwb-ov');
+
+  const whiteOf = c => { const w = document.createElement('canvas'); w.width = c.width; w.height = c.height; const x = w.getContext('2d'); x.drawImage(c, 0, 0); x.globalCompositeOperation = 'source-atop'; x.fillStyle = '#fff'; x.fillRect(0, 0, w.width, w.height); return w; };
+  const art = {
+    bg: PX.bg(cfg.rk === 'forest' ? 'forest' : 'grass'),
+    zr: PX.zone('dodge'), zb: PX.zone('defend'),
+    mon: PX.canvas('monster', cfg.mk, 2, false), monA: PX.canvas('monster', cfg.mk, 2, true),
+    hero: PX.hero(env.myHero(weapon), 1)
+  };
+  art.monW = whiteOf(art.mon);
+
+  const T0 = nowS();
+  const S = {
+    over: false, T0, mon: { hp: monMaxHp(cfg.mk, lv), max: monMaxHp(cfg.mk, lv), angry: false, flashUntil: 0, lungeAt: -9 },
+    me: { hp: BAL.playerHp, max: BAL.playerHp, down: false, downUntil: 0, downs: 0, hitAt: -9, x: 0, atkAt: -9 },
+    st: { burn: 0, poison: [], ice: 0, lastTick: T0 },
+    cast: null, nextCast: T0 + 6, action: null,
+    q: null, units: [], qAt: 0, qCount: 0, lastT: '', composing: false, committed: '',
+    combo: 0, maxCombo: 0, typed: 0, correct: 0, answered: 0, perfect: 0,
+    gauge: 0, sharp: 0, mag: 0,
+    dodgeOk: 0, dodgeAll: 0, defOk: 0, defAll: 0,
+    flags: { fast: 0, paste: 0, wrong: 0 }, fx: [], bubUntil: 0, sporeUntil: 0, lastUi: 0
+  };
+  host.dataset.mode = mode;
+
+  $q('nwb-mname').textContent = `${mon0.name} Lv ${lv}`;
+  $q('nwb-wlabel').textContent = weapon === 'staff' ? '下一次詠唱' : weapon === 'bow' ? '力量條' : weapon === 'dagger' ? '下一次連環斬' : '彈匣';
+  $q('nwb-hint').innerHTML = '看到地上的紅色／藍色區域：打「<b style="color:var(--gold)">閃避</b>」躲開，或打「<b style="color:var(--gold)">防禦</b>」擋住（英文：jump／stop）　Esc 換題' + (weapon === 'crossbow' ? '　輸入框空著按 Enter＝射箭' : '');
+
+  const tierIdx = () => Math.min(3, (lv < 10 ? 0 : lv < 20 ? 1 : 2) + (S.mon.angry ? 1 : 0));
+  function pickWord() {
+    const p = C.q.pool('common_' + TIER_KEYS[tierIdx()]);
+    let q, n = 0;
+    do { q = rnd(p); n++; } while (p.length > 1 && q.t === S.lastT && n < 10);
+    S.lastT = q.t; return { t: q.t, z: q.z, sp: null };
+  }
+  function pickChant() {
+    const all = C.q.pool('special_staff');
+    const short = all.filter(q => [...q.t].length <= (lv < 10 ? 16 : 22));
+    const q = rnd(short.length ? short : all);
+    return { t: q.t, z: q.z, sp: 'chant' };
+  }
+  function pickFlurry() {
+    const p = C.q.pool('common_' + TIER_KEYS[tierIdx()]), pick = [];
+    let chars = 0;
+    for (let i = 0; i < 3; i++) { const q = rnd(p); const n = [...q.t].length; if (pick.length && chars + n > 13) break; pick.push(q); chars += n; }
+    return { t: pick.map(q => q.t).join(''), z: pick.map(q => q.z).join(' '), sp: 'flurry' };
+  }
+  function nextQuestion() {
+    if (S.over) return;
+    S.qCount++;
+    const every = S.qCount % BAL.chantEvery === 0;
+    S.q = (weapon === 'staff' && every) ? pickChant() : (weapon === 'dagger' && every) ? pickFlurry() : pickWord();
+    S.units = C.q.questionUnits(S.q, mode);
+    renderUnits();
+    S.qAt = nowS();
+    inp.value = ''; S.committed = '';
+    inp.style.fontSize = clamp(Math.floor(((inp.clientWidth || 600) - 40) / Math.max(1, S.units.length)), 16, 30) + 'px';
+    if (S.q.sp === 'chant') banner('✨ 詠唱！全部打對傷害變 3 倍', '#c9a6ff', true);
+    if (S.q.sp === 'flurry') banner('🗡 連環斬！越快越痛', '#ffd24a', true);
+    if (!S.me.down && !S.action) inp.focus();
+  }
+  function renderUnits() {
+    host.innerHTML = '';
+    const n = S.units.length;
+    host.style.fontSize = (n <= 8 ? 1.9 : n <= 14 ? 1.55 : n <= 22 ? 1.25 : 1.05) + 'em';
+    S.units.forEach((u, i) => {
+      const el = document.createElement('span');
+      el.className = 'zy st-pending';
+      const han = document.createElement('span'); han.className = 'zy-han'; han.textContent = u.show; el.appendChild(han);
+      if (mode === 'hanzi' && u.zy) {
+        const z = C.q.splitZhuyin(u.zy);
+        if (z) {
+          const box = document.createElement('span'); box.className = 'zy-bpmf';
+          const syms = document.createElement('span'); syms.className = 'zy-syms';
+          if (z.light) { const d = document.createElement('span'); d.className = 'zy-light'; d.textContent = '˙'; syms.appendChild(d); }
+          z.syms.forEach(s => { const sp = document.createElement('span'); sp.textContent = s; syms.appendChild(sp); });
+          box.appendChild(syms);
+          const tn = document.createElement('span'); tn.className = 'zy-tone'; tn.textContent = z.tone || ''; box.appendChild(tn);
+          el.appendChild(box);
+        }
+      }
+      host.appendChild(el);
+    });
+    if (host.firstChild) host.firstChild.classList.add('st-current');
+  }
+  function paintProgress() {
+    const typed = [...(S.composing ? S.committed : inp.value)];
+    const blind = weapon === 'bow' && S.sharp > 0;
+    const nodes = host.children;
+    for (let i = 0; i < S.units.length; i++) {
+      const el = nodes[i]; if (!el) continue;
+      el.classList.remove('st-current', 'st-correct', 'st-wrong', 'st-pending');
+      if (i < typed.length) el.classList.add(blind ? 'st-pending' : (C.q.canon(typed[i]) === C.q.canon(S.units[i].want) ? 'st-correct' : 'st-wrong'));
+      else el.classList.add('st-pending');
+    }
+    const cur = nodes[Math.min(typed.length, S.units.length - 1)];
+    if (cur && typed.length < S.units.length) cur.classList.add('st-current');
+  }
+
+  function banner(text, color, small) {
+    const b = document.createElement('div'); b.className = 'nwb2-banner'; b.textContent = text; b.style.color = color || '#fff';
+    if (small) { b.style.fontSize = '1.3em'; b.style.top = '30%'; }
+    ov.appendChild(b); setTimeout(() => b.remove(), 1100);
+  }
+  function floatText(text, x, y, color, big) {
+    const f = document.createElement('div'); f.className = 'nwb2-float'; f.textContent = text;
+    f.style.left = (x / 1.6) + '%'; f.style.top = (y / .96) + '%'; f.style.color = color; f.style.fontSize = big ? '1.7em' : '1.2em';
+    ov.appendChild(f); setTimeout(() => f.remove(), 1000);
+  }
+  const addFx = (kind, o) => S.fx.push(Object.assign({ kind, t0: nowS(), dur: .3 }, o));
+
+  function hitMonster(dmg, note, color) {
+    if (dmg <= 0) return;
+    S.mon.hp = Math.max(0, S.mon.hp - dmg);
+    S.mon.flashUntil = nowS() + .15;
+    floatText(String(dmg), 80, 14, color || '#ffd24a', true);
+    if (note) floatText(note, 80, 24, '#fff');
+    if (!S.mon.angry && S.mon.hp > 0 && S.mon.hp <= S.mon.max * BAL.angryAt) {
+      S.mon.angry = true;
+      $q('nwb-mflag').innerHTML = '<span class="nwb2-chip" style="color:#ff8a6a">🔥 生氣了！</span>';
+      banner('吼！牠生氣了！', '#ff6a4a');
+    }
+    if (S.mon.hp <= 0) finish('win');
+  }
+  const angryMul = () => S.mon.angry ? BAL.angryTaken : 1;
+
+  function submit() {
+    if (S.over || S.me.down || S.action) return;
+    const val = inp.value;
+    if (!val.trim()) {
+      if (weapon === 'crossbow' && S.mag > 0) return fire();
+      return;
+    }
+    const T = nowS();
+    if (T - S.qAt < BAL.minShow) { S.flags.fast++; inp.value = ''; paintProgress(); toast('太快了，這題不算！'); return; }
+    const res = C.q.judge(S.units, val);
+    S.typed += res.total; S.correct += res.correct; S.answered++;
+    if (res.wrong >= S.units.length * BAL.wrongRatio) {
+      S.flags.wrong++; S.combo = 0;
+      hurt(BAL.wrongHit, null, '亂打被反擊！');
+      S.mon.lungeAt = T;
+      nextQuestion(); updateUi(true); return;
+    }
+    S.combo = res.perfect ? S.combo + 1 : 0;
+    S.maxCombo = Math.max(S.maxCombo, S.combo);
+    if (res.perfect) S.perfect++;
+    const uw = [...S.q.t].length / Math.max(1, S.units.length);
+    let mul = 1, note = '';
+    const secs = Math.max(.6, T - S.qAt);
+    if (weapon === 'staff') {
+      if (S.q.sp === 'chant') {
+        if (res.perfect) { mul = BAL.chantMul; note = '詠唱成功！×3'; addFx('bolt', { dur: .4, w: 4 }); banner('詠唱成功！', '#c9a6ff'); }
+        else { note = '詠唱失敗…'; addFx('bolt', { dur: .25, w: 1 }); }
+      } else addFx('bolt', { dur: .25, w: 2 });
+    } else if (weapon === 'bow') {
+      mul = .85 + .3 * res.accuracy;
+      if (S.sharp > 0) { mul *= BAL.sharpMul; S.sharp--; note = '神射手！×2'; addFx('arrow', { dur: .3, gold: true }); }
+      else {
+        addFx('arrow', { dur: .3 });
+        S.gauge += BAL.gaugePer * res.accuracy;
+        if (S.gauge >= 100) { S.gauge = 0; S.sharp = BAL.sharpShots; banner('🎯 神射手！接下來 3 題傷害 ×2', '#ffd24a'); }
+      }
+    } else if (weapon === 'dagger') {
+      mul = .95;
+      if (S.q.sp === 'flurry' && res.correct > 0) {
+        const f = clamp(BAL.flurryMin + (S.units.length / secs) * BAL.flurrySlope, BAL.flurryMin, BAL.flurryMax);
+        mul *= f; note = `連環斬 ×${f.toFixed(1)}`; addFx('slash', { dur: .45, n: 3 });
+      } else addFx('slash', { dur: .25, n: 1 });
+    } else if (weapon === 'crossbow') {
+      mul = BAL.arrowMul; S.mag = Math.min(BAL.magMax, S.mag + Math.round(res.correct * uw)); addFx('arrow', { dur: .25 });
+    }
+    const comboMul = 1 + Math.min(20, S.combo) * .02;
+    const dmg = Math.round(BAL.perChar * res.correct * uw * mul * comboMul * angryMul());
+    S.me.atkAt = T;
+    hitMonster(dmg, note || (S.combo >= 3 ? `${S.combo} 連擊` : ''));
+    nextQuestion(); updateUi(true);
+  }
+  function fire() {
+    const n = S.mag; S.mag = 0;
+    const dmg = Math.round(n * BAL.arrowDmg * (1 + BAL.arrowBonusPer * n) * angryMul());
+    addFx('volley', { dur: .6, n }); S.me.atkAt = nowS();
+    banner(`🏹 ${n} 支箭射出！`, '#dfe6ec');
+    setTimeout(() => { if (!S.over) hitMonster(dmg, `${n} 連射`); }, 350);
+    updateUi(true);
+  }
+  function skip() {
+    if (S.over || S.me.down || S.action) return;
+    S.combo = 0; nextQuestion(); updateUi(true);
+  }
+
+  function toast(m) { C.toast(m, 1400); }
+
+  function hurt(dmg, status, label) {
+    if (S.me.down) return;
+    S.me.hp -= dmg; S.me.hitAt = nowS();
+    floatText(`-${dmg}`, 80 + S.me.x, 62, '#ff6a6a', true);
+    if (label) floatText(label, 80, 50, '#fff');
+    if (status) applyStatus(status);
+    if (S.me.hp <= 0) goDown();
+  }
+  function applyStatus(k) {
+    const T = nowS();
+    if (k === 'burn') S.st.burn = T + 5;
+    if (k === 'poison') { S.st.poison = S.st.poison.filter(u => u > T); if (S.st.poison.length < 3) S.st.poison.push(T + 15); }
+    if (k === 'ice') S.st.ice = T + 8;
+    banner(STATUS[k], '#fff', true);
+  }
+  function goDown() {
+    const T = nowS();
+    S.me.down = true; S.me.downs++; S.combo = 0; S.action = null; S.cast = null;
+    S.st = { burn: 0, poison: [], ice: 0, lastTick: T };
+    if (S.me.downs >= BAL.downMax) { finish('fail'); return; }
+    S.me.downUntil = T + BAL.downRest;
+    inp.disabled = true;
+    banner('倒下了…', '#e5705f');
+  }
+
+  function startAction(type) {
+    if (S.over || S.me.down || S.action) return;
+    const T = nowS(), W0 = type === 'dodge' ? TIERS[tier].dodge : TIERS[tier].defend;
+    const W = W0 * (S.st.ice > T ? .7 : 1);
+    S.action = { type, start: T, end: T + W, dur: W };
+    if (type === 'dodge') S.dodgeAll++; else S.defAll++;
+    inp.disabled = true;
+    $q('nwb-actw').style.visibility = 'visible';
+    banner(type === 'dodge' ? '💨 閃避！' : '🛡 防禦！', type === 'dodge' ? '#9fd8ff' : '#ffd24a', true);
+  }
+  function endAction() {
+    S.action = null;
+    $q('nwb-actw').style.visibility = 'hidden';
+    if (!S.me.down && !S.over) { inp.disabled = false; inp.focus(); }
+  }
+
+  function castStart(T) {
+    const atk = rnd(mon0.attacks);
+    const quick = mon0.spKey === 'quick';
+    const dur = castTime(lv, tier) * (quick ? .75 : 1);
+    S.cast = { atk, start: T, dur, hitAt: T + dur };
+    const rage = mon0.spKey === 'rage' && S.mon.angry;
+    S.nextCast = T + atkInterval(lv, tier, rage) * (quick ? BAL.quickMul : 1);
+    const box = $q('nwb-cast');
+    box.style.display = 'block'; box.className = 'nwb2-cast ' + atk.type;
+    $q('nwb-cast-t').textContent = `${atk.type === 'dodge' ? '💨' : '🛡'} ${mon0.name}要用「${atk.name}」！`;
+    $q('nwb-cast-h').textContent = atk.type === 'dodge' ? '紅色：快滿的時候打「閃避」' : '藍色：過一半就可以打「防禦」';
+    if (mon0.spKey === 'bubble') { S.bubUntil = T + 5; showBubbles(); }
+    if (mon0.spKey === 'spore') { S.sporeUntil = T + 5; host.classList.add('nwb2-spore'); }
+  }
+  function showBubbles() {
+    const b = $q('nwb-bub'); b.innerHTML = '';
+    for (let i = 0; i < 7; i++) { const e = document.createElement('i'); e.style.left = (6 + i * 13) + '%'; e.style.top = (Math.random() * 50) + '%'; b.appendChild(e); }
+    b.style.display = 'block';
+  }
+  function castResolve(T) {
+    const c = S.cast; S.cast = null;
+    $q('nwb-cast').style.display = 'none';
+    S.mon.lungeAt = T;
+    if (S.me.down) return;
+    const a = S.action;
+    let avoid = 'none';
+    if (a && a.start <= c.hitAt && c.hitAt <= a.end) avoid = a.type === c.atk.type ? 'full' : 'half';
+    let dmg = monDmg(lv, c.atk.mul);
+    if (avoid === 'full') {
+      dmg = 0;
+      if (a.type === 'dodge') S.dodgeOk++; else S.defOk++;
+      banner(a.type === 'dodge' ? '✨ 完美閃避！' : '🛡 擋下來了！', '#8ec96b');
+      floatText('成功！', 80 + S.me.x, 56, '#8ec96b', true);
+    } else if (avoid === 'half') {
+      dmg = Math.ceil(dmg / 2); banner('只擋了一半…', '#ffd24a', true);
+    } else banner(a ? '時機不對！' : '被打中了！', '#e5705f', true);
+    if (dmg > 0) hurt(dmg, avoid === 'full' ? null : c.atk.status);
+  }
+
+  function updateUi(force) {
+    const T = nowS();
+    if (!force && T - S.lastUi < .08) return;
+    S.lastUi = T;
+    const left = Math.max(0, BAL.timeLimit - (T - S.T0));
+    $q('nwb-time').textContent = `${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}`;
+    $q('nwb-mhp').style.width = (S.mon.hp / S.mon.max * 100) + '%';
+    $q('nwb-hp').style.width = (Math.max(0, S.me.hp) / S.me.max * 100) + '%';
+    $q('nwb-hpt').textContent = `${Math.max(0, Math.round(S.me.hp))}/${S.me.max}`;
+    $q('nwb-combo').textContent = S.combo;
+    const stIcons = [];
+    if (S.st.burn > T) stIcons.push('🔥'); if (S.st.poison.some(u => u > T)) stIcons.push('☠'.repeat(S.st.poison.filter(u => u > T).length)); if (S.st.ice > T) stIcons.push('❄');
+    $q('nwb-st').textContent = stIcons.join(' ');
+    let wg = 0, wl = '';
+    if (weapon === 'staff') { const k = S.qCount % BAL.chantEvery; wg = k / BAL.chantEvery * 100; wl = `詠唱還要 ${BAL.chantEvery - k} 題`; }
+    else if (weapon === 'bow') { wg = S.sharp > 0 ? 100 : S.gauge; wl = S.sharp > 0 ? `神射手！還有 ${S.sharp} 題` : '力量條'; }
+    else if (weapon === 'dagger') { const k = S.qCount % BAL.chantEvery; wg = k / BAL.chantEvery * 100; wl = `連環斬還要 ${BAL.chantEvery - k} 題`; }
+    else { wg = S.mag / BAL.magMax * 100; wl = `彈匣 ${S.mag}/${BAL.magMax}　空白時按 Enter 射出`; }
+    $q('nwb-wg').style.width = wg + '%'; $q('nwb-wlabel').textContent = wl;
+    if (S.action) $q('nwb-act').style.width = (clamp((T - S.action.start) / S.action.dur, 0, 1) * 100) + '%';
+    if (S.cast) $q('nwb-cast-i').style.width = (clamp((T - S.cast.start) / S.cast.dur, 0, 1) * 100) + '%';
+    if (S.me.down) {
+      const d = $q('nwb-down'); d.style.display = 'grid';
+      d.innerHTML = `<div>倒下了…<div style="font-size:.7em;color:var(--dim)">${Math.ceil(S.me.downUntil - T)} 秒後起來（${S.me.downs}/${BAL.downMax}）</div></div>`;
+    } else $q('nwb-down').style.display = 'none';
+  }
+
+  function draw(T) {
+    g.clearRect(0, 0, 160, 96);
+    g.drawImage(art.bg, 0, 0);
+    if (S.cast) {
+      g.globalAlpha = .65 + .3 * Math.sin(T * 9);
+      g.drawImage(S.cast.atk.type === 'dodge' ? art.zr : art.zb, 0, 0);
+      g.globalAlpha = 1;
+    }
+    g.fillStyle = 'rgba(0,0,0,.35)'; g.beginPath(); g.ellipse(80, 61, 32, 4, 0, 0, 7); g.fill();
+    const lunge = T - S.mon.lungeAt < .35 ? Math.sin((T - S.mon.lungeAt) / .35 * Math.PI) * 9 : 0;
+    const mx = 40 + (S.mon.angry ? Math.round(Math.sin(T * 30)) : 0), my = -2 + Math.round(Math.sin(T * 2) * 1) + Math.round(lunge);
+    g.drawImage(S.mon.angry ? art.monA : art.mon, mx, my);
+    if (T < S.mon.flashUntil) g.drawImage(art.monW, mx, my);
+
+    let hx = 62, hy = 88;
+    let offs = 0;
+    const a = S.action;
+    if (a && a.type === 'dodge') {
+      const p = (T - a.start) / a.dur;
+      offs = p < .15 ? -34 * (p / .15) : p > .85 ? -34 * ((1 - p) / .15) : -34;
+    }
+    S.me.x = Math.round(offs);
+    g.fillStyle = 'rgba(0,0,0,.4)'; g.beginPath(); g.ellipse(hx + offs, hy, 8, 2, 0, 0, 7); g.fill();
+    const blink = T - S.me.hitAt < .4 && Math.floor(T * 20) % 2 === 0;
+    const atk = T - S.me.atkAt < .18 ? -2 : 0;
+    if (S.me.down) {
+      g.save(); g.globalAlpha = .6; g.filter = 'grayscale(1)';
+      g.translate(hx + offs, hy - 6); g.rotate(Math.PI / 2); g.drawImage(art.hero, -13, -15);
+      g.restore();
+    } else if (!blink) {
+      if (a && a.type === 'dodge') { g.globalAlpha = .3; g.drawImage(art.hero, hx - 11, hy - 30); g.globalAlpha = 1; }
+      g.drawImage(art.hero, Math.round(hx - 11 + offs), hy - 30 + atk + (Math.sin(T * 4) > 0 ? 0 : 1));
+      if (a && a.type === 'defend') {
+        g.fillStyle = '#3a6ea5'; g.fillRect(hx - 24, hy - 26, 12, 15); g.fillStyle = '#e8b64c'; g.fillRect(hx - 24, hy - 26, 12, 2);
+        g.fillStyle = '#f0f4f8'; g.fillRect(hx - 19, hy - 23, 2, 9); g.fillRect(hx - 22, hy - 19, 8, 2);
+        g.strokeStyle = 'rgba(159,216,255,.8)'; g.lineWidth = 1; g.beginPath(); g.arc(hx, hy - 16, 18 + Math.sin(T * 12), 0, 7); g.stroke();
+      }
+    }
+    S.fx = S.fx.filter(f => T - f.t0 < f.dur);
+    S.fx.forEach(f => {
+      const p = (T - f.t0) / f.dur, sx = hx + 20 + S.me.x, sy = hy - 24;
+      g.lineWidth = 1;
+      if (f.kind === 'bolt') { g.strokeStyle = '#c9a6ff'; g.lineWidth = f.w; g.beginPath(); g.moveTo(sx, sy); g.lineTo(sx + (80 - sx) * p, sy + (34 - sy) * p); g.stroke(); g.strokeStyle = '#fff'; g.lineWidth = 1; g.stroke(); }
+      if (f.kind === 'arrow') { const ax = sx + (84 - sx) * p, ay = sy + (36 - sy) * p; g.strokeStyle = f.gold ? '#ffd24a' : '#dfe6ec'; g.lineWidth = f.gold ? 2 : 1; g.beginPath(); g.moveTo(ax - 9, ay + 3 * p); g.lineTo(ax, ay); g.stroke(); }
+      if (f.kind === 'slash') for (let i = 0; i < f.n; i++) { const tp = clamp(p * f.n - i, 0, 1); if (tp > 0 && tp < 1) { g.strokeStyle = '#fff'; g.lineWidth = 2; g.beginPath(); g.moveTo(66 + i * 8, 14 + i * 6); g.lineTo(96 - i * 8, 40 + i * 4); g.stroke(); } }
+      if (f.kind === 'volley') for (let i = 0; i < Math.min(f.n, 20); i++) { const tp = clamp(p * 1.6 - i * .03, 0, 1); if (tp > 0 && tp < 1) { const ax = sx + (86 - sx) * tp, ay = sy + (20 + (i % 6) * 4 - sy) * tp; g.strokeStyle = '#dfe6ec'; g.beginPath(); g.moveTo(ax - 8, ay); g.lineTo(ax, ay); g.stroke(); } }
+    });
+  }
+
+  let raf = 0;
+  function tick() {
+    if (S.over) return;
+    const T = nowS();
+    if (S.me.down && T >= S.me.downUntil) {
+      S.me.down = false; S.me.hp = S.me.max; inp.disabled = false; inp.focus();
+      banner('站起來了！', '#8ec96b', true);
+    }
+    if (S.action && T >= S.action.end) endAction();
+    if (!S.cast && T >= S.nextCast && !S.me.down) castStart(T);
+    if (S.cast && T >= S.cast.hitAt) castResolve(T);
+    if (S.bubUntil && T > S.bubUntil) { S.bubUntil = 0; $q('nwb-bub').style.display = 'none'; }
+    if (S.sporeUntil && T > S.sporeUntil) { S.sporeUntil = 0; host.classList.remove('nwb2-spore'); }
+    if (T - S.st.lastTick >= 1) {
+      S.st.lastTick = T;
+      let d = 0;
+      if (S.st.burn > T) d += 3;
+      d += S.st.poison.filter(u => u > T).length;
+      if (d && !S.me.down) { S.me.hp -= d; floatText(`-${d}`, 80 + S.me.x, 64, '#c08aff'); if (S.me.hp <= 0) goDown(); }
+    }
+    if (T - S.T0 >= BAL.timeLimit) { finish('retreat'); return; }
+    draw(T); updateUi(false);
+    raf = requestAnimationFrame(tick);
+  }
+
+  function detectAction(val) {
+    const low = val.toLowerCase();
+    for (const [w, type] of ACTIONS) if (low.endsWith(w)) return { w, type };
+    return null;
+  }
+  function onInput() {
+    if (S.composing) return paintProgress();
+    const hit = detectAction(inp.value);
+    if (hit) { inp.value = inp.value.slice(0, inp.value.length - hit.w.length); paintProgress(); startAction(hit.type); return; }
+    paintProgress();
+  }
+  const onKey = e => {
+    if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); submit(); }
+    else if (e.key === 'Escape') { e.preventDefault(); skip(); }
+  };
+  const blockPaste = e => { e.preventDefault(); S.flags.paste++; toast('這裡不能貼上喔，要自己打！'); };
+  inp.addEventListener('input', onInput);
+  inp.addEventListener('keydown', onKey);
+  inp.addEventListener('compositionstart', () => { S.composing = true; S.committed = inp.value; });
+  inp.addEventListener('compositionend', () => { S.composing = false; onInput(); });
+  inp.addEventListener('paste', blockPaste);
+  inp.addEventListener('drop', blockPaste);
+  root.addEventListener('click', e => { if (!S.me.down && !S.action && e.target.id !== 'nwb-quit') inp.focus(); });
+  $q('nwb-quit').addEventListener('click', () => { if (confirm('要撤退嗎？現在撤退只能拿到一半的獎勵。')) finish('retreat'); });
+
+  function finish(result) {
+    if (S.over) return;
+    S.over = true; cancelAnimationFrame(raf);
+    const secs = Math.min(BAL.timeLimit, nowS() - S.T0);
+    inp.disabled = true;
+    const win = result === 'win';
+    banner(win ? '🎉 討伐成功！' : result === 'fail' ? '狩獵失敗…' : '撤退', win ? '#ffd24a' : '#e5705f');
+    updateUi(true); draw(nowS());
+    const acc = S.typed ? S.correct / S.typed : 0;
+    const res = {
+      rk: cfg.rk, mk: cfg.mk, star: cfg.star, result, secs, accuracy: acc, answered: S.answered,
+      dodgeOk: S.dodgeOk, dodgeAll: S.dodgeAll, defOk: S.defOk, defAll: S.defAll,
+      maxCombo: S.maxCombo, flags: S.flags, tier, weapon,
+      valid: win || S.answered >= 3, lvAcc: true
+    };
+    if (!res.valid) res.invalidWhy = '還沒打幾題就結束了，這場不算數。';
+    setTimeout(() => { root.remove(); done(res); }, 1500);
+  }
+
+  nextQuestion();
+  updateUi(true);
+  raf = requestAnimationFrame(tick);
+  inp.focus();
 }
