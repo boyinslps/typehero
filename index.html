@@ -716,7 +716,7 @@ select option{background:var(--panel2);color:var(--ink)}
     <div class="flex items-center gap-4">
       <span class="text-base" style="color:var(--dim)">在營地待命中・等老師開戰</span>
       <span id="lobby-sub" class="text-sm" style="color:#e5705f"></span>
-      <button id="btn-nw-enter" class="btn btn-gold text-sm px-3 py-2">🌋 新世界<span id="nw-lock-txt"></span></button>
+      <button id="btn-nw-enter" class="hidden btn btn-gold text-sm px-3 py-2">🌋 新世界<span id="nw-lock-txt"></span></button>
       <button id="btn-talent" class="btn btn-ghost text-sm px-3 py-2">
         <span class="ico-slot" data-ico="sparkle" data-ico-size="16"></span>天賦<span id="talent-dot"></span><span class="can-txt">可以點了！</span></button>
       <button id="btn-rank" class="btn btn-ghost text-sm px-3 py-2">
@@ -5412,6 +5412,7 @@ function gotoLobby() {
 }
 
 function paintNwButton() {
+  show('btn-nw-enter', NW_ON);
   const g = NWG && NWG.gate();
   setTxt('nw-lock-txt', g && !g.ok ? `　🔒 LV ${BALANCE.unlockLevel.epic}` : '');
 }
@@ -7112,6 +7113,7 @@ const POOL_LABEL_HTML = k => {
 };
 
 /* ── 事件綁定 ───────────────────────────────────────── */
+const NW_ON = new URLSearchParams(location.search).get('nw') === '1';
 let NWG = null;
 function wireEvents() {
   NWG = initNewWorld({
@@ -7120,7 +7122,7 @@ function wireEvents() {
     getHist: () => MY_HIST,
     bestLevel: myBestLevel,
     unlockLevel: BALANCE.unlockLevel.epic,
-    nwMode: () => CFG.nwMode || 'epic',
+    nwMode: () => NW_ON ? (CFG.nwMode || 'epic') : 'off',
     q: { questionUnits, judge, canon, splitZhuyin, IS_PUNCT,
          pool: name => (BANK[name] && BANK[name].length) ? BANK[name] : (DEFAULT_BANK[name] || []) }
   });

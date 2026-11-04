@@ -26,6 +26,9 @@ const seed = {
     await p.fill('#in-seat', String(seat)); await p.waitForTimeout(900); await p.click('#btn-enter'); await p.waitForTimeout(1200);
   };
   await p.goto('http://localhost:8765/index.html'); await p.waitForTimeout(1500);
+  await login(6);
+  ok(await p.isHidden('#btn-nw-enter'), '沒有 ?nw=1 時看不到「新世界」按鈕（新世界尚未開放）');
+  await p.goto('http://localhost:8765/index.html?nw=1'); await p.waitForTimeout(1500);
 
   await login(6);
   ok(await p.isVisible('#btn-nw-enter'), '營地有「新世界」按鈕');
