@@ -629,6 +629,212 @@ function zoneGrid(col, edge) {
   return s;
 }
 
+function chibiGrid(look, dir, frame) {
+  const L = Object.assign({ skin: '#f2c7a0', hair: '#5a3a22', style: 'short', armor: '#8d8d8d', trim: '#b8b8b8', boots: '#5a3a22' }, look);
+  const s = mk(16, 20), st = frame % 2, pants = dk(L.armor, .4);
+  const dy = [st ? 1 : 0, st ? 0 : 1];
+  rect(s, 5, 15 + dy[0] - 1, 3, 4, pants); rect(s, 8, 15 + dy[1] - 1, 3, 4, pants);
+  rect(s, 5, 18 + dy[0] - 1, 3, 2, L.boots); rect(s, 8, 18 + dy[1] - 1, 3, 2, L.boots);
+  rect(s, 4, 10, 8, 6, L.armor); rect(s, 4, 10, 2, 6, lt(L.armor, .2)); rect(s, 4, 14, 8, 1, L.trim);
+  rect(s, 2, 11, 2, 4, dk(L.armor, .15)); rect(s, 12, 11, 2, 4, dk(L.armor, .25));
+  put(s, 2, 15, L.skin); put(s, 3, 15, L.skin); put(s, 12, 15, L.skin); put(s, 13, 15, L.skin);
+  if (L.style === 'long' && dir !== 'down') rect(s, 3, 8, 10, 6, L.hair);
+  sdisc(s, 8, 6, 5, L.hair);
+  if (dir === 'down') { rect(s, 5, 5, 6, 5, L.skin); put(s, 6, 7, '#222'); put(s, 9, 7, '#222'); rect(s, 5, 3, 6, 2, L.hair); }
+  if (dir === 'left') { rect(s, 3, 5, 5, 5, L.skin); put(s, 4, 7, '#222'); rect(s, 5, 3, 6, 2, L.hair); }
+  if (dir === 'right') { rect(s, 8, 5, 5, 5, L.skin); put(s, 11, 7, '#222'); rect(s, 5, 3, 6, 2, L.hair); }
+  if (L.style === 'bun') sdisc(s, 8, 1, 2, L.hair);
+  if (L.style === 'spiky') { tri(s, 5, 0, 3, 1, L.hair); tri(s, 8, -1, 2, 1, L.hair); tri(s, 11, 0, 3, 1, L.hair); }
+  if (L.style === 'pony' && dir !== 'down') { rect(s, 7, 10, 2, 5, L.hair); }
+  outline(s, OL);
+  return s;
+}
+
+function buildingGrid(kind) {
+  const s = mk(48, 48), stone = '#9a8f84', wood = '#8a5a2b';
+  const body = (roof, wall) => {
+    rect(s, 5, 20, 38, 24, wall); rect(s, 5, 20, 38, 2, lt(wall, .2)); rect(s, 5, 42, 38, 2, dk(wall, .3));
+    for (let x = 5; x < 43; x += 6) rect(s, x, 24, 1, 18, dk(wall, .08));
+    poly(s, [[2, 20], [10, 6], [38, 6], [46, 20]], roof); poly(s, [[6, 20], [12, 9], [36, 9], [42, 20]], lt(roof, .16));
+    for (let y = 9; y < 20; y += 3) line(s, 6 + (y - 9) * .6, y, 42 - (y - 9) * .6, y, dk(roof, .22));
+    rect(s, 2, 19, 44, 2, dk(roof, .3));
+  };
+  const door = (w = 8) => { const x = 24 - w / 2; rect(s, x, 31, w, 13, '#3a2414'); disc(s, 24, 32, w / 2, '#3a2414'); rect(s, x, 31, 1, 13, '#5a3a22'); put(s, x + w - 2, 38, '#e8b64c'); };
+  const win = (x, y) => { rect(s, x, y, 6, 6, '#26345a'); rect(s, x, y, 6, 1, '#f6d77a'); rect(s, x + 2, y, 1, 6, '#f6d77a'); rect(s, x, y + 2, 6, 1, '#f6d77a'); };
+  const awning = (a, b, x0, w) => { for (let i = 0; i < w; i += 4) { rect(s, x0 + i, 24, 4, 5, (i / 4) % 2 ? b : a); } rect(s, x0, 29, w, 1, dk(a, .35)); };
+  if (kind === 'board') {
+    rect(s, 9, 20, 3, 24, wood); rect(s, 36, 20, 3, 24, wood); rect(s, 7, 20, 34, 18, wood); rect(s, 9, 22, 30, 14, '#c8a56a');
+    [[11, 24, '#fff6dc'], [20, 23, '#ffe27a'], [29, 25, '#fbcfe8'], [14, 30, '#d9f2fa'], [26, 30, '#fff6dc']].forEach(([x, y, c]) => { rect(s, x, y, 7, 6, c); put(s, x + 3, y, '#c0392b'); rect(s, x + 1, y + 2, 5, 1, '#7a6a52'); });
+    poly(s, [[4, 20], [10, 12], [38, 12], [44, 20]], '#a8421a'); rect(s, 4, 19, 40, 2, '#7a2c10');
+    rect(s, 20, 38, 8, 6, '#6d4320');
+  } else if (kind === 'rank') {
+    poly(s, [[14, 44], [16, 14], [32, 14], [34, 44]], stone); poly(s, [[16, 44], [18, 16], [24, 16], [24, 44]], lt(stone, .18));
+    poly(s, [[16, 14], [24, 4], [32, 14]], dk(stone, .1)); rect(s, 12, 42, 24, 4, dk(stone, .25));
+    rect(s, 19, 6, 10, 2, '#e8b64c'); rect(s, 20, 8, 8, 5, '#f6d77a'); rect(s, 22, 13, 4, 2, '#c8912f'); rect(s, 17, 8, 3, 3, '#e8b64c'); rect(s, 28, 8, 3, 3, '#e8b64c');
+    rect(s, 20, 24, 8, 1, '#e8b64c'); rect(s, 20, 28, 8, 1, '#e8b64c'); rect(s, 20, 32, 8, 1, '#e8b64c');
+  } else if (kind === 'star') {
+    rect(s, 14, 18, 20, 26, stone); rect(s, 14, 18, 4, 26, lt(stone, .18)); rect(s, 30, 18, 4, 26, dk(stone, .2));
+    disc(s, 24, 14, 11, '#3a4a9a'); disc(s, 24, 14, 9, '#4a5ab8'); rect(s, 11, 14, 26, 6, stone);
+    poly(s, [[24, 3], [26, 9], [32, 9], [27, 13], [29, 19], [24, 15], [19, 19], [21, 13], [16, 9], [22, 9]], '#ffe27a');
+    win(21, 24); win(21, 34); door(7);
+  } else {
+    const defs = {
+      quest: ['#3a5aa8', '#c9b8a0'], equip: ['#a84a8a', '#e8d8c0'], forge: ['#6a4a3a', '#8a6a5a'], storage: ['#7a5a2a', '#a8844f'],
+      shop: ['#c0392b', '#e8d8c0'], armor: ['#5a6a7a', '#aab0b8'], rooms: ['#8a3a2a', '#c8a070']
+    };
+    const [roof, wall] = defs[kind];
+    if (kind === 'forge') { rect(s, 34, 0, 7, 16, '#7a5a4a'); rect(s, 34, 0, 7, 2, '#4a3a2a'); }
+    body(roof, wall);
+    if (kind === 'forge') {
+      for (let y = 22; y < 42; y += 4) for (let x = 5 + ((y / 4) % 2) * 3; x < 43; x += 6) rect(s, x, y, 5, 3, dk(wall, .15));
+      rect(s, 9, 28, 7, 7, '#2a1a10'); rect(s, 10, 29, 5, 5, '#ff6a2e'); rect(s, 11, 30, 3, 3, '#ffe27a'); door(8);
+      rect(s, 33, 38, 10, 3, '#3a3a44'); rect(s, 35, 35, 6, 3, '#4a4a54'); rect(s, 31, 36, 5, 2, '#4a4a54');
+    } else if (kind === 'storage') {
+      door(14); rect(s, 17, 31, 14, 13, '#5a3a22'); rect(s, 24, 31, 1, 13, '#2a1a10'); line(s, 17, 31, 24, 44, '#7a5a3a'); line(s, 31, 31, 24, 44, '#7a5a3a');
+      rect(s, 6, 34, 8, 8, '#c8964f'); rect(s, 6, 34, 8, 1, '#e8c07a'); rect(s, 6, 38, 8, 1, '#8a5a2b'); rect(s, 34, 34, 8, 8, '#c8964f'); rect(s, 34, 34, 8, 1, '#e8c07a'); rect(s, 34, 38, 8, 1, '#8a5a2b');
+    } else {
+      door(8); win(9, 26); win(34, 26);
+      if (kind === 'quest') { [[8, 0, '#c0392b'], [38, 0, '#3a7ad8']].forEach(([x, y, c]) => { rect(s, x, y + 4, 1, 12, '#e8e8e8'); poly(s, [[x + 1, y + 4], [x + 9, y + 7], [x + 1, y + 10]], c); }); }
+      if (kind === 'equip') { awning('#e8b64c', '#a84a8a', 5, 38); rect(s, 21, 30, 6, 2, '#3a2414'); disc(s, 40, 14, 3, '#f2c7a0'); }
+      if (kind === 'shop') { awning('#c0392b', '#fff6dc', 5, 38); disc(s, 24, 14, 4, '#e8b64c'); rect(s, 23, 12, 2, 5, '#c8912f'); }
+      if (kind === 'armor') { poly(s, [[19, 10], [29, 10], [29, 17], [24, 21], [19, 17]], '#3a6ea5'); rect(s, 23, 11, 2, 9, '#f0f4f8'); rect(s, 20, 13, 8, 2, '#f0f4f8'); rect(s, 19, 10, 10, 1, '#e8b64c'); }
+      if (kind === 'rooms') { rect(s, 38, 18, 2, 8, '#5a3a22'); rect(s, 34, 24, 8, 8, '#f6d77a'); rect(s, 35, 25, 6, 6, '#e8b64c'); rect(s, 41, 26, 2, 4, '#e8b64c'); rect(s, 8, 14, 5, 5, '#ffe27a'); put(s, 10, 13, '#fff'); }
+    }
+  }
+  outline(s, OL);
+  return s;
+}
+
+function doorGrid(state, phase) {
+  const s = mk(40, 56), cx = 20, cy = 22;
+  const stone = state === 'locked' ? '#7a7a82' : '#8a829f';
+  for (let y = 0; y < 56; y++) for (let x = 0; x < 40; x++) {
+    const d = Math.hypot(x - cx, y - cy), inTop = y <= cy, inner = inTop ? d <= 11 : (Math.abs(x - cx) <= 11 && y < 52);
+    const outer = inTop ? d <= 18 : (Math.abs(x - cx) <= 18 && y < 52);
+    if (inner) {
+      if (state === 'locked') put(s, x, y, ((x + y) % 7 === 0) ? '#1a1a22' : '#101018');
+      else {
+        const dx = x - cx, dy = y - 26, dd = Math.hypot(dx, dy), a = Math.atan2(dy, dx);
+        const v = Math.sin(dd * .8 - a * 2 + 1.6 + phase * 2) * .5 + .5, k = Math.min(4, Math.floor((v * .75 + (1 - Math.min(1, dd / 15)) * .45) * 5));
+        put(s, x, y, ['#2a1068', '#4b22a8', '#7b4dff', '#a98bff', '#d9ccff'][Math.max(0, k)]);
+      }
+    } else if (outer) put(s, x, y, (x * 7 + y * 13) % 5 === 0 ? dk(stone, .25) : (x < cx ? lt(stone, .12) : stone));
+  }
+  rect(s, 0, 51, 40, 5, dk(stone, .2)); rect(s, 0, 51, 40, 1, lt(stone, .15));
+  if (state === 'locked') {
+    line(s, 4, 10, 36, 46, '#c8ccd4'); line(s, 4, 11, 36, 47, '#5a5f6a'); line(s, 36, 10, 4, 46, '#c8ccd4'); line(s, 36, 11, 4, 47, '#5a5f6a');
+    rect(s, 15, 24, 10, 9, '#e8b64c'); rect(s, 15, 24, 10, 1, '#fff2b8'); rect(s, 15, 32, 10, 1, '#8f6416'); rect(s, 18, 26, 4, 3, '#2a1a10'); rect(s, 19, 29, 2, 2, '#2a1a10');
+    rect(s, 16, 18, 2, 6, '#c8ccd4'); rect(s, 22, 18, 2, 6, '#c8ccd4'); rect(s, 16, 18, 8, 2, '#c8ccd4');
+  } else { rect(s, 17, 2, 6, 3, '#e8b64c'); rect(s, 19, 5, 2, 2, '#e8b64c'); }
+  outline(s, OL);
+  return s;
+}
+
+function grayOut(c) {
+  const g = c.getContext('2d'), d = g.getImageData(0, 0, c.width, c.height), a = d.data;
+  for (let i = 0; i < a.length; i += 4) { const l = (a[i] * .3 + a[i + 1] * .59 + a[i + 2] * .11) * .62 + 10; a[i] = l; a[i + 1] = l; a[i + 2] = l * 1.03; }
+  g.putImageData(d, 0, 0);
+  return c;
+}
+
+function villageCanvas(V, openIds) {
+  const T = 16, W = V.cols * T, H = V.rows * T, R = rng(5);
+  const s = mk(W, H);
+  const pathSet = new Set(), free = (x, y) => !pathSet.has(x + ',' + y);
+  for (let y = 0; y < V.rows - 1; y++) { pathSet.add(V.path[0] + ',' + y); pathSet.add(V.path[1] + ',' + y); }
+  const foot = new Set();
+  V.buildings.forEach(b => {
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) foot.add((b.x + i) + ',' + (b.y + j));
+    const door = b.x + 1, row = b.y + 3, lo = b.side === 'L' ? door : V.path[1], hi = b.side === 'L' ? V.path[0] : door;
+    for (let x = lo; x <= hi; x++) pathSet.add(x + ',' + row);
+  });
+  for (let ty = 0; ty < V.rows; ty++) for (let tx = 0; tx < V.cols; tx++) {
+    rect(s, tx * T, ty * T, T, T, (tx + ty) % 2 ? '#5fae45' : '#68b84c');
+    for (let k = 0; k < 4; k++) put(s, tx * T + Math.floor(R() * 16), ty * T + Math.floor(R() * 16), R() < .5 ? '#4a9a3a' : '#7cc35a');
+    if (R() < .12) { const fx = tx * T + 3 + Math.floor(R() * 10), fy = ty * T + 3 + Math.floor(R() * 10); put(s, fx, fy, ['#fff', '#ff9ec4', '#ffe27a'][Math.floor(R() * 3)]); put(s, fx, fy + 1, '#3a7d2c'); }
+  }
+  pathSet.forEach(k => {
+    const [tx, ty] = k.split(',').map(Number);
+    rect(s, tx * T, ty * T, T, T, '#c9a66b');
+    for (let i = 0; i < 5; i++) put(s, tx * T + Math.floor(R() * 16), ty * T + Math.floor(R() * 16), R() < .5 ? '#a88550' : '#dcc088');
+    if (!pathSet.has((tx - 1) + ',' + ty)) rect(s, tx * T, ty * T, 1, T, '#a88550');
+    if (!pathSet.has((tx + 1) + ',' + ty)) rect(s, tx * T + 15, ty * T, 1, T, '#a88550');
+    if (!pathSet.has(tx + ',' + (ty - 1))) rect(s, tx * T, ty * T, T, 1, '#dcc088');
+    if (!pathSet.has(tx + ',' + (ty + 1))) rect(s, tx * T, ty * T + 15, T, 1, '#a88550');
+  });
+  const trees = [];
+  for (let ty = 0; ty < V.rows - 2; ty++) for (const tx of [0, V.cols - 1, 4, 7]) {
+    if (foot.has(tx + ',' + ty) || foot.has(tx + ',' + (ty + 1)) || !free(tx, ty) || ((tx === 4 || tx === 7) && R() > .18) || ((tx === 0 || tx === V.cols - 1) && R() > .5)) continue;
+    const near = V.buildings.some(b => Math.abs(b.x + 1 - tx) <= 2 && ty >= b.y - 1 && ty <= b.y + 4 && (tx === 4 || tx === 7));
+    if (near) continue;
+    trees.push([tx, ty]);
+  }
+  V.trees = trees;
+  trees.forEach(([tx, ty]) => {
+    const x = tx * T + 8, y = ty * T + 15;
+    rect(s, x - 1, y - 5, 3, 6, '#5a3a22'); sdisc(s, x, y - 11, 7, '#3f9a45'); sdisc(s, x - 3, y - 8, 4, '#4faa55'); put(s, x + 2, y - 13, '#7cc35a');
+    ell(s, x, y + 1, 6, 2, '#3b8a3a');
+  });
+  return s;
+}
+
+function villageDraw(V, openIds) {
+  const T = 16, W = V.cols * T, H = V.rows * T;
+  const c = blit(villageCanvas(V, openIds), 1, false), g = c.getContext('2d');
+  V.buildings.forEach(b => {
+    const bc = blit(buildingGrid(b.kind), 1, false), open = openIds.includes(b.id);
+    if (!open) grayOut(bc);
+    g.drawImage(bc, b.x * T, b.y * T);
+    if (!open) {
+      g.fillStyle = '#c8ccd4'; g.strokeStyle = '#5a5f6a';
+      const x0 = b.x * T + 3, y0 = b.y * T + 14;
+      for (let i = 0; i < 40; i += 2) { g.fillStyle = (i / 2) % 2 ? '#c8ccd4' : '#6a6f7a'; g.fillRect(x0 + i, y0 + i * .6, 2, 2); g.fillRect(x0 + i, y0 + 26 - i * .6, 2, 2); }
+      g.fillStyle = '#e8b64c'; g.fillRect(b.x * T + 20, b.y * T + 26, 8, 7); g.fillStyle = '#8f6416'; g.fillRect(b.x * T + 20, b.y * T + 32, 8, 1);
+      g.fillStyle = '#2a1a10'; g.fillRect(b.x * T + 22, b.y * T + 28, 4, 2);
+      g.fillStyle = '#e8b64c'; g.fillRect(b.x * T + 21, b.y * T + 23, 2, 4); g.fillRect(b.x * T + 25, b.y * T + 23, 2, 4); g.fillRect(b.x * T + 21, b.y * T + 22, 6, 2);
+    }
+  });
+  const gate = blit(doorGrid('open', 0), 1, false);
+  g.drawImage(gate, V.gate.x * T - 4, (V.gate.y - 2) * T - 8);
+  return c;
+}
+
+function bgGrassW(W) {
+  const s = mk(W, 96), R = rng(31), cx = W / 2;
+  sky(s, ['#6ec1ee', '#a5dcf5', '#d9f2fa'], 0, 44);
+  disc(s, W - 26, 10, 6, '#ffe9a0'); disc(s, W - 26, 10, 5, '#fff3c4');
+  for (let i = 0; i < Math.ceil(W / 60); i++) { const x = 18 + i * 60 + (i % 2) * 14, y = 8 + (i % 3) * 5, r = 4 + (i % 3); ell(s, x, y, r + 4, 2, '#fff'); ell(s, x - 3, y - 1, r, 3, '#fff'); }
+  for (let x = 0; x < W; x++) rect(s, x, 32 + Math.round(3 * Math.sin(x * .07)), 1, 14, '#93d46d');
+  for (let x = 0; x < W; x++) rect(s, x, 38 + Math.round(2 * Math.sin(x * .11 + 2)), 1, 8, '#7cc35a');
+  sky(s, ['#4f9a3c', '#5fae45', '#79c85a'], 44, 96);
+  for (let k = 0; k < 8; k++) { const y = Math.round(44 + 52 * Math.pow(k / 7, 1.7)); line(s, 0, y, W - 1, y, '#3d7e2f'); }
+  for (let xb = -W; xb <= W * 2; xb += 24) line(s, cx + (xb - cx) * .25, 44, xb, 95, '#3d7e2f');
+  for (let i = 0; i < W / 4; i++) put(s, Math.floor(R() * W), 46 + Math.floor(R() * 50), ['#fff', '#ff9ec4', '#ffe27a', '#fff'][i % 4]);
+  return s;
+}
+function bgForestW(W) {
+  const s = mk(W, 96), R = rng(37), cx = W / 2;
+  sky(s, ['#2a4a3e', '#4d7a64', '#9cc0aa'], 0, 48);
+  for (let x = 6; x < W; x += 14) pine(s, x, 40, 22 + (x % 3) * 3, '#2f5a43', '#3f7256');
+  for (let y = 26; y < 46; y++) for (let x = 0; x < W; x++) if (dth(x, y) < .4 * (1 - Math.abs(y - 36) / 11)) put(s, x, y, '#a9cbb7');
+  for (let i = 0; i < Math.ceil(W / 46); i++) pine(s, 12 + i * 46 + (i % 2) * 10, 46, 32 + i % 2 * 4, '#1f4a32', '#2a6044');
+  sky(s, ['#1f3a28', '#2a4a32', '#3a6040'], 46, 96);
+  for (let k = 0; k < 8; k++) { const y = Math.round(46 + 50 * Math.pow(k / 7, 1.7)); line(s, 0, y, W - 1, y, '#142a1c'); }
+  for (let xb = -W; xb <= W * 2; xb += 24) line(s, cx + (xb - cx) * .25, 46, xb, 95, '#142a1c');
+  for (let i = 0; i < W / 10; i++) put(s, Math.floor(R() * W), Math.floor(R() * 96), i % 2 ? '#e0933c' : '#c8602a');
+  return s;
+}
+function zoneGridW(W, col, edge) {
+  const s = mk(W, 96), o = Math.round((W - 160) / 2);
+  for (let y = 60; y <= 90; y++) {
+    const t = (y - 60) / 30, xl = Math.round(56 - 16 * t) + o, xr = Math.round(106 + 16 * t) + o;
+    for (let x = xl; x <= xr; x++) if (((x + y) & 1) === 0) put(s, x, y, col);
+    put(s, xl, y, edge); put(s, xr, y, edge);
+  }
+  line(s, 56 + o, 60, 106 + o, 60, edge); line(s, 40 + o, 90, 122 + o, 90, edge);
+  return s;
+}
+
 const GRIDS = { weapon: W, region: RG, monster: M };
 const cache = {};
 function grid(kind, key) {
@@ -638,8 +844,12 @@ function grid(kind, key) {
 return {
   canvas: (kind, key, scale, angry) => blit(grid(kind, key), scale, !!angry),
   hero: (look, scale) => blit(hero(look), scale, false),
-  bg: kind => blit(kind === 'forest' ? bgForest() : bgGrass(), 1, false),
-  zone: kind => blit(kind === 'defend' ? zoneGrid('#3a7ad8', '#9fd8ff') : zoneGrid('#d83a3a', '#ff8a6a'), 1, false),
+  bg: (kind, w) => blit(kind === 'forest' ? bgForestW(w || 160) : bgGrassW(w || 160), 1, false),
+  zone: (kind, w) => blit(kind === 'defend' ? zoneGridW(w || 160, '#3a7ad8', '#9fd8ff') : zoneGridW(w || 160, '#d83a3a', '#ff8a6a'), 1, false),
+  chibi: (look, dir, frame, scale) => blit(chibiGrid(look, dir, frame), scale || 1, false),
+  door: (state, phase, scale) => blit(doorGrid(state, phase || 0), scale || 1, false),
+  building: (kind, scale, gray) => { const c = blit(buildingGrid(kind), scale || 1, false); return gray ? grayOut(c) : c; },
+  village: (V, openIds) => villageDraw(V, openIds),
   width: (kind, key) => grid(kind, key).w
 };
 })();

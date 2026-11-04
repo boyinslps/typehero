@@ -2,14 +2,19 @@ import { PX } from './pixel.js';
 import {
   LOOK, DEFAULT_LOOK, heroLook, STARTERS, LOCKED_WEAPONS, REGIONS, MAP_POS, ELEM, STATUS, MONSTERS,
   regionLv, MAIN_QUESTS, normalizeNw, currentQuest, zoneOpen, starOpen, addHrExp, hrNeed, huntExp, huntCoins,
-  COLOR_NAME, COLOR_HEX, HR_MAX
+  COLOR_NAME, COLOR_HEX, HR_MAX, VILLAGE
 } from './nw-data.js';
+import { injectUi } from './nw-ui.js';
+import { mountVillage } from './nw-village.js';
 import { startBattle } from './nw-battle.js';
 import { DEFAULT_CODE_HASH, sha256Hex, cleanCode } from './nw-access.js';
 
 const CSS = `
-#nw-root{position:fixed;inset:0;z-index:60;overflow-y:auto;background:var(--bg);
-  background-image:radial-gradient(ellipse 90% 60% at 50% 0%,rgba(70,58,40,.45),transparent 65%)}
+#nw-root{position:fixed;inset:0;z-index:60;overflow-y:auto}
+#nw-root h2,#nw-root h3{color:#ffd98a;text-shadow:3px 3px 0 #000,-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000}
+#nw-root{font-weight:600;font-size:17px}
+#nw-root .text-sm{font-size:15px}
+#nw-root .text-xs{font-size:13px}
 .nwh-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
 .nwh-card{position:relative;overflow:hidden;text-align:left;background:var(--panel2);border:2px solid var(--line2);
   border-radius:12px;padding:14px;min-height:118px;cursor:pointer;transition:transform .15s,border-color .15s;color:var(--ink)}
@@ -44,18 +49,30 @@ const CSS = `
 .nwm-pin.wip .dot{border-color:#5a4a1a;filter:grayscale(.7) brightness(.6)}
 .nwm-pin.lock .dot{border-color:var(--line2);filter:grayscale(.6)}
 .nwm-pin span{font-weight:800;font-size:13px;background:rgba(10,8,18,.78);padding:1px 6px;border-radius:5px;white-space:nowrap}
+.nwh-card{border-radius:0!important;border:3px solid #0a0714!important;box-shadow:inset 0 0 0 2px #3a3070;background:#141030!important}
+.nwh-card:hover{box-shadow:inset 0 0 0 2px #ffd98a}
+.nw-chip{border-radius:0;border:3px solid #0a0714;background:#2a2358;box-shadow:inset 0 -3px 0 #231d55;text-shadow:1px 1px 0 #000;color:#fff}
+.nw-chip[aria-pressed="true"]{background:#e8b64c;color:#2a1a00;text-shadow:none;border-color:#0a0714}
+.nw-sw{border-radius:0;border-width:3px;border-color:#0a0714}
+.nw-sw[aria-pressed="true"]{border-color:#fff;outline:3px solid #e8b64c}
+.nw-bar{height:14px;border-radius:0;border:2px solid #0a0714;background:#0a0714;padding:1px}
+.nw-bar>i{background:repeating-linear-gradient(90deg,#e8b64c 0 6px,transparent 6px 8px)}
+.nwm-pin .dot{border-radius:0;border:3px solid #0a0714;outline:2px solid #ffd98a}
+.nwm-pin.wip .dot{outline-color:#5a5f6a}
+.nwm-pin.lock .dot{outline-color:#5a5f6a}
 `;
 
 export function initNewWorld(C) {
   const { $, show, toast, escHtml, ME } = C;
   let NW = null, saveTimer = 0, root = null, view = '', cur = { rk: '', mk: '' };
 
+  injectUi();
   const style = document.createElement('style');
   style.textContent = CSS;
   document.head.appendChild(style);
   root = document.createElement('div');
   root.id = 'nw-root';
-  root.className = 'hidden';
+  root.className = 'hidden px-bg';
   document.body.appendChild(root);
 
   const lkey = () => 'mg_nw_' + ME.docId;
@@ -118,15 +135,15 @@ export function initNewWorld(C) {
     const sheet = document.createElement('div');
     sheet.className = 'fixed inset-0 z-[80] grid place-items-center p-4';
     sheet.style.background = 'rgba(9,8,18,.88)';
-    sheet.innerHTML = `<div class="panel p-6 w-full max-w-md">
+    sheet.innerHTML = `<div class="px-panel p-6 w-full max-w-md">
       <div class="text-xl font-black mb-1">🔑 搶先體驗</div>
       <p class="text-sm mb-3" style="color:var(--dim)">老師有給你通關密語嗎？輸入在下面。</p>
       <input id="nw-code-in" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="輸入通關密語"
-        class="w-full p-3 rounded-lg panel-flat mono text-sm">
+        class="w-full p-3 rounded-lg px-panel in mono text-sm">
       <div id="nw-code-err" class="text-sm mt-2" style="color:#e5705f;min-height:1.2em"></div>
       <div class="flex gap-2 justify-end mt-3">
-        <button class="btn btn-ghost px-4 py-2" data-close>取消</button>
-        <button class="btn btn-gold px-5 py-2" data-ok>確定</button></div></div>`;
+        <button class="px-btn px-4 py-2" data-close>取消</button>
+        <button class="px-btn gold px-5 py-2" data-ok>確定</button></div></div>`;
     const inp = sheet.querySelector('#nw-code-in'), err = sheet.querySelector('#nw-code-err');
     const submit = async () => {
       if (!cleanCode(inp.value)) { err.textContent = '先輸入密語。'; return; }
@@ -162,6 +179,7 @@ export function initNewWorld(C) {
 
   function setView(name, html, mount) {
     view = name;
+    if (village) { village.destroy(); village = null; }
     root.innerHTML = `<div class="max-w-5xl mx-auto p-4 pb-16 nwv" data-view="${name}">${html}</div>`;
     root.scrollTo({ top: 0 });
     if (mount) mount(root.firstElementChild);
@@ -169,7 +187,7 @@ export function initNewWorld(C) {
   const topbar = (title, back, backTxt) => `
     <div class="flex items-center justify-between gap-2 mb-4">
       <h2 class="text-2xl font-black">${title}</h2>
-      <button class="btn btn-ghost text-sm px-4 py-2" data-act="${back}">${backTxt || '← 回獵人村'}</button>
+      <button class="px-btn text-sm px-4 py-2" data-act="${back}">${backTxt || '← 回獵人村'}</button>
     </div>`;
   const cv = (host, canvas) => { host.replaceChildren(canvas); return host; };
   const mountSprites = scope => scope.querySelectorAll('[data-sprite]').forEach(el => {
@@ -194,76 +212,63 @@ export function initNewWorld(C) {
     C.gotoLobby();
   }
 
-  function hubCards() {
-    const q = currentQuest(NW);
-    const wip = (id, icon, name, seg) => `
-      <button class="nwh-card wip" data-wip="${id}"><div class="nwh-in"><div class="ico">${icon}</div>
-      <div class="font-black text-lg mt-2">${name}</div></div>
-      <div class="nwh-stripe"><span>${icon} ${name}<small>施工中・第 ${seg} 段開放</small></span></div></button>`;
-    const open = (act, icon, name, sub, badge) => `
-      <button class="nwh-card" data-act="${act}">${badge ? `<span class="nwh-badge">${badge}</span>` : ''}
-      <div class="ico">${icon}</div><div class="font-black text-lg mt-2">${name}</div>
-      <div class="text-sm mt-1" style="color:var(--dim)">${sub}</div></button>`;
-    return `
-      ${open('map', '📜', '委託板', '選地方、選魔物，出發狩獵！')}
-      ${open('quest', '🧭', '任務', q ? `現在：${escHtml(q.t)}` : '第 1 章全部完成！', q ? '新' : '')}
-      ${open('equip', '🎽', '裝備與造型', '換武器、換髮型，看武器圖鑑')}
-      ${open('rank', '🏆', '獵人排行', '看看誰是最強獵人')}
-      ${wip('forge', '⚒', '鐵匠鋪', 2)}${wip('storage', '📦', '倉庫', 2)}${wip('shop', '🛒', '商店', 3)}
-      ${wip('armor', '🛡', '防具', 3)}${wip('rooms', '👥', '組隊房間', 4)}${wip('star', '⭐', '星圖', 5)}`;
+  const FAST = location.hostname === 'localhost' && (() => { try { return localStorage.getItem('mg_nw_fast') === '1'; } catch (e) { return false; } })();
+  let village = null;
+  const myChibi = () => heroLook(NW.look, NW.starter || 'staff');
+
+  function enterBuilding(b) {
+    NW.pos = village ? village.pos() : null;
+    if (b.id === 'gate') { leave(); return; }
+    if (b.act) { ({ map: viewMap, quest: viewQuest, equip: viewEquip, rank: openRank }[b.act] || (() => {}))(); return; }
+    openWip(b);
   }
 
   function viewHub() {
     stopAnims();
     const need = hrNeed(NW.hr), pct = NW.hr >= HR_MAX ? 100 : Math.min(100, NW.hrExp / need * 100);
     const matN = Object.values(NW.mats).reduce((a, b) => a + b, 0);
+    const q = currentQuest(NW);
     setView('hub', `
-      <div class="panel p-4 flex gap-4 items-center flex-wrap">
-        <div class="nw-px" data-hero="1" style="background:#0e0b16;border-radius:8px;padding:6px"></div>
-        <div class="flex-1 min-w-[220px]">
-          <div class="text-sm" style="color:var(--dim)">獵人村</div>
-          <div class="text-2xl font-black">${escHtml(ME.name)} ${NW.title ? `<span class="text-sm" style="color:var(--gold)">「${escHtml(NW.title)}」</span>` : ''}</div>
-          <div class="flex items-center gap-3 mt-2"><b style="color:var(--gold)">獵人等級 ${NW.hr}</b>
-            <div class="nw-bar flex-1"><i style="width:${pct}%"></i></div>
-            <span class="text-xs mono" style="color:var(--dim)">${NW.hr >= HR_MAX ? '已滿級' : `${NW.hrExp}/${need}`}</span></div>
-          <div class="flex gap-4 mt-2 text-sm flex-wrap" style="color:var(--dim)">
-            <span>⭐ 星星 <b style="color:var(--ink)">${NW.stars}</b>（第 5 段才能用）</span>
-            <span>🪙 字元 <b style="color:var(--ink)">${NW.coins}</b></span>
-            <span>📦 材料 <b style="color:var(--ink)">${matN}</b>（先幫你存著）</span></div>
+      <div class="px-panel" style="position:sticky;top:6px;z-index:5;margin-bottom:12px;padding:10px 14px">
+        <div class="flex gap-3 items-center flex-wrap">
+          <div class="px-img" data-hero="1" style="background:#0e0b16;padding:4px;border:3px solid #0a0714"></div>
+          <div class="flex-1 min-w-[200px]">
+            <div class="text-xl px-text font-black">${escHtml(ME.name)} ${NW.title ? `<span class="px-chip" style="color:var(--gold)">${escHtml(NW.title)}</span>` : ''}</div>
+            <div class="flex items-center gap-2 mt-1"><b class="px-text" style="color:#ffd98a">獵人 Lv ${NW.hr}</b>
+              <div class="px-bar xp flex-1"><i style="width:${pct}%"></i></div>
+              <span class="text-xs mono">${NW.hr >= HR_MAX ? '滿級' : `${NW.hrExp}/${need}`}</span></div>
+            <div class="flex gap-4 mt-1 text-sm flex-wrap px-text"><span>🪙 ${NW.coins}</span><span>📦 ${matN}</span><span>⭐ ${NW.stars}</span>
+              ${q ? `<span style="color:#ffd98a">📌 ${escHtml(q.t)}</span>` : ''}</div>
+          </div>
+          <button class="px-btn" data-act="leave">← 回營地</button>
         </div>
-        <button class="btn btn-ghost px-4 py-2" data-act="leave">← 回營地</button>
       </div>
-      <h3 class="font-black text-xl mt-5 mb-3" style="color:var(--gold)">獵人村</h3>
-      <div class="nwh-grid">${hubCards()}</div>`, el => {
-      el.querySelector('[data-hero]').replaceChildren(PX.hero(myHero(), 4));
+      <div id="vmap"></div>
+      <p class="px-text text-sm mt-3 text-center">點地圖上的任何地方，角色就會走過去。走到建築的門口，就會打開那棟建築。灰色的建築還在施工中。</p>`, el => {
+      el.querySelector('[data-hero]').replaceChildren(PX.chibi(myChibi(), 'down', 0, 3));
+      village = mountVillage(el.querySelector('#vmap'), {
+        PX, look: myChibi(), open: VILLAGE.buildings.filter(b => b.act).map(b => b.id),
+        start: NW.pos || VILLAGE.start, scroller: root, fast: FAST, onEnter: enterBuilding
+      });
     });
   }
 
-  const WIP_TEXT = {
-    forge: ['⚒ 鐵匠鋪', 2, '用打到的材料，打造、強化自己的武器和裝備！', 'dagger'],
-    storage: ['📦 倉庫', 2, '所有材料和圖紙都放在這裡，一目了然。', 'book'],
-    shop: ['🛒 商店', 3, '用字元買回復藥，也可以賣掉用不到的材料。', 'bell'],
-    armor: ['🛡 防具', 3, '頭盔、鎧甲、手套、靴子，穿上就會出現在你身上！', 'shield'],
-    rooms: ['👥 組隊房間', 4, '開房間或加入同學的房間，最多 4 個人一起打大魔物。', 'fist'],
-    star: ['⭐ 星圖', 5, '升級拿到的星星，可以在這裡點亮，讓閃避和防禦變得更強。', 'staff']
-  };
-  function openWip(id) {
-    const [name, seg, text, spr] = WIP_TEXT[id];
-    const matN = Object.values(NW.mats).reduce((a, b) => a + b, 0);
-    const extra = (id === 'forge' || id === 'storage')
-      ? `<p class="text-sm mt-2" style="color:var(--gold)">你已經存了 ${matN} 個材料、${NW.bp.length} 張圖紙，開張那天就能用！</p>` : '';
+  function openWip(b) {
+    const matN = Object.values(NW.mats).reduce((a, c) => a + c, 0);
+    const extra = (b.id === 'forge' || b.id === 'storage')
+      ? `<p class="text-sm mt-2" style="color:#ffd98a">你已經存了 ${matN} 個材料、${NW.bp.length} 張圖紙，開張那天就能用！</p>` : '';
     const sheet = document.createElement('div');
     sheet.className = 'fixed inset-0 z-[80] grid place-items-center p-4';
     sheet.style.background = 'rgba(9,8,18,.88)';
-    sheet.innerHTML = `<div class="panel p-6 w-full max-w-md text-center">
-      <div class="nw-px mx-auto mb-3" data-sprite="weapon:${spr}:6" style="display:inline-block;background:#0e0b16;border-radius:8px;padding:8px"></div>
-      <div class="text-2xl font-black mb-1">${name}</div>
-      <div class="text-sm mb-3" style="color:var(--gold)">🔗 施工中・第 ${seg} 段開放</div>
-      <p class="text-base">${text}</p>${extra}
-      <button class="btn btn-gold px-6 py-2.5 mt-4" data-close>知道了</button></div>`;
+    sheet.innerHTML = `<div class="px-panel w-full max-w-md text-center">
+      <div class="px-img mx-auto mb-3" data-bld style="display:inline-block;background:#0e0b16;padding:8px;border:3px solid #0a0714"></div>
+      <div class="text-2xl px-title">${b.name}</div>
+      <div class="text-sm mb-3 px-text" style="color:#aab0b8">🔗 施工中・第 ${b.wip} 段開放</div>
+      <p class="text-base px-text">${b.text}</p>${extra}
+      <button class="px-btn gold mt-4" data-close>知道了</button></div>`;
     sheet.addEventListener('click', e => { if (e.target === sheet || e.target.closest('[data-close]')) sheet.remove(); });
     document.body.appendChild(sheet);
-    mountSprites(sheet);
+    sheet.querySelector('[data-bld]').replaceChildren(PX.building(b.kind, 4, true));
   }
 
   let animStops = [];
@@ -290,14 +295,14 @@ export function initNewWorld(C) {
     const look = Object.assign({}, DEFAULT_LOOK, NW.look || {});
     setView('creator', `
       ${first ? '' : topbar('自己選造型', 'equip', '← 回上一頁')}
-      <div class="panel p-5">
+      <div class="px-panel p-5">
         ${first ? `<div class="mb-4"><div class="text-2xl font-black">歡迎來到新世界！</div>
           <p class="mt-1" style="color:var(--dim)">村長說：「先決定你長什麼樣子吧。」之後隨時都可以再改。</p></div>` : ''}
         <div class="flex gap-6 flex-wrap items-center">
           <div class="nw-px" data-prev="1" style="background:#0e0b16;border-radius:8px;padding:10px"></div>
           <div class="flex-1 min-w-[240px]" data-picker>${lookPicker(look)}</div>
         </div>
-        <div class="mt-5 text-right"><button class="btn btn-gold px-8 py-3 text-lg" data-save>${first ? '決定了！下一步' : '儲存'}</button></div>
+        <div class="mt-5 text-right"><button class="px-btn gold px-8 py-3 text-lg" data-save>${first ? '決定了！下一步' : '儲存'}</button></div>
       </div>`, el => {
       const prev = el.querySelector('[data-prev]');
       const redraw = () => prev.replaceChildren(PX.hero(heroLook(look, NW.starter || 'staff'), 9));
@@ -314,7 +319,7 @@ export function initNewWorld(C) {
     const canSwap = !NW.starter || NW.hunts < 3;
     const pick = Object.assign({}, { w: NW.starter || '' });
     const cards = Object.entries(STARTERS).map(([k, s]) => `
-      <div class="panel-flat p-3" data-card="${k}" style="cursor:pointer;border:2px solid ${pick.w === k ? 'var(--gold)' : 'var(--line)'}">
+      <div class="px-panel in p-3" data-card="${k}" style="cursor:pointer;border:2px solid ${pick.w === k ? 'var(--gold)' : 'var(--line)'}">
         <div class="flex items-center justify-between mb-2"><b class="text-lg">${s.name}</b>
           <span class="text-xs px-2 py-0.5 rounded-full" style="border:1px solid ${s.fam === '新的' ? 'var(--gr)' : 'var(--dim)'};color:${s.fam === '新的' ? 'var(--gr)' : 'var(--dim)'}">${s.fam}</span></div>
         <canvas data-anim="${k}" width="120" height="70" style="width:100%;max-width:360px;background:#0e0b16;border-radius:8px;image-rendering:pixelated"></canvas>
@@ -322,11 +327,11 @@ export function initNewWorld(C) {
       </div>`).join('');
     setView('starter', `
       ${NW.starter ? topbar('換一把武器', 'equip', '← 回上一頁') : ''}
-      <div class="panel p-5">
+      <div class="px-panel p-5">
         <div class="text-2xl font-black">選擇你的第一把武器</div>
         <p class="mt-1 mb-4" style="color:var(--dim)">${NW.starter ? `前 3 場狩獵可以免費換，你已經打了 ${NW.hunts} 場。` : '前 3 場狩獵都可以免費換，不用擔心選錯！'}</p>
         <div class="grid gap-3" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">${cards}</div>
-        <div class="mt-5 text-right"><button class="btn btn-gold px-8 py-3 text-lg" data-ok disabled style="opacity:.5">選好了</button></div>
+        <div class="mt-5 text-right"><button class="px-btn gold px-8 py-3 text-lg" data-ok disabled style="opacity:.5">選好了</button></div>
       </div>`, el => {
       const ok = el.querySelector('[data-ok]');
       const refresh = () => {
@@ -403,15 +408,15 @@ export function initNewWorld(C) {
         <div class="font-black mt-1">${s.kind}</div><div class="text-xs" style="color:var(--dim)">${s.name}${k === NW.starter ? '（使用中）' : ''}</div></div></div>`).join('');
     setView('equip', `
       ${topbar('裝備與造型', 'hub')}
-      <div class="panel p-4 flex gap-5 flex-wrap items-center">
+      <div class="px-panel p-4 flex gap-5 flex-wrap items-center">
         <div class="nw-px" data-hero="1" style="background:#0e0b16;border-radius:8px;padding:8px"></div>
         <div class="flex-1 min-w-[220px]">
           <div class="text-sm" style="color:var(--dim)">現在的武器</div>
           <div class="text-xl font-black">${w ? w.name : '還沒選'} <span class="text-sm" style="color:var(--dim)">${w ? w.kind : ''}</span></div>
           <p class="text-sm mt-1" style="color:var(--dim)">${w ? w.desc : ''}</p>
           <div class="flex gap-2 mt-3 flex-wrap">
-            <button class="btn btn-gold px-4 py-2" data-act="starter">${swapLeft > 0 ? '換武器' : '武器（不能再免費換）'}</button>
-            <button class="btn btn-ghost px-4 py-2" data-act="creator">💇 改造型</button></div>
+            <button class="px-btn gold px-4 py-2" data-act="starter">${swapLeft > 0 ? '換武器' : '武器（不能再免費換）'}</button>
+            <button class="px-btn px-4 py-2" data-act="creator">💇 改造型</button></div>
           <p class="text-xs mt-2" style="color:var(--dim2)">${swapLeft > 0 ? `前 3 場狩獵可以免費換，還剩 ${swapLeft} 場。` : '前 3 場已經過了，之後要打造新武器才能換。'}穿上新的裝備，角色也會跟著變（第 2～3 段）。</p>
         </div>
       </div>
@@ -427,7 +432,7 @@ export function initNewWorld(C) {
     const done = MAIN_QUESTS.filter(x => NW.quest.done.includes(x.id));
     setView('quest', `
       ${topbar('🧭 任務', 'hub')}
-      <div class="panel p-5">
+      <div class="px-panel p-5">
         <div class="label mb-1">主線 第 1 章　新芽草原</div>
         ${q ? `<div class="text-2xl font-black">${escHtml(q.t)}</div>
           <p class="mt-2" style="color:var(--dim)">${escHtml(q.hint)}</p>
@@ -436,7 +441,7 @@ export function initNewWorld(C) {
         : '<div class="text-xl font-black">第 1 章完成了！之後的任務會陸續開放。</div>'}
       </div>
       ${done.length ? `<h3 class="font-black text-lg mt-5 mb-2" style="color:var(--gold)">完成了</h3>
-        <div class="grid gap-2">${done.map(d => `<div class="panel-flat p-3 flex justify-between"><span>✅ ${escHtml(d.t)}</span>
+        <div class="grid gap-2">${done.map(d => `<div class="px-panel in p-3 flex justify-between"><span>✅ ${escHtml(d.t)}</span>
         <span class="text-sm" style="color:var(--dim)">${escHtml(d.rewardText)}</span></div>`).join('')}</div>` : ''}
       <p class="text-xs mt-4" style="color:var(--dim2)">還有幾個任務要等鐵匠鋪開張才會出現。每日任務在第 3 段開放。</p>`);
   }
@@ -451,7 +456,7 @@ export function initNewWorld(C) {
     }).join('');
     setView('map', `
       ${topbar('📜 委託板：世界地圖', 'hub')}
-      <div class="panel p-3"><div style="position:relative;height:420px;border-radius:10px;overflow:hidden;background:linear-gradient(180deg,#1a1830,#2a2a3a 50%,#2a3a2a)">
+      <div class="px-panel p-3"><div style="position:relative;height:420px;border-radius:10px;overflow:hidden;background:linear-gradient(180deg,#1a1830,#2a2a3a 50%,#2a3a2a)">
         <svg style="position:absolute;inset:0;width:100%;height:100%" viewBox="0 0 100 100" preserveAspectRatio="none">
           <path d="M14 74 L38 52 L14 36 M38 52 L64 70 M38 52 L38 20 L66 12 M64 70 L88 44" stroke="#6a5a3a" stroke-width=".7" fill="none" stroke-dasharray="2 1.5" vector-effect="non-scaling-stroke"/></svg>
         ${pins}</div></div>
@@ -492,7 +497,7 @@ export function initNewWorld(C) {
     const rare = m.rare.map(d => `<span style="color:${COLOR_HEX[d[2]]}">${d[1]}</span>`).join('　');
     setView('monster', `
       ${topbar(`${m.name}`, 'region', '← 回' + r.name)}
-      <div class="panel p-5 flex gap-5 flex-wrap">
+      <div class="px-panel p-5 flex gap-5 flex-wrap">
         <div class="nw-px" data-sprite="monster:${mk}:6" style="background:#0e0b16;border-radius:8px;padding:8px;align-self:flex-start"></div>
         <div class="flex-1 min-w-[260px] leading-relaxed">
           <div class="text-2xl font-black">${m.name} ${ELEM[m.elem]} <span class="text-base" style="color:var(--dim)">Lv ${lv}</span></div>
@@ -505,11 +510,11 @@ export function initNewWorld(C) {
           <div class="text-sm"><b>有機會掉：</b>${rare}</div>
         </div>
       </div>
-      <div class="panel p-4 mt-3">
+      <div class="px-panel p-4 mt-3">
         <div class="label mb-2">選難度（打倒 ★N 才會開放 ★N+1）</div>
         <div class="flex gap-2 flex-wrap">${stars}</div>
         <div class="mt-4 flex items-center gap-3 flex-wrap">
-          <button class="btn btn-gold px-8 py-3 text-xl" data-go>⚔ 出發！</button>
+          <button class="px-btn gold px-8 py-3 text-xl" data-go>⚔ 出發！</button>
           <span class="text-sm" style="color:var(--dim)">一場最多 5 分鐘。看到紅色區域，打「閃」或「防」！</span></div>
       </div>`, el => {
       mountSprites(el);
@@ -574,22 +579,22 @@ export function initNewWorld(C) {
     sheet.className = 'fixed inset-0 z-[90] overflow-y-auto';
     sheet.id = 'nw-result';
     sheet.style.background = 'rgba(9,8,18,.94)';
-    sheet.innerHTML = `<div class="max-w-xl mx-auto p-4 py-8"><div class="panel p-6">
+    sheet.innerHTML = `<div class="max-w-xl mx-auto p-4 py-8"><div class="px-panel p-6">
       <div class="text-3xl font-black" style="color:${sum.win ? 'var(--gold)' : '#e5705f'}">${title}</div>
       <div class="mt-1" style="color:var(--dim)">${m.name} Lv ${sum.lv}（★${sum.star}）</div>
       <div class="nw-px my-4" data-sprite="monster:${res.mk}:5:${sum.win ? 0 : 1}" style="background:#0e0b16;border-radius:8px;padding:8px;display:inline-block"></div>
       ${res.valid ? '' : `<p class="mb-3 p-3 rounded-lg" style="background:rgba(229,112,95,.15);color:#e5705f">${escHtml(res.invalidWhy || '這場不算數')}</p>`}
       <div class="grid grid-cols-2 gap-2 text-sm">
-        <div class="panel-flat p-2">用時 <b>${Math.floor(res.secs / 60)}:${String(Math.round(res.secs % 60)).padStart(2, '0')}</b></div>
-        <div class="panel-flat p-2">正確率 <b>${Math.round(res.accuracy * 100)}%</b></div>
-        <div class="panel-flat p-2">閃避 <b>${res.dodgeOk}/${res.dodgeAll}</b></div>
-        <div class="panel-flat p-2">防禦 <b>${res.defOk}/${res.defAll}</b></div></div>
+        <div class="px-panel in p-2">用時 <b>${Math.floor(res.secs / 60)}:${String(Math.round(res.secs % 60)).padStart(2, '0')}</b></div>
+        <div class="px-panel in p-2">正確率 <b>${Math.round(res.accuracy * 100)}%</b></div>
+        <div class="px-panel in p-2">閃避 <b>${res.dodgeOk}/${res.dodgeAll}</b></div>
+        <div class="px-panel in p-2">防禦 <b>${res.defOk}/${res.defAll}</b></div></div>
       ${res.valid ? `<div class="mt-4"><div class="label mb-1">獲得</div>
         <div>${drops || '—'}</div>${rare ? `<div class="mt-1">${rare}</div>` : ''}
         <div class="mt-2">🪙 字元 +${sum.coins}　⭐ 獵人經驗 +${sum.exp}</div>
         ${sum.ups ? `<div class="mt-1 font-black" style="color:var(--gold)">獵人等級升到 ${NW.hr}！拿到 ${sum.ups} 顆星星（第 5 段才能用，先存著）</div>` : ''}
         <p class="text-xs mt-2" style="color:var(--dim2)">材料和圖紙先幫你存著，鐵匠鋪開張就能用。</p></div>` : ''}
-      <div class="mt-5 text-right"><button class="btn btn-gold px-8 py-3 text-lg" data-close>回去</button></div></div></div>`;
+      <div class="mt-5 text-right"><button class="px-btn gold px-8 py-3 text-lg" data-close>回去</button></div></div></div>`;
     sheet.addEventListener('click', e => { if (e.target.closest('[data-close]')) { sheet.remove(); done(); } });
     document.body.appendChild(sheet);
     mountSprites(sheet);
@@ -612,7 +617,6 @@ export function initNewWorld(C) {
          starter: viewStarter, region: () => viewRegion(cur.rk), rank: () => openRank() }[act] || (() => {}))();
       return;
     }
-    const w = e.target.closest('[data-wip]'); if (w) { openWip(w.dataset.wip); return; }
     const rg = e.target.closest('[data-region]'); if (rg) { viewRegion(rg.dataset.region); return; }
     const mo = e.target.closest('[data-mon]'); if (mo) viewMonster(cur.rk, mo.dataset.mon);
   });

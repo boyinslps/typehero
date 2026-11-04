@@ -1,40 +1,39 @@
 import { BAL, TIERS, MONSTERS, regionLv, monMaxHp, monDmg, atkInterval, castTime, STATUS } from './nw-data.js';
 
 const CSS = `
-#nwb-root{position:fixed;inset:0;z-index:70;overflow:auto;background:#0b0910;color:var(--ink)}
-.nwb2-wrap{margin:0 auto;padding:8px 10px 14px}
-.nwb2-top{display:flex;gap:10px;align-items:center;justify-content:space-between;margin:0 auto 6px}
-.nwb2-plate{flex:1;min-width:0;background:rgba(20,16,30,.92);border:2px solid var(--line2);border-radius:10px;padding:6px 10px;font-weight:800}
-.nwb2-bar{height:12px;background:#2a1c1c;border-radius:99px;overflow:hidden;margin-top:4px}
-.nwb2-bar>i{display:block;height:100%;width:100%;background:#d8402a;transition:width .2s}
-.nwb2-bar.g>i{background:#6aa84f}
-.nwb2-bar.y>i{background:linear-gradient(90deg,#e8b64c,#ffd98a)}
-.nwb2-stage{position:relative;margin:0 auto;border:2px solid var(--line2);border-radius:8px;overflow:hidden;background:#000}
-.nwb2-stage canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges}
+#nwb-root{position:fixed;inset:0;z-index:70;display:flex;flex-direction:column;background:#000;color:var(--ink);font-size:clamp(13px,1.5vmin + 7px,21px);font-weight:700}
+.nwb3-stage{position:relative;flex:1;min-height:0;overflow:hidden}
+.nwb3-cvw{position:absolute;bottom:0;left:50%;transform:translateX(-50%)}
+.nwb3-cvw canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges}
 .nwb2-ov{position:absolute;inset:0;pointer-events:none}
-.nwb2-cast{position:absolute;left:50%;top:3%;transform:translateX(-50%);min-width:46%;text-align:center;font-weight:900;
-  background:rgba(10,8,18,.88);border:2px solid #ff8a6a;border-radius:10px;padding:4px 10px;display:none}
+.nwb3-hud{position:absolute;left:0;right:0;top:0;padding:10px 12px;display:flex;gap:10px;align-items:flex-start;pointer-events:none}
+.nwb3-hud>*{pointer-events:auto}
+.nwb3-plate{flex:1;max-width:560px;margin:0 auto;padding:6px 14px!important}
+.nwb3-time{flex:none;text-align:center;padding:6px 14px!important}
+.nwb2-cast{position:absolute;left:50%;top:84px;transform:translateX(-50%);min-width:min(520px,80%);text-align:center;font-weight:900;display:none;
+  background:#1b1738;border:4px solid #ff8a6a;box-shadow:inset 0 0 0 2px #0a0714;padding:6px 12px;z-index:3}
 .nwb2-cast.defend{border-color:#9fd8ff}
-.nwb2-cast .bar{height:12px;background:#2a1c1c;border-radius:99px;overflow:hidden;margin-top:3px}
-.nwb2-cast .bar i{display:block;height:100%;width:0;background:#d83a3a}
-.nwb2-cast.defend .bar i{background:#3a7ad8}
-.nwb2-cast small{display:block;font-weight:700;color:var(--dim)}
-.nwb2-float{position:absolute;transform:translate(-50%,0);font-weight:900;white-space:nowrap;text-shadow:0 2px 0 #000,0 0 6px #000;animation:nwbRise 1s ease-out forwards}
+.nwb2-cast .bar{height:14px;background:#0a0714;border:2px solid #0a0714;margin-top:4px;padding:1px}
+.nwb2-cast .bar i{display:block;height:100%;width:0;background:repeating-linear-gradient(90deg,#d83a3a 0 6px,transparent 6px 8px)}
+.nwb2-cast.defend .bar i{background:repeating-linear-gradient(90deg,#3a7ad8 0 6px,transparent 6px 8px)}
+.nwb2-cast small{display:block;font-weight:800;color:#ffd98a;margin-top:2px}
+.nwb2-float{position:absolute;transform:translate(-50%,0);font-weight:900;white-space:nowrap;text-shadow:2px 2px 0 #000,-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000;animation:nwbRise 1s steps(8) forwards}
 @keyframes nwbRise{0%{opacity:0;margin-top:6px}15%{opacity:1}100%{opacity:0;margin-top:-34px}}
 .nwb2-banner{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);font-weight:900;font-size:2.2em;color:#fff;
-  text-shadow:0 3px 0 #000,0 0 12px #000;animation:nwbBan 1.1s ease-out forwards;white-space:nowrap}
+  text-shadow:4px 4px 0 #000,-2px -2px 0 #000,2px -2px 0 #000,-2px 2px 0 #000;animation:nwbBan 1.1s steps(10) forwards;white-space:nowrap}
 @keyframes nwbBan{0%{opacity:0;transform:translate(-50%,-50%) scale(.6)}20%{opacity:1;transform:translate(-50%,-50%) scale(1.1)}100%{opacity:0;transform:translate(-50%,-70%) scale(1)}}
-.nwb2-down{position:absolute;inset:0;display:none;place-items:center;background:rgba(10,8,18,.6);font-weight:900;font-size:1.6em;text-align:center}
-.nwb2-bottom{margin:8px auto 0;display:grid;gap:8px}
-.nwb2-panel{background:var(--panel2);border:2px solid var(--line2);border-radius:10px;padding:8px 12px}
+.nwb2-down{position:absolute;inset:0;display:none;place-items:center;background:rgba(10,8,18,.6);font-weight:900;font-size:1.6em;text-align:center;z-index:4}
+.nwb3-dock{margin:0!important;display:grid;grid-template-columns:minmax(150px,1fr) minmax(0,3fr) minmax(150px,1fr);gap:14px;align-items:center;padding:10px 16px!important;flex:none}
+@media (max-width:760px){.nwb3-dock{grid-template-columns:1fr;gap:6px}}
 .nwb2-q{font-weight:900;min-height:2.4em;display:flex;flex-wrap:wrap;gap:.1em .15em;align-items:flex-start;transform-origin:left top}
-#nwb-in{width:100%;margin-top:8px;padding:10px 12px;border-radius:10px;background:#14110d;border:2px solid var(--line2);color:var(--ink);font-weight:800}
-#nwb-in:focus{border-color:var(--gold);outline:none}
+#nwb-in{width:100%;margin-top:6px;padding:8px 12px;background:#0a0714;border:3px solid #6a5ab0;color:var(--ink);font-weight:800;font-family:inherit}
+#nwb-in:focus{border-color:#ffd98a;outline:none}
 #nwb-in:disabled{opacity:.45}
 .nwb2-spore{transform:scale(.62)}
 .nwb2-bubbles{position:absolute;inset:0;pointer-events:none;display:none;overflow:hidden}
 .nwb2-bubbles i{position:absolute;width:2.2em;height:2.2em;border-radius:50%;border:3px solid #bfe8ff;background:rgba(191,232,255,.25)}
-.nwb2-chip{display:inline-block;padding:1px 8px;border-radius:99px;font-size:.8em;font-weight:800;background:rgba(0,0,0,.35);border:1px solid var(--line2)}
+.nwb2-chip{display:inline-block;padding:0 8px;font-size:.8em;font-weight:800;background:#0a0714;border:2px solid currentColor}
+.nwb3-lbl{font-size:.8em;color:#aab0d8;font-weight:800}
 `;
 
 const ACTIONS = [['閃', 'dodge'], ['防', 'defend'], ['jump', 'dodge'], ['stop', 'defend']];
@@ -56,54 +55,59 @@ export function startBattle(env, cfg, done) {
     const st = document.createElement('style'); st.id = 'nwb-style'; st.textContent = CSS; document.head.appendChild(st);
   }
 
-  const sc = clamp(Math.floor(Math.min(innerWidth - 28, (innerHeight - 270) * 160 / 96) / 160), 2, 6);
-  const W = 160 * sc, H = 96 * sc;
-  const fs = Math.max(11, Math.round(sc * 2.7));
 
   const root = document.createElement('div');
   root.id = 'nwb-root';
   root.innerHTML = `
-    <div class="nwb2-wrap" style="width:${W + 4}px;max-width:100%;font-size:${fs}px">
-      <div class="nwb2-top">
-        <div class="nwb2-plate"><div class="flex justify-between gap-2"><span id="nwb-mname"></span><span id="nwb-mflag"></span></div>
-          <div class="nwb2-bar"><i id="nwb-mhp"></i></div></div>
-        <div class="nwb2-plate" style="flex:none;text-align:center"><div style="color:var(--dim);font-size:.75em">時間</div><div id="nwb-time" class="mono" style="color:var(--gold)">5:00</div></div>
-        <button id="nwb-quit" class="btn btn-ghost px-3 py-2" style="font-size:.85em">撤退</button>
+    <div class="nwb3-stage" id="nwb-stage">
+      <div class="nwb3-cvw" id="nwb-cvw">
+        <canvas id="nwb-cv"></canvas>
+        <div class="nwb2-ov" id="nwb-ov"></div>
       </div>
-      <div class="nwb2-stage" style="width:${W}px;height:${H}px">
-        <canvas id="nwb-cv" width="160" height="96" style="width:${W}px;height:${H}px"></canvas>
-        <div class="nwb2-ov" id="nwb-ov">
-          <div class="nwb2-cast" id="nwb-cast"><div id="nwb-cast-t"></div><div class="bar"><i id="nwb-cast-i"></i></div><small id="nwb-cast-h"></small></div>
-        </div>
-        <div class="nwb2-down" id="nwb-down"></div>
+      <div class="nwb3-hud">
+        <button id="nwb-quit" class="px-btn" style="font-size:.8em;padding:6px 12px">撤退</button>
+        <div class="px-panel nwb3-plate"><div class="flex justify-between gap-2 px-text"><span id="nwb-mname"></span><span id="nwb-mflag"></span></div>
+          <div class="px-bar" style="margin-top:4px"><i id="nwb-mhp"></i></div></div>
+        <div class="px-panel nwb3-time"><div class="nwb3-lbl">時間</div><div id="nwb-time" class="mono px-text" style="color:#ffd98a">5:00</div></div>
       </div>
-      <div class="nwb2-bottom">
-        <div class="nwb2-panel" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-          <div style="min-width:9em;flex:1"><div style="font-size:.8em;color:var(--dim)">❤ 生命 <b id="nwb-hpt" style="color:var(--ink)"></b> <span id="nwb-st"></span></div>
-            <div class="nwb2-bar g"><i id="nwb-hp"></i></div>
-            <div class="nwb2-bar y" id="nwb-actw" style="visibility:hidden;margin-top:3px"><i id="nwb-act" style="width:0;transition:none"></i></div></div>
-          <div style="min-width:9em;flex:1"><div style="font-size:.8em;color:var(--dim)" id="nwb-wlabel"></div>
-            <div class="nwb2-bar y"><i id="nwb-wg" style="width:0"></i></div></div>
-          <div style="text-align:right"><div style="font-size:.75em;color:var(--dim)">連擊</div><div id="nwb-combo" class="mono" style="color:var(--gold);font-weight:900">0</div></div>
-        </div>
-        <div class="nwb2-panel" style="position:relative">
-          <div class="nwb2-q" id="nwb-q"></div>
-          <div class="nwb2-bubbles" id="nwb-bub"></div>
-          <input id="nwb-in" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="打字攻擊，按 Enter 送出">
-          <div style="font-size:.78em;color:var(--dim);margin-top:5px" id="nwb-hint"></div>
-        </div>
+      <div class="nwb2-cast" id="nwb-cast"><div id="nwb-cast-t" class="px-text"></div><div class="bar"><i id="nwb-cast-i"></i></div><small id="nwb-cast-h"></small></div>
+      <div class="nwb2-down" id="nwb-down"></div>
+    </div>
+    <div class="px-panel nwb3-dock">
+      <div>
+        <div class="nwb3-lbl">❤ 生命 <b id="nwb-hpt" class="px-text"></b> <span id="nwb-st"></span></div>
+        <div class="px-bar ok" style="margin-top:3px"><i id="nwb-hp"></i></div>
+        <div class="px-bar xp" id="nwb-actw" style="visibility:hidden;margin-top:4px"><i id="nwb-act" style="width:0;transition:none"></i></div>
+        <div class="nwb3-lbl" style="margin-top:5px" id="nwb-wlabel"></div>
+        <div style="display:flex;gap:8px;align-items:center"><div class="px-bar xp" style="flex:1"><i id="nwb-wg" style="width:0"></i></div>
+          <span class="nwb3-lbl">連擊 <b id="nwb-combo" class="mono px-text" style="color:#ffd98a">0</b></span></div>
       </div>
+      <div style="position:relative;min-width:0">
+        <div class="nwb2-q px-text" id="nwb-q"></div>
+        <div class="nwb2-bubbles" id="nwb-bub"></div>
+        <input id="nwb-in" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="打字攻擊，按 Enter 送出">
+        <div class="nwb3-lbl" style="margin-top:4px" id="nwb-hint"></div>
+      </div>
+      <div class="nwb3-lbl" id="nwb-side" style="line-height:1.5"></div>
     </div>`;
   document.body.appendChild(root);
   const $q = id => root.querySelector('#' + id);
   const cvs = $q('nwb-cv'), g = cvs.getContext('2d');
+  const stage = $q('nwb-stage'), cvw = $q('nwb-cvw');
+  const sh = stage.clientHeight || 420, sw = stage.clientWidth || 800;
+  const EXTRA = 20, SKY = cfg.rk === 'forest' ? '#2a4a3e' : '#6ec1ee';
+  const sc = clamp(Math.floor(sh / (96 + EXTRA)), 2, 9), LW = Math.max(160, Math.ceil(sw / sc)), OX = Math.round((LW - 160) / 2);
+  cvs.width = LW; cvs.height = 96 + EXTRA;
+  cvs.style.width = LW * sc + 'px'; cvs.style.height = (96 + EXTRA) * sc + 'px';
+  cvw.style.width = LW * sc + 'px'; cvw.style.height = (96 + EXTRA) * sc + 'px';
+  stage.style.background = SKY;
   g.imageSmoothingEnabled = false;
   const inp = $q('nwb-in'), host = $q('nwb-q'), ov = $q('nwb-ov');
 
   const whiteOf = c => { const w = document.createElement('canvas'); w.width = c.width; w.height = c.height; const x = w.getContext('2d'); x.drawImage(c, 0, 0); x.globalCompositeOperation = 'source-atop'; x.fillStyle = '#fff'; x.fillRect(0, 0, w.width, w.height); return w; };
   const art = {
-    bg: PX.bg(cfg.rk === 'forest' ? 'forest' : 'grass'),
-    zr: PX.zone('dodge'), zb: PX.zone('defend'),
+    bg: PX.bg(cfg.rk === 'forest' ? 'forest' : 'grass', LW),
+    zr: PX.zone('dodge', LW), zb: PX.zone('defend', LW),
     mon: PX.canvas('monster', cfg.mk, 2, false), monA: PX.canvas('monster', cfg.mk, 2, true),
     hero: PX.hero(env.myHero(weapon), 1)
   };
@@ -119,13 +123,15 @@ export function startBattle(env, cfg, done) {
     combo: 0, maxCombo: 0, typed: 0, correct: 0, answered: 0, perfect: 0,
     gauge: 0, sharp: 0, mag: 0,
     dodgeOk: 0, dodgeAll: 0, defOk: 0, defAll: 0,
-    flags: { fast: 0, paste: 0, wrong: 0 }, fx: [], bubUntil: 0, sporeUntil: 0, lastUi: 0
+    flags: { fast: 0, paste: 0, wrong: 0 }, fx: [], hits: [], volley: null, bubUntil: 0, sporeUntil: 0, lastUi: 0
   };
   host.dataset.mode = mode;
 
   $q('nwb-mname').textContent = `${mon0.name} Lv ${lv}`;
   $q('nwb-wlabel').textContent = weapon === 'staff' ? '下一次詠唱' : weapon === 'bow' ? '力量條' : weapon === 'dagger' ? '下一次連環斬' : '彈匣';
-  $q('nwb-hint').innerHTML = '看到地上的紅色／藍色區域：打「<b style="color:var(--gold)">閃</b>」躲開，或打「<b style="color:var(--gold)">防</b>」擋住（英文：jump／stop）　Esc 換題' + (weapon === 'crossbow' ? '　輸入框空著按 Enter＝射箭' : '');
+  $q('nwb-hint').innerHTML = '紅／藍區域出現：打「<b style="color:#ffd98a">閃</b>」躲開、打「<b style="color:#ffd98a">防</b>」擋住';
+
+  $q('nwb-side').innerHTML = '<b class="px-text">操作</b><br>Enter 送出<br>Esc 換題<br>' + (weapon === 'crossbow' ? '空白 Enter＝連射' : '閃／防＝躲開／擋住');
 
   const tierIdx = () => Math.min(3, (lv < 10 ? 0 : lv < 20 ? 1 : 2) + (S.mon.angry ? 1 : 0));
   function pickWord() {
@@ -205,16 +211,17 @@ export function startBattle(env, cfg, done) {
   }
   function floatText(text, x, y, color, big) {
     const f = document.createElement('div'); f.className = 'nwb2-float'; f.textContent = text;
-    f.style.left = (x / 1.6) + '%'; f.style.top = (y / .96) + '%'; f.style.color = color; f.style.fontSize = big ? '1.7em' : '1.2em';
+    f.style.left = ((x + OX) / LW * 100) + '%'; f.style.top = ((y + EXTRA) / (96 + EXTRA) * 100) + '%'; f.style.color = color; f.style.fontSize = big ? '1.7em' : '1.2em';
     ov.appendChild(f); setTimeout(() => f.remove(), 1000);
   }
   const addFx = (kind, o) => S.fx.push(Object.assign({ kind, t0: nowS(), dur: .3 }, o));
 
-  function hitMonster(dmg, note, color) {
-    if (dmg <= 0) return;
+  function hitMonster(dmg, note, color, small) {
+    if (dmg <= 0 || S.over) return;
     S.mon.hp = Math.max(0, S.mon.hp - dmg);
     S.mon.flashUntil = nowS() + .15;
-    floatText(String(dmg), 80, 14, color || '#ffd24a', true);
+    if (small) floatText(String(dmg), 66 + Math.random() * 28, 14 + Math.random() * 18, color || '#fff', false);
+    else floatText(String(dmg), 80, 14, color || '#ffd24a', true);
     if (note) floatText(note, 80, 24, '#fff');
     if (!S.mon.angry && S.mon.hp > 0 && S.mon.hp <= S.mon.max * BAL.angryAt) {
       S.mon.angry = true;
@@ -277,12 +284,32 @@ export function startBattle(env, cfg, done) {
     nextQuestion(); updateUi(true);
   }
   function fire() {
+    if (S.volley || S.mag <= 0) return;
     const n = S.mag; S.mag = 0;
-    const dmg = Math.round(n * BAL.arrowDmg * (1 + BAL.arrowBonusPer * n) * angryMul());
-    addFx('volley', { dur: .6, n }); S.me.atkAt = nowS();
-    banner(`🏹 ${n} 支箭射出！`, '#dfe6ec');
-    setTimeout(() => { if (!S.over) hitMonster(dmg, `${n} 連射`); }, 350);
+    const total = Math.round(n * BAL.arrowDmg * (1 + BAL.arrowBonusPer * n) * angryMul());
+    const each = Math.floor(total / n);
+    S.volley = { n, i: 0, next: nowS(), each, rest: total - each * n };
+    banner(`🔫 連射 ×${n}！`, '#dfe6ec');
     updateUi(true);
+  }
+  function runVolley(T) {
+    const v = S.volley;
+    if (v) {
+      while (v.i < v.n && T >= v.next) {
+        v.i++;
+        addFx('mg', { dur: .13, jy: (Math.random() - .5) * 10 });
+        addFx('muzzle', { dur: .07 });
+        S.me.atkAt = T;
+        S.hits.push({ at: T + .12, dmg: v.each + (v.i === v.n ? v.rest : 0), last: v.i === v.n, n: v.n });
+        v.next += .055;
+      }
+      if (v.i >= v.n) S.volley = null;
+    }
+    while (S.hits.length && S.hits[0].at <= T) {
+      const h = S.hits.shift();
+      addFx('spark', { dur: .12, x: 68 + Math.random() * 26, y: 12 + Math.random() * 28 });
+      hitMonster(h.dmg, h.last ? `${h.n} 連射！` : '', '#e8f2ff', true);
+    }
   }
   function skip() {
     if (S.over || S.me.down || S.action) return;
@@ -402,13 +429,14 @@ export function startBattle(env, cfg, done) {
   }
 
   function draw(T) {
-    g.clearRect(0, 0, 160, 96);
-    g.drawImage(art.bg, 0, 0);
+    g.fillStyle = SKY; g.fillRect(0, 0, LW, 96 + EXTRA);
+    g.drawImage(art.bg, 0, EXTRA);
     if (S.cast) {
       g.globalAlpha = .65 + .3 * Math.sin(T * 9);
-      g.drawImage(S.cast.atk.type === 'dodge' ? art.zr : art.zb, 0, 0);
+      g.drawImage(S.cast.atk.type === 'dodge' ? art.zr : art.zb, 0, EXTRA);
       g.globalAlpha = 1;
     }
+    g.save(); g.translate(OX, EXTRA);
     g.fillStyle = 'rgba(0,0,0,.35)'; g.beginPath(); g.ellipse(80, 61, 32, 4, 0, 0, 7); g.fill();
     const lunge = T - S.mon.lungeAt < .35 ? Math.sin((T - S.mon.lungeAt) / .35 * Math.PI) * 9 : 0;
     const mx = 40 + (S.mon.angry ? Math.round(Math.sin(T * 30)) : 0), my = -2 + Math.round(Math.sin(T * 2) * 1) + Math.round(lunge);
@@ -446,8 +474,15 @@ export function startBattle(env, cfg, done) {
       if (f.kind === 'bolt') { g.strokeStyle = '#c9a6ff'; g.lineWidth = f.w; g.beginPath(); g.moveTo(sx, sy); g.lineTo(sx + (80 - sx) * p, sy + (34 - sy) * p); g.stroke(); g.strokeStyle = '#fff'; g.lineWidth = 1; g.stroke(); }
       if (f.kind === 'arrow') { const ax = sx + (84 - sx) * p, ay = sy + (36 - sy) * p; g.strokeStyle = f.gold ? '#ffd24a' : '#dfe6ec'; g.lineWidth = f.gold ? 2 : 1; g.beginPath(); g.moveTo(ax - 9, ay + 3 * p); g.lineTo(ax, ay); g.stroke(); }
       if (f.kind === 'slash') for (let i = 0; i < f.n; i++) { const tp = clamp(p * f.n - i, 0, 1); if (tp > 0 && tp < 1) { g.strokeStyle = '#fff'; g.lineWidth = 2; g.beginPath(); g.moveTo(66 + i * 8, 14 + i * 6); g.lineTo(96 - i * 8, 40 + i * 4); g.stroke(); } }
-      if (f.kind === 'volley') for (let i = 0; i < Math.min(f.n, 20); i++) { const tp = clamp(p * 1.6 - i * .03, 0, 1); if (tp > 0 && tp < 1) { const ax = sx + (86 - sx) * tp, ay = sy + (20 + (i % 6) * 4 - sy) * tp; g.strokeStyle = '#dfe6ec'; g.beginPath(); g.moveTo(ax - 8, ay); g.lineTo(ax, ay); g.stroke(); } }
+      if (f.kind === 'mg') {
+        const tx = 80, ty = 30 + f.jy, ax = sx + (tx - sx) * p, ay = sy + (ty - sy) * p;
+        g.strokeStyle = '#ffe9a0'; g.lineWidth = 2.5; g.beginPath(); g.moveTo(ax - 10 * (1 - p * .3), ay + (sy - ty) * .02); g.lineTo(ax, ay); g.stroke();
+        g.fillStyle = '#fff'; g.fillRect(Math.round(ax) - 1, Math.round(ay) - 1, 2, 2);
+      }
+      if (f.kind === 'muzzle') { g.fillStyle = '#fff6c0'; g.fillRect(sx - 1, sy - 2, 5, 4); g.fillStyle = '#ffb030'; g.fillRect(sx + 3, sy - 3, 3, 6); g.fillRect(sx + 1, sy - 4, 2, 2); g.fillRect(sx + 1, sy + 2, 2, 2); }
+      if (f.kind === 'spark') { g.fillStyle = '#fff'; g.fillRect(f.x, f.y - 2, 1, 5); g.fillRect(f.x - 2, f.y, 5, 1); g.fillStyle = '#ffd24a'; g.fillRect(f.x - 1, f.y - 1, 3, 3); }
     });
+    g.restore();
   }
 
   let raf = 0;
@@ -458,6 +493,7 @@ export function startBattle(env, cfg, done) {
       S.me.down = false; S.me.hp = S.me.max; inp.disabled = false; inp.focus();
       banner('站起來了！', '#8ec96b', true);
     }
+    runVolley(T);
     if (S.action && T >= S.action.end) endAction();
     if (!S.cast && T >= S.nextCast && !S.me.down) castStart(T);
     if (S.cast && T >= S.cast.hitAt) castResolve(T);
@@ -508,7 +544,7 @@ export function startBattle(env, cfg, done) {
 
   function finish(result) {
     if (S.over) return;
-    S.over = true; cancelAnimationFrame(raf);
+    S.over = true; S.volley = null; S.hits = []; cancelAnimationFrame(raf);
     const secs = Math.min(BAL.timeLimit, nowS() - S.T0);
     inp.disabled = true;
     const win = result === 'win';

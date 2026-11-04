@@ -716,8 +716,6 @@ select option{background:var(--panel2);color:var(--ink)}
     <div class="flex items-center gap-4">
       <span class="text-base" style="color:var(--dim)">在營地待命中・等老師開戰</span>
       <span id="lobby-sub" class="text-sm" style="color:#e5705f"></span>
-      <button id="btn-nw-enter" class="hidden btn btn-gold text-sm px-3 py-2">🌋 新世界<span id="nw-lock-txt"></span></button>
-      <button id="btn-nw-code" class="hidden btn btn-ghost text-sm px-3 py-2" style="color:var(--dim)">🔑 搶先體驗</button>
       <button id="btn-talent" class="btn btn-ghost text-sm px-3 py-2">
         <span class="ico-slot" data-ico="sparkle" data-ico-size="16"></span>天賦<span id="talent-dot"></span><span class="can-txt">可以點了！</span></button>
       <button id="btn-rank" class="btn btn-ghost text-sm px-3 py-2">
@@ -727,6 +725,13 @@ select option{background:var(--panel2);color:var(--ink)}
       <button id="btn-teacher-lobby" class="btn btn-ghost text-sm px-3 py-2" style="color:var(--dim)">
         <span class="ico-slot" data-ico="gear" data-ico-size="16"></span></button>
     </div>
+  </div>
+
+  <div class="lobby-sec">
+    <button id="nw-door" data-state="locked" class="px-panel w-full text-left" style="display:flex;align-items:center;gap:16px;padding:6px 18px;cursor:pointer;font-family:inherit">
+      <canvas id="nw-door-cv" width="40" height="56" style="width:80px;height:112px;image-rendering:pixelated;flex:none"></canvas>
+      <div><div class="px-title" style="font-size:22px">新世界之門</div><div id="nw-door-sub" class="px-text" style="font-size:15px;margin-top:4px"></div></div>
+    </button>
   </div>
 
   <!-- ① 武器區 -->
@@ -5425,13 +5430,26 @@ function gotoLobby() {
   paintNwButton();
 }
 
+let doorTimer = 0, doorState = '';
+function paintNwDoor(state, sub) {
+  $('nw-door').dataset.state = state;
+  setTxt('nw-door-sub', sub);
+  if (doorState === state && doorTimer) return;
+  doorState = state; clearInterval(doorTimer);
+  const g = $('nw-door-cv').getContext('2d');
+  g.imageSmoothingEnabled = false;
+  const draw = t => { g.clearRect(0, 0, 40, 56); g.drawImage(PX.door(state, t, 1), 0, 0); };
+  draw(0);
+  if (state === 'open') { let t = 0; doorTimer = setInterval(() => { if (!$('screen-lobby').classList.contains('hidden')) draw(t += .125); }, 120); }
+}
+
 async function paintNwButton() {
   if (!NWG) return;
   await NWG.refresh();
   const g = NWG.gate();
-  show('btn-nw-enter', g.ok || !g.closed);
-  show('btn-nw-code', !!g.closed);
-  setTxt('nw-lock-txt', !g.ok && !g.closed ? `　🔒 LV ${BALANCE.unlockLevel.epic}` : '');
+  if (g.ok) paintNwDoor('open', g.early ? '搶先體驗！穿過去，開始冒險。' : '穿過去，開始冒險。');
+  else if (g.closed) paintNwDoor('locked', '還沒開放。有通關密語的同學，點一下門輸入。');
+  else paintNwDoor('locked', `打到 LV ${BALANCE.unlockLevel.epic} 才能進（你目前最高 LV ${myBestLevel()}）。`);
 }
 
 /* 「結算」鍵：提早結束這一場，但**成績照算照存**。
@@ -7143,8 +7161,10 @@ function wireEvents() {
     q: { questionUnits, judge, canon, splitZhuyin, IS_PUNCT,
          pool: name => (BANK[name] && BANK[name].length) ? BANK[name] : (DEFAULT_BANK[name] || []) }
   });
-  $('btn-nw-enter').addEventListener('click', () => NWG.enter());
-  $('btn-nw-code').addEventListener('click', () => NWG.openCode(paintNwButton));
+  $('nw-door').addEventListener('click', () => {
+    const g = NWG.gate();
+    if (g.ok) NWG.enter(); else if (g.closed) NWG.openCode(paintNwButton); else toast(g.why, 3200);
+  });
   $('btn-enter').addEventListener('click', doLogin);
   $('in-name').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 

@@ -16,7 +16,7 @@ async function open(browser, starter, extra) {
   p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push('console: ' + m.text()); });
   const { sha256Hex } = await import('../../nw-access.js');
   const hash = await sha256Hex('Test-Pass_9!x');
-  await p.addInitScript(a => { window.__FS = a.s; localStorage.clear(); window.__NW_CODE_HASH__ = a.hash; localStorage.setItem('mg_nw_code', a.hash); window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas'); }, { s: seedFor(starter, extra), hash });
+  await p.addInitScript(a => { window.__FS = a.s; localStorage.clear(); localStorage.setItem('mg_nw_fast', '1'); window.__NW_CODE_HASH__ = a.hash; localStorage.setItem('mg_nw_code', a.hash); window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas'); }, { s: seedFor(starter, extra), hash });
   await p.route('**/*', r => {
     const u = r.request().url();
     if (u.startsWith('http://localhost')) return r.continue();
@@ -28,11 +28,11 @@ async function open(browser, starter, extra) {
   await p.goto('http://localhost:8765/index.html'); await p.waitForTimeout(1300);
   await p.selectOption('#in-grade', '五年級'); await p.selectOption('#in-class', '3班');
   await p.fill('#in-seat', '5'); await p.waitForTimeout(900); await p.click('#btn-enter'); await p.waitForTimeout(1000);
-  await p.click('#btn-nw-enter'); await p.waitForTimeout(900);
+  await p.click('#nw-door'); await p.waitForTimeout(900);
   p.errs = errs; return p;
 }
 const goHunt = async (p, region, mon, star) => {
-  await p.click('[data-act="map"]'); await p.click(`[data-region="${region}"]`); await p.waitForTimeout(200);
+  await p.click('.vb[data-bld="board"]'); await p.waitForSelector('[data-view="map"]'); await p.click(`[data-region="${region}"]`); await p.waitForTimeout(200);
   await p.click(`[data-mon="${mon}"]`); await p.waitForTimeout(200);
   if (star) await p.click(`[data-star="${star}"]`);
   await p.click('[data-go]'); await p.waitForTimeout(80);

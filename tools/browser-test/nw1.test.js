@@ -15,7 +15,7 @@ const seed = {
   const errs = []; p.on('dialog', d => d.accept());
   p.on('pageerror', e => errs.push('pageerror: ' + e.message));
   p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push('console: ' + m.text()); });
-  await p.addInitScript(a => { const s = a.s; window.__NW_CODE_HASH__ = a.hash; window.__FS = s; localStorage.clear(); window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas'); }, { s: seed, hash: HASH });
+  await p.addInitScript(a => { const s = a.s; window.__NW_CODE_HASH__ = a.hash; window.__FS = s; localStorage.clear(); localStorage.setItem('mg_nw_fast', '1'); window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas'); }, { s: seed, hash: HASH });
   await p.route('**/*', r => {
     const u = r.request().url();
     if (u.startsWith('http://localhost')) return r.continue();
@@ -28,32 +28,31 @@ const seed = {
     await p.selectOption('#in-grade', '五年級'); await p.selectOption('#in-class', '3班');
     await p.fill('#in-seat', String(seat)); await p.waitForTimeout(900); await p.click('#btn-enter'); await p.waitForTimeout(1200);
   };
-  const redeem = async c => { await p.click('#btn-nw-code'); await p.fill('#nw-code-in', c); await p.press('#nw-code-in', 'Enter'); await p.waitForTimeout(600); };
+  const redeem = async c => { await p.click('#nw-door'); await p.fill('#nw-code-in', c); await p.press('#nw-code-in', 'Enter'); await p.waitForTimeout(600); };
   await p.goto('http://localhost:8765/index.html'); await p.waitForTimeout(1500);
   await login(6);
-  ok(await p.isHidden('#btn-nw-enter'), '新世界還沒開放：一般同學看不到「新世界」按鈕');
-  ok(await p.isVisible('#btn-nw-code'), '只有「搶先體驗」輸入密語的小按鈕');
+  ok(await p.$eval('#nw-door', e => e.dataset.state) === 'locked', '新世界還沒開放：營地的門是灰色鎖著的');
+  ok((await p.textContent('#nw-door-sub')).includes('通關密語'), '門上寫著「有通關密語的同學，點一下門輸入」');
   await redeem('亂打的密語');
   ok(await p.isVisible('#nw-code-in') && (await p.textContent('#nw-code-err')).includes('密語不對'), '亂打的密語被擋下');
   await p.fill('#nw-code-in', PASS.toLowerCase()); await p.press('#nw-code-in', 'Enter'); await p.waitForTimeout(500);
   ok(await p.isVisible('#nw-code-in'), '大小寫不對：不通過');
   await p.fill('#nw-code-in', ' ' + PASS + ' \n'); await p.press('#nw-code-in', 'Enter'); await p.waitForTimeout(700);
-  ok(await p.isHidden('#nw-code-in') && await p.isVisible('#btn-nw-enter'), '密語正確（前後有空白也行）：出現「新世界」按鈕');
-  ok(await p.isHidden('#btn-nw-code'), '通過後不再顯示輸入密語的按鈕');
-  await p.click('#btn-nw-enter'); await p.waitForTimeout(500);
+  ok(await p.isHidden('#nw-code-in') && await p.$eval('#nw-door', e => e.dataset.state) === 'open', '密語正確（前後有空白也行）：門變成開著的');
+    await p.click('#nw-door'); await p.waitForTimeout(500);
   ok(await p.isVisible('#nw-root'), 'LV3 的同學拿到密語，不用到 LV8 也能進');
   await p.click('[data-save]'); await p.click('[data-card="staff"]'); await p.click('[data-ok]'); await p.waitForTimeout(400);
   await p.click('[data-act="leave"]'); await p.waitForTimeout(300);
   await p.evaluate(() => { window.__NW_CODE_HASH__ = 'changed'; });
   await p.click('#btn-relogin'); await p.waitForTimeout(500);
   await login(6);
-  ok(await p.isHidden('#btn-nw-enter') && await p.isVisible('#btn-nw-code'), '老師換了新密語：舊的立刻失效');
+  ok(await p.$eval('#nw-door', e => e.dataset.state) === 'locked' && await p.isVisible('#nw-door'), '老師換了新密語：舊的立刻失效');
   await p.evaluate(h => { window.__NW_CODE_HASH__ = h; }, HASH);
   await p.click('#btn-relogin'); await p.waitForTimeout(500);
 
   await login(5);
-  ok(await p.isVisible('#btn-nw-enter'), '同一台電腦記得密語：換座號 5 也是開放的（一個字串，不分人）');
-  await p.click('#btn-nw-enter'); await p.waitForTimeout(800);
+  ok(await p.$eval('#nw-door', e => e.dataset.state) === 'open', '同一台電腦記得密語：換座號 5 也是開放的（一個字串，不分人）');
+  await p.click('#nw-door'); await p.waitForTimeout(800);
   ok(await p.isVisible('#nw-root') && (await p.textContent('#nw-root')).includes('歡迎來到新世界'), '第一次進來先選造型');
   await p.click('[data-k="style"][data-i="2"]'); await p.click('[data-k="hair"][data-i="4"]'); await p.click('[data-k="skin"][data-i="3"]');
   await p.screenshot({ path: OUT + '/nw1-creator.png' });
@@ -63,7 +62,7 @@ const seed = {
   await p.waitForTimeout(1200);
   await p.screenshot({ path: OUT + '/nw1-starter.png' });
   await p.click('[data-card="crossbow"]'); await p.click('[data-ok]'); await p.waitForTimeout(600);
-  ok((await p.textContent('#nw-root')).includes('獵人等級 1'), '選好武器進獵人村');
+  ok((await p.textContent('#nw-root')).includes('獵人 Lv 1'), '選好武器進獵人村');
   let nw = await p.evaluate(() => JSON.parse(localStorage.getItem('mg_nw_五年級3班_5號')));
   ok(nw.starter === 'crossbow' && nw.look.style === 2 && nw.look.hair === 4 && nw.look.skin === 3, '造型與武器存在本機');
   ok(nw.items.potion === 3 && nw.quest.done.includes('1-0'), '主線 1-0 完成、拿到回復藥');
@@ -73,21 +72,22 @@ const seed = {
   ok(await p.evaluate(() => window.__FS['mg_scores/五年級3班_5號'].bestLevel) === 10, '原世界紀錄沒被動到');
   await p.screenshot({ path: OUT + '/nw1-hub.png' });
 
-  ok((await p.$$('.nwh-card.wip')).length === 6, '六個施工中設施');
-  await p.click('[data-wip="forge"]'); await p.waitForTimeout(300);
-  ok((await p.textContent('body')).includes('施工中・第 2 段開放'), '點施工中跳預告卡');
+  ok((await p.$$('.vb')).length === 11, '村莊有 10 棟建築與 1 個傳送門');
+  ok((await p.$$eval('.vb', els => els.filter(e => e.textContent.includes('🔒')).length)) === 6, '六棟還沒開放的建築有鎖');
+  await p.click('.vb[data-bld="forge"]'); await p.waitForTimeout(900);
+  ok((await p.textContent('body')).includes('施工中・第 2 段開放'), '走到施工中的建築門口：跳出預告卡');
   await p.screenshot({ path: OUT + '/nw1-wip.png' });
   await p.click('[data-close]');
 
-  await p.click('[data-act="equip"]'); await p.waitForTimeout(300);
+  await p.click('.vb[data-bld="equip"]'); await p.waitForTimeout(900);
   ok((await p.$$('#nw-root .nwh-card.wip')).length === 5, '武器圖鑑 5 把鎖著');
   await p.screenshot({ path: OUT + '/nw1-equip.png' });
   await p.click('[data-act="hub"]');
-  await p.click('[data-act="quest"]'); await p.waitForTimeout(200);
+  await p.click('.vb[data-bld="quest"]'); await p.waitForTimeout(900);
   ok((await p.textContent('#nw-root')).includes('討伐泡泡蛙'), '任務面板顯示 1-1');
   await p.click('[data-act="hub"]');
 
-  await p.click('[data-act="map"]'); await p.waitForTimeout(300);
+  await p.click('.vb[data-bld="board"]'); await p.waitForTimeout(900);
   ok((await p.$$('.nwm-pin')).length === 7, '地圖七個地方');
   ok((await p.$$('.nwm-pin.wip')).length === 5, '五個施工中');
   await p.screenshot({ path: OUT + '/nw1-map.png' });

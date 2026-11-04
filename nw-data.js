@@ -198,3 +198,20 @@ export function zoneOpen(nw, rk) {
   return (nw.zone[r.needs] || 0) >= 5;
 }
 export const starOpen = (nw, rk, star) => star <= 1 || (nw.zone[rk] || 0) >= star - 1;
+
+export const VILLAGE = {
+  cols: 12, rows: 36, path: [5, 6], start: [5, 31], gate: { x: 5, y: 35 },
+  buildings: [
+    { id: 'star', kind: 'star', side: 'R', x: 8, y: 1, name: '星圖台', wip: 5, text: '升級拿到的星星，可以在這裡點亮，讓閃避和防禦變得更強。' },
+    { id: 'rooms', kind: 'rooms', side: 'L', x: 1, y: 4, name: '組隊酒館', wip: 4, text: '開房間或加入同學的房間，最多 4 個人一起打大魔物。' },
+    { id: 'armor', kind: 'armor', side: 'R', x: 8, y: 7, name: '防具店', wip: 3, text: '頭盔、鎧甲、手套、靴子，穿上就會出現在你身上！' },
+    { id: 'shop', kind: 'shop', side: 'L', x: 1, y: 10, name: '商店', wip: 3, text: '用字元買回復藥，也可以賣掉用不到的材料。' },
+    { id: 'storage', kind: 'storage', side: 'R', x: 8, y: 13, name: '倉庫', wip: 2, text: '所有材料和圖紙都放在這裡，一目了然。' },
+    { id: 'forge', kind: 'forge', side: 'L', x: 1, y: 16, name: '鐵匠鋪', wip: 2, text: '用打到的材料，打造、強化自己的武器和裝備！' },
+    { id: 'rank', kind: 'rank', side: 'R', x: 8, y: 19, name: '榮譽碑', act: 'rank', text: '看看誰是最強獵人。' },
+    { id: 'equip', kind: 'equip', side: 'L', x: 1, y: 22, name: '造型屋', act: 'equip', text: '換武器、換髮型，看武器圖鑑。' },
+    { id: 'quest', kind: 'quest', side: 'R', x: 8, y: 25, name: '獵人公會', act: 'quest', text: '接任務、領獎勵。' },
+    { id: 'board', kind: 'board', side: 'L', x: 1, y: 28, name: '委託板', act: 'map', text: '選地方、選魔物，出發狩獵！' }
+  ]
+};
+export const doorTile = b => [b.x + 1, b.y + 3];
