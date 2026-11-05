@@ -3085,6 +3085,15 @@ const QUALITY_ORDER = ['normal','fine','epic','legend'];
 
 /* 目前這位學生的歷史紀錄（登入時撈、每場打完更新），難度鎖看的就是它 */
 let MY_HIST = null;
+const NW_TITLE_BY_ID = {};
+function nwTitleChip(t) {
+  return t ? ` <span style="display:inline-block;font-size:12px;font-weight:900;padding:1px 7px;border:2px solid var(--gold);color:var(--gold);border-radius:4px;vertical-align:middle">🏅 ${escHtml(t)}</span>` : '';
+}
+function paintWho() {
+  if (!ME.name) return;
+  $('lobby-who').innerHTML = `<div class="font-black text-2xl">${escHtml(ME.className)}　${escHtml(String(ME.seat))}號　${escHtml(ME.name)}${nwTitleChip(NW_TITLE_BY_ID[ME.docId])}</div>`;
+}
+function setNwTitle(t) { if (!ME.docId) return; NW_TITLE_BY_ID[ME.docId] = t; paintWho(); }
 /* 舊紀錄沒有 bestLevel 這個欄位時，用 bestKills 粗略換算（×2），
    不然老學生會在改版那天突然什麼都解鎖不了 */
 const myBestLevel = () =>
@@ -4987,7 +4996,7 @@ async function lookupHistory() {
   if (ONLINE) {
     try {
       const snap = await withTimeout(getDoc(doc(REF.scores, id)), 5000, '讀取逾時');
-      if (snap.exists()) { cloud = histFromDoc(snap.data()); cloudName = cloud.name || ''; }
+      if (snap.exists()) { cloud = histFromDoc(snap.data()); cloudName = cloud.name || ''; NW_TITLE_BY_ID[id] = snap.data().nwTitle || ''; }
     } catch (e) { console.warn('讀取歷史成績失敗', e); }
   }
   if (seq !== LOOKUP_SEQ) return;                 // 期間又改了座號，這次結果作廢
@@ -5070,8 +5079,7 @@ function doLogin() {
 
   show('login-err', false);
   show('screen-login', false);
-  $('lobby-who').innerHTML =
-    `<div class="font-black text-2xl">${ME.className}　${ME.seat}號　${ME.name}</div>`;
+  paintWho();
   /* 史上第一次登入（從沒完成教學、也沒打過任何一場）才會跳新手教學；
      老師已經開戰中就不打斷，直接進戰場（這位學生那堂課就先跳過教學）。 */
   if (ROUND.state === 'running') startBattle(false);
@@ -5175,7 +5183,7 @@ function renderRankBoard() {
     return `<div class="rank-row${me ? ' me' : ''}">
       <span class="rank-no">${medal || rank}</span>
       ${badge}
-      <span class="rank-name">${escHtml(x.r.name || '')}${scoreTab && !isNewScore(x.r)
+      <span class="rank-name">${escHtml(x.r.name || '')}${nwTitleChip(x.r.nwTitle)}${scoreTab && !isNewScore(x.r)
         ? ' <span class="text-[11px] px-1.5 rounded" style="border:1px solid var(--line2);color:var(--dim2)">舊版</span>' : ''}</span>
       <span class="rank-cls">${escHtml(x.r.className || '')} ${escHtml(String(x.r.seat || ''))}</span>
       <span class="rank-val mono">${m.fmt(x.v)}${m.unit}</span>
@@ -7158,6 +7166,7 @@ function wireEvents() {
     unlockLevel: BALANCE.unlockLevel.epic,
     nwMode: () => CFG.nwMode || 'off',
     nwCodeHash: () => CFG.nwCodeHash || '',
+    setTitle: setNwTitle,
     q: { questionUnits, judge, canon, splitZhuyin, IS_PUNCT,
          pool: name => (BANK[name] && BANK[name].length) ? BANK[name] : (DEFAULT_BANK[name] || []) }
   });

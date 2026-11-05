@@ -108,6 +108,24 @@ async function playUntil(p, pred, max = 80) {
     await p.close();
   }
 
+  {
+    const p = await open(b, 'staff', { titles: ['見習獵人'], stat: { wins: 9 } });
+    await p.keyboard.press('b'); await p.waitForTimeout(200);
+    await p.click('[data-bag-tab="title"]');
+    const bt = await p.textContent('#nw-bag');
+    ok(bt.includes('小小勇者') && bt.includes('見習獵人') && bt.includes('🔒'), '背包有「稱號」頁：有的亮著、沒有的鎖著並寫怎麼拿');
+    await p.click('[data-title="見習獵人"]'); await p.waitForTimeout(1300);
+    ok((await p.textContent('#lobby-who')).includes('見習獵人'), '戴上稱號：舊世界大廳的名字旁邊也看得到');
+    ok(await p.evaluate(() => window.__FS['mg_scores/五年級3班_5號'].nwTitle) === '見習獵人', '稱號也存在雲端 mg_scores.nwTitle（排行榜用）');
+    await p.keyboard.press('Escape');
+    await goHunt(p, 'grass', 'coo', 1);
+    ok(await playUntil(p, async () => false, 90), '打一場');
+    await p.waitForSelector('#nw-result', { timeout: 8000 });
+    ok((await p.textContent('#nw-result')).includes('得到稱號'), '第 10 場討伐成功：結算寫「得到稱號」');
+    ok(p.errs.length === 0, '稱號 沒有 JS 錯誤 ' + p.errs.join(' | '));
+    await p.close();
+  }
+
   for (const [wk, mon] of [['staff', 'frog'], ['bow', 'coo'], ['dagger', 'coo'], ['crossbow', 'coo']]) {
     const p = await open(b, wk);
     await goHunt(p, 'grass', mon, 1);

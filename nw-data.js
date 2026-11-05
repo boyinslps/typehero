@@ -171,7 +171,7 @@ export const defaultNw = () => ({
   v: 1, savedAt: 0, look: null, starter: null, swaps: 0, hunts: 0,
   hr: 1, hrExp: 0, stars: 0, coins: 0, mats: {}, items: {}, bp: [],
   zone: { grass: 0, forest: 0 }, dex: {}, fastest: {},
-  quest: { done: [] }, title: '',
+  quest: { done: [] }, title: '', titles: [],
   stat: { dodgeOk: 0, dodgeAll: 0, defOk: 0, defAll: 0, accN: 0, accSum: 0, wins: 0, fails: 0 },
   flags: 0
 });
@@ -186,7 +186,36 @@ export function normalizeNw(d) {
   if (!Array.isArray(o.quest.done)) o.quest.done = [];
   o.mats = d.mats || {}; o.items = d.items || {}; o.dex = d.dex || {}; o.fastest = d.fastest || {};
   o.bp = Array.isArray(d.bp) ? d.bp : [];
+  o.titles = Array.isArray(d.titles) ? d.titles : [];
+  if (o.title && !o.titles.includes(o.title)) o.titles.push(o.title);
   return o;
+}
+
+export const TITLES = [
+  { id: 'rookie', name: '見習獵人', how: '完成主線「閃避成功 5 次、防禦成功 5 次」', test: () => false, quest: true },
+  { id: 'win10', name: '小小勇者', how: '討伐成功 10 次', test: n => n.stat.wins >= 10 },
+  { id: 'win50', name: '百戰獵人', how: '討伐成功 50 次', test: n => n.stat.wins >= 50 },
+  { id: 'hr5', name: '熟練獵人', how: '獵人等級 5', test: n => n.hr >= 5 },
+  { id: 'hr10', name: '資深獵人', how: '獵人等級 10', test: n => n.hr >= 10 },
+  { id: 'hr20', name: '王牌獵人', how: '獵人等級 20', test: n => n.hr >= 20 },
+  { id: 'grass5', name: '草原霸主', how: '打贏草原 ★5', test: n => (n.zone.grass || 0) >= 5 },
+  { id: 'dex4', name: '圖鑑達人', how: '開放的魔物都討伐過', test: n => Object.keys(MONSTERS).filter(k => !MONSTERS[k].wip).every(k => (n.dex[k] || 0) > 0) },
+  { id: 'dodge', name: '殘影', how: '閃避成功 30 次', test: n => n.stat.dodgeOk >= 30 },
+  { id: 'defend', name: '不動如山', how: '防禦成功 30 次', test: n => n.stat.defOk >= 30 },
+  { id: 'perfect', name: '一字不差', how: '正確率 100% 打贏 Lv10 以上的魔物', test: n => (n.perfect || 0) > 0 }
+];
+
+export function grantTitle(nw, name) {
+  if (nw.titles.includes(name)) return false;
+  nw.titles.push(name);
+  if (!nw.title) nw.title = name;
+  return true;
+}
+
+export function checkTitles(nw) {
+  const got = [];
+  for (const t of TITLES) if (!t.quest && t.test(nw) && grantTitle(nw, t.name)) got.push(t.name);
+  return got;
 }
 
 export const currentQuest = nw => MAIN_QUESTS.find(q => !nw.quest.done.includes(q.id)) || null;

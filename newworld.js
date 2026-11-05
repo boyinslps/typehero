@@ -2,12 +2,13 @@ import { PX } from './pixel.js';
 import {
   LOOK, DEFAULT_LOOK, heroLook, STARTERS, LOCKED_WEAPONS, REGIONS, MAP_POS, ELEM, STATUS, MONSTERS,
   regionLv, MAIN_QUESTS, normalizeNw, currentQuest, zoneOpen, starOpen, addHrExp, hrNeed, huntExp, huntCoins,
-  COLOR_NAME, COLOR_HEX, HR_MAX, VILLAGE, doorTile
+  COLOR_NAME, COLOR_HEX, HR_MAX, VILLAGE, doorTile, TITLES, grantTitle, checkTitles
 } from './nw-data.js';
 import { injectUi } from './nw-ui.js';
 import { mountVillage } from './nw-village.js';
 import { mountBoard } from './nw-board.js';
 import { startBattle } from './nw-battle.js';
+import { openNwRank } from './nw-rank.js';
 import { DEFAULT_CODE_HASH, sha256Hex, cleanCode } from './nw-access.js';
 
 const CSS = `
@@ -92,6 +93,7 @@ export function initNewWorld(C) {
     }
     const pick = (cloud && (!local || (cloud.savedAt || 0) >= (local.savedAt || 0))) ? cloud : local;
     NW = normalizeNw(pick);
+    if (C.setTitle) C.setTitle(NW.title || '');
   }
   function saveNw() {
     NW.savedAt = Date.now();
@@ -101,7 +103,7 @@ export function initNewWorld(C) {
   }
   function pushCloud() {
     if (!C.online() || !NW) return;
-    C.withTimeout(C.setDoc(docRef(), { className: ME.className, seat: ME.seat, name: ME.name, nw: NW }, { merge: true }), 6000, 'nw-save')
+    C.withTimeout(C.setDoc(docRef(), { className: ME.className, seat: ME.seat, name: ME.name, nwTitle: NW.title || '', nw: NW }, { merge: true }), 6000, 'nw-save')
       .catch(e => console.warn('新世界存檔失敗', e));
   }
 
@@ -171,7 +173,7 @@ export function initNewWorld(C) {
       const r = q.reward || {};
       if (r.items) for (const k in r.items) NW.items[k] = (NW.items[k] || 0) + r.items[k];
       if (r.hrExp) addHrExp(NW, r.hrExp);
-      if (r.title) NW.title = r.title;
+      if (r.title) grantTitle(NW, r.title);
       if (r.bp) r.bp.forEach(b => { if (!NW.bp.includes(b)) NW.bp.push(b); });
       got.push(q);
     }
@@ -455,6 +457,15 @@ export function initNewWorld(C) {
       return `<h3 class="text-lg mb-2">圖紙</h3>${rows.length ? `<div class="grid gap-2" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr))">${rows.join('')}</div>` : '<p class="px-text">還沒有圖紙。打倒魔物有機會掉。</p>'}`;
     }
     if (tab === 'quest') return questBody();
+    if (tab === 'title') {
+      const rows = TITLES.map(t => {
+        const has = NW.titles.includes(t.name), on = NW.title === t.name;
+        return `<div class="px-panel in flex items-center gap-2" style="padding:6px 10px;${on ? 'outline:3px solid #ffd24a' : ''}${has ? '' : ';opacity:.55'}">
+          <div class="flex-1"><b class="px-text" style="color:${has ? '#ffd98a' : '#aab0d8'}">${has ? '🏅' : '🔒'} ${t.name}</b><div class="text-xs" style="color:#aab0d8">${t.how}</div></div>
+          ${has ? `<button class="px-btn ${on ? 'gold' : ''}" data-title="${on ? '' : t.name}">${on ? '戴著' : '戴上'}</button>` : ''}</div>`;
+      }).join('');
+      return `<h3 class="text-lg mb-1">稱號</h3><p class="text-xs mb-2" style="color:#aab0d8">戴上的稱號會顯示在排行榜、組隊房間，連舊世界的大廳也看得到。</p><div class="grid gap-2">${rows}</div>`;
+    }
     const mons = Object.entries(MONSTERS).map(([k, m]) => `<div class="px-panel in text-center" style="padding:6px"><div class="px-img" data-sprite="monster:${k}:3" style="${(NW.dex[k] || 0) ? '' : 'filter:grayscale(1) brightness(.35)'}"></div>
       <div class="text-sm font-bold">${(NW.dex[k] || 0) ? m.name : '？？？'}</div><div class="text-xs" style="color:#aab0d8">打過 ${NW.dex[k] || 0} 次</div></div>`).join('');
     const own = Object.entries(STARTERS).map(([k, st]) => `<div class="px-panel in text-center" style="padding:6px;${k === NW.starter ? 'outline:3px solid #e8b64c' : ''}"><div class="px-img" data-sprite="weapon:${k}:3"></div><div class="text-sm font-bold">${st.kind}</div></div>`).join('');
@@ -463,10 +474,12 @@ export function initNewWorld(C) {
       <h3 class="text-lg mt-4 mb-2">武器圖鑑</h3><div class="grid gap-2" style="grid-template-columns:repeat(auto-fill,minmax(110px,1fr))">${own}${locked}</div>`;
   }
 
+  function syncTitle() { if (C.setTitle) C.setTitle(NW.title || ''); }
+
   function closeBag() { const b = document.getElementById('nw-bag'); if (b) b.remove(); }
   function openBackpack(tab) {
     closeBag();
-    const TABS = [['equip', '⚔', '裝備'], ['items', '🧪', '道具'], ['mats', '📦', '材料'], ['bp', '📜', '圖紙'], ['quest', '🧭', '任務'], ['dex', '📖', '圖鑑']];
+    const TABS = [['equip', '⚔', '裝備'], ['items', '🧪', '道具'], ['mats', '📦', '材料'], ['bp', '📜', '圖紙'], ['quest', '🧭', '任務'], ['title', '🏅', '稱號'], ['dex', '📖', '圖鑑']];
     const sheet = document.createElement('div');
     sheet.id = 'nw-bag'; sheet.className = 'fixed inset-0 z-[75] overflow-y-auto'; sheet.style.background = 'rgba(9,8,18,.9)';
     sheet.innerHTML = `<div class="max-w-4xl mx-auto p-3"><div class="px-panel" style="padding:12px">
@@ -483,6 +496,8 @@ export function initNewWorld(C) {
     sheet.addEventListener('click', e => {
       if (e.target === sheet || e.target.closest('[data-bag-close]')) { closeBag(); return; }
       const t = e.target.closest('[data-bag-tab]'); if (t) { render(t.dataset.bagTab); return; }
+      const tt = e.target.closest('[data-title]');
+      if (tt) { NW.title = tt.dataset.title; syncTitle(); saveNw(); render('title'); return; }
       const a = e.target.closest('[data-bag-act]');
       if (a) { closeBag(); if (a.dataset.bagAct === 'starter') viewStarter(); else viewCreator(false); }
     });
@@ -582,6 +597,7 @@ export function initNewWorld(C) {
     if (res.valid) {
       if (sum.win) {
         s.wins++;
+        if (res.accuracy >= 100 && lv >= 10) NW.perfect = (NW.perfect || 0) + 1;
         NW.dex[res.mk] = (NW.dex[res.mk] || 0) + 1;
         if (res.star > (NW.zone[res.rk] || 0)) NW.zone[res.rk] = res.star;
         const key = res.rk + ':' + res.star;
@@ -603,6 +619,8 @@ export function initNewWorld(C) {
       });
     }
     sum.quests = checkQuests();
+    sum.titles = checkTitles(NW);
+    if (sum.titles.length || sum.quests.length) syncTitle();
     saveNw();
     return sum;
   }
@@ -641,6 +659,7 @@ export function initNewWorld(C) {
           <div class="flex gap-5 mt-3 px-text" style="font-size:1.1em"><span>🪙 字元 +<b data-n="${sum.coins}">0</b></span><span>⭐ 獵人經驗 +<b data-n="${sum.exp}">0</b></span></div>
           <div class="flex items-center gap-2 mt-2"><b class="px-text" style="color:#ffd98a">獵人 Lv ${NW.hr}</b><div class="px-bar xp flex-1"><i data-hr style="width:${p0}%"></i></div></div>
           ${sum.ups ? `<div class="px-title mt-2 px-cursor" style="font-size:1.2em">獵人等級升到 ${NW.hr}！拿到 ${sum.ups} 顆星星（第 5 段才能用，先存著）</div>` : ''}
+          ${(sum.titles || []).map(t => `<div class="px-title mt-2 px-cursor" style="font-size:1.2em">🏅 得到稱號「${escHtml(t)}」！到背包的「稱號」可以戴上</div>`).join('')}
           <p class="text-xs mt-2" style="color:#aab0d8">材料和圖紙先幫你存著，鐵匠鋪開張就能用。</p>` : ''}
         <div class="mt-5 text-right"><button class="px-btn gold" style="padding:10px 30px;font-size:1.1em" data-close>回公會</button></div>
       </div></div>`;
@@ -651,7 +670,7 @@ export function initNewWorld(C) {
     sheet.querySelectorAll('[data-n]').forEach(el => { const to = +el.dataset.n, t0 = performance.now(); const tick = now => { const k = Math.min(1, (now - t0) / 800); el.textContent = Math.round(to * k); if (k < 1 && el.isConnected) requestAnimationFrame(tick); }; requestAnimationFrame(tick); });
   }
 
-  function openRank() { toast('排行榜做中，馬上來！', 2000); }
+  function openRank() { openNwRank(C, ME.docId, escHtml); }
 
   function env() {
     return {

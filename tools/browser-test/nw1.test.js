@@ -126,6 +126,24 @@ const seed = {
   await p.keyboard.press('Enter'); await p.waitForSelector('#nwbd-board', { timeout: 3000 });
   ok(true, '按 Enter 才進去');
 
+  await p.evaluate(() => {
+    const mk = (name, hr, dex, fast, accN, accSum) => ({ className: '五年級4班', seat: 1, name, nw: { hr, hrExp: 3, dex, zone: { grass: 5 }, fastest: { 'grass:1': fast }, stat: { accN, accSum }, hunts: 3 } });
+    window.__FS['mg_scores/a'] = mk('小華', 7, { coo: 2, frog: 1 }, 41.5, 12, 1080);
+    window.__FS['mg_scores/b'] = mk('小美', 4, { coo: 1 }, 30.2, 3, 300);
+  });
+  await p.click('[data-act="hub"]'); await p.waitForTimeout(900);
+  await p.click('.vb[data-bld="rank"]'); await p.waitForSelector('#nw-rank', { timeout: 4000 }); await p.waitForTimeout(500);
+  const rk1 = await p.textContent('#nw-rank');
+  ok(rk1.indexOf('小華') > -1 && rk1.indexOf('小華') < rk1.indexOf('小美'), '榮譽碑：獵人等級榜依 HR 排序');
+  await p.click('[data-tab="fast"]'); await p.waitForTimeout(200);
+  const rk2 = await p.textContent('#nw-rank');
+  ok(rk2.indexOf('小美') > -1 && rk2.indexOf('小美') < rk2.indexOf('小華') && rk2.includes('30.2 秒'), '最快討伐榜：秒數少的在前');
+  await p.click('[data-tab="acc"]'); await p.waitForTimeout(200);
+  const rk3 = await p.textContent('#nw-rank');
+  ok(rk3.includes('小華') && !rk3.includes('小美'), '精準獵人：沒打滿 10 場的不上榜');
+  await p.click('[data-x]'); await p.waitForTimeout(150);
+  ok(await p.$('#nw-rank') === null, '排行榜關得掉');
+
   ok(errs.length === 0, '沒有 JS 錯誤 ' + errs.join(' | '));
   await b.close(); process.exit(fails ? 1 : 0);
 })();
