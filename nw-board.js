@@ -114,7 +114,7 @@ export function mountBoard(host, env) {
       row.className = 'nwbd-room' + (r.me ? ' me' : ''); row.style.cssText = `transform:rotate(${((rnd(hash(r.id), 1) - .5) * 2).toFixed(1)}deg)`;
       row.innerHTML = `<canvas width="60" height="48" style="width:60px;height:48px;image-rendering:pixelated;flex:none"></canvas>
         <div style="flex:1;min-width:0"><div>討伐 ${m.name} ${'★'.repeat(r.star)}</div><div style="font-size:.82em;color:#5a4128">房主：${r.host}（${r.cls}）・${r.n}/4 人・${r.state === 'fighting' ? '狩獵中' : '等待中'}${r.me ? '・你的房間' : ''}</div></div>
-        <span class="px-chip" style="color:#5a4128;border-color:#5a4128;background:transparent">${r.me ? '你' : '組隊第 3a 段開放'}</span>`;
+        <span class="px-chip" style="color:#5a4128;border-color:#5a4128;background:transparent">${r.me ? '你' : '組隊施工中'}</span>`;
       const c = row.querySelector('canvas'), x = c.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(ink(r.mk, 1), 10, 8, 40, 32);
       list.appendChild(row);
     });

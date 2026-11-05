@@ -75,7 +75,7 @@ const seed = {
   ok((await p.$$('.vb')).length === 9, '村莊有 8 棟建築與 1 個傳送門');
   ok((await p.$$eval('.vb', els => els.filter(e => e.textContent.includes('🔒')).length)) === 7, '第 1 階段只開委託板：七棟建築有鎖（含榮譽碑）');
   await p.click('.vb[data-bld="forge"]'); await p.waitForTimeout(900);
-  ok((await p.textContent('body')).includes('施工中・第 2 段開放'), '走到施工中的建築門口：跳出預告卡');
+  ok((await p.textContent('body')).includes('施工中') && !/施工中・第/.test(await p.textContent('body')), '走到施工中的建築門口：跳出預告卡，不寫第幾段');
   await p.screenshot({ path: OUT + '/nw1-wip.png' });
   await p.click('[data-close]');
 
@@ -110,7 +110,7 @@ const seed = {
   await p.screenshot({ path: OUT + '/nw1-board.png' });
   await p.click('[data-tab="rooms"]'); await p.waitForTimeout(700);
   ok((await p.textContent('#nwbd-list')).includes('阿華') && !(await p.textContent('#nwbd-list')).includes('舊房間'), '房間分頁看得到同學開的房間，過期的不顯示');
-  ok((await p.textContent('#nwbd-list')).includes('第 3a 段開放'), '加入組隊標示第 3a 段開放');
+  ok((await p.textContent('#nwbd-list')).includes('組隊施工中') && !/第\s*\d/.test(await p.textContent('#nwbd-list')), '加入組隊只寫施工中、不提第幾段');
   await p.click('[data-tab="quests"]');
   await p.click('.qs[data-q="grass:frog:1"]');
   await p.click('[data-go]'); await p.waitForSelector('[data-view="room"]');

@@ -269,7 +269,7 @@ export function initNewWorld(C) {
     sheet.innerHTML = `<div class="px-panel w-full max-w-md text-center">
       <div class="px-img mx-auto mb-3" data-bld style="display:inline-block;background:#0e0b16;padding:8px;border:3px solid #0a0714"></div>
       <div class="text-2xl px-title">${b.name}</div>
-      <div class="text-sm mb-3 px-text" style="color:#aab0b8">🔗 施工中・第 ${b.wip} 段開放</div>
+      <div class="text-sm mb-3 px-text" style="color:#aab0b8">🔗 施工中</div>
       <p class="text-base px-text">${b.text}</p>${extra}
       <button class="px-btn gold mt-4" data-close>知道了</button></div>`;
     sheet.addEventListener('click', e => { if (e.target === sheet || e.target.closest('[data-close]')) sheet.remove(); });
@@ -345,7 +345,7 @@ export function initNewWorld(C) {
         ok.disabled = !pick.w || (!canSwap && pick.w !== NW.starter); ok.style.opacity = ok.disabled ? .5 : 1;
       };
       el.querySelectorAll('[data-card]').forEach(c => c.addEventListener('click', () => {
-        if (!canSwap) { toast('前 3 場以後就不能免費換了，要打造新武器才能換（第 2 段開放）', 3200); return; }
+        if (!canSwap) { toast('前 3 場以後就不能免費換了，要打造新武器才能換（鐵匠鋪施工中）', 3200); return; }
         pick.w = c.dataset.card; refresh();
       }));
       el.querySelectorAll('[data-anim]').forEach(cvs => animStops.push(runStarterAnim(cvs, cvs.dataset.anim)));
@@ -422,7 +422,7 @@ export function initNewWorld(C) {
       : '<div class="text-xl px-title">第 1 章完成了！之後的任務會陸續開放。</div>'}
       ${done.length ? `<h3 class="text-lg mt-4 mb-2">完成了</h3><div class="grid gap-2">${done.map(d => `<div class="px-panel in flex justify-between"><span>✅ ${escHtml(d.t)}</span>
         <span class="text-sm" style="color:#aab0d8">${escHtml(d.rewardText)}</span></div>`).join('')}</div>` : ''}
-      <p class="text-xs mt-3" style="color:#aab0d8">還有幾個任務要等鐵匠鋪開張才會出現。每日任務在第 3 段開放。</p>`;
+      <p class="text-xs mt-3" style="color:#aab0d8">還有幾個任務要等鐵匠鋪開張才會出現。每日任務施工中。</p>`;
   }
 
   function bagBody(tab) {
@@ -440,12 +440,12 @@ export function initNewWorld(C) {
     if (tab === 'items') {
       const rows = Object.entries(NW.items).filter(([, n]) => n > 0).map(([id, n]) => `<div class="px-panel in flex justify-between"><span>🧪 ${id === 'potion' ? '回復藥' : id}</span><b>×${n}</b></div>`);
       return `<h3 class="text-lg mb-2">道具</h3>${rows.length ? `<div class="grid gap-2">${rows.join('')}</div>` : '<p class="px-text">還沒有道具。</p>'}
-        <p class="text-xs mt-3" style="color:#aab0d8">回復藥要等商店開張（第 3 段）才能在戰鬥中使用，先幫你存著。</p>`;
+        <p class="text-xs mt-3" style="color:#aab0d8">回復藥要等商店開張才能在戰鬥中使用，先幫你存著。</p>`;
     }
     if (tab === 'mats') {
       const rows = Object.entries(NW.mats).filter(([, n]) => n > 0).map(([id, n]) => { const [nm, c] = matName(id); return `<div class="px-panel in flex justify-between"><span><span style="color:${COLOR_HEX[c]}">■</span> ${nm}</span><b>×${n}</b></div>`; });
       return `<h3 class="text-lg mb-2">材料</h3>${rows.length ? `<div class="grid gap-2" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr))">${rows.join('')}</div>` : '<p class="px-text">還沒有材料。打倒魔物就會掉。</p>'}
-        <p class="text-xs mt-3" style="color:#aab0d8">鐵匠鋪開張（第 2 段）就能用來打造武器和裝備。</p>`;
+        <p class="text-xs mt-3" style="color:#aab0d8">鐵匠鋪開張就能用來打造武器和裝備。</p>`;
     }
     if (tab === 'bp') {
       const rows = NW.bp.map(id => { const [nm, c] = matName(id); return `<div class="px-panel in"><span style="color:${COLOR_HEX[c]}">📜</span> ${nm}</div>`; });
@@ -455,7 +455,7 @@ export function initNewWorld(C) {
     const mons = Object.entries(MONSTERS).map(([k, m]) => `<div class="px-panel in text-center" style="padding:6px"><div class="px-img" data-sprite="monster:${k}:3" style="${(NW.dex[k] || 0) ? '' : 'filter:grayscale(1) brightness(.35)'}"></div>
       <div class="text-sm font-bold">${(NW.dex[k] || 0) ? m.name : '？？？'}</div><div class="text-xs" style="color:#aab0d8">打過 ${NW.dex[k] || 0} 次</div></div>`).join('');
     const own = Object.entries(STARTERS).map(([k, st]) => `<div class="px-panel in text-center" style="padding:6px;${k === NW.starter ? 'outline:3px solid #e8b64c' : ''}"><div class="px-img" data-sprite="weapon:${k}:3"></div><div class="text-sm font-bold">${st.kind}</div></div>`).join('');
-    const locked = LOCKED_WEAPONS.map(([k, n, seg]) => `<div class="px-panel in text-center" style="padding:6px"><div class="px-img" data-sprite="weapon:${k}:3" style="filter:grayscale(1) brightness(.4)"></div><div class="text-sm font-bold" style="color:#aab0b8">🔒 ${n}</div><div class="text-xs" style="color:#aab0d8">第 ${seg} 段</div></div>`).join('');
+    const locked = LOCKED_WEAPONS.map(([k, n, seg]) => `<div class="px-panel in text-center" style="padding:6px"><div class="px-img" data-sprite="weapon:${k}:3" style="filter:grayscale(1) brightness(.4)"></div><div class="text-sm font-bold" style="color:#aab0b8">🔒 ${n}</div><div class="text-xs" style="color:#aab0d8">施工中</div></div>`).join('');
     return `<h3 class="text-lg mb-2">魔物圖鑑</h3><div class="grid gap-2" style="grid-template-columns:repeat(auto-fill,minmax(110px,1fr))">${mons}</div>
       <h3 class="text-lg mt-4 mb-2">武器圖鑑</h3><div class="grid gap-2" style="grid-template-columns:repeat(auto-fill,minmax(110px,1fr))">${own}${locked}</div>`;
   }
@@ -538,7 +538,7 @@ export function initNewWorld(C) {
           <div class="flex flex-col gap-6" style="align-self:flex-start">${slot('weapon', '武器')}${slot('gloves', '護手')}</div>
         </div>
         <div class="flex gap-2 mt-2 flex-wrap justify-center"><button class="px-btn" data-bag-act="creator">💇 改造型</button></div>
-        <p class="text-xs mt-2" style="color:#aab0d8">頭盔、盔甲、護手、護腳要到鐵匠鋪開張（第 2 段）才能穿，穿上去角色會跟著變。</p>`;
+        <p class="text-xs mt-2" style="color:#aab0d8">頭盔、盔甲、護手、護腳要等鐵匠鋪開張才能穿，穿上去角色會跟著變。</p>`;
       mountSprites(c);
       c.querySelector('[data-hero]').replaceChildren(PX.hero(myHero(), 5));
     };
@@ -616,7 +616,7 @@ export function initNewWorld(C) {
               <div class="px-panel in text-center"><div class="px-img" data-me style="display:inline-block"></div><div class="font-bold">${escHtml(ME.name)}</div><div class="px-chip" style="color:#ffd98a">房主</div></div>
               ${[2, 3, 4].map(() => '<div class="px-panel in text-center" style="opacity:.5;display:grid;place-items:center;min-height:110px"><div>等待隊友</div></div>').join('')}
             </div>
-            <p class="text-sm mt-3 px-text">你的房間已經貼在公會的「房間」分頁，同學看得到。<span style="color:#ffd98a">組隊一起打第 3a 段才開放，現在先單人出發！</span></p>
+            <p class="text-sm mt-3 px-text">你的房間已經貼在公會的「房間」分頁，同學看得到。<span style="color:#ffd98a">組隊一起打還在施工中，現在先單人出發！</span></p>
             <div class="mt-4 flex gap-3 flex-wrap"><button class="px-btn gold" style="padding:12px 28px;font-size:1.15em" data-act="startroom">⚔ 出發</button>
               <button class="px-btn" data-act="leaveroom">離開房間</button></div>
           </div>
@@ -714,7 +714,7 @@ export function initNewWorld(C) {
           <div class="flex gap-2 flex-wrap">${drops}${rare}</div>
           <div class="flex gap-5 mt-3 px-text" style="font-size:1.1em"><span>🪙 字元 +<b data-n="${sum.coins}">0</b></span><span>⭐ 獵人經驗 +<b data-n="${sum.exp}">0</b></span></div>
           <div class="flex items-center gap-2 mt-2"><b class="px-text" style="color:#ffd98a">獵人 Lv ${NW.hr}</b><div class="px-bar xp flex-1"><i data-hr style="width:${p0}%"></i></div></div>
-          ${sum.ups ? `<div class="px-title mt-2 px-cursor" style="font-size:1.2em">獵人等級升到 ${NW.hr}！拿到 ${sum.ups} 顆星星（第 5 段才能用，先存著）</div>` : ''}
+          ${sum.ups ? `<div class="px-title mt-2 px-cursor" style="font-size:1.2em">獵人等級升到 ${NW.hr}！拿到 ${sum.ups} 顆星星（星圖台施工中，先存著）</div>` : ''}
           ${(sum.words || []).length ? `<div class="px-title mt-2 px-cursor" style="font-size:1.1em">${PX.badge(3, 2)} 新的稱號詞條：${sum.words.map(escHtml).join('、')}！到背包點名字下面的稱號，自己拚拚看</div>` : ''}
           <p class="text-xs mt-2" style="color:#aab0d8">材料和圖紙先幫你存著，鐵匠鋪開張就能用。</p>` : ''}
         <div class="mt-5 text-right"><button class="px-btn gold" style="padding:10px 30px;font-size:1.1em" data-close>回公會</button></div>

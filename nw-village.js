@@ -66,7 +66,7 @@ export function mountVillage(host, o) {
   };
   V.buildings.forEach(b => {
     const isOpen = open.includes(b.id);
-    addHot(b.id, b.name, b.x * T, b.y * T, 48, 48, !isOpen, isOpen ? '' : `第 ${b.wip} 段`);
+    addHot(b.id, b.name, b.x * T, b.y * T, 48, 48, !isOpen, isOpen ? '' : '施工中');
   });
   addHot('gate', '傳送門・回舊世界', gateEl.x, gateEl.y, 40, 56, false, '');
 
