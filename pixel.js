@@ -1,4 +1,32 @@
 // 像素美術：程式畫的點陣圖。PX.canvas(種類, 名字, 倍率, 生氣)；PX.hero(造型, 倍率)
+const BADGE_ROWS = [
+  '..rr...RR..',
+  '..rrr.RRR..',
+  '...rrRRR...',
+  '....rRR....',
+  '...ooooo...',
+  '.oohhmmmoo.',
+  '.ohhmmmmmo.',
+  'ohmmmwmmmso',
+  'ohmmwwwmmso',
+  'ommmmwmmmso',
+  '.ommmmmsso.',
+  '.oossmmsoo.',
+  '...ooooo...'
+];
+const BADGE_TIER = {
+  1: { m: '#c8803a', h: '#e8a85a', s: '#8a5424' },
+  2: { m: '#b8c4d8', h: '#e6edf8', s: '#7a869c' },
+  3: { m: '#ffd24a', h: '#fff0a0', s: '#c8901c' }
+};
+function badgeSvg(tier, px) {
+  const c = BADGE_TIER[tier] || BADGE_TIER[1], col = { o: '#1c1008', m: c.m, h: c.h, s: c.s, w: '#fffbe8', r: '#d8483c', R: '#9a2a2a' };
+  let r = '';
+  BADGE_ROWS.forEach((row, y) => { for (let x = 0; x < row.length; x++) { const k = row[x]; if (k !== '.') r += `<rect x="${x}" y="${y}" width="1" height="1" fill="${col[k]}"/>`; } });
+  const p = px || 3;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 11 13" width="${11 * p}" height="${13 * p}" shape-rendering="crispEdges" style="display:inline-block;image-rendering:pixelated;vertical-align:middle">${r}</svg>`;
+}
+
 export const PX = (() => {
 
 const mk = (w, h) => ({ w, h, d: new Array(w * h).fill(null) });
@@ -974,6 +1002,7 @@ function grid(kind, key) {
 return {
   canvas: (kind, key, scale, angry) => blit(grid(kind, key), scale, !!angry),
   hero: (look, scale) => blit(hero(look), scale, false),
+  badge: (tier, px) => badgeSvg(tier, px),
   bg: (kind, w) => blit(kind === 'forest' ? bgForestW(w || 160) : bgGrassW(w || 160), 1, false),
   zone: (kind, w) => blit(kind === 'defend' ? zoneGridW(w || 160, '#3a7ad8', '#9fd8ff') : zoneGridW(w || 160, '#d83a3a', '#ff8a6a'), 1, false),
   chibi: (look, dir, frame, scale) => blit(chibiGrid(look, dir, frame), scale || 1, false),

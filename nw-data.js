@@ -162,7 +162,7 @@ export const MAIN_QUESTS = [
   { id: '1-0', ch: 1, t: '選擇你的初心武器', hint: '在「裝備與造型」選一把武器', reward: { items: { potion: 3 } }, rewardText: '回復藥 ×3', test: nw => !!nw.starter },
   { id: '1-1', ch: 1, t: '討伐泡泡蛙（草原 ★1）', hint: '到委託板，選草原的泡泡蛙。藍色的攻擊要打「防」', rewardText: '獵人經驗 +30', reward: { hrExp: 30 }, test: nw => (nw.dex.frog || 0) > 0 },
   { id: '1-2', ch: 1, t: '討伐咕咕鳥（草原 ★1）', hint: '紅色的攻擊要在快滿的時候打「閃」', rewardText: '獵人經驗 +30', reward: { hrExp: 30 }, test: nw => (nw.dex.coo || 0) > 0 },
-  { id: '1-3', ch: 1, t: '閃避成功 5 次、防禦成功 5 次', hint: '狩獵時多試試閃避和防禦', rewardText: '稱號「見習獵人」', reward: { title: '見習獵人' }, test: nw => nw.stat.dodgeOk >= 5 && nw.stat.defOk >= 5, prog: nw => `閃避 ${Math.min(5, nw.stat.dodgeOk)}/5　防禦 ${Math.min(5, nw.stat.defOk)}/5` },
+  { id: '1-3', ch: 1, t: '閃避成功 5 次、防禦成功 5 次', hint: '狩獵時多試試閃避和防禦', rewardText: '稱號詞條「見習」', reward: {}, test: nw => nw.stat.dodgeOk >= 5 && nw.stat.defOk >= 5, prog: nw => `閃避 ${Math.min(5, nw.stat.dodgeOk)}/5　防禦 ${Math.min(5, nw.stat.defOk)}/5` },
   { id: '1-4', ch: 1, t: '討伐草原任何 ★3 的魔物', hint: '先打過 ★1、★2 才會開放 ★3', rewardText: '另外三把初心武器的圖紙', reward: { bp: ['bp_staff', 'bp_bow', 'bp_dagger', 'bp_crossbow'] }, test: nw => (nw.zone.grass || 0) >= 3 },
   { id: '1-7', ch: 1, t: '討伐草原任何 ★5 的魔物', hint: '打倒 ★5 就會開放迷霧森林', rewardText: '開放迷霧森林', reward: {}, test: nw => (nw.zone.grass || 0) >= 5 }
 ];
@@ -171,7 +171,7 @@ export const defaultNw = () => ({
   v: 1, savedAt: 0, look: null, starter: null, swaps: 0, hunts: 0,
   hr: 1, hrExp: 0, stars: 0, coins: 0, mats: {}, items: {}, bp: [],
   zone: { grass: 0, forest: 0 }, dex: {}, fastest: {},
-  quest: { done: [] }, title: '', titles: [],
+  quest: { done: [] }, title: '', titleParts: [], words: [], used: {}, wwin: {},
   stat: { dodgeOk: 0, dodgeAll: 0, defOk: 0, defAll: 0, accN: 0, accSum: 0, wins: 0, fails: 0 },
   flags: 0
 });
@@ -186,36 +186,46 @@ export function normalizeNw(d) {
   if (!Array.isArray(o.quest.done)) o.quest.done = [];
   o.mats = d.mats || {}; o.items = d.items || {}; o.dex = d.dex || {}; o.fastest = d.fastest || {};
   o.bp = Array.isArray(d.bp) ? d.bp : [];
-  o.titles = Array.isArray(d.titles) ? d.titles : [];
-  if (o.title && !o.titles.includes(o.title)) o.titles.push(o.title);
+  o.words = Array.isArray(d.words) ? d.words : [];
+  o.titleParts = Array.isArray(d.titleParts) ? d.titleParts : [];
+  o.used = d.used || {}; o.wwin = d.wwin || {};
   return o;
 }
 
-export const TITLES = [
-  { id: 'rookie', name: '見習獵人', how: '完成主線「閃避成功 5 次、防禦成功 5 次」', test: () => false, quest: true },
-  { id: 'win10', name: '小小勇者', how: '討伐成功 10 次', test: n => n.stat.wins >= 10 },
-  { id: 'win50', name: '百戰獵人', how: '討伐成功 50 次', test: n => n.stat.wins >= 50 },
-  { id: 'hr5', name: '熟練獵人', how: '獵人等級 5', test: n => n.hr >= 5 },
-  { id: 'hr10', name: '資深獵人', how: '獵人等級 10', test: n => n.hr >= 10 },
-  { id: 'hr20', name: '王牌獵人', how: '獵人等級 20', test: n => n.hr >= 20 },
-  { id: 'grass5', name: '草原霸主', how: '打贏草原 ★5', test: n => (n.zone.grass || 0) >= 5 },
-  { id: 'dex4', name: '圖鑑達人', how: '開放的魔物都討伐過', test: n => Object.keys(MONSTERS).filter(k => !MONSTERS[k].wip).every(k => (n.dex[k] || 0) > 0) },
-  { id: 'dodge', name: '殘影', how: '閃避成功 30 次', test: n => n.stat.dodgeOk >= 30 },
-  { id: 'defend', name: '不動如山', how: '防禦成功 30 次', test: n => n.stat.defOk >= 30 },
-  { id: 'perfect', name: '一字不差', how: '正確率 100% 打贏 Lv10 以上的魔物', test: n => (n.perfect || 0) > 0 }
+export const WORD_GROUPS = ['等級', '武器', '成就'];
+const wword = (id, w, wk, n, how) => ({ id, w, g: '武器', how, test: x => n === 0 ? (x.starter === wk || !!(x.used && x.used[wk])) : ((x.wwin && x.wwin[wk]) || 0) >= n });
+export const WORDS = [
+  { id: 'novice', w: '新手', g: '等級', how: '一開始就有', test: () => true },
+  { id: 'rookie', w: '見習', g: '等級', how: '完成主線「閃避成功 5 次、防禦成功 5 次」', test: n => n.quest.done.includes('1-3') },
+  { id: 'skilled', w: '熟練', g: '等級', how: '獵人等級 5', test: n => n.hr >= 5 },
+  { id: 'senior', w: '資深', g: '等級', how: '獵人等級 10', test: n => n.hr >= 10 },
+  { id: 'ace', w: '王牌', g: '等級', how: '獵人等級 20', test: n => n.hr >= 20 },
+  { id: 'legend', w: '傳說', g: '等級', how: '獵人等級 30', test: n => n.hr >= 30 },
+  wword('staff0', '法師', 'staff', 0, '用法杖打一場'), wword('staff1', '奧術', 'staff', 5, '用法杖打贏 5 場'), wword('staff2', '賢者', 'staff', 20, '用法杖打贏 20 場'),
+  wword('bow0', '弓手', 'bow', 0, '用長弓打一場'), wword('bow1', '疾風', 'bow', 5, '用長弓打贏 5 場'), wword('bow2', '神射手', 'bow', 20, '用長弓打贏 20 場'),
+  wword('dag0', '刀客', 'dagger', 0, '用雙刀打一場'), wword('dag1', '疾影', 'dagger', 5, '用雙刀打贏 5 場'), wword('dag2', '暗影', 'dagger', 20, '用雙刀打贏 20 場'),
+  wword('xbw0', '弩手', 'crossbow', 0, '用連弩打一場'), wword('xbw1', '連珠', 'crossbow', 5, '用連弩打贏 5 場'), wword('xbw2', '機關', 'crossbow', 20, '用連弩打贏 20 場'),
+  { id: 'brave', w: '勇者', g: '成就', how: '討伐成功 10 次', test: n => n.stat.wins >= 10 },
+  { id: 'hundred', w: '百戰', g: '成就', how: '討伐成功 50 次', test: n => n.stat.wins >= 50 },
+  { id: 'grass', w: '草原王', g: '成就', how: '打贏草原 ★5', test: n => (n.zone.grass || 0) >= 5 },
+  { id: 'wise', w: '博學', g: '成就', how: '開放的魔物都討伐過', test: n => Object.keys(MONSTERS).filter(k => !MONSTERS[k].wip).every(k => (n.dex[k] || 0) > 0) },
+  { id: 'afterimage', w: '殘影', g: '成就', how: '閃避成功 30 次', test: n => n.stat.dodgeOk >= 30 },
+  { id: 'mountain', w: '不動如山', g: '成就', how: '防禦成功 30 次', test: n => n.stat.defOk >= 30 },
+  { id: 'exact', w: '一字不差', g: '成就', how: '正確率 100% 打贏 Lv10 以上的魔物', test: n => (n.perfect || 0) > 0 }
 ];
+export const wordById = id => WORDS.find(x => x.id === id);
 
-export function grantTitle(nw, name) {
-  if (nw.titles.includes(name)) return false;
-  nw.titles.push(name);
-  if (!nw.title) nw.title = name;
-  return true;
+export function checkWords(nw) {
+  const got = [];
+  for (const x of WORDS) if (!nw.words.includes(x.id) && x.test(nw)) { nw.words.push(x.id); got.push(x.w); }
+  return got;
 }
 
-export function checkTitles(nw) {
-  const got = [];
-  for (const t of TITLES) if (!t.quest && t.test(nw) && grantTitle(nw, t.name)) got.push(t.name);
-  return got;
+export function setTitleParts(nw, ids) {
+  const seen = [];
+  for (const id of ids) if (nw.words.includes(id) && !seen.includes(id) && seen.length < 3) seen.push(id);
+  nw.titleParts = seen;
+  nw.title = seen.map(id => wordById(id).w).join('');
 }
 
 export const currentQuest = nw => MAIN_QUESTS.find(q => !nw.quest.done.includes(q.id)) || null;

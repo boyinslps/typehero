@@ -109,19 +109,27 @@ async function playUntil(p, pred, max = 80) {
   }
 
   {
-    const p = await open(b, 'staff', { titles: ['見習獵人'], stat: { wins: 9 } });
+    const p = await open(b, 'staff', { words: ['novice', 'staff0'], stat: { wins: 9 }, hr: 5 });
     await p.keyboard.press('b'); await p.waitForTimeout(200);
-    await p.click('[data-bag-tab="title"]');
-    const bt = await p.textContent('#nw-bag');
-    ok(bt.includes('小小勇者') && bt.includes('見習獵人') && bt.includes('🔒'), '背包有「稱號」頁：有的亮著、沒有的鎖著並寫怎麼拿');
-    await p.click('[data-title="見習獵人"]'); await p.waitForTimeout(1300);
-    ok((await p.textContent('#lobby-who')).includes('見習獵人'), '戴上稱號：舊世界大廳的名字旁邊也看得到');
-    ok(await p.evaluate(() => window.__FS['mg_scores/五年級3班_5號'].nwTitle) === '見習獵人', '稱號也存在雲端 mg_scores.nwTitle（排行榜用）');
+    ok((await p.$$('.bp-slot')).length === 5 && await p.$('[data-hero]') !== null, '背包左側：人物＋五個裝備格');
+    ok((await p.textContent('[data-card]')).includes('小明') && (await p.textContent('[data-card]')).includes('還沒有稱號'), '人物上方顯示名字與稱號');
+    ok(await p.$('.bp-slot[data-slot="weapon"].on') !== null && (await p.$$('.bp-cell')).length === 16, '武器穿在武器格；右側是裝備背包格子');
+    await p.click('[data-title-edit]'); await p.waitForSelector('#nw-title');
+    const et = await p.textContent('#nw-title');
+    ok((await p.$$('#nw-title svg')).length >= 1, '稱號圖示是 SVG 像素徽章');
+    ok((await p.$$('#nw-title [data-add]')).length >= 3, '解鎖的詞條可以點');
+    ok(et.includes('🔒 資深') && et.includes('獵人等級 10'), '沒解鎖的詞條灰色顯示條件');
+    await p.click('#nw-title [data-add="staff0"]'); await p.click('#nw-title [data-add="novice"]');
+    ok((await p.textContent('#nw-title')).includes('法師新手'), '照點的順序拚成稱號');
+    await p.click('#nw-title [data-ok]'); await p.waitForTimeout(1300);
+    ok((await p.textContent('[data-card]')).includes('法師新手'), '完成後人物上方顯示新稱號');
+    ok((await p.textContent('#lobby-who')).includes('法師新手'), '舊世界大廳的名字旁邊也看得到');
+    ok(await p.evaluate(() => window.__FS['mg_scores/五年級3班_5號'].nwTitle) === '法師新手', '存進雲端 mg_scores.nwTitle');
     await p.keyboard.press('Escape');
     await goHunt(p, 'grass', 'coo', 1);
     ok(await playUntil(p, async () => false, 90), '打一場');
     await p.waitForSelector('#nw-result', { timeout: 8000 });
-    ok((await p.textContent('#nw-result')).includes('得到稱號'), '第 10 場討伐成功：結算寫「得到稱號」');
+    ok((await p.textContent('#nw-result')).includes('新的稱號詞條'), '第 10 場討伐成功：結算寫新的稱號詞條');
     ok(p.errs.length === 0, '稱號 沒有 JS 錯誤 ' + p.errs.join(' | '));
     await p.close();
   }
