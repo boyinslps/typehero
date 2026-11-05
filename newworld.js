@@ -5,7 +5,8 @@ import {
   COLOR_NAME, COLOR_HEX, HR_MAX, VILLAGE, doorTile
 } from './nw-data.js';
 import { injectUi } from './nw-ui.js';
-import { mountVillage, mountWorldMap } from './nw-village.js';
+import { mountVillage } from './nw-village.js';
+import { mountBoard } from './nw-board.js';
 import { startBattle } from './nw-battle.js';
 import { DEFAULT_CODE_HASH, sha256Hex, cleanCode } from './nw-access.js';
 
@@ -221,7 +222,7 @@ export function initNewWorld(C) {
     if (b.id === 'gate') { leave(); return; }
     const d = doorTile(b);
     NW.pos = [d[0], d[1] + 1];
-    if (b.act) { ({ map: viewMap, rank: openRank }[b.act] || (() => {}))(); return; }
+    if (b.act) { ({ map: viewBoard, rank: openRank }[b.act] || (() => {}))(); return; }
     openWip(b);
   }
 
@@ -247,7 +248,7 @@ export function initNewWorld(C) {
         </div>
       </div>
       <div id="vmap"></div>
-      <p class="px-text text-sm mt-3 text-center">電腦：用 WASD 或方向鍵走路，也可以點地圖。走進建築的門口就會打開。按 B 打開背包。手機：點地圖就會走過去。灰色的建築還在施工中。</p>`, el => {
+      <p class="px-text text-sm mt-3 text-center">電腦：用 WASD 或方向鍵走路，走到建築旁邊按 Enter 進去，也可以直接點建築。按 B 打開背包。手機：點建築或點地面。灰色的建築還在施工中。</p>`, el => {
       el.querySelector('[data-hero]').replaceChildren(PX.chibi(myChibi(), 'down', 0, 3));
       village = mountVillage(el.querySelector('#vmap'), {
         PX, look: myChibi(), open: VILLAGE.buildings.filter(b => b.act).map(b => b.id),
@@ -491,96 +492,85 @@ export function initNewWorld(C) {
   addEventListener('keydown', e => {
     const k = e.key.toLowerCase();
     if (/INPUT|TEXTAREA|SELECT/.test((e.target && e.target.tagName) || '') || root.classList.contains('hidden') || !NW) return;
-    if (k === 'b' && ['hub', 'map', 'region', 'monster'].includes(view)) { document.getElementById('nw-bag') ? closeBag() : openBackpack('equip'); }
+    if (k === 'b' && ['hub', 'board', 'room'].includes(view)) { document.getElementById('nw-bag') ? closeBag() : openBackpack('equip'); }
     if (k === 'escape') closeBag();
   });
 
-  function viewMap() {
-    const states = {};
-    Object.entries(REGIONS).forEach(([k, r]) => {
-      const open = zoneOpen(NW, k);
-      states[k] = { open, wip: !!r.wip, name: r.name, icon: r.icon, sub: r.wip ? `第 ${r.wip} 段` : open ? `★${NW.zone[k] || 0}/5` : `${REGIONS[r.needs].name} ★5` };
+  let boardSel = null;
+  const roomId = () => 'nwroom_' + ME.docId;
+  const roomRef = () => C.doc(C.db, 'mg_config', roomId());
+
+  async function loadRooms() {
+    if (!C.online()) return [];
+    const snap = await C.withTimeout(C.getDocs(C.query(C.collection(C.db, 'mg_config'),
+      C.where(C.documentId(), '>=', 'nwroom_'), C.where(C.documentId(), '<', 'nwroom`'))), 5000, 'nw-rooms');
+    const now = Date.now(), out = [];
+    snap.forEach(d => {
+      const r = d.data();
+      if (!r || !r.mk || r.state === 'closed' || now - (r.t || 0) > 20 * 60 * 1000) return;
+      out.push({ id: d.id, host: r.host, cls: r.cls, mk: r.mk, rk: r.rk, star: r.star, n: (r.members || []).length || 1, state: r.state, me: d.id === roomId(), t: r.t || 0 });
     });
-    setView('map', `
-      ${topbar('📜 委託板：世界地圖', 'hub')}
-      <div class="px-panel" style="padding:8px"><div id="wmap"></div></div>
-      <p class="px-text text-sm mt-3 text-center">點一個地方，看看那裡有哪些魔物。打倒草原的 ★5 魔物，就會開放迷霧森林。</p>`, el => {
-      village = mountWorldMap(el.querySelector('#wmap'), { PX, look: myChibi(), states, current: cur.rk || 'grass', onPick: () => {} });
+    return out.sort((a, b) => (b.me ? 1 : 0) - (a.me ? 1 : 0) || b.t - a.t);
+  }
+  const writeRoom = (data, merge) => C.online()
+    ? C.withTimeout(C.setDoc(roomRef(), data, merge ? { merge: true } : undefined), 4000, 'nw-room').catch(e => console.warn('房間寫入失敗', e)) : Promise.resolve();
+  const closeRoom = () => (C.online() && C.deleteDoc ? C.withTimeout(C.deleteDoc(roomRef()), 4000, 'nw-room-del').catch(() => {}) : Promise.resolve());
+
+  function viewBoard() {
+    setView('board', `${topbar('📜 冒險者公會', 'hub')}<div id="board"></div>`, el => {
+      village = mountBoard(el.querySelector('#board'), { PX, NW, selected: boardSel, loadRooms, onSelect: id => { boardSel = id; }, onHunt: q => openRoom(q) });
     });
   }
 
-  const askName = a => a === 'zhuyin' ? '注音' : '詞語';
-  function viewRegion(rk) {
-    const r = REGIONS[rk];
-    cur.rk = rk;
-    if (r.wip) { toast(`${r.name}：施工中・第 ${r.wip} 段開放`, 2400); return; }
-    if (!zoneOpen(NW, rk)) { toast(`打倒${REGIONS[r.needs].name}的 ★5 魔物才會開放！`, 2600); return; }
-    const cards = r.mons.map(mk => {
-      const m = MONSTERS[mk];
-      return `<button class="nwh-card" data-mon="${mk}" style="min-height:0">
-        <div class="flex gap-3 items-center"><div class="nw-px" data-sprite="monster:${mk}:3"></div>
-        <div><div class="text-xl font-black">${m.name} ${ELEM[m.elem]}</div>
-        <div class="text-sm" style="color:var(--dim)">打：${askName(m.ask)}　攻擊：${m.lean}</div>
-        <div class="text-xs mt-1" style="color:var(--dim2)">打過 ${NW.dex[mk] || 0} 次</div></div></div></button>`;
-    }).join('');
-    setView('region', `
-      ${topbar(`${r.icon} ${r.name}`, 'map', '← 回地圖')}
-      <p class="mb-3" style="color:var(--dim)">${r.note}　Lv ${r.lv[0]}～${r.lv[1]}　已打到 ★${NW.zone[rk] || 0}</p>
-      <div class="nw-px" data-sprite="region:${rk}:5" style="display:inline-block;background:#0e0b16;border-radius:8px;padding:6px;margin-bottom:12px"></div>
-      <div class="nwh-grid">${cards}</div>`, el => mountSprites(el));
+  async function openRoom(q) {
+    cur.q = q;
+    await writeRoom({ host: ME.name, cls: ME.className, mk: q.mk, rk: q.rk, star: q.star, state: 'open', members: [ME.docId], t: Date.now() });
+    viewRoom(q);
   }
 
-  const immuneOf = m => ({ fire: '🔥 燃燒', water: '❄ 寒冰', wood: '☠ 中毒' })[m.elem] || '';
-  function viewMonster(rk, mk, star) {
-    const r = REGIONS[rk], m = MONSTERS[mk];
-    cur = { rk, mk };
-    star = star || Math.min(5, Math.max(1, (NW.zone[rk] || 0) + 1));
-    const lv = regionLv(rk, star);
-    const stars = [1, 2, 3, 4, 5].map(s => `<button class="nw-chip" data-star="${s}" aria-pressed="${s === star}" ${starOpen(NW, rk, s) ? '' : 'disabled'}>
-      ${starOpen(NW, rk, s) ? '' : '🔒'}★${s}<div class="text-xs font-normal">Lv ${regionLv(rk, s)}</div></button>`).join('');
-    const hits = [...new Set(m.attacks.filter(a => a.status).map(a => STATUS[a.status]))];
-    const drops = m.drops.map(d => `<span style="color:${COLOR_HEX[d[2]]}">■${COLOR_NAME[d[2]]}</span> ${d[1]}`).join('　');
-    const rare = m.rare.map(d => `<span style="color:${COLOR_HEX[d[2]]}">${d[1]}</span>`).join('　');
-    setView('monster', `
-      ${topbar(`${m.name}`, 'region', '← 回' + r.name)}
-      <div class="px-panel p-5 flex gap-5 flex-wrap">
-        <div class="nw-px" data-sprite="monster:${mk}:6" style="background:#0e0b16;border-radius:8px;padding:8px;align-self:flex-start"></div>
-        <div class="flex-1 min-w-[260px] leading-relaxed">
-          <div class="text-2xl font-black">${m.name} ${ELEM[m.elem]} <span class="text-base" style="color:var(--dim)">Lv ${lv}</span></div>
-          <div class="mt-1">${r.icon} ${r.name}　打：<b>${askName(m.ask)}</b></div>
-          <div>怕 ${ELEM[m.fear]}　不怕 ${ELEM[m.resist]}　免疫 ${immuneOf(m)}
-            <span class="text-xs" style="color:var(--dim2)">（屬性武器第 2 段才有，現在先看看）</span></div>
-          <div>打中你會：${hits.length ? hits.join('、') : '沒有特別的'}</div>
-          <div>攻擊：${m.lean}　特別的：${m.sp}</div>
-          <div class="mt-2 text-sm"><b>會掉：</b>${drops}</div>
-          <div class="text-sm"><b>有機會掉：</b>${rare}</div>
+  function viewRoom(q) {
+    const m = MONSTERS[q.mk], r = REGIONS[q.rk];
+    setView('room', `
+      ${topbar('🚪 你的房間', 'leaveroom', '← 離開房間')}
+      <div class="px-panel">
+        <div class="flex gap-5 flex-wrap">
+          <div class="px-panel in text-center" style="background:#e8d8b0!important;color:#3a2814;min-width:170px">
+            <div style="color:#9a2a1a;font-weight:900">${'★'.repeat(q.star)}<span style="color:#b8a888">${'☆'.repeat(5 - q.star)}</span></div>
+            <div class="px-img" data-ink style="display:inline-block;margin:4px 0"></div>
+            <div style="font-weight:900;font-size:1.15em">討伐 ${m.name}</div>
+            <div style="font-size:.85em">Lv ${q.lv}・${r.name}</div>
+          </div>
+          <div class="flex-1" style="min-width:260px">
+            <div class="label mb-2">隊伍（最多 4 人）</div>
+            <div class="grid gap-2" style="grid-template-columns:repeat(auto-fill,minmax(120px,1fr))">
+              <div class="px-panel in text-center"><div class="px-img" data-me style="display:inline-block"></div><div class="font-bold">${escHtml(ME.name)}</div><div class="px-chip" style="color:#ffd98a">房主</div></div>
+              ${[2, 3, 4].map(() => '<div class="px-panel in text-center" style="opacity:.5;display:grid;place-items:center;min-height:110px"><div>等待隊友</div></div>').join('')}
+            </div>
+            <p class="text-sm mt-3 px-text">你的房間已經貼在公會的「房間」分頁，同學看得到。<span style="color:#ffd98a">組隊一起打第 4 段才開放，現在先單人出發！</span></p>
+            <div class="mt-4 flex gap-3 flex-wrap"><button class="px-btn gold" style="padding:12px 28px;font-size:1.15em" data-act="startroom">⚔ 出發</button>
+              <button class="px-btn" data-act="leaveroom">離開房間</button></div>
+          </div>
         </div>
-      </div>
-      <div class="px-panel p-4 mt-3">
-        <div class="label mb-2">選難度（打倒 ★N 才會開放 ★N+1）</div>
-        <div class="flex gap-2 flex-wrap">${stars}</div>
-        <div class="mt-4 flex items-center gap-3 flex-wrap">
-          <button class="px-btn gold px-8 py-3 text-xl" data-go>⚔ 出發！</button>
-          <span class="text-sm" style="color:var(--dim)">一場最多 5 分鐘。看到紅色區域，打「閃」或「防」！</span></div>
       </div>`, el => {
-      mountSprites(el);
-      el.querySelectorAll('[data-star]').forEach(b => b.addEventListener('click', () => viewMonster(rk, mk, +b.dataset.star)));
-      el.querySelector('[data-go]').addEventListener('click', () => launch(rk, mk, star));
+      el.querySelector('[data-ink]').replaceChildren(PX.ink('monster', q.mk, 4));
+      el.querySelector('[data-me]').replaceChildren(PX.chibi(myChibi(), 'down', 0, 5));
     });
   }
 
-  function launch(rk, mk, star) {
+  function launch(q) {
     stopAnims();
+    writeRoom({ state: 'fighting', t: Date.now() }, true);
     show('nw-root', false);
-    startBattle(env(), { rk, mk, star }, res => {
+    startBattle(env(), { rk: q.rk, mk: q.mk, star: q.star }, res => {
       show('nw-root', true);
+      closeRoom();
       afterHunt(res);
     });
   }
 
   function afterHunt(res) {
     const sum = finishHunt(res);
-    showResult(res, sum, () => { if (sum.quests.length) toast(`任務完成：${sum.quests[0].t}　獎勵：${sum.quests[0].rewardText}`, 3600); viewRegion(res.rk); });
+    showResult(res, sum, () => { if (sum.quests.length) toast(`任務完成：${sum.quests[0].t}　獎勵：${sum.quests[0].rewardText}`, 3600); viewBoard(); });
   }
 
   function finishHunt(res) {
@@ -600,6 +590,7 @@ export function initNewWorld(C) {
       if (res.lvAcc && lv >= 20) { s.accN++; s.accSum += res.accuracy; }
       sum.exp = huntExp(lv, sum.win);
       sum.coins = huntCoins(lv, sum.win);
+      sum.hr0 = NW.hr; sum.exp0 = NW.hrExp;
       sum.ups = addHrExp(NW, sum.exp);
       NW.coins += sum.coins;
       const rolls = sum.win ? 1 : 0.5;
@@ -617,33 +608,47 @@ export function initNewWorld(C) {
   }
 
   function showResult(res, sum, done) {
-    const m = MONSTERS[res.mk];
-    const title = sum.win ? '討伐成功！' : (res.result === 'retreat' ? '撤退了' : '狩獵失敗');
-    const drops = sum.drops.map(d => `<span style="color:${COLOR_HEX[d.color]}">■</span> ${d.name} ×${d.n}`).join('　');
-    const rare = sum.rare.map(d => `<b style="color:${COLOR_HEX[d.color]}">${d.name}（新！）</b>`).join('　');
+    const m = MONSTERS[res.mk], win = sum.win;
+    const title = win ? '討伐成功！' : (res.result === 'retreat' ? '撤退了' : '狩獵失敗');
+    const slot = (inner, extra = '') => `<div class="px-panel in" style="min-width:140px;display:flex;gap:6px;align-items:center;${extra}">${inner}</div>`;
+    const drops = sum.drops.map(d => slot(`<span style="font-size:1.4em;color:${COLOR_HEX[d.color]}">■</span><span>${d.name}</span><b style="margin-left:auto">×${d.n}</b>`)).join('');
+    const rare = sum.rare.map(d => slot(`<span style="font-size:1.3em">📜</span><span style="color:${COLOR_HEX[d.color]}">${d.name}</span><b class="px-cursor" style="margin-left:auto;color:#ffd98a">新！</b>`, 'outline:3px solid #ffd24a')).join('');
+    const need = hrNeed(sum.hr0 || NW.hr), p0 = (sum.exp0 || 0) / need * 100, p1 = NW.hr >= HR_MAX ? 100 : Math.min(100, NW.hrExp / hrNeed(NW.hr) * 100);
     const sheet = document.createElement('div');
-    sheet.className = 'fixed inset-0 z-[90] overflow-y-auto';
     sheet.id = 'nw-result';
+    sheet.className = 'fixed inset-0 z-[90] overflow-y-auto';
     sheet.style.background = 'rgba(9,8,18,.94)';
-    sheet.innerHTML = `<div class="max-w-xl mx-auto p-4 py-8"><div class="px-panel p-6">
-      <div class="text-3xl font-black" style="color:${sum.win ? 'var(--gold)' : '#e5705f'}">${title}</div>
-      <div class="mt-1" style="color:var(--dim)">${m.name} Lv ${sum.lv}（★${sum.star}）</div>
-      <div class="nw-px my-4" data-sprite="monster:${res.mk}:5:${sum.win ? 0 : 1}" style="background:#0e0b16;border-radius:8px;padding:8px;display:inline-block"></div>
-      ${res.valid ? '' : `<p class="mb-3 p-3 rounded-lg" style="background:rgba(229,112,95,.15);color:#e5705f">${escHtml(res.invalidWhy || '這場不算數')}</p>`}
-      <div class="grid grid-cols-2 gap-2 text-sm">
-        <div class="px-panel in p-2">用時 <b>${Math.floor(res.secs / 60)}:${String(Math.round(res.secs % 60)).padStart(2, '0')}</b></div>
-        <div class="px-panel in p-2">正確率 <b>${Math.round(res.accuracy * 100)}%</b></div>
-        <div class="px-panel in p-2">閃避 <b>${res.dodgeOk}/${res.dodgeAll}</b></div>
-        <div class="px-panel in p-2">防禦 <b>${res.defOk}/${res.defAll}</b></div></div>
-      ${res.valid ? `<div class="mt-4"><div class="label mb-1">獲得</div>
-        <div>${drops || '—'}</div>${rare ? `<div class="mt-1">${rare}</div>` : ''}
-        <div class="mt-2">🪙 字元 +${sum.coins}　⭐ 獵人經驗 +${sum.exp}</div>
-        ${sum.ups ? `<div class="mt-1 font-black" style="color:var(--gold)">獵人等級升到 ${NW.hr}！拿到 ${sum.ups} 顆星星（第 5 段才能用，先存著）</div>` : ''}
-        <p class="text-xs mt-2" style="color:var(--dim2)">材料和圖紙先幫你存著，鐵匠鋪開張就能用。</p></div>` : ''}
-      <div class="mt-5 text-right"><button class="px-btn gold px-8 py-3 text-lg" data-close>回去</button></div></div></div>`;
+    sheet.innerHTML = `<div class="max-w-2xl mx-auto p-4 py-6">
+      <div style="text-align:center;margin-bottom:-14px;position:relative;z-index:2"><span class="px-title" style="display:inline-block;padding:6px 36px;font-size:2em;background:#4a2f16 url(${PX.wood().toDataURL()});background-size:144px;border:5px solid #1c1008;box-shadow:inset 0 0 0 3px #8a6a3a;color:${win ? '#ffd98a' : '#e5705f'}">${title}</span></div>
+      <div class="px-panel" style="padding-top:26px">
+        <div class="flex gap-4 flex-wrap items-start">
+          <div class="px-panel in text-center" style="background:#e8d8b0!important;color:#3a2814;min-width:150px;position:relative">
+            <div class="px-img" data-ink style="display:inline-block"></div>
+            <div style="font-weight:900">${m.name}</div><div style="font-size:.85em">Lv ${sum.lv}・${'★'.repeat(sum.star)}</div>
+            ${win ? '<div style="position:absolute;right:6px;top:36px;transform:rotate(-16deg);border:3px solid #a82a1a;color:#a82a1a;padding:0 6px;font-weight:900;opacity:.85">討伐完成</div>' : ''}
+          </div>
+          <div class="flex-1 grid gap-2" style="min-width:220px;grid-template-columns:1fr 1fr">
+            <div class="px-panel in">用時 <b>${Math.floor(res.secs / 60)}:${String(Math.round(res.secs % 60)).padStart(2, '0')}</b></div>
+            <div class="px-panel in">正確率 <b>${Math.round(res.accuracy * 100)}%</b></div>
+            <div class="px-panel in">閃避 <b>${res.dodgeOk}/${res.dodgeAll}</b></div>
+            <div class="px-panel in">防禦 <b>${res.defOk}/${res.defAll}</b></div>
+            <div class="px-panel in" style="grid-column:1/3">最高連擊 <b>${res.maxCombo || 0}</b></div>
+          </div>
+        </div>
+        ${res.valid ? '' : `<p class="mt-3 px-panel in" style="color:#e5705f">${escHtml(res.invalidWhy || '這場不算數')}</p>`}
+        ${res.valid ? `<div class="label mt-4 mb-2">獲得</div>
+          <div class="flex gap-2 flex-wrap">${drops}${rare}</div>
+          <div class="flex gap-5 mt-3 px-text" style="font-size:1.1em"><span>🪙 字元 +<b data-n="${sum.coins}">0</b></span><span>⭐ 獵人經驗 +<b data-n="${sum.exp}">0</b></span></div>
+          <div class="flex items-center gap-2 mt-2"><b class="px-text" style="color:#ffd98a">獵人 Lv ${NW.hr}</b><div class="px-bar xp flex-1"><i data-hr style="width:${p0}%"></i></div></div>
+          ${sum.ups ? `<div class="px-title mt-2 px-cursor" style="font-size:1.2em">獵人等級升到 ${NW.hr}！拿到 ${sum.ups} 顆星星（第 5 段才能用，先存著）</div>` : ''}
+          <p class="text-xs mt-2" style="color:#aab0d8">材料和圖紙先幫你存著，鐵匠鋪開張就能用。</p>` : ''}
+        <div class="mt-5 text-right"><button class="px-btn gold" style="padding:10px 30px;font-size:1.1em" data-close>回公會</button></div>
+      </div></div>`;
     sheet.addEventListener('click', e => { if (e.target.closest('[data-close]')) { sheet.remove(); done(); } });
     document.body.appendChild(sheet);
-    mountSprites(sheet);
+    sheet.querySelector('[data-ink]').replaceChildren(PX.ink('monster', res.mk, 4));
+    requestAnimationFrame(() => requestAnimationFrame(() => { const h = sheet.querySelector('[data-hr]'); if (h) { h.style.transition = 'width 1.1s steps(14)'; h.style.width = p1 + '%'; } }));
+    sheet.querySelectorAll('[data-n]').forEach(el => { const to = +el.dataset.n, t0 = performance.now(); const tick = now => { const k = Math.min(1, (now - t0) / 800); el.textContent = Math.round(to * k); if (k < 1 && el.isConnected) requestAnimationFrame(tick); }; requestAnimationFrame(tick); });
   }
 
   function openRank() { toast('排行榜做中，馬上來！', 2000); }
@@ -659,13 +664,12 @@ export function initNewWorld(C) {
     const a = e.target.closest('[data-act]');
     if (a) {
       const act = a.dataset.act;
-      ({ leave, hub: viewHub, map: viewMap, bagopen: () => openBackpack('equip'), bagq: () => openBackpack('quest'),
+      ({ leave, hub: viewHub, map: viewBoard, bagopen: () => openBackpack('equip'), bagq: () => openBackpack('quest'),
          bag: () => { viewHub(); openBackpack('equip'); }, creator: () => viewCreator(false),
-         starter: viewStarter, region: () => viewRegion(cur.rk), rank: () => openRank() }[act] || (() => {}))();
+         leaveroom: () => { closeRoom(); viewBoard(); }, startroom: () => launch(cur.q),
+         starter: viewStarter, rank: () => openRank() }[act] || (() => {}))();
       return;
     }
-    const rg = e.target.closest('[data-region]'); if (rg) { viewRegion(rg.dataset.region); return; }
-    const mo = e.target.closest('[data-mon]'); if (mo) viewMonster(cur.rk, mo.dataset.mon);
   });
 
   return { enter, gate, leave, refresh: refreshAccess, openCode: openCodeSheet, get nw() { return NW; }, isOpen: () => !root.classList.contains('hidden') };

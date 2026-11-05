@@ -95,18 +95,36 @@ const seed = {
   ok(await p.isVisible('#nw-bag'), '按 B 也能開背包');
   await p.keyboard.press('Escape'); await p.waitForTimeout(100);
 
-  await p.click('.vb[data-bld="board"]'); await p.waitForTimeout(900);
-  ok((await p.$$('.wmr')).length === 7, '地圖七個地方');
-  ok((await p.$$('.wmr.wip')).length === 5, '五個施工中');
-  await p.screenshot({ path: OUT + '/nw1-map.png' });
-  await p.click('[data-region="forest"]'); await p.waitForTimeout(200);
-  ok((await p.$('[data-view="region"]')) === null, '森林還沒開');
-  await p.click('[data-region="grass"]'); await p.waitForTimeout(300);
-  ok((await p.$$('[data-mon]')).length === 3, '草原三隻魔物');
-  await p.click('[data-mon="frog"]'); await p.waitForTimeout(300);
-  ok((await p.$$('[data-star]:disabled')).length === 4, '只有 ★1 開放');
-  ok((await p.textContent('#nw-root')).includes('泡泡蛙') && (await p.textContent('#nw-root')).includes('打：注音'), '委託卡寫打什麼');
-  await p.screenshot({ path: OUT + '/nw1-monster.png' });
+  await p.evaluate(() => {
+    window.__FS['mg_config/nwroom_五年級4班_9號'] = { host: '阿華', cls: '五年級4班', mk: 'coo', rk: 'grass', star: 1, state: 'open', members: ['x'], t: Date.now() };
+    window.__FS['mg_config/nwroom_五年級4班_8號'] = { host: '舊房間', cls: '五年級4班', mk: 'wolf', rk: 'forest', star: 2, state: 'open', members: ['y'], t: Date.now() - 3600000 };
+  });
+  await p.click('.vb[data-bld="board"]'); await p.waitForSelector('#nwbd-board');
+  ok((await p.$$('.qs-wrap')).length === 4, '看板上有 3 張草原委託單＋1 張還沒開的森林委託');
+  ok((await p.$$('.qs.lock')).length === 1 && (await p.textContent('.qs.lock')).includes('打倒新芽草原 ★5'), '森林的委託是灰的，寫著怎麼開');
+  ok((await p.$$eval('.qs:not(.lock)', els => els.every(e => e.textContent.includes('☆') || e.textContent.includes('★')))), '每張委託單有星級');
+  ok((await p.$$('.qs-wrap.on')).length === 1 && !(await p.isDisabled('[data-go]')), '一打開就選好第一張，狩獵鈕可以按');
+  await p.click('.qs[data-q="grass:frog:1"]'); await p.waitForTimeout(500);
+  ok((await p.textContent('#nwbd-info')).includes('泡泡蛙') && (await p.textContent('#nwbd-info')).includes('小池塘'), '右邊寫出魔物住在哪裡');
+  ok((await p.textContent('.qs[data-q="grass:frog:1"]')).includes('Lv 1') && (await p.textContent('.qs[data-q="grass:frog:1"]')).includes('新芽草原'), '委託單有等級與區域');
+  await p.screenshot({ path: OUT + '/nw1-board.png' });
+  await p.click('[data-tab="rooms"]'); await p.waitForTimeout(700);
+  ok((await p.textContent('#nwbd-list')).includes('阿華') && !(await p.textContent('#nwbd-list')).includes('舊房間'), '房間分頁看得到同學開的房間，過期的不顯示');
+  ok((await p.textContent('#nwbd-list')).includes('第 4 段開放'), '加入組隊標示第 4 段開放');
+  await p.click('[data-tab="quests"]');
+  await p.click('.qs[data-q="grass:frog:1"]');
+  await p.click('[data-go]'); await p.waitForSelector('[data-view="room"]');
+  const room = await p.evaluate(() => window.__FS['mg_config/nwroom_五年級3班_5號']);
+  ok(room && room.mk === 'frog' && room.state === 'open', '按「狩獵」才開房間');
+  await p.screenshot({ path: OUT + '/nw1-room.png' });
+  await p.click('[data-act="leaveroom"]'); await p.waitForSelector('#nwbd-board'); await p.waitForTimeout(300);
+  ok(!(await p.evaluate(() => window.__FS['mg_config/nwroom_五年級3班_5號'])), '離開房間就把房間收掉');
+  await p.click('[data-act="hub"]'); await p.waitForTimeout(900);
+  ok((await p.textContent('#vmap')).includes('Enter：進入「委託板」'), '走到建築旁邊會出現「Enter：進入」的提示');
+  await p.waitForTimeout(800);
+  ok(await p.$('[data-view="hub"]') !== null, '站在門口不會自動進去');
+  await p.keyboard.press('Enter'); await p.waitForSelector('#nwbd-board', { timeout: 3000 });
+  ok(true, '按 Enter 才進去');
 
   ok(errs.length === 0, '沒有 JS 錯誤 ' + errs.join(' | '));
   await b.close(); process.exit(fails ? 1 : 0);

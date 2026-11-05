@@ -1,4 +1,4 @@
-import { VILLAGE, WORLD, doorTile } from './nw-data.js';
+import { VILLAGE, doorTile } from './nw-data.js';
 
 const T = 16;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -48,7 +48,6 @@ export function mountVillage(host, o) {
   const sprites = {};
   const spr = (lk, d, f) => { const k = JSON.stringify(lk) + d + f; return sprites[k] || (sprites[k] = PX.chibi(lk, d, f, 1)); };
   const gateEl = { x: V.gate.x * T - 4, y: V.gate.y * T - 56 };
-  const doors = V.buildings.map(b => ({ b, t: doorTile(b) }));
 
   const addHot = (id, name, x, y, w, h, wip, tag) => {
     const b = document.createElement('button');
@@ -106,9 +105,9 @@ export function mountVillage(host, o) {
     if (npc && !hot) { talk(npc); return; }
     if (hot) {
       const id = hot.dataset.bld;
-      if (id === 'gate') { walkTo(V.gate.approach, () => { P.fy += 6; onEnter({ id: 'gate' }); }); return; }
+      if (id === 'gate') { walkTo(V.gate.approach, () => onEnter({ id: 'gate' })); return; }
       const b = V.buildings.find(x => x.id === id), d = doorTile(b);
-      walkTo([d[0], d[1]], null);
+      walkTo([d[0], d[1]], () => onEnter(b));
       return;
     }
     const tx = Math.floor(lx / T), ty = Math.floor(ly / T);
@@ -125,6 +124,34 @@ export function mountVillage(host, o) {
     bubble.style.top = Math.max(4, (n.fy - 40) * sc) + 'px';
     setTimeout(() => { if (bubble.dataset.who === n.id && performance.now() >= n.talkUntil - 50) bubble.style.display = 'none'; }, 3700);
   }
+
+  const prompt = document.createElement('div');
+  prompt.className = 'px-panel';
+  prompt.style.cssText = 'position:absolute;display:none;padding:3px 10px;font-size:14px;font-weight:900;z-index:7;pointer-events:none;white-space:nowrap;transform:translateX(-50%)';
+  stage.appendChild(prompt);
+  const REACH = 26;
+  function nearest() {
+    let best = null;
+    const test = (x, y, d, kind, ref, label) => { const dist = Math.hypot(P.fx - x, P.fy - y); if (dist <= REACH && (!best || dist < best.dist)) best = { dist, x, y, kind, ref, label }; };
+    V.buildings.forEach(b => { const t = doorTile(b); test(t[0] * T + 8, t[1] * T + 8, 0, 'bld', b, `進入「${b.name}」`); });
+    test(V.gate.approach[0] * T + 8, V.gate.approach[1] * T + 14, 0, 'gate', { id: 'gate' }, '回舊世界');
+    npcs.forEach(n => test(n.fx, n.fy, 0, 'npc', n, `跟${n.name}說話`));
+    return best;
+  }
+  function showPrompt(near) {
+    if (!near) { prompt.style.display = 'none'; P.near = null; return; }
+    P.near = near;
+    prompt.textContent = `Enter：${near.label}`;
+    prompt.style.display = 'block';
+    prompt.style.left = (near.x * sc) + 'px'; prompt.style.top = Math.max(0, (near.y - 30) * sc) + 'px';
+  }
+  const act = () => {
+    if (document.getElementById('nw-bag') || !P.near) return;
+    const n = P.near;
+    if (n.kind === 'npc') talk(n.ref); else onEnter(n.ref);
+  };
+  const onEnterKey = e => { if (e.key === 'Enter' && !/INPUT|TEXTAREA|SELECT|BUTTON/.test((e.target && e.target.tagName) || '')) { e.preventDefault(); act(); } };
+  addEventListener('keydown', onEnterKey);
 
   function moveBy(ent, dx, dy) {
     let moved = false;
@@ -146,10 +173,6 @@ export function mountVillage(host, o) {
       const len = Math.hypot(ix, iy), sx = ix / len * speed * dt, sy = iy / len * speed * dt;
       if (Math.abs(ix) >= Math.abs(iy) && ix) P.dir = ix > 0 ? 'right' : 'left'; else if (iy) P.dir = iy > 0 ? 'down' : 'up';
       P.moving = moveBy(P, sx, sy);
-      if (!P.moving) {
-        const ahead = [Math.floor((P.fx + Math.sign(ix) * 6) / T), Math.floor((P.fy + 4 + Math.sign(iy) * 6) / T)];
-        if (inGate(...ahead) && !P.lock) { P.lock = true; onEnter({ id: 'gate' }); }
-      }
     } else if (P.path.length) {
       const [tx, ty] = P.path[0], gx = tx * T + 8, gy = ty * T + 12;
       const dx = gx - P.fx, dy = gy - P.fy, d = Math.hypot(dx, dy), step = speed * dt;
@@ -159,10 +182,8 @@ export function mountVillage(host, o) {
       else { P.fx += dx / d * step; P.fy += dy / d * step; }
     }
     P.frame = P.moving ? Math.floor(P.t * 7) % 2 : 0;
-    const [ptx, pty] = tileOf();
-    const onDoor = doors.find(d => d.t[0] === ptx && d.t[1] === pty);
-    if (onDoor && !P.lock) { P.lock = true; onEnter(onDoor.b); }
-    else if (!onDoor && !inGate(ptx, pty)) P.lock = false;
+    const near = nearest();
+    showPrompt(near);
 
     npcs.forEach(n => {
       if (now < n.talkUntil) { n.frame = 0; return; }
@@ -212,51 +233,8 @@ export function mountVillage(host, o) {
   if (W * sc > host.clientWidth) host.scrollLeft = P.fx * sc - host.clientWidth / 2;
 
   return {
-    destroy() { alive = false; cancelAnimationFrame(raf); removeEventListener('keydown', kd); removeEventListener('keyup', ku); },
+    destroy() { alive = false; cancelAnimationFrame(raf); removeEventListener('keydown', kd); removeEventListener('keyup', ku); removeEventListener('keydown', onEnterKey); },
     pos: () => tileOf(),
     walkTo
   };
-}
-
-export function mountWorldMap(host, o) {
-  const { PX, look, states, current, onPick } = o;
-  const L = WORLD, sc = clamp(Math.floor(Math.min((host.clientWidth || innerWidth) / L.w, (innerHeight - 190) / L.h)), 2, 6);
-  host.innerHTML = '';
-  const stage = document.createElement('div');
-  stage.style.cssText = `position:relative;width:${L.w * sc}px;height:${L.h * sc}px;margin:0 auto;border:4px solid #0a0714;box-sizing:content-box`;
-  const cvs = document.createElement('canvas');
-  cvs.width = L.w; cvs.height = L.h;
-  cvs.style.cssText = `width:${L.w * sc}px;height:${L.h * sc}px;image-rendering:pixelated;display:block`;
-  stage.appendChild(cvs);
-  host.appendChild(stage);
-  const g = cvs.getContext('2d');
-  g.imageSmoothingEnabled = false;
-  const base = PX.worldMap(L, states);
-  const me = PX.chibi(look, 'down', 0, 1), me2 = PX.chibi(look, 'down', 1, 1);
-  Object.entries(L.pos).forEach(([k, [x, y]]) => {
-    const st = states[k], b = document.createElement('button');
-    b.className = 'wmr' + (st.wip ? ' wip' : st.open ? '' : ' lock'); b.dataset.region = k; b.setAttribute('aria-label', st.name);
-    b.style.cssText = `position:absolute;left:${(x - 22) * sc}px;top:${(y - 17) * sc}px;width:${44 * sc}px;height:${34 * sc}px;background:transparent;border:0;cursor:pointer;padding:0`;
-    const lab = document.createElement('span');
-    lab.className = 'px-text';
-    lab.style.cssText = `position:absolute;left:50%;bottom:${-Math.max(6, 2 * sc)}px;transform:translateX(-50%);white-space:nowrap;pointer-events:none;font-weight:900;font-size:${Math.max(11, 2.6 * sc)}px;padding:1px 8px;background:rgba(10,7,20,.85);border:2px solid ${st.open ? '#e8b64c' : '#5a5f6a'};color:${st.open ? '#fff' : '#aab0b8'}`;
-    lab.textContent = `${st.open ? '' : '🔒 '}${st.icon} ${st.name}${st.sub ? '・' + st.sub : ''}`;
-    b.appendChild(lab);
-    b.addEventListener('mouseenter', () => { b.style.outline = '3px dashed #ffd98a'; });
-    b.addEventListener('mouseleave', () => { b.style.outline = '0'; });
-    b.addEventListener('click', () => onPick(k));
-    stage.appendChild(b);
-  });
-  let raf = 0, alive = true;
-  function frame(now) {
-    if (!alive || !stage.isConnected) return;
-    g.drawImage(base, 0, 0);
-    const [px0, py0] = L.pos[current] || L.pos.grass, cx = px0 + 11, cy = py0 + 5, t = now / 1000, bob = Math.round(Math.sin(t * 5) * 1.5);
-    g.fillStyle = 'rgba(0,0,0,.3)'; g.beginPath(); g.ellipse(cx, cy + 14, 5, 2, 0, 0, 7); g.fill();
-    g.drawImage(Math.floor(t * 4) % 2 ? me : me2, cx - 8, cy - 8 + bob);
-    g.fillStyle = '#ffd24a'; const ay = cy - 14 + Math.round(Math.sin(t * 4) * 2); g.fillRect(cx - 2, ay, 5, 1); g.fillRect(cx - 1, ay + 1, 3, 1); g.fillRect(cx, ay + 2, 1, 1);
-    raf = requestAnimationFrame(frame);
-  }
-  raf = requestAnimationFrame(frame);
-  return { destroy() { alive = false; cancelAnimationFrame(raf); } };
 }

@@ -32,10 +32,10 @@ async function open(browser, starter, extra) {
   p.errs = errs; return p;
 }
 const goHunt = async (p, region, mon, star) => {
-  await p.click('.vb[data-bld="board"]'); await p.waitForSelector('[data-view="map"]'); await p.click(`[data-region="${region}"]`); await p.waitForTimeout(200);
-  await p.click(`[data-mon="${mon}"]`); await p.waitForTimeout(200);
-  if (star) await p.click(`[data-star="${star}"]`);
-  await p.click('[data-go]'); await p.waitForTimeout(80);
+  await p.click('.vb[data-bld="board"]'); await p.waitForSelector('#nwbd-board');
+  await p.click(`.qs[data-q="${region}:${mon}:${star || 1}"]`);
+  await p.click('[data-go]'); await p.waitForSelector('[data-view="room"]');
+  await p.click('[data-act="startroom"]'); await p.waitForTimeout(80);
 };
 const qText = p => p.$$eval('#nwb-q .zy-han', els => els.map(e => e.textContent).join(''));
 const hpPct = (p, id) => p.$eval('#' + id, e => parseFloat(e.style.width));
@@ -77,11 +77,14 @@ async function playUntil(p, pred, max = 80) {
     const type = (await p.getAttribute('#nwb-cast', 'class')).includes('defend') ? 'defend' : 'dodge';
     ok(true, `魔物出招：${type === 'dodge' ? '閃避型（紅）' : '防禦型（藍）'}`);
     await p.screenshot({ path: OUT + '/nw2-cast.png' });
-    await p.waitForFunction(t => parseFloat(document.getElementById('nwb-cast-i').style.width) >= (t === 'dodge' ? 90 : 70), type, { timeout: 12000, polling: 50 });
+    await p.waitForFunction(() => document.getElementById('nwb-stance').dataset.state === 'go', null, { timeout: 12000, polling: 50 });
+    ok(true, '時機到了：姿態條會亮綠燈寫「現在打」');
+    await p.waitForTimeout(1400);
     await p.fill('#nwb-in', type === 'dodge' ? '閃' : '防');
     await p.waitForTimeout(150);
     ok(await p.isDisabled('#nwb-in'), '打出動作詞後輸入框變灰');
-    ok(await p.$eval('#nwb-actw', e => e.style.visibility) === 'visible', '出現動作條');
+    ok(['dodge', 'defend'].includes(await p.$eval('#nwb-stance', e => e.dataset.state)) && (await p.textContent('#nwb-st-name')).includes('姿態'), '輸入框上出現「閃避／防禦姿態」條');
+    ok((await p.textContent('#nwb-st-hint')).includes('攻擊會落在姿態裡'), '姿態條告訴你這一下擋不擋得住');
     await p.screenshot({ path: OUT + '/nw2-action.png' });
     const hpBefore = await hpPct(p, 'nwb-hp');
     await p.waitForFunction(() => document.getElementById('nwb-cast').style.display === 'none', null, { timeout: 8000 });
@@ -115,7 +118,7 @@ async function playUntil(p, pred, max = 80) {
     ok(left < full - 5, `${wk} 打 6 題魔物掉血（${full.toFixed(0)}% → ${left.toFixed(0)}%）`);
     if (wk === 'bow') ok((await p.textContent('#nwb-wlabel')).length > 0, '長弓有力量條');
     if (wk === 'crossbow') ok((await p.textContent('#nwb-wlabel')).includes('彈匣'), '連弩有彈匣');
-    if (wk === 'staff') { const pad = (await p.$eval('#nwb-q', e => e.dataset.mode)); ok(pad === 'zhuyin', '泡泡蛙出注音題'); }
+    if (wk === 'staff') { const pad = (await p.$eval('#nwb-q', e => e.dataset.mode)); ok(pad === 'hanzi', '泡泡蛙也是國字題（注音只當提示，不用打注音符號）'); }
     ok(p.errs.length === 0, `${wk} 沒有 JS 錯誤 ` + p.errs.join(' | '));
     await p.close();
   }

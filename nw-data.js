@@ -62,8 +62,8 @@ export const MONSTERS = {
     rare: [['bp_coo_hat', '📜 咕咕帽圖紙', 'green']]
   },
   frog: {
-    name: '泡泡蛙', elem: 'water', ask: 'zhuyin', fear: 'wood', resist: 'fire', lean: '偏防禦',
-    sp: '會吐泡泡，泡泡會擋住注音提示。', spKey: 'bubble', hpMul: 1,
+    name: '泡泡蛙', elem: 'water', ask: 'word', fear: 'wood', resist: 'fire', lean: '偏防禦',
+    sp: '會吐泡泡，泡泡會遮住字旁邊的注音小字。', spKey: 'bubble', hpMul: 1,
     attacks: [
       { name: '泡泡雨', type: 'defend', mul: 0.9, status: 'ice' },
       { name: '舌頭彈', type: 'dodge', mul: 0.9 }
@@ -72,7 +72,7 @@ export const MONSTERS = {
     rare: [['bp_frog_boots', '📜 泡泡靴圖紙', 'green']]
   },
   shroom: {
-    name: '跳跳菇', elem: 'wood', ask: 'zhuyin', fear: 'fire', resist: 'water', lean: '一半一半',
+    name: '跳跳菇', elem: 'wood', ask: 'word', fear: 'fire', resist: 'water', lean: '一半一半',
     sp: '會灑孢子，題目的字會變得很小。', spKey: 'spore', hpMul: 1,
     attacks: [
       { name: '跳起來壓', type: 'dodge', mul: 1 },
@@ -225,9 +225,27 @@ export const VILLAGE = {
   ]
 };
 
-export const WORLD = {
-  w: 160, h: 120,
-  pos: { grass: [30, 96], forest: [60, 64], coast: [20, 56], volcano: [100, 90], snow: [60, 24], sky: [118, 20], abyss: [136, 56] },
-  links: [['grass', 'forest'], ['forest', 'coast'], ['forest', 'snow'], ['forest', 'volcano'], ['snow', 'sky'], ['volcano', 'abyss']]
-};
 export const doorTile = b => [b.x + 1, b.y + 3];
+
+export const BIGMAP = {
+  w: 240, h: 180, village: [34, 150], pond: [72, 142],
+  sites: { grass: [60, 128], forest: [108, 96], coast: [28, 84], snow: [108, 36], volcano: [172, 130], abyss: [214, 88], sky: [190, 30] },
+  areas: { grass: '新芽草原', forest: '迷霧森林', coast: '珊瑚海岸', snow: '冰封雪原', volcano: '熔岩火山', abyss: '深淵裂谷', sky: '天空遺跡' },
+  spots: {
+    'grass:coo': [46, 116, '草丘'], 'grass:frog': [72, 142, '小池塘'], 'grass:shroom': [84, 118, '林邊'],
+    'forest:shroom': [112, 84, '蘑菇林'], 'forest:coo': [90, 96, '林間空地'], 'forest:wolf': [124, 106, '森林深處']
+  }
+};
+
+export function boardQuests(nw) {
+  const out = [];
+  Object.entries(REGIONS).forEach(([rk, r]) => {
+    if (r.wip) return;
+    if (!zoneOpen(nw, rk)) { out.push({ id: 'lock:' + rk, locked: true, rk }); return; }
+    r.mons.forEach(mk => {
+      const top = Math.min(5, (nw.zone[rk] || 0) + 1);
+      for (let star = 1; star <= top; star++) out.push({ id: `${rk}:${mk}:${star}`, rk, mk, star, lv: regionLv(rk, star), done: (nw.zone[rk] || 0) >= star && (nw.dex[mk] || 0) > 0 });
+    });
+  });
+  return out.sort((a, b) => (a.locked ? 1 : 0) - (b.locked ? 1 : 0) || (a.star || 9) - (b.star || 9) || (a.rk > b.rk ? 1 : -1));
+}

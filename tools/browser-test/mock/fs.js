@@ -36,8 +36,9 @@ export function serverTimestamp(){ return { __ts: true }; }
 export function query(col, ...f){ return { path: col.path, col: true, filters: f.filter(Boolean) }; }
 export function where(field, op, v){ return { field, op, v }; }
 export function orderBy(){ return null; }
+export function documentId(){ return '__name__'; }
 export async function getDocs(q){ const docs = Object.keys(FS).filter(p => p.startsWith(q.path + '/')).map(snapOf)
-  .filter(d => (q.filters||[]).every(f => !f.field || d.data()[f.field] === f.v));
+  .filter(d => (q.filters||[]).every(f => !f.field || (f.field === '__name__' ? (f.op === '>=' ? d.id >= f.v : f.op === '<' ? d.id < f.v : d.id === f.v) : d.data()[f.field] === f.v)));
   return { docs, forEach: fn => docs.forEach(fn), size: docs.length, empty: !docs.length }; }
 export function onSnapshot(ref, next){ (LISTEN[ref.path] = LISTEN[ref.path] || []).push(next); setTimeout(()=> next(snapOf(ref.path)), 20);
   return ()=>{ LISTEN[ref.path] = LISTEN[ref.path].filter(f => f !== next); }; }

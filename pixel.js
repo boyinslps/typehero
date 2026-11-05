@@ -865,79 +865,104 @@ function zoneGridW(W, col, edge) {
   return s;
 }
 
-function patchGrid(k) {
-  const s = mk(44, 34), R = rng(k.length * 7 + 3);
-  const inE = (x, y) => ((x - 22) / 21) ** 2 + ((y - 17) / 16) ** 2 <= 1;
-  const base = { grass: '#68b84c', forest: '#2f6a40', coast: '#e8d29a', volcano: '#4a3434', snow: '#e8f1f8', sky: '#eaf4ff', abyss: '#241438' }[k];
-  for (let y = 0; y < 34; y++) for (let x = 0; x < 44; x++) if (inE(x, y)) {
-    put(s, x, y, base);
-    if (R() < .18) put(s, x, y, k === 'abyss' ? '#35204f' : k === 'snow' || k === 'sky' ? '#ffffff' : dk(base, .12));
-  }
-  const rim = dk(base, .28);
-  for (let y = 0; y < 34; y++) for (let x = 0; x < 44; x++) if (inE(x, y) && !(inE(x - 1, y) && inE(x + 1, y) && inE(x, y - 1) && inE(x, y + 1))) put(s, x, y, rim);
-  const tree = (x, y, c1, c2) => { rect(s, x - 1, y, 3, 4, '#5a3a22'); sdisc(s, x, y - 3, 4, c1); put(s, x - 1, y - 5, c2); };
-  const pineW = (x, y) => { rect(s, x, y + 5, 1, 3, '#5a3a22'); tri(s, x, y, y + 7, 3, '#2f7a50'); tri(s, x, y, y + 3, 2, '#f4f8fc'); };
-  if (k === 'grass') {
-    for (let i = 0; i < 14; i++) { const x = 6 + Math.floor(R() * 32), y = 5 + Math.floor(R() * 24); if (inE(x, y)) { put(s, x, y, ['#fff', '#ff9ec4', '#ffe27a'][i % 3]); put(s, x, y + 1, '#3a7d2c'); } }
-    poly(s, [[15, 12], [22, 5], [29, 12]], '#c0392b'); rect(s, 16, 12, 12, 8, '#f0e4cc'); rect(s, 16, 19, 12, 1, '#b8a888'); rect(s, 20, 14, 4, 6, '#5a3a22'); rect(s, 17, 14, 2, 2, '#26345a'); rect(s, 25, 14, 2, 2, '#26345a');
-    tree(9, 22, '#3f9a45', '#7cc35a'); tree(35, 24, '#3f9a45', '#7cc35a');
-  } else if (k === 'forest') {
-    [[8, 14], [14, 9], [22, 7], [30, 10], [36, 16], [10, 22], [18, 18], [26, 17], [32, 24], [22, 26], [14, 27], [38, 22]].forEach(([x, y], i) => tree(x, y + 2, i % 2 ? '#1f5a32' : '#2a6a38', '#4faa55'));
-    for (let i = 0; i < 6; i++) put(s, 8 + Math.floor(R() * 28), 8 + Math.floor(R() * 20), '#e0933c');
-  } else if (k === 'coast') {
-    for (let y = 0; y < 34; y++) for (let x = 23; x < 44; x++) if (inE(x, y) && inE(x - 1, y)) { put(s, x, y, (x + y) % 5 === 0 ? '#bfe8f6' : (x < 25 ? '#8fd0ea' : '#3ca4d4')); }
-    for (let y = 8; y < 28; y += 4) for (let x = 26; x < 40; x += 6) if (inE(x, y)) { rect(s, x, y, 3, 1, '#bfe8f6'); put(s, x + 3, y + 1, '#8fd0ea'); }
-    tline(s, 10, 22, 12, 11, '#8a5a2b', '#5a3a22'); [[-5, 2], [-4, -3], [4, -2], [5, 3], [0, -5]].forEach(([dx, dy]) => { line(s, 13, 11, 13 + dx, 11 + dy, '#3f9a45'); line(s, 13, 12, 13 + dx, 12 + dy, '#2c7a35'); });
-    poly(s, [[28, 20], [38, 20], [35, 25], [31, 25]], '#8a5a2b'); rect(s, 33, 12, 1, 8, '#e8d8c0'); poly(s, [[34, 12], [34, 19], [39, 19]], '#fff6dc');
-  } else if (k === 'volcano') {
-    tri(s, 22, 5, 27, 15, '#3a2a2a'); for (let y = 5; y <= 27; y++) { const w = Math.round(15 * (y - 5) / 22); rect(s, 22 + w - 5, y, 5, 1, '#2a1c1c'); rect(s, 22 - w, y, 4, 1, '#5a4040'); }
-    rect(s, 17, 5, 10, 2, '#ff6a2e'); rect(s, 19, 5, 6, 1, '#ffe27a');
-    for (let y = 7; y < 29; y++) { const x = 22 + Math.round(Math.sin(y * .6) * 2); rect(s, x, y, 2, 1, '#ff6a2e'); }
-    for (let i = 0; i < 8; i++) put(s, 6 + Math.floor(R() * 30), 4 + Math.floor(R() * 24), i % 2 ? '#ffb35a' : '#8a7a7a');
-    ell(s, 8, 24, 3, 2, '#2a1c1c'); ell(s, 36, 22, 3, 2, '#2a1c1c');
-  } else if (k === 'snow') {
-    ell(s, 30, 24, 7, 3, '#bfe0f4'); ell(s, 12, 24, 5, 2, '#bfe0f4');
-    [[8, 10], [16, 6], [24, 9], [32, 8], [12, 16], [28, 15], [20, 18], [36, 18]].forEach(([x, y]) => pineW(x, y));
-    for (let i = 0; i < 14; i++) put(s, 4 + Math.floor(R() * 36), 3 + Math.floor(R() * 28), '#fff');
-  } else if (k === 'sky') {
-    [[10, 22, 6], [34, 22, 5], [22, 27, 6]].forEach(([x, y, r]) => ell(s, x, y, r + 3, 3, '#ffffff'));
-    rect(s, 12, 8, 3, 14, '#f1ead8'); rect(s, 12, 8, 1, 14, '#fff'); rect(s, 29, 10, 3, 12, '#f1ead8'); rect(s, 29, 10, 1, 12, '#fff'); rect(s, 11, 7, 5, 1, '#e8b64c'); rect(s, 28, 9, 5, 1, '#e8b64c');
-    rect(s, 20, 12, 5, 10, '#f1ead8'); rect(s, 19, 11, 7, 1, '#e8b64c'); rect(s, 15, 20, 14, 2, '#cfc4a8');
-    for (let i = 0; i < 8; i++) { const x = 6 + Math.floor(R() * 32), y = 3 + Math.floor(R() * 24); put(s, x, y, '#ffe9a0'); }
-  } else if (k === 'abyss') {
-    [[8, 18, 12], [16, 14, 9], [30, 12, 13], [37, 18, 9]].forEach(([x, y, h]) => { tri(s, x, y, y + h, 3, '#120a1e'); line(s, x - 2, y + h - 2, x, y, '#4a2a80'); });
-    let x = 4, y = 26; while (x < 40) { const nx = x + 2 + Math.floor(R() * 3), ny = Math.max(22, Math.min(30, y + Math.floor(R() * 3) - 1)); line(s, x, y, nx, ny, '#b36bff'); x = nx; y = ny; }
-    put(s, 20, 17, '#ff4a4a'); put(s, 23, 17, '#ff4a4a');
+function woodGrid() {
+  const s = mk(48, 48), R = rng(77), tones = ['#6a4a2a', '#735030', '#5f4224', '#6d4c2c'];
+  for (let p = 0; p < 4; p++) {
+    const y0 = p * 12, c = tones[p];
+    rect(s, 0, y0, 48, 12, c);
+    for (let i = 0; i < 9; i++) { const y = y0 + 1 + Math.floor(R() * 10), x = Math.floor(R() * 40); rect(s, x, y, 4 + Math.floor(R() * 12), 1, R() < .5 ? dk(c, .16) : lt(c, .1)); }
+    for (let i = 0; i < 14; i++) put(s, Math.floor(R() * 48), y0 + Math.floor(R() * 12), dk(c, .28));
+    rect(s, 0, y0 + 11, 48, 1, '#2a1a0c'); rect(s, 0, y0, 48, 1, lt(c, .1));
+    const kx = 8 + Math.floor(R() * 30), ky = y0 + 4 + Math.floor(R() * 4);
+    if (R() < .6) { ell(s, kx, ky, 3, 2, dk(c, .35)); ell(s, kx, ky, 1, 1, dk(c, .5)); }
+    [3, 44].forEach(x => { disc(s, x, y0 + 6, 1, '#2a2a30'); put(s, x, y0 + 5, '#8a8a94'); });
   }
   return s;
 }
 
-function worldMapCanvas(L, states) {
-  const s = mk(L.w, L.h), R = rng(9);
-  sky(s, ['#2c6fb8', '#3a86c8', '#4a9ad8'], 0, L.h);
-  for (let i = 0; i < 70; i++) { const x = Math.floor(R() * L.w), y = Math.floor(R() * L.h); rect(s, x, y, 3, 1, '#7fc0ee'); put(s, x + 3, y + 1, '#5aa6e0'); }
-  const land = new Set(), key = (x, y) => y * L.w + x;
-  const blob = (cx, cy, rx, ry) => { for (let y = cy - ry; y <= cy + ry; y++) for (let x = cx - rx; x <= cx + rx; x++) if (((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1 && x >= 0 && y >= 0 && x < L.w && y < L.h) land.add(key(x, y)); };
-  Object.entries(L.pos).forEach(([k, [x, y]]) => { if (k !== 'sky') blob(x, y, 28, 22); });
-  L.links.forEach(([a, b]) => { const [x1, y1] = L.pos[a], [x2, y2] = L.pos[b]; if (a === 'sky' || b === 'sky') return; for (let t = 0; t <= 1; t += .02) blob(Math.round(x1 + (x2 - x1) * t), Math.round(y1 + (y2 - y1) * t), 7, 7); });
-  land.forEach(k => { const x = k % L.w, y = Math.floor(k / L.w); put(s, x, y, (x + y) % 2 ? '#5fae45' : '#68b84c'); if (R() < .12) put(s, x, y, '#4a9a3a'); });
-  land.forEach(k => { const x = k % L.w, y = Math.floor(k / L.w); if (![[1, 0], [-1, 0], [0, 1], [0, -1]].every(([dx, dy]) => land.has(key(x + dx, y + dy)))) put(s, x, y, '#e8d29a'); });
-  L.links.forEach(([a, b]) => {
-    const [x1, y1] = L.pos[a], [x2, y2] = L.pos[b], n = Math.round(Math.hypot(x2 - x1, y2 - y1));
-    for (let i = 0; i <= n; i += 3) { const t = i / n; rect(s, Math.round(x1 + (x2 - x1) * t), Math.round(y1 + (y2 - y1) * t), 2, 2, a === 'sky' || b === 'sky' ? '#ffffff' : '#c9a66b'); }
-  });
-  const c = blit(s, 1, false), g = c.getContext('2d');
-  Object.entries(L.pos).forEach(([k, [x, y]]) => {
-    const p = blit(patchGrid(k), 1, false), open = states[k] && states[k].open;
-    if (!open) grayOut(p);
-    g.drawImage(p, x - 22, y - 17);
-    if (!open) {
-      for (let i = 0; i < 32; i += 2) { g.fillStyle = (i / 2) % 2 ? '#c8ccd4' : '#6a6f7a'; g.fillRect(x - 16 + i, y - 12 + i * .7, 2, 2); g.fillRect(x - 16 + i, y + 10 - i * .7, 2, 2); }
-      g.fillStyle = '#e8b64c'; g.fillRect(x - 4, y - 3, 8, 7); g.fillStyle = '#8f6416'; g.fillRect(x - 4, y + 3, 8, 1); g.fillStyle = '#2a1a10'; g.fillRect(x - 2, y - 1, 4, 2);
-      g.fillStyle = '#e8b64c'; g.fillRect(x - 3, y - 6, 2, 4); g.fillRect(x + 1, y - 6, 2, 4); g.fillRect(x - 3, y - 7, 6, 2);
-    }
-  });
-  return c;
+function paperGrid(tint) {
+  const s = mk(32, 32), R = rng(tint.length * 11 + 5);
+  rect(s, 0, 0, 32, 32, tint);
+  for (let i = 0; i < 60; i++) put(s, Math.floor(R() * 32), Math.floor(R() * 32), R() < .6 ? dk(tint, .1) : lt(tint, .08));
+  for (let i = 0; i < 6; i++) rect(s, Math.floor(R() * 24), Math.floor(R() * 32), 3 + Math.floor(R() * 6), 1, dk(tint, .06));
+  for (let i = 0; i < 3; i++) ell(s, 4 + Math.floor(R() * 24), 4 + Math.floor(R() * 24), 3 + Math.floor(R() * 3), 2 + Math.floor(R() * 2), dk(tint, .05));
+  return s;
+}
+
+function pinGrid(c) {
+  const s = mk(9, 11);
+  rect(s, 4, 6, 1, 4, '#5a5a64'); disc(s, 4, 3, 3, dk(c, .3)); disc(s, 4, 3, 2, c); put(s, 3, 2, lt(c, .5)); put(s, 3, 1, lt(c, .5));
+  outline(s, OL);
+  return s;
+}
+
+function inkGrid(spr) {
+  const s = mk(spr.w, spr.h);
+  for (let i = 0; i < spr.d.length; i++) {
+    const v = spr.d[i]; if (!v) continue;
+    if (v === OL) { s.d[i] = '#1f1409'; continue; }
+    const [r, g, b] = hx2(v), l = (r * .3 + g * .59 + b * .11) / 255;
+    s.d[i] = l < .3 ? '#2e1f10' : l < .55 ? '#5c4228' : l < .8 ? '#8c6a42' : '#b89868';
+  }
+  return s;
+}
+
+function bigMapGrid(L) {
+  const W = L.w, H = L.h, s = mk(W, H), R = rng(21);
+  const sites = L.sites, names = Object.keys(sites);
+  const warp = (x, y) => [x + 8 * Math.sin(y * .07 + 1) + 5 * Math.sin(y * .13), y + 8 * Math.sin(x * .06) + 5 * Math.sin(x * .11 + 2)];
+  const landAt = (x, y) => { const [wx, wy] = warp(x, y); return ((wx - 118) / 108) ** 2 + ((wy - 104) / 68) ** 2 < 1 || ((wx - 190) / 34) ** 2 + ((wy - 30) / 19) ** 2 < 1; };
+  const biomeAt = (x, y) => {
+    const [wx, wy] = warp(x, y); let best = '', bd = 1e9;
+    names.forEach(k => { const [sx, sy] = sites[k]; const d = Math.hypot(wx - sx, (wy - sy) * 1.1) * (k === 'sky' ? .7 : 1); if (d < bd) { bd = d; best = k; } });
+    return best;
+  };
+  const col = { grass: ['#68b84c', '#5fae45', '#7cc35a'], forest: ['#2f6a40', '#2a5e38', '#3a7a4a'], coast: ['#e8d29a', '#dcc588', '#f0dea8'], snow: ['#e8f1f8', '#dbe8f2', '#ffffff'], volcano: ['#4a3434', '#3a2828', '#5a4040'], abyss: ['#241438', '#2e1a46', '#1a0e2a'], sky: ['#eaf4ff', '#ffffff', '#d6e8fa'] };
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const f = y / H, o = dth(x, y) < f * .8 ? '#3a86c8' : '#2c6fb8';
+    put(s, x, y, o);
+    if ((x * 7 + y * 13) % 53 === 0) { rect(s, x, y, 3, 1, '#7fc0ee'); }
+  }
+  const biome = new Array(W * H), land = new Array(W * H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const l = landAt(x, y); land[y * W + x] = l;
+    if (!l) continue;
+    const b = biomeAt(x, y); biome[y * W + x] = b;
+    const c = col[b], r = R();
+    put(s, x, y, (x + y) % 2 ? c[0] : (r < .2 ? c[2] : c[1]));
+  }
+  for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
+    if (!land[y * W + x]) continue;
+    if (!land[y * W + x - 1] || !land[y * W + x + 1] || !land[(y - 1) * W + x] || !land[(y + 1) * W + x]) put(s, x, y, biome[y * W + x] === 'sky' ? '#ffffff' : biome[y * W + x] === 'snow' ? '#e8f1f8' : '#e8d29a');
+  }
+  for (let y = 2; y < H - 2; y++) for (let x = 2; x < W - 2; x++) {
+    const a = biome[y * W + x], b2 = biome[y * W + x + 2];
+    if (a && b2 && a !== b2 && land[y * W + x] && land[y * W + x + 2] && (x + y) % 3 === 0) put(s, x, y, dk(col[a][0], .15));
+  }
+  const pond = L.pond;
+  ell(s, pond[0], pond[1], 17, 10, '#e8d29a'); ell(s, pond[0], pond[1], 15, 8, '#3ca4d4'); ell(s, pond[0] - 4, pond[1] - 3, 7, 3, '#5ab8e6');
+  [[-6, 2], [4, -2], [8, 3]].forEach(([dx, dy]) => { ell(s, pond[0] + dx, pond[1] + dy, 3, 1, '#3f9a45'); });
+  const scatter = (b, n, fn) => { let t = 0; while (n > 0 && t++ < n * 40) { const x = 4 + Math.floor(R() * (W - 8)), y = 6 + Math.floor(R() * (H - 12)); if (biome[y * W + x] === b && Math.hypot(x - pond[0], (y - pond[1]) * 1.4) > 20) { fn(x, y); n--; } } };
+  const tree = (x, y, c1, c2) => { rect(s, x, y, 2, 3, '#5a3a22'); sdisc(s, x, y - 3, 4, c1); put(s, x - 1, y - 5, c2); };
+  scatter('grass', 30, (x, y) => tree(x, y, '#3f9a45', '#7cc35a'));
+  scatter('grass', 40, (x, y) => { put(s, x, y, ['#fff', '#ff9ec4', '#ffe27a'][Math.floor(R() * 3)]); });
+  scatter('forest', 90, (x, y) => { rect(s, x, y + 3, 1, 2, '#5a3a22'); tri(s, x, y - 3, y + 3, 3, R() < .5 ? '#1f5a32' : '#2a6a38'); });
+  scatter('coast', 14, (x, y) => { tline(s, x, y + 4, x + 1, y - 4, '#8a5a2b', '#5a3a22'); [[-4, 1], [-3, -2], [4, -1], [4, 2], [0, -4]].forEach(([dx, dy]) => line(s, x + 2, y - 4, x + 2 + dx, y - 4 + dy, '#3f9a45')); });
+  scatter('snow', 40, (x, y) => { rect(s, x, y + 3, 1, 2, '#5a3a22'); tri(s, x, y - 3, y + 3, 2, '#2f7a50'); tri(s, x, y - 3, y - 1, 1, '#f4f8fc'); });
+  scatter('volcano', 26, (x, y) => { ell(s, x, y, 3, 2, '#2a1c1c'); put(s, x - 1, y - 1, '#6a5050'); });
+  const vc = sites.volcano;
+  tri(s, vc[0], vc[1] - 22, vc[1] + 6, 20, '#3a2a2a'); for (let y = vc[1] - 22; y <= vc[1] + 6; y++) { const w = Math.round(20 * (y - vc[1] + 22) / 28); rect(s, vc[0] + w - 6, y, 6, 1, '#2a1c1c'); rect(s, vc[0] - w, y, 5, 1, '#5a4040'); }
+  rect(s, vc[0] - 6, vc[1] - 22, 12, 3, '#ff6a2e'); rect(s, vc[0] - 3, vc[1] - 22, 6, 1, '#ffe27a');
+  for (let y = vc[1] - 19; y < vc[1] + 7; y++) rect(s, vc[0] + Math.round(Math.sin(y * .5) * 2), y, 2, 1, '#ff6a2e');
+  scatter('abyss', 22, (x, y) => { tri(s, x, y - 8, y + 2, 2, '#120a1e'); line(s, x - 1, y + 1, x, y - 8, '#4a2a80'); });
+  scatter('abyss', 12, (x, y) => { let px = x; for (let i = 0; i < 4; i++) { const nx = px + 2 + Math.floor(R() * 3); line(s, px, y + (i % 2), nx, y + ((i + 1) % 2), '#b36bff'); px = nx; } });
+  const sk = sites.sky;
+  [[-18, 6, 7], [14, 9, 6], [0, 12, 8]].forEach(([dx, dy, r]) => ell(s, sk[0] + dx, sk[1] + dy, r + 4, 3, '#ffffff'));
+  [[-8, -6], [0, -9], [9, -5]].forEach(([dx, dy]) => { rect(s, sk[0] + dx, sk[1] + dy, 3, 10, '#f1ead8'); rect(s, sk[0] + dx, sk[1] + dy, 1, 10, '#fff'); rect(s, sk[0] + dx - 1, sk[1] + dy - 1, 5, 1, '#e8b64c'); });
+  const vp = L.village;
+  rect(s, vp[0] - 8, vp[1] - 2, 16, 2, '#c9a66b');
+  [[-6, 0], [0, -2], [6, 0]].forEach(([dx, dy], i) => { rect(s, vp[0] + dx - 3, vp[1] + dy - 6, 7, 5, '#f0e4cc'); poly(s, [[vp[0] + dx - 4, vp[1] + dy - 6], [vp[0] + dx, vp[1] + dy - 10], [vp[0] + dx + 4, vp[1] + dy - 6]], ['#c0392b', '#3a5aa8', '#a84a8a'][i]); rect(s, vp[0] + dx - 1, vp[1] + dy - 3, 2, 2, '#5a3a22'); });
+  return s;
 }
 
 const GRIDS = { weapon: W, region: RG, monster: M };
@@ -955,7 +980,11 @@ return {
   door: (state, phase, scale) => blit(doorGrid(state, phase || 0), scale || 1, false),
   building: (kind, scale, gray) => { const c = blit(buildingGrid(kind), scale || 1, false); return gray ? grayOut(c) : c; },
   village: (V, openIds) => villageDraw(V, openIds),
-  worldMap: (L, states) => worldMapCanvas(L, states),
+  wood: () => blit(woodGrid(), 1, false),
+  paper: tint => blit(paperGrid(tint), 1, false),
+  pin: c => blit(pinGrid(c), 1, false),
+  ink: (kind, key, scale) => blit(inkGrid(grid(kind, key)), scale || 1, false),
+  bigMap: L => blit(bigMapGrid(L), 1, false),
   width: (kind, key) => grid(kind, key).w
 };
 })();

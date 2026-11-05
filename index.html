@@ -1509,7 +1509,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebas
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
 import { getFirestore, doc, collection, setDoc, getDoc, getDocs, deleteDoc,
          onSnapshot, query, orderBy, where, serverTimestamp,
-         increment, arrayUnion, arrayRemove }
+         increment, arrayUnion, arrayRemove, documentId }
   from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
 /* ══════════════════════════════════════════════════════════════
@@ -7151,7 +7151,7 @@ const POOL_LABEL_HTML = k => {
 let NWG = null;
 function wireEvents() {
   NWG = initNewWorld({
-    $, show, toast, escHtml, ME, db, doc, getDoc, setDoc, REF, withTimeout, gotoLobby,
+    $, show, toast, escHtml, ME, db, doc, getDoc, setDoc, deleteDoc, collection, getDocs, query, where, documentId, REF, withTimeout, gotoLobby,
     online: () => ONLINE,
     getHist: () => MY_HIST,
     bestLevel: myBestLevel,

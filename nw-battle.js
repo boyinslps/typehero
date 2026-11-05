@@ -29,7 +29,19 @@ const CSS = `
 #nwb-in{width:100%;margin-top:6px;padding:8px 12px;background:#0a0714;border:3px solid #6a5ab0;color:var(--ink);font-weight:800;font-family:inherit}
 #nwb-in:focus{border-color:#ffd98a;outline:none}
 #nwb-in:disabled{opacity:.45}
+.nwb-stance{margin-top:6px;padding:4px 8px 6px;background:#0a0714;border:3px solid #3a3070;--sc:#7b6ac8}
+.nwb-stance[data-state="dodge"]{border-color:#9fd8ff}
+.nwb-stance[data-state="defend"]{border-color:#ffd24a}
+.nwb-stance[data-state="go"]{border-color:#8ec96b;--sc:#8ec96b;animation:nwbGo .45s steps(2) infinite}
+.nwb-stance[data-state="wait"]{--sc:#7b6ac8}
+@keyframes nwbGo{50%{background:#16301c}}
+.nwb-stance .row{display:flex;justify-content:space-between;gap:8px;font-weight:900;flex-wrap:wrap}
+.nwb-stance .row small{font-weight:700;color:#aab0d8}
+.nwb-stance .bar{position:relative;height:16px;margin-top:4px;background:#14102a;border:2px solid #6a5ab0}
+.nwb-stance .bar i{display:block;height:100%;width:0;background:repeating-linear-gradient(90deg,var(--sc) 0 6px,transparent 6px 8px)}
+.nwb-stance .bar b{position:absolute;top:-5px;width:4px;height:23px;background:#ff4a4a;border:1px solid #fff;transform:translateX(-2px);display:none}
 .nwb2-spore{transform:scale(.62)}
+.nwb2-nozy .zy-bpmf{visibility:hidden}
 .nwb2-bubbles{position:absolute;inset:0;pointer-events:none;display:none;overflow:hidden}
 .nwb2-bubbles i{position:absolute;width:2.2em;height:2.2em;border-radius:50%;border:3px solid #bfe8ff;background:rgba(191,232,255,.25)}
 .nwb2-chip{display:inline-block;padding:0 8px;font-size:.8em;font-weight:800;background:#0a0714;border:2px solid currentColor}
@@ -38,6 +50,7 @@ const CSS = `
 
 const ACTIONS = [['閃', 'dodge'], ['防', 'defend'], ['jump', 'dodge'], ['stop', 'defend']];
 const TIER_KEYS = ['normal', 'fine', 'epic', 'legend'];
+const LEAD = { A: 2.0, B: 1.2, C: .9, D: .7 };
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const rnd = arr => arr[Math.floor(Math.random() * arr.length)];
 
@@ -48,7 +61,7 @@ export function startBattle(env, cfg, done) {
   const lv = regionLv(cfg.rk, cfg.star);
   const tier = env.tier();
   const weapon = NW.starter || 'staff';
-  const mode = mon0.ask === 'zhuyin' ? 'zhuyin' : 'hanzi';
+  const mode = 'hanzi';
   const nowS = () => performance.now() / 1000;
 
   if (!document.getElementById('nwb-style')) {
@@ -77,7 +90,6 @@ export function startBattle(env, cfg, done) {
       <div>
         <div class="nwb3-lbl">❤ 生命 <b id="nwb-hpt" class="px-text"></b> <span id="nwb-st"></span></div>
         <div class="px-bar ok" style="margin-top:3px"><i id="nwb-hp"></i></div>
-        <div class="px-bar xp" id="nwb-actw" style="visibility:hidden;margin-top:4px"><i id="nwb-act" style="width:0;transition:none"></i></div>
         <div class="nwb3-lbl" style="margin-top:5px" id="nwb-wlabel"></div>
         <div style="display:flex;gap:8px;align-items:center"><div class="px-bar xp" style="flex:1"><i id="nwb-wg" style="width:0"></i></div>
           <span class="nwb3-lbl">連擊 <b id="nwb-combo" class="mono px-text" style="color:#ffd98a">0</b></span></div>
@@ -85,6 +97,10 @@ export function startBattle(env, cfg, done) {
       <div style="position:relative;min-width:0">
         <div class="nwb2-q px-text" id="nwb-q"></div>
         <div class="nwb2-bubbles" id="nwb-bub"></div>
+        <div class="nwb-stance" id="nwb-stance" data-state="idle">
+          <div class="row px-text"><span id="nwb-st-name">姿態：沒有</span><small id="nwb-st-hint"></small></div>
+          <div class="bar"><i id="nwb-st-i"></i><b id="nwb-st-mark"></b></div>
+        </div>
         <input id="nwb-in" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="打字攻擊，按 Enter 送出">
         <div class="nwb3-lbl" style="margin-top:4px" id="nwb-hint"></div>
       </div>
@@ -350,12 +366,10 @@ export function startBattle(env, cfg, done) {
     S.action = { type, start: T, end: T + W, dur: W };
     if (type === 'dodge') S.dodgeAll++; else S.defAll++;
     inp.disabled = true;
-    $q('nwb-actw').style.visibility = 'visible';
     banner(type === 'dodge' ? '💨 閃避！' : '🛡 防禦！', type === 'dodge' ? '#9fd8ff' : '#ffd24a', true);
   }
   function endAction() {
     S.action = null;
-    $q('nwb-actw').style.visibility = 'hidden';
     if (!S.me.down && !S.over) { inp.disabled = false; inp.focus(); }
   }
 
@@ -373,7 +387,7 @@ export function startBattle(env, cfg, done) {
     $q('nwb-cast-h').textContent = atk.type === 'dodge'
       ? (learn ? '👉 條快滿了，快打「閃」！' : '紅色：快滿的時候打「閃」')
       : (learn ? '👉 現在就打「防」，擋得住！' : '藍色：過一半就可以打「防」');
-    if (mon0.spKey === 'bubble') { S.bubUntil = T + 5; showBubbles(); }
+    if (mon0.spKey === 'bubble') { S.bubUntil = T + 5; showBubbles(); host.classList.add('nwb2-nozy'); }
     if (mon0.spKey === 'spore') { S.sporeUntil = T + 5; host.classList.add('nwb2-spore'); }
   }
   function showBubbles() {
@@ -420,7 +434,33 @@ export function startBattle(env, cfg, done) {
     else if (weapon === 'dagger') { const k = S.qCount % BAL.chantEvery; wg = k / BAL.chantEvery * 100; wl = `連環斬還要 ${BAL.chantEvery - k} 題`; }
     else { wg = S.mag / BAL.magMax * 100; wl = `彈匣 ${S.mag}/${BAL.magMax}　空白時按 Enter 射出`; }
     $q('nwb-wg').style.width = wg + '%'; $q('nwb-wlabel').textContent = wl;
-    if (S.action) $q('nwb-act').style.width = (clamp((T - S.action.start) / S.action.dur, 0, 1) * 100) + '%';
+    const stEl = $q('nwb-stance'), nm = $q('nwb-st-name'), ht = $q('nwb-st-hint'), fl = $q('nwb-st-i'), mkr = $q('nwb-st-mark');
+    const iceMul = S.st.ice > T ? .7 : 1, dW = TIERS[tier].dodge * iceMul, fW = TIERS[tier].defend * iceMul;
+    if (S.action) {
+      const a = S.action, k = clamp((T - a.start) / a.dur, 0, 1);
+      stEl.dataset.state = a.type;
+      stEl.style.setProperty('--sc', a.type === 'dodge' ? '#7ccfff' : '#ffd24a');
+      nm.textContent = a.type === 'dodge' ? '💨 閃避姿態' : '🛡 防禦姿態';
+      fl.style.width = (k * 100) + '%';
+      if (S.cast) {
+        const pos = (S.cast.hitAt - a.start) / a.dur;
+        mkr.style.display = 'block'; mkr.style.left = (clamp(pos, 0, 1) * 100) + '%';
+        ht.textContent = pos >= 0 && pos <= 1 ? `✓ 攻擊會落在姿態裡！（剩 ${Math.max(0, a.end - T).toFixed(1)} 秒）` : pos > 1 ? '✗ 姿態會先結束，攻擊還沒到' : '✗ 太早了';
+      } else { mkr.style.display = 'none'; ht.textContent = `姿態剩 ${Math.max(0, a.end - T).toFixed(1)} 秒`; }
+    } else {
+      mkr.style.display = 'none';
+      if (S.cast && !S.me.down) {
+        const type = S.cast.atk.type, W = type === 'dodge' ? dW : fW, remain = Math.max(0, S.cast.hitAt - T), want = type === 'dodge' ? '閃' : '防', goAt = W + (LEAD[tier] || 1.2);
+        const prog = clamp(1 - (remain - goAt) / Math.max(.1, S.cast.dur - goAt), 0, 1);
+        fl.style.width = (prog * 100) + '%';
+        if (remain <= goAt) { stEl.dataset.state = 'go'; nm.textContent = `✅ 現在打「${want}」！`; }
+        else { stEl.dataset.state = 'wait'; nm.textContent = `⏳ 再等一下…還不用打「${want}」`; }
+        ht.textContent = `出手倒數 ${remain.toFixed(1)} 秒`;
+      } else {
+        stEl.dataset.state = 'idle'; fl.style.width = '0'; nm.textContent = '姿態：沒有';
+        ht.textContent = `打「閃」＝閃避姿態 ${dW.toFixed(1)} 秒　打「防」＝防禦姿態 ${fW.toFixed(1)} 秒`;
+      }
+    }
     if (S.cast) $q('nwb-cast-i').style.width = (clamp((T - S.cast.start) / S.cast.dur, 0, 1) * 100) + '%';
     if (S.me.down) {
       const d = $q('nwb-down'); d.style.display = 'grid';
@@ -497,7 +537,7 @@ export function startBattle(env, cfg, done) {
     if (S.action && T >= S.action.end) endAction();
     if (!S.cast && T >= S.nextCast && !S.me.down) castStart(T);
     if (S.cast && T >= S.cast.hitAt) castResolve(T);
-    if (S.bubUntil && T > S.bubUntil) { S.bubUntil = 0; $q('nwb-bub').style.display = 'none'; }
+    if (S.bubUntil && T > S.bubUntil) { S.bubUntil = 0; $q('nwb-bub').style.display = 'none'; host.classList.remove('nwb2-nozy'); }
     if (S.sporeUntil && T > S.sporeUntil) { S.sporeUntil = 0; host.classList.remove('nwb2-spore'); }
     if (T - S.st.lastTick >= 1) {
       S.st.lastTick = T;
