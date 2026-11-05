@@ -46,6 +46,22 @@ service cloud.firestore {
       allow update: if request.auth != null;
       allow delete: if request.auth != null;
     }
+
+    // ── 新世界（之後各段會用到的，一次開好，之後不用再貼）──
+    // 組隊房間（第 3a 段）：房間本身與成員
+    match /mg_rooms/{room} {
+      allow read, write: if request.auth != null;
+      match /members/{member} {
+        allow read, write: if request.auth != null;
+      }
+    }
+    // 排行的場次紀錄與可疑紀錄（第 2a 段）；老師審核要能改狀態，所以不是「只能新增」
+    match /mg_nw_runs/{run} {
+      allow read, write: if request.auth != null;
+    }
+    match /mg_nw_flags/{flag} {
+      allow read, write: if request.auth != null;
+    }
   }
 }
 
@@ -63,7 +79,9 @@ service cloud.firestore {
 //  以校內打字練習來說，這通常是可以接受的。但如果你在意上面幾點，
 //  下面是「加強版」：學生只能寫自己那一筆成績，題庫與比賽控制
 //  只有老師（用 Firebase Authentication 建一個 email 帳號）能寫。
-//  要用的話，把上面 mg_* 的四段換成下面這四段，並把 TEACHER_UID
+//  要用的話，把上面 mg_* 的四段換成下面這四段（新世界的 mg_rooms、mg_nw_runs、
+//  mg_nw_flags 三段維持原樣；注意：新世界的組隊房間目前存在 mg_config 裡
+//  nwroom_ 開頭的文件，若 mg_config 改成只有老師能寫，學生就開不了房間），並把 TEACHER_UID
 //  換成你的老師帳號 UID（Firebase 主控台 → Authentication → 使用者）。
 //
 //  function isTeacher() {

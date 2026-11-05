@@ -34,7 +34,7 @@
 - 舊世界顯示：`index.html` 的 `nwTitleChip`／`paintWho`，資料來自 `mg_scores.nwTitle`／`nwTitleN`。
 
 ### 第 1 段還沒做完的（給下一位）
-1. **防作弊第 2、3 道**（GDD §20.3～20.4）：正確率 90% 才進排行、可疑紀錄（按鍵太少、節奏太平均…）送「待審核」。現在 `res.valid`/`lvAcc` 只做了第 1 道。需要新 Firestore 集合 `mg_nw_runs` 與規則（要請老師重貼 `firestore-rules.txt`）。
+1. **防作弊第 2、3 道**（GDD §20.3～20.4）：正確率 90% 才進排行、可疑紀錄（按鍵太少、節奏太平均…）送「待審核」。現在 `res.valid`/`lvAcc` 只做了第 1 道。新紀錄存 `mg_nw_runs`／`mg_nw_flags`（規則已在 `firestore-rules.txt` 裡，老師貼最新版即可）。
 2. 榮譽碑缺「比上週進步幾名」；現在讀整個 `mg_scores` 集合（學生少沒問題，人多要改成另存排行摘要）。
 3. 主線 1-5、1-6、1-7 與第 1 章收尾沒實測；`MAIN_QUESTS` 只有 1-0～1-4、1-7。
 4. 新世界的遊戲內更新紀錄（`index.html` 的 `VERSION_LOG`）還沒寫，**要等老師決定對外開放時一起發版**，同時更新 pcclass 的 `TYPEHERO_UPDATES`（見 `CLAUDE.md`）。

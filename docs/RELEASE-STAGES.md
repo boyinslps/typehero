@@ -53,7 +53,7 @@
 4. 區域用 `REGIONS[...].wip` 控制（拿掉 `wip` 就開）；魔物拿掉 `wip` 才會算進「圖鑑達人」。
 5. 組隊加入、星圖等功能自己的開關在各自的畫面（例如委託板房間分頁的「第 3a 段開放」文字）。
 6. 照 `CLAUDE.md` 的「每次發版都要做」逐項做，並更新本表與 `docs/HANDOFF.md`。
-7. 需要新的 Firestore 規則時（第 2a 的 `mg_nw_runs`、第 4 的房間），**先請老師重貼 `firestore-rules.txt`** 再開。
+7. Firestore 規則已一次開好（含 `mg_rooms`、`mg_nw_runs`、`mg_nw_flags`），老師貼過最新的 `firestore-rules.txt` 就不用再貼；若之後又新增集合，才要請老師重貼。
 
 ## 退回去（出事時）
 - 整個新世界先關：教師控制台「新世界」選單選「關閉」，並換一個通關密語。
