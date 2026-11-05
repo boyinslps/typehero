@@ -616,7 +616,7 @@ export function initNewWorld(C) {
               <div class="px-panel in text-center"><div class="px-img" data-me style="display:inline-block"></div><div class="font-bold">${escHtml(ME.name)}</div><div class="px-chip" style="color:#ffd98a">房主</div></div>
               ${[2, 3, 4].map(() => '<div class="px-panel in text-center" style="opacity:.5;display:grid;place-items:center;min-height:110px"><div>等待隊友</div></div>').join('')}
             </div>
-            <p class="text-sm mt-3 px-text">你的房間已經貼在公會的「房間」分頁，同學看得到。<span style="color:#ffd98a">組隊一起打第 4 段才開放，現在先單人出發！</span></p>
+            <p class="text-sm mt-3 px-text">你的房間已經貼在公會的「房間」分頁，同學看得到。<span style="color:#ffd98a">組隊一起打第 3a 段才開放，現在先單人出發！</span></p>
             <div class="mt-4 flex gap-3 flex-wrap"><button class="px-btn gold" style="padding:12px 28px;font-size:1.15em" data-act="startroom">⚔ 出發</button>
               <button class="px-btn" data-act="leaveroom">離開房間</button></div>
           </div>

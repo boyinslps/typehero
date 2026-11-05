@@ -110,7 +110,7 @@ const seed = {
   await p.screenshot({ path: OUT + '/nw1-board.png' });
   await p.click('[data-tab="rooms"]'); await p.waitForTimeout(700);
   ok((await p.textContent('#nwbd-list')).includes('阿華') && !(await p.textContent('#nwbd-list')).includes('舊房間'), '房間分頁看得到同學開的房間，過期的不顯示');
-  ok((await p.textContent('#nwbd-list')).includes('第 4 段開放'), '加入組隊標示第 4 段開放');
+  ok((await p.textContent('#nwbd-list')).includes('第 3a 段開放'), '加入組隊標示第 3a 段開放');
   await p.click('[data-tab="quests"]');
   await p.click('.qs[data-q="grass:frog:1"]');
   await p.click('[data-go]'); await p.waitForSelector('[data-view="room"]');

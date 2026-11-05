@@ -240,7 +240,7 @@ export const starOpen = (nw, rk, star) => star <= 1 || (nw.zone[rk] || 0) >= sta
 
 export const OPEN_STAGE = 1;
 export const openStage = () => (typeof location !== 'undefined' && location.hostname === 'localhost' && window.__NW_STAGE__) || OPEN_STAGE;
-export const buildingOpen = b => !!b.act && (!b.wip || b.wip <= openStage());
+export const buildingOpen = b => !!b.act && (!b.wip || parseFloat(b.wip) <= openStage());
 
 export const VILLAGE = {
   cols: 22, rows: 15, plaza: { x: 11, y: 7 }, start: [11, 11],
@@ -251,7 +251,7 @@ export const VILLAGE = {
     { id: 'storage', kind: 'storage', x: 7, y: 0, name: '倉庫', wip: 2, text: '所有材料和圖紙都放在這裡，一目了然。' },
     { id: 'shop', kind: 'shop', x: 13, y: 1, name: '商店', wip: 3, text: '用字元買回復藥，也可以賣掉用不到的材料。' },
     { id: 'armor', kind: 'armor', x: 18, y: 0, name: '防具店', wip: 3, text: '頭盔、鎧甲、手套、靴子，穿上就會出現在你身上！' },
-    { id: 'rooms', kind: 'rooms', x: 1, y: 6, name: '組隊酒館', wip: 4, text: '開房間或加入同學的房間，最多 4 個人一起打大魔物。' },
+    { id: 'rooms', kind: 'rooms', x: 1, y: 6, name: '組隊酒館', wip: '3a', text: '開房間或加入同學的房間，最多 4 個人一起打大魔物。' },
     { id: 'star', kind: 'star', x: 18, y: 6, name: '星圖台', wip: 5, text: '升級拿到的星星，可以在這裡點亮，讓閃避和防禦變得更強。' },
     { id: 'board', kind: 'board', x: 6, y: 10, name: '委託板', act: 'map', text: '選地方、選魔物，出發狩獵！' },
     { id: 'rank', kind: 'rank', x: 14, y: 10, name: '榮譽碑', act: 'rank', wip: 2, text: '看看誰是最強獵人。' }
