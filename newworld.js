@@ -2,7 +2,7 @@ import { PX } from './pixel.js';
 import {
   LOOK, DEFAULT_LOOK, heroLook, STARTERS, LOCKED_WEAPONS, REGIONS, MAP_POS, ELEM, STATUS, MONSTERS,
   regionLv, MAIN_QUESTS, normalizeNw, currentQuest, zoneOpen, starOpen, addHrExp, hrNeed, huntExp, huntCoins,
-  COLOR_NAME, COLOR_HEX, HR_MAX, VILLAGE, doorTile, WORDS, WORD_GROUPS, checkWords, setTitleParts, wordById
+  COLOR_NAME, COLOR_HEX, HR_MAX, VILLAGE, doorTile, buildingOpen, WORDS, WORD_GROUPS, checkWords, setTitleParts, wordById
 } from './nw-data.js';
 import { injectUi } from './nw-ui.js';
 import { mountVillage } from './nw-village.js';
@@ -224,7 +224,7 @@ export function initNewWorld(C) {
     if (b.id === 'gate') { leave(); return; }
     const d = doorTile(b);
     NW.pos = [d[0], d[1] + 1];
-    if (b.act) { ({ map: viewBoard, rank: openRank }[b.act] || (() => {}))(); return; }
+    if (buildingOpen(b)) { ({ map: viewBoard, rank: openRank }[b.act] || (() => {}))(); return; }
     openWip(b);
   }
 
@@ -253,7 +253,7 @@ export function initNewWorld(C) {
       <p class="px-text text-sm mt-3 text-center">電腦：用 WASD 或方向鍵走路，走到建築旁邊按 Enter 進去，也可以直接點建築。按 B 打開背包。手機：點建築或點地面。灰色的建築還在施工中。</p>`, el => {
       el.querySelector('[data-hero]').replaceChildren(PX.chibi(myChibi(), 'down', 0, 3));
       village = mountVillage(el.querySelector('#vmap'), {
-        PX, look: myChibi(), open: VILLAGE.buildings.filter(b => b.act).map(b => b.id),
+        PX, look: myChibi(), open: VILLAGE.buildings.filter(buildingOpen).map(b => b.id),
         start: NW.pos || VILLAGE.start, scroller: root, fast: FAST, onEnter: enterBuilding
       });
     });

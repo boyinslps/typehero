@@ -73,7 +73,7 @@ const seed = {
   await p.screenshot({ path: OUT + '/nw1-hub.png' });
 
   ok((await p.$$('.vb')).length === 9, '村莊有 8 棟建築與 1 個傳送門');
-  ok((await p.$$eval('.vb', els => els.filter(e => e.textContent.includes('🔒')).length)) === 6, '六棟還沒開放的建築有鎖');
+  ok((await p.$$eval('.vb', els => els.filter(e => e.textContent.includes('🔒')).length)) === 7, '第 1 階段只開委託板：七棟建築有鎖（含榮譽碑）');
   await p.click('.vb[data-bld="forge"]'); await p.waitForTimeout(900);
   ok((await p.textContent('body')).includes('施工中・第 2 段開放'), '走到施工中的建築門口：跳出預告卡');
   await p.screenshot({ path: OUT + '/nw1-wip.png' });
@@ -131,7 +131,9 @@ const seed = {
     window.__FS['mg_scores/a'] = mk('小華', 7, { coo: 2, frog: 1 }, 41.5, 12, 1080);
     window.__FS['mg_scores/b'] = mk('小美', 4, { coo: 1 }, 30.2, 3, 300);
   });
+  await p.evaluate(() => { window.__NW_STAGE__ = 2; });
   await p.click('[data-act="hub"]'); await p.waitForTimeout(900);
+  ok(!(await p.$eval('.vb[data-bld="rank"]', e => e.textContent.includes('第 2 段'))) , '階段 2 開了以後榮譽碑不再灰');
   await p.click('.vb[data-bld="rank"]'); await p.waitForSelector('#nw-rank', { timeout: 4000 }); await p.waitForTimeout(500);
   const rk1 = await p.textContent('#nw-rank');
   ok(rk1.indexOf('小華') > -1 && rk1.indexOf('小華') < rk1.indexOf('小美'), '榮譽碑：獵人等級榜依 HR 排序');

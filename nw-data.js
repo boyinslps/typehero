@@ -238,6 +238,10 @@ export function zoneOpen(nw, rk) {
 }
 export const starOpen = (nw, rk, star) => star <= 1 || (nw.zone[rk] || 0) >= star - 1;
 
+export const OPEN_STAGE = 1;
+export const openStage = () => (typeof location !== 'undefined' && location.hostname === 'localhost' && window.__NW_STAGE__) || OPEN_STAGE;
+export const buildingOpen = b => !!b.act && (!b.wip || b.wip <= openStage());
+
 export const VILLAGE = {
   cols: 22, rows: 15, plaza: { x: 11, y: 7 }, start: [11, 11],
   gate: { x: 10, y: 15, approach: [11, 11] }, gateBlock: { x0: 10, y0: 12, x1: 12, y1: 14 },
@@ -250,7 +254,7 @@ export const VILLAGE = {
     { id: 'rooms', kind: 'rooms', x: 1, y: 6, name: '組隊酒館', wip: 4, text: '開房間或加入同學的房間，最多 4 個人一起打大魔物。' },
     { id: 'star', kind: 'star', x: 18, y: 6, name: '星圖台', wip: 5, text: '升級拿到的星星，可以在這裡點亮，讓閃避和防禦變得更強。' },
     { id: 'board', kind: 'board', x: 6, y: 10, name: '委託板', act: 'map', text: '選地方、選魔物，出發狩獵！' },
-    { id: 'rank', kind: 'rank', x: 14, y: 10, name: '榮譽碑', act: 'rank', text: '看看誰是最強獵人。' }
+    { id: 'rank', kind: 'rank', x: 14, y: 10, name: '榮譽碑', act: 'rank', wip: 2, text: '看看誰是最強獵人。' }
   ],
   decor: [
     { k: 'lamp', x: 7, y: 5, b: 1 }, { k: 'lamp', x: 15, y: 5, b: 1 }, { k: 'lamp', x: 7, y: 9, b: 1 }, { k: 'lamp', x: 15, y: 9, b: 1 },
