@@ -37,8 +37,86 @@ body{
 .mono{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace;
       font-variant-numeric:tabular-nums}
 .label{font-size:14px;letter-spacing:.04em;color:var(--dim)}
-.nw-tab[aria-pressed="true"]{background:var(--gold);color:#1a1409;border-color:var(--gold2)}
 .nw-px canvas{display:block;margin:0 auto;image-rendering:pixelated;image-rendering:crisp-edges}
+#nw-modal .dim{color:var(--dim)}
+.nwp-wrap{height:100%;max-width:980px;margin:0 auto;display:flex;flex-direction:column;gap:8px;padding:10px 12px;box-sizing:border-box}
+.nwp-head{display:flex;justify-content:space-between;align-items:center}
+.nwp-nav{display:flex;flex-wrap:wrap;gap:6px}
+.nwp-chip{padding:5px 11px;border:2px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:8px;font-weight:800;font-size:14px;cursor:pointer}
+.nwp-chip[aria-pressed="true"]{background:var(--gold);color:#1a1409;border-color:var(--gold2)}
+.nwp-page{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;gap:8px;background:var(--panel);border:2px solid var(--line);border-radius:var(--r);padding:12px}
+.nwp-foot{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.nwp-foot button{padding:9px 20px;font-weight:900;border-radius:10px;background:var(--gold);color:#1a1409;border:0;font-size:16px;cursor:pointer}
+.nwp-foot button:disabled{opacity:.3;cursor:default}
+.nwp-cols{display:flex;gap:14px;align-items:center;flex:1;min-height:0}
+.nwp-cols.col{flex-direction:column;align-items:stretch;gap:8px}
+.nwp-cols>.nw-px,.nwp-cols>.nwp-wood,.nwp-cols>.nwp-doll,.nwp-cols>.nwp-badges{flex:0 0 48%;min-width:0}
+.nwp-cols.col>.nw-px{flex:0 0 auto}
+.nwp-text{flex:1;min-width:0;line-height:1.55;font-size:17px}
+.nwp-text h3,.nwp-page>h3{font-size:22px;font-weight:900;color:var(--gold);margin:0 0 4px}
+.nwp-text p{margin:4px 0}
+.nwp-sm{font-size:14px;color:var(--dim);line-height:1.45}
+.nwp-cta{padding:12px;border-radius:12px;background:var(--gold);color:#1a1409;font-weight:900;font-size:18px;border:0;cursor:pointer}
+.nwp-note{border:2px dashed var(--gold2);border-radius:var(--r);padding:8px 12px}
+.nwp-tag{display:inline-block;font-size:12px;font-weight:800;padding:1px 8px;border-radius:99px;border:1px solid var(--dim2);color:var(--dim);white-space:nowrap}
+.nwp-tag.ok{border-color:var(--gr);color:var(--gr)}
+.nwp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;flex:1;min-height:0;align-content:center}
+.nwp-card{background:var(--panel2);border:2px solid var(--line);border-radius:var(--r);padding:10px;min-width:0}
+.nwp-steps{list-style:none;margin:6px 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.nwp-steps li{display:flex;gap:8px;align-items:flex-start;line-height:1.4}
+.nwp-steps li>b{flex:none;width:1.7em;height:1.7em;border-radius:50%;background:var(--gold);color:#1a1409;display:grid;place-items:center;font-size:14px}
+.nwp-wood{display:flex;justify-content:center;gap:8px;padding:14px 8px;background:#5a3a1c;border:4px solid #2a1a0c;border-radius:6px}
+.nwp-sheet{background:#e8d8b0;color:#3a2814;padding:6px 4px;text-align:center;display:flex;flex-direction:column;align-items:center;font-size:13px;min-width:0}
+.nwp-sheet .nw-px{background:none;padding:0}
+.nwp-doll{display:flex;align-items:center;justify-content:center;gap:6px}
+.nwp-b{display:flex;flex-direction:column;gap:14px}
+.nwp-doll .nw-px{width:170px;flex:none}
+.nwp-slot{width:56px;height:56px;border:3px solid #3a3070;background:#0e0b16;position:relative}
+.nwp-slot i{position:absolute;left:-6px;right:-6px;bottom:-15px;text-align:center;font-style:normal;font-size:10px;font-weight:800;color:var(--dim)}
+.nwp-four{display:flex;gap:6px}
+.nwp-four>div{flex:1;text-align:center;font-size:12px;min-width:0}
+.nwp-four .nw-stage{padding:2px}
+.nwp-badges{display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;text-align:center}
+.nwp-badges>div{display:flex;flex-direction:column;align-items:center;gap:2px}
+.nwp-badges p{flex-basis:100%}
+.nwp-mix{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:18px;margin:8px 0}
+.nwp-mix span{background:var(--panel2);border:2px solid var(--gold2);border-radius:8px;padding:2px 10px;font-weight:800}
+.nwp-mix b{color:var(--gold)}
+.nwp-stance{background:#0a0714;border:2px solid #8ec96b;padding:2px 6px;font-weight:900;margin-bottom:3px}
+.nwp-sbar{height:.5em;background:#14102a;margin-top:2px}
+.nwp-sbar i{display:block;height:100%;width:70%;background:#8ec96b}
+.nwp-vbanner{border:3px solid var(--gold);border-radius:var(--r);padding:8px 12px;background:rgba(232,182,76,.1)}
+.nwp-vh{font-size:20px;font-weight:900;color:var(--gold)}
+.nwp-who{font-size:14px}
+.nwp-cats{display:flex;gap:6px;flex-wrap:wrap}
+.nwp-cat{flex:1;min-width:120px;padding:9px 6px;border:3px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:10px;font-weight:900;font-size:15px;cursor:pointer}
+.nwp-cat[aria-pressed="true"]{background:var(--gold);color:#1a1409;border-color:var(--gold2)}
+.nwp-input{display:flex;gap:8px}
+.nwp-input input{flex:1;min-width:0;padding:12px;font-size:18px;border-radius:10px;background:var(--panel2);border:3px solid var(--gold2);color:var(--ink)}
+.nwp-input input:disabled{border-color:var(--line);opacity:.6}
+.nw-add,.nw-vote{padding:10px 18px;border-radius:10px;background:var(--gold);color:#1a1409;font-weight:900;border:0;cursor:pointer;white-space:nowrap}
+.nw-vote{padding:8px 14px;background:#6aa84f;color:#fff;font-size:15px}
+.nw-add:disabled,.nw-vote:disabled{opacity:.35;cursor:default}
+.nwp-list{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;gap:6px}
+.nwp-ell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nwp-vfoot{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.nwp-vfoot .nwp-sm{margin-right:auto}
+.nwp-mini{padding:4px 10px;border:2px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:8px;font-size:13px;cursor:pointer}
+.nwp-adm{display:flex;gap:6px}
+.nwp-adm input{flex:1;padding:6px;border-radius:8px;background:var(--panel2);border:2px solid var(--line);color:var(--ink)}
+.nwp-adm button{padding:6px 14px;border-radius:8px;background:var(--gold);color:#1a1409;font-weight:900;border:0}
+@media(max-width:760px){
+  .nwp-cols{flex-direction:column;align-items:stretch;gap:8px}
+  .nwp-cols>.nw-px,.nwp-cols>.nwp-wood,.nwp-cols>.nwp-doll,.nwp-cols>.nwp-badges{flex:0 0 auto}
+  .nwp-text{font-size:14px;line-height:1.4}.nwp-text h3,.nwp-page>h3{font-size:19px;margin:0}
+  .nwp-text p{margin:2px 0}.nwp-steps{gap:3px;margin:3px 0}
+  .nwp-grid{grid-template-columns:1fr 1fr;gap:8px}.nwp-card{padding:6px}
+  .nwp-vbanner{padding:5px 8px}.nwp-vh{font-size:16px}.nwp-vbanner .nwp-steps{font-size:12.5px}
+  .nwp-input input{padding:8px;font-size:16px}.nwp-cat{padding:6px 4px;font-size:13px}
+  .nwp-doll .nw-px{width:120px}.nwp-slot{width:44px;height:44px}
+  .nwp-chip{padding:4px 8px;font-size:13px}
+  .nwp-cat{min-width:46%}
+}
 .nw-stage{background:#0e0b16;border-radius:6px;padding:8px}
 .nwb{position:relative;margin:0 auto;font-size:max(10px,calc(var(--u)*2.6));line-height:1.25}
 .nwb-sc{position:relative}
@@ -58,9 +136,6 @@ body{
 .nwb-bottom .nwb-n{position:static;transform:none;flex:none}
 .nwb-q{flex:1;min-width:0;background:var(--panel2);border:1px solid var(--line2);border-radius:6px;padding:.35em .6em;font-weight:800}
 .nwb-in{color:var(--gold);animation:nwbBlink 1s steps(2) infinite}
-.nw-grid.wide{grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
-.nw-card{background:var(--panel2);border:2px solid var(--line);border-radius:var(--r);padding:12px}
-.nw-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
 .nw-nom{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;background:var(--panel);
   border:1px solid var(--line)}
 .nw-nom.hid{opacity:.45}
@@ -1063,34 +1138,18 @@ select option{background:var(--panel2);color:var(--ink)}
 </div>
 
 <!-- ══════════ 新世界預告＋提名投票（GDD §21.0）══════════ -->
-<div id="nw-modal" class="hidden fixed inset-0 z-[87] overflow-y-auto scrolly"
-     style="background:#0b0a14">
-  <div class="max-w-4xl mx-auto p-4 py-6">
-    <div class="flex items-center justify-between mb-4 gap-2">
+<div id="nw-modal" class="hidden fixed inset-0 z-[87]" style="background:#0b0a14;overflow:hidden">
+  <div class="nwp-wrap">
+    <div class="nwp-head">
       <h2 class="text-2xl font-black">🌋 新世界預告</h2>
-      <button id="nw-close" class="px-4 py-2 rounded-lg border text-sm"
-              style="border-color:var(--line)">關閉</button>
+      <button id="nw-close" class="px-4 py-2 rounded-lg border text-sm" style="border-color:var(--line)">關閉</button>
     </div>
-    <div class="flex gap-2 mb-5">
-      <button id="nw-tab-preview" data-nwtab="preview" class="nw-tab btn btn-ghost px-5 py-2.5 text-base">🔭 預告</button>
-      <button id="nw-tab-vote" data-nwtab="vote" class="nw-tab btn btn-ghost px-5 py-2.5 text-base">🗳 提名投票</button>
-    </div>
-    <div id="nw-preview"></div>
-    <div id="nw-vote" class="hidden">
-      <div id="nw-who" class="panel-flat p-3 mb-3 text-sm"></div>
-      <div class="flex items-center justify-between gap-2 mb-3 flex-wrap">
-        <div class="text-sm" style="color:var(--dim)">想要什麼就提名，覺得讚就按「投一票」，票數不限！每則最多 12 個字。</div>
-        <div class="flex gap-2 items-center">
-          <button id="nw-sort" class="btn btn-ghost text-sm px-3 py-1.5">排序：票數</button>
-          <button id="nw-admin" class="btn btn-ghost text-sm px-3 py-1.5" style="color:var(--dim)">老師管理</button>
-        </div>
-      </div>
-      <div id="nw-admin-box" class="hidden panel-flat p-3 mb-3 flex gap-2 items-center">
-        <input id="nw-admin-pw" type="password" placeholder="教師密碼"
-               class="flex-1 p-2 rounded-lg panel-flat text-center">
-        <button id="nw-admin-ok" class="btn btn-gold px-4 py-2 text-sm">確定</button>
-      </div>
-      <div id="nw-cats"></div>
+    <div id="nwp-nav" class="nwp-nav"></div>
+    <div id="nwp-page" class="nwp-page"></div>
+    <div class="nwp-foot">
+      <button id="nwp-prev">◀ 上一頁</button>
+      <span id="nwp-count" class="dim"></span>
+      <button id="nwp-next">下一頁 ▶</button>
     </div>
   </div>
 </div>
@@ -1504,6 +1563,7 @@ select option{background:var(--panel2);color:var(--ink)}
 <script type="module">
 import { PX } from './pixel.js';
 import { initNewWorld } from './newworld.js';
+import { initNwPreview } from './nw-preview.js';
 import { sha256Hex } from './nw-access.js';
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
@@ -2514,369 +2574,35 @@ const BALANCE = {
   grade: { sMin: 6, aMin: 4.5, bMin: 3, cMin: 1.5 }
 };
 
-// 新世界預告＋提名投票。資料在 mg_config/nw_vote：noms（提名）、votes（票數）、hidden（隱藏）
-const NW_CATS = [
-  { k:'monster', icon:'👾', name:'魔物名字', ph:'例：火焰雞' },
-  { k:'region',  icon:'🗺', name:'希望的區域', ph:'例：糖果王國' },
-  { k:'weapon',  icon:'⚔', name:'希望的武器', ph:'例：回力鏢' },
-  { k:'other',   icon:'💡', name:'其他想要的東西', ph:'例：可以養寵物' }
-];
-const NW_MAXLEN = 12;
-const NW = { data:{ noms:[], votes:{}, hidden:[] }, unsub:null, admin:false, sort:'votes', built:false };
-const nwRef = () => doc(db, 'mg_config', 'nw_vote');
-
-const NW_WEAPONS = [
-  { k:'staff', n:'法杖', tag:'熟悉的', t:'每打 5 題會「詠唱」一次，把一長串咒語全部打對，傷害變 3 倍！' },
-  { k:'bow', n:'長弓', tag:'熟悉的', t:'打對會集滿力量條，滿了就變神射手，連打 3 題傷害變 2 倍。' },
-  { k:'dagger', n:'雙刀', tag:'熟悉的', t:'每 5 題砍一次「連環斬」，打得越快越痛。' },
-  { k:'crossbow', n:'連弩', tag:'新的', t:'打對一個字就裝一支箭，什麼時候一口氣射出去，由你決定！' },
-  { k:'book', n:'元素書', t:'打字前先選火、水或木，連續換不同的元素還會產生反應。' },
-  { k:'shield', n:'劍盾', t:'擋住攻擊會跳出「反擊」，趕快打完就是一記重擊。' },
-  { k:'fist', n:'拳套', t:'躲開攻擊就進入「爆氣」，每打對一個字就揮一拳。' },
-  { k:'great', n:'大劍', t:'打完會出現晃來晃去的力量條，在金色的地方按下去，傷害變 3 倍。' },
-  { k:'bell', n:'召喚鈴', t:'打「衝啊」叫寵物攻擊，打「守護」叫牠幫你擋，你不用停下來。' }
-];
-const NW_REGIONS = [
-  { k:'grass', n:'🌱 新芽草原', t:'最適合新手，沒有什麼特別的麻煩。', open:true },
-  { k:'forest', n:'🌲 迷霧森林', t:'木屬性的招式變強，大霧一直飄。', open:true },
-  { k:'coast', n:'🌊 珊瑚海岸', t:'水屬性的招式變強，泡泡會飄上來。' },
-  { k:'volcano', n:'🌋 熔岩火山', t:'火屬性的招式變強，岩漿會發光。' },
-  { k:'snow', n:'❄ 冰封雪原', t:'每隔一會兒就颳大風雪，題目會變模糊。' },
-  { k:'sky', n:'☁ 天空遺跡', t:'光屬性的招式變強，島浮在天空中。' },
-  { k:'abyss', n:'🌑 深淵裂谷', t:'暗屬性的招式變強，地上的裂縫透出紫光。' }
-];
-const NW_MONSTERS = [
-  { k:'coo', n:'咕咕鳥', e:'🌿', t:'啄得很快，但每下都不太痛，最適合新手。', open:true },
-  { k:'frog', n:'泡泡蛙', e:'💧', t:'會吐泡泡，泡泡會擋住注音提示。', open:true },
-  { k:'shroom', n:'跳跳菇', e:'🌿', t:'會灑孢子，題目的字會變得很小。', open:true },
-  { k:'wolf', n:'炎牙狼', e:'🔥', t:'生氣以後，攻擊會變成兩倍快！', open:true },
-  { k:'lava', n:'熔岩龜', e:'🔥', t:'殼關起來的時候，要全部打對才打得進去。' },
-  { k:'ink', n:'墨鱗龍', e:'💧', t:'會噴墨水，墨水會蓋住一半的題目。' },
-  { k:'crab', n:'機械蟹', e:'🔥', t:'會長出護盾，要連續答對 3 題才打得破。' },
-  { k:'octo', n:'海盜章魚', e:'💧', t:'八隻手一起來，一次出兩個短題目。' },
-  { k:'qilin', n:'石麒麟', e:'☀', t:'打錯字會被石頭定住 2 秒。' },
-  { k:'crane', n:'詩仙鶴', e:'☀', t:'10 秒沒打完一題，牠就會偷偷回血。' },
-  { k:'cat', n:'夜影貓', e:'🌙', t:'題目只亮 3 秒就消失，要先記起來再打。' },
-  { k:'dragon', n:'混沌巨龍', e:'✨', t:'最後的大魔王！生氣就會換題目、換屬性，共有 3 個階段。' }
-];
-const NW_SYSTEMS = [
-  ['⏳ 倒數條', '魔物出招前，頭上會有一條慢慢變滿的條，滿了就攻擊你。'],
-  ['🌀 閃避和防禦', '地上出現紅色區域時，打「閃避」跳出去，或打「防禦」舉盾擋住。'],
-  ['🔥 屬性', '每隻魔物都有怕的屬性，打對了傷害變多；小心被燒到、中毒或結冰。'],
-  ['⚒ 打造', '打贏魔物會掉材料，到鐵匠鋪做出新武器和新裝備。'],
-  ['👥 組隊', '自己開房間，最多 4 個人一起打大魔物，還能看到同學的樣子。'],
-  ['⭐ 星圖', '升級會拿到星星，像連連看一樣點亮自己的特殊能力。']
-];
-const NW_TIERS = [
-  ['灰色・新手布衣', { armor:'#8d8d8d', trim:'#b8b8b8', helm:'none', weapon:'staff' }],
-  ['綠色・森林皮甲', { armor:'#5fae45', trim:'#d6f0b8', helm:'hood', weapon:'staff' }],
-  ['藍色・海岸鎧甲', { armor:'#3a7ad8', trim:'#c4e2ff', helm:'helm', weapon:'sword' }],
-  ['紫色・墨鱗盔甲', { armor:'#8a4ad8', trim:'#e6d2ff', helm:'helm', cape:'#5a2a98', weapon:'sword' }],
-  ['橙色・熔岩戰甲', { armor:'#e0802a', trim:'#ffe2a8', helm:'horn', cape:'#a8401a', weapon:'sword' }],
-  ['金色・傳說戰甲', { armor:'#e8b64c', trim:'#fff4c0', helm:'horn', cape:'#c0392b', weapon:'sword' }]
-];
-const NW_LOOKS = [
-  ['短髮', { style:'short', hair:'#5a3a22', armor:'#3e9a96' }],
-  ['長髮', { style:'long', hair:'#1a1a22', skin:'#e0a878', armor:'#3e9a96' }],
-  ['馬尾', { style:'pony', hair:'#e8b64c', skin:'#f6d7b8', armor:'#3e9a96' }],
-  ['包包頭', { style:'bun', hair:'#ff7aa8', skin:'#8a5a3a', armor:'#3e9a96' }]
-];
-
-function nwPreviewHTML() {
-  const sec = (title, body) => `<h3 class="font-black text-xl mt-6 mb-3" style="color:var(--gold)">${title}</h3>${body}`;
-  const tag = (t, c) => `<span class="text-xs px-2 py-0.5 rounded-full" style="border:1px solid ${c};color:${c};white-space:nowrap">${t}</span>`;
-  const openTag = o => tag(o ? '最先開放' : '之後開放', o ? 'var(--gr)' : 'var(--dim2)');
-  const card = (head, kind, key, scale, text, extra = '') => `
-    <div class="nw-card">
-      <div class="flex items-center justify-between gap-2 mb-2"><span class="font-black">${head}</span>${extra}</div>
-      <div class="nw-px nw-stage" data-k="${kind}:${key}" data-s="${scale}"></div>
-      <div class="text-sm mt-2" style="color:var(--dim)">${text}</div>
-    </div>`;
-  const heroCard = ([name, look]) => `
-    <div class="nw-card text-center">
-      <div class="nw-px nw-stage" data-k="hero:-" data-look='${JSON.stringify(look)}' data-s="5"></div>
-      <div class="font-black mt-2 text-sm">${name}</div>
-    </div>`;
-  return `
-    <div class="panel p-5">
-      <div class="nw-px nw-stage" data-k="portal:-" data-s="8"></div>
-      <div class="mt-4">
-        <div class="font-black text-xl mb-2">村子後山的石門亮起來了</div>
-        <p class="text-base leading-relaxed" style="color:var(--ink)">
-          村子後山有一扇很老很老的石門。有一天，它突然亮起了紫色的光！<br>
-          那是通往<b style="color:#c9a6ff">「新世界」</b>的傳送門。門的另一邊有七個還沒有人去過的地方，
-          住著從來沒看過的大魔物。<br>
-          村長說：只有把打字練到<b style="color:var(--gold)">「史詩」</b>的勇者，才能走進去。</p>
-      </div>
-    </div>
-
-    ${sec('🏹 你的任務', `
-      <div class="panel-flat p-4 flex gap-5 items-center flex-wrap">
-        <div class="nw-px nw-stage" data-k="hunter:-" data-s="8" style="flex:0 0 auto"></div>
-        <div class="flex-1 text-base leading-relaxed" style="min-width:240px">
-          你是新世界的<b>獵人</b>！<br>
-          選一個地方、選一隻大魔物，看看牠怕什麼，想想什麼時候要躲、什麼時候要擋。
-          打贏牠，就能拿到材料，做出屬於你自己的武器。<br>
-          <span style="color:var(--dim)">原來的世界練「打得快」，新世界練「怎麼打」。</span>
-        </div>
-      </div>`)}
-
-    ${sec('🖼 新的戰鬥畫面', `
-      <div class="panel-flat p-3">
-        <div class="nw-px" data-k="battle:-" data-s="6"></div>
-        <ul class="text-sm mt-3 pl-1" style="color:var(--dim);list-style:none;line-height:1.8">
-          <li><b style="color:var(--gold)">①</b> 大魔物：看牠的名字和血條，生氣的時候會變紅。</li>
-          <li><b style="color:var(--gold)">②</b> 地上的紅色區域：魔物快要攻擊的地方！</li>
-          <li><b style="color:var(--gold)">③</b> 同學：最多 4 個人一起打，每個人在做什麼都看得到。</li>
-          <li><b style="color:var(--gold)">④</b> 你：腳下有金色圈圈，頭上有金色箭頭，一眼就找得到自己。</li>
-          <li><b style="color:var(--gold)">⑤</b> 題目和輸入框：打字就是出招。</li>
-        </ul>
-        <p class="text-sm mt-2" style="color:var(--ink)">看到紅色區域，就打「<b>閃避</b>」跳出去，或打「<b>防禦</b>」舉盾擋住。</p>
-      </div>`)}
-
-    ${sec('🎽 穿什麼，就長什麼樣子', `
-      <p class="text-sm mb-3" style="color:var(--dim)">換了裝備，你的角色和同學看到的你，都會跟著變。裝備的顏色跟材料一樣：灰、綠、藍、紫、橙、金。</p>
-      <div class="nw-grid">${NW_TIERS.map(heroCard).join('')}</div>`)}
-
-    ${sec('💇 自己選造型', `
-      <p class="text-sm mb-3" style="color:var(--dim)">髮型、髮色、膚色都可以自己選，想改隨時可以改。</p>
-      <div class="nw-grid">${NW_LOOKS.map(heroCard).join('')}</div>`)}
-
-    ${sec('🐾 十二隻魔物', `<div class="nw-grid wide">${
-      NW_MONSTERS.map(m => card(`${m.n} <span class="font-normal">${m.e}</span>`, 'monster', m.k, 6, m.t, openTag(m.open))).join('')}</div>
-      <p class="text-xs mt-2" style="color:var(--dim2)">點一下魔物，看牠生氣的樣子。</p>`)}
-
-    ${sec('⚔ 新武器（9 種）', `<div class="nw-grid">${
-      NW_WEAPONS.map(w => card(w.n, 'weapon', w.k, 5, w.t,
-        w.tag ? tag(w.tag, w.tag === '新的' ? 'var(--gr)' : 'var(--dim)') : '')).join('')}</div>
-      <p class="text-xs mt-2" style="color:var(--dim2)">第一把武器可以從法杖、長弓、雙刀、連弩裡選，其他的要自己做。</p>`)}
-
-    ${sec('🗺 七個地方', `<div class="nw-grid wide">${
-      NW_REGIONS.map(r => card(r.n, 'region', r.k, 4, r.t, openTag(r.open))).join('')}</div>`)}
-
-    ${sec('🧩 新玩法', `<div class="nw-grid">${
-      NW_SYSTEMS.map(([h, t]) => `<div class="nw-card"><div class="font-black mb-1">${h}</div>
-        <div class="text-sm" style="color:var(--dim)">${t}</div></div>`).join('')}</div>`)}
-
-    <div class="panel p-4 mt-6 text-center">
-      <div class="font-black text-lg mb-1">你想在新世界看到什麼？</div>
-      <div class="text-sm mb-3" style="color:var(--dim)">魔物的名字、想去的地方、想用的武器，都可以提名，大家一起投票。</div>
-      <button class="btn btn-gold px-6 py-3 text-lg" data-nwtab="vote">🗳 去提名・投票</button>
-    </div>`;
-}
-
-function nwMountBattle(el, sc) {
-  const w = 160 * sc, at = (x, y) => `left:${x / 1.6}%;top:${y / .96}%`;
-  const tag = (x, y, name, chip, me) => `<div class="nwb-tag${me ? ' me' : ''}" style="${at(x, y + 2)}">${name}<small>${chip}</small></div>`;
-  const num = (n, x, y) => `<span class="nwb-n" style="${at(x, y)}">${n}</span>`;
-  el.innerHTML = `
-    <div class="nwb" style="width:${w}px;--u:${sc}px">
-      <div class="nwb-sc" style="height:${96 * sc}px">
-        <div class="nwb-plate"><div>炎牙狼 Lv25 <span style="color:#ff8a6a">🔥生氣中</span></div><div class="nwb-bar"><i style="width:62%"></i></div></div>
-        <div class="nwb-call">快打「閃避」或「防禦」！</div>
-        <div class="nwb-timer">⏱ 3:12</div>
-        ${tag(22, 78, '小華', '詠唱中 ✨')}${tag(90, 74, '小美', '擋住了 🛡')}${tag(134, 80, '阿傑', '躲開了 💨')}${tag(62, 88, '你・小明', '打字中 ⌨', true)}
-        ${num('①', 116, 8)}${num('②', 46, 70)}${num('③', 150, 56)}${num('④', 74, 54)}
-      </div>
-      <div class="nwb-bottom">
-        <span class="nwb-n">⑤</span>
-        <div style="min-width:5.5em">❤ 120/160<div class="nwb-bar g"><i style="width:75%"></i></div></div>
-        <div class="nwb-q"><span style="color:var(--dim)">題目</span> 持之以恆<span class="nwb-in">▍</span></div>
-        <div style="color:var(--gold);font-weight:800;white-space:nowrap">連擊 ×8</div>
-      </div>
-    </div>`;
-  el.querySelector('.nwb-sc').prepend(PX.canvas('battle', '-', sc, false));
-}
-
-function nwMountPx() {
-  document.querySelectorAll('#nw-preview .nw-px').forEach(el => {
-    const [kind, key] = el.dataset.k.split(':');
-    const w = kind === 'hero' ? 26 : PX.width(kind, key);
-    const fit = Math.floor(((el.clientWidth || 300) - 16) / w);
-    const sc = Math.max(2, Math.min(+el.dataset.s || 4, fit));
-    if (kind === 'battle') return nwMountBattle(el, sc);
-    el.replaceChildren(kind === 'hero' ? PX.hero(JSON.parse(el.dataset.look), sc) : PX.canvas(kind, key, sc, false));
-    if (kind === 'monster') {
-      el.style.cursor = 'pointer';
-      el.onclick = () => {
-        const on = el.dataset.angry !== '1'; el.dataset.angry = on ? '1' : '0';
-        el.replaceChildren(PX.canvas(kind, key, sc, on));
-      };
-    }
-  });
-}
-
+// 新世界預告＋提名投票的畫面與資料在 nw-preview.js（資料在 mg_config/nw_vote）
 function nwWho() {
   const cls = ME.className || ($('in-grade').value + $('in-class').value);
   const seat = ME.seat || normSeat($('in-seat').value);
   const name = (ME.name || $('in-name').value || '').trim();
   return (cls && seat && name) ? { cls, seat, name } : null;
 }
-
-function nwSwitchTab(tab) {
-  document.querySelectorAll('.nw-tab').forEach(b => b.setAttribute('aria-pressed', b.dataset.nwtab === tab));
-  show('nw-preview', tab === 'preview');
-  show('nw-vote', tab === 'vote');
-  if (tab === 'vote') nwPaintWho();
-  $('nw-modal').scrollTo({ top: 0 });
-}
-
-function nwPaintWho() {
-  const w = nwWho();
-  const box = $('nw-who');
-  if (!ONLINE) {
-    box.innerHTML = '<span style="color:#e5705f">目前連不上網路，沒辦法提名或投票。先看看預告吧！</span>';
-  } else if (w) {
-    box.innerHTML = `你是：<b>${escHtml(w.cls)}　${escHtml(w.seat)}號　${escHtml(w.name)}</b>
-      <span style="color:var(--dim)">（提名會顯示你的班級、座號、姓名）</span>`;
-  } else {
-    box.innerHTML = '<span style="color:var(--gold)">要先填好班級、座號、姓名才能提名和投票。</span>' +
-      '請關掉這一頁，在首頁填好再回來。（看別人提了什麼不用填）';
-  }
-  const can = ONLINE && !!w;
-  document.querySelectorAll('#nw-cats input, #nw-cats .nw-add, #nw-cats .nw-vote').forEach(e => e.disabled = !can);
-}
-
-function nwBuildCats() {
-  $('nw-cats').innerHTML = NW_CATS.map(c => `
-    <div class="panel p-4 mb-3" id="nw-cat-${c.k}">
-      <div class="font-black text-lg mb-2">${c.icon} ${c.name}
-        <span class="text-xs font-normal" id="nw-cnt-${c.k}" style="color:var(--dim)"></span></div>
-      <div class="flex gap-2 mb-3">
-        <input class="nw-in flex-1 p-2.5 rounded-lg panel-flat text-base" data-cat="${c.k}"
-               maxlength="${NW_MAXLEN}" placeholder="${c.ph}（最多 ${NW_MAXLEN} 字）">
-        <button class="nw-add btn btn-gold px-4 py-2 flex-none whitespace-nowrap" data-cat="${c.k}">提名</button>
-      </div>
-      <div id="nw-list-${c.k}" class="scrolly" style="max-height:340px;overflow-y:auto"></div>
-    </div>`).join('');
-  NW.built = true;
-}
-
-function nwPaintLists() {
-  const hidden = new Set(NW.data.hidden || []);
-  const now = Date.now();
-  const canVote = ONLINE && !!nwWho();
-  for (const c of NW_CATS) {
-    let list = (NW.data.noms || []).filter(n => n.cat === c.k && (NW.admin || !hidden.has(n.id)));
-    const votes = n => Math.max(0, +(NW.data.votes || {})[n.id] || 0);
-    list.sort(NW.sort === 'votes' ? (a, b) => votes(b) - votes(a) || b.t - a.t : (a, b) => b.t - a.t);
-    setTxt(`nw-cnt-${c.k}`, list.length ? `（${list.length} 則）` : '');
-    $(`nw-list-${c.k}`).innerHTML = list.length ? list.map(n => `
-      <div class="nw-nom mb-1.5 ${hidden.has(n.id) ? 'hid' : ''} ${now - n.t < 60000 ? 'fresh' : ''}">
-        <div class="flex-1 min-w-0">
-          <div class="font-bold">${escHtml(n.text)}${now - n.t < 60000 ? ' <span class="text-xs" style="color:var(--gold)">新！</span>' : ''}
-            ${hidden.has(n.id) ? '<span class="text-xs" style="color:#e5705f">（已隱藏）</span>' : ''}</div>
-          <div class="text-xs" style="color:var(--dim2)">${escHtml(n.cls)} ${escHtml(n.seat)}號 ${escHtml(n.name)}</div>
-        </div>
-        <span class="font-black" style="color:var(--gold);min-width:2.5em;text-align:right">${votes(n)}</span>
-        <button class="nw-vote btn btn-ghost text-sm px-3 py-1.5" data-id="${n.id}" ${canVote ? '' : 'disabled'}>👍 投一票</button>
-        ${NW.admin ? `<button class="nw-hide btn btn-ghost text-sm px-2 py-1.5" data-id="${n.id}"
-            data-hid="${hidden.has(n.id) ? 1 : 0}">${hidden.has(n.id) ? '恢復' : '隱藏'}</button>` : ''}
-      </div>`).join('') : '<div class="text-sm" style="color:var(--dim2)">還沒有人提名，你當第一個！</div>';
-  }
-}
-
-async function nwNominate(cat) {
-  const w = nwWho();
-  if (!ONLINE) { toast('目前連不上網路'); return; }
-  if (!w) { toast('要先填好班級、座號、姓名'); return; }
-  const inp = document.querySelector(`.nw-in[data-cat="${cat}"]`);
-  const text = inp.value.replace(/\s+/g, ' ').trim();
-  if (!text) { toast('先打上你想提名的內容'); inp.focus(); return; }
-  if (Array.from(text).length > NW_MAXLEN) { toast(`最多 ${NW_MAXLEN} 個字`); return; }
-
-  const dup = (NW.data.noms || []).find(n => n.cat === cat && n.text === text);
-  if (dup) {
-    inp.value = '';
-    if ((NW.data.hidden || []).includes(dup.id)) { toast('這則不能提名'); return; }
-    toast('已經有人提過了，幫你投了一票！');
-    nwVote(dup.id); return;
-  }
-  const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-  const item = { id, cat, text, cls: w.cls, seat: w.seat, name: w.name, t: Date.now() };
-  inp.value = '';
-  try {
-    await withTimeout(setDoc(nwRef(), { noms: arrayUnion(item) }, { merge: true }), 6000, 'nw-nominate');
-    toast('提名成功！');
-  } catch (e) { console.warn('提名失敗', e); toast('送出失敗，再試一次'); inp.value = text; }
-}
-
-async function nwVote(id) {
-  if (!ONLINE || !nwWho()) return;
-  try {
-    await withTimeout(setDoc(nwRef(), { votes: { [id]: increment(1) } }, { merge: true }), 6000, 'nw-vote');
-  } catch (e) { console.warn('投票失敗', e); toast('投票失敗，再試一次'); }
-}
-
-async function nwHide(id, wasHidden) {
-  if (!NW.admin) return;
-  try {
-    await withTimeout(setDoc(nwRef(), { hidden: wasHidden ? arrayRemove(id) : arrayUnion(id) }, { merge: true }), 6000, 'nw-hide');
-  } catch (e) { console.warn('隱藏失敗', e); toast('操作失敗，再試一次'); }
-}
-
-function openNw() {
-  show('nw-modal', true);
-  $('nw-preview').innerHTML = nwPreviewHTML();
-  if (!NW.built) nwBuildCats();
-  nwSwitchTab('preview');
-  nwMountPx();
-  nwPaintLists();
-  nwPaintWho();
-  if (ONLINE && !NW.unsub) {
-    NW.unsub = onSnapshot(nwRef(), snap => {
-      const d = snap.exists() ? snap.data() : {};
-      NW.data = { noms: d.noms || [], votes: d.votes || {}, hidden: d.hidden || [] };
-      nwPaintLists();
-    }, e => console.warn('提名監聽失敗', e));
-  }
-}
-
-function closeNw() {
-  show('nw-modal', false);
-  if (NW.unsub) { NW.unsub(); NW.unsub = null; }
-  NW.admin = false;
-  show('nw-admin-box', false);
-  $('nw-admin').textContent = '老師管理';
-}
-
 function initNw() {
-  $('btn-nw').addEventListener('click', openNw);
-  $('nw-close').addEventListener('click', closeNw);
-  $('nw-modal').addEventListener('click', e => {
-    const tabBtn = e.target.closest('[data-nwtab]');
-    if (tabBtn) { nwSwitchTab(tabBtn.dataset.nwtab); return; }
-    const add = e.target.closest('.nw-add'); if (add) { nwNominate(add.dataset.cat); return; }
-    const vote = e.target.closest('.nw-vote'); if (vote) { nwVote(vote.dataset.id); return; }
-    const hide = e.target.closest('.nw-hide'); if (hide) nwHide(hide.dataset.id, hide.dataset.hid === '1');
+  initNwPreview({
+    $, show, toast, escHtml, setTxt, db, doc, onSnapshot, setDoc, arrayUnion, arrayRemove, increment, withTimeout,
+    online: () => ONLINE, who: nwWho, adminPw: ADMIN_PASSWORD
   });
-  $('nw-modal').addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !e.isComposing && e.target.classList.contains('nw-in')) nwNominate(e.target.dataset.cat);
-  });
-  $('nw-sort').addEventListener('click', () => {
-    NW.sort = NW.sort === 'votes' ? 'new' : 'votes';
-    setTxt('nw-sort', NW.sort === 'votes' ? '排序：票數' : '排序：最新');
-    nwPaintLists();
-  });
-  $('nw-admin').addEventListener('click', () => {
-    if (NW.admin) { NW.admin = false; $('nw-admin').textContent = '老師管理'; nwPaintLists(); return; }
-    show('nw-admin-box', true); $('nw-admin-pw').focus();
-  });
-  const adminOk = () => {
-    if ($('nw-admin-pw').value !== ADMIN_PASSWORD) { toast('密碼錯誤'); return; }
-    $('nw-admin-pw').value = ''; show('nw-admin-box', false);
-    NW.admin = true; $('nw-admin').textContent = '結束管理'; nwPaintLists();
-  };
-  $('nw-admin-ok').addEventListener('click', adminOk);
-  $('nw-admin-pw').addEventListener('keydown', e => { if (e.key === 'Enter') adminOk(); });
 }
 
 /* ══════════════════════════════════════════════════════════════
    版本紀錄：首頁右下角那顆 v2.0.0 按鈕點開看到的內容。
    跟 CHANGELOG.md 是同一份資料，改一邊也要記得改另一邊。
    ══════════════════════════════════════════════════════════════ */
-const APP_VERSION = '3.5.0';
+const APP_VERSION = '3.6.0';
 const VERSION_LOG = [
+  { v:'3.6.0', date:'2026-11-05', title:'新世界預告改版',
+    added: [
+      '預告改成一頁一個主題：故事、獵人村、委託板、背包、稱號、戰鬥、魔物、武器、地方、新玩法，點上面的關鍵字就能跳過去，不用再往下捲',
+      '新增預告：獵人村怎麼走、怎麼進房子、委託板怎麼選、背包的 5 個裝備格、自己拚稱號、閃避和防禦的姿態條',
+      '投票頁最上面寫清楚「怎麼選分類、怎麼打字提名、怎麼投票」，提名很多時用 ◀ ▶ 翻頁'
+    ],
+    changed: [
+      '預告的文字全部改成四年級也看得懂的話，並標出哪些是「第一批開放」、哪些還在施工中'
+    ], fixed: [] },
   { v:'3.5.0', date:'2026-11-03', title:'新世界預告：戰鬥畫面・造型',
     added: [
       '預告頁新增「新的戰鬥畫面」：斜著往下看的 2.5D 像素場景，同學和你都看得到，地上的紅色區域是魔物要攻擊的地方',

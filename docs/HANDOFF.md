@@ -11,14 +11,14 @@
 | 新世界企畫書 v2.2 | 完成，老師已審過四輪 | [`GDD-NEWWORLD.md`](GDD-NEWWORLD.md) |
 | 專家審查紀錄（13 輪） | 完成 | [`GDD-REVIEW.md`](GDD-REVIEW.md) |
 | 第 0 段：戰績分防亂打、天賦發亮 | **完成，v3.3.0** | `index.html`，見 [`../CHANGELOG.md`](../CHANGELOG.md) |
-| 新世界預告＋提名投票頁 | **完成，v3.5.0（像素風、戰鬥畫面 mockup、造型）** | `index.html` 的 `#nw-modal`／`NW_*`／`nw*()`，見 [`../CHANGELOG.md`](../CHANGELOG.md) |
+| 新世界預告＋提名投票頁 | **完成，v3.6.0（11 個關鍵字、16 頁、不捲動；投票有三步驟說明）** | `nw-preview.js`（頁面資料、投票）、`index.html` 的 `#nw-modal` 與 `.nwp-*` 樣式，見 [`../CHANGELOG.md`](../CHANGELOG.md) |
 | 第 1 段：獵人村開幕 | **大部分完成（搶先體驗中，用通關密語進）**：獵人村、造型、4 把初心武器、委託板、房間（只能開、不能加入）、戰鬥、HR、稱號、榮譽碑排行 | `newworld.js`、`nw-*.js`、`pixel.js` |
 
 ## 下一步（照順序）
 
 1. ~~預告＋提名投票頁~~ ✅ v3.4.0 已完成（資料在 `mg_config/nw_vote`，免改規則）。
    - 上線後可以看投票結果再決定魔物名字、區域、武器；老師在投票頁按「老師管理」可隱藏不適當的提名。
-   - 預告頁的文字在 `index.html` 的 `NW_WEAPONS`／`NW_REGIONS`／`NW_MONSTERS`／`NW_SYSTEMS`／`nwPreviewHTML()`；
+   - 預告頁的文字在 `nw-preview.js` 的 `WEAPONS`／`REGIONS`／`MONSTERS`／`PLAY`／`pageHTML()`；
      故事文字是草稿，老師可改。企畫有改（武器、區域、魔物改名）要一起改。
    - 預告頁已經有**戰鬥畫面 mockup**（`PX.canvas('battle')`＋`nwMountBattle()`，GDD §7.2）與**造型示範**（`PX.hero(造型, 倍率)`，GDD §15.5）。
      第 1 段的真實戰鬥畫面照這張做：斜上方 2.5D、固定站位、自己有金圈與箭頭、地上紅色區域＝魔物要攻擊的地方。

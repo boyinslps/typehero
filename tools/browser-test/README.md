@@ -22,8 +22,9 @@ NODE_PATH=$(npm root -g) node tools/browser-test/seg0.test.js /tmp
 測試資料放在檔案開頭的 `seed`，文件路徑格式是 `集合/文件ID`。
 新增的 Firebase 函式（例如 `increment`、`arrayUnion`）要記得在 `mock/fs.js` 補上。
 
-`nw.test.js` 測新世界預告＋提名投票（v3.4.0）：
-- 預告頁卡片數量（41 張像素圖、戰鬥畫面 4 位玩家）、點魔物換生氣、沒填身分時輸入框停用、提名／投票／重複提名、老師隱藏與恢復、排序、手機寬度、無 JS 錯誤
+`nw.test.js` 測新世界預告＋提名投票（v3.6.0）：
+- 11 個關鍵字、16 頁，桌面與手機每一頁都不捲動、各頁內容（故事、獵人村、委託板、背包、稱號、戰鬥、魔物…）、點魔物換生氣、投票頁的怎麼選說明、沒填身分時輸入框停用、四個分類提名／投票／重複提名、翻頁、老師隱藏與恢復、排序、無 JS 錯誤
+- 要看版面需要 `OUT/tw.css`（本機生成的 Tailwind），沒有也能跑，只是沒樣式
 
 ```bash
 NODE_PATH=$(npm root -g) node tools/browser-test/nw.test.js /tmp

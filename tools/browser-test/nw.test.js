@@ -1,6 +1,7 @@
-/* 新世界預告＋提名投票（index.html 的 #nw-modal）。用法見 README.md */
+/* 新世界預告＋提名投票（index.html 的 #nw-modal、nw-preview.js）。用法見 README.md */
 const { chromium } = require('playwright'); const fs = require('fs');
 const path = require('path'); const M = path.join(__dirname, 'mock') + '/'; const OUT = process.argv[2] || require('os').tmpdir();
+const css = fs.existsSync(OUT + '/tw.css') ? fs.readFileSync(OUT + '/tw.css', 'utf8') : '';
 let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++; };
 (async () => {
   const b = await chromium.launch();
@@ -11,42 +12,79 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
   await p.route('**/*', r => {
     const u = r.request().url();
     if (u.startsWith('http://localhost')) return r.continue();
+    if (u.includes('cdn.tailwindcss.com')) return r.fulfill({ contentType: 'application/javascript', body: `const s=document.createElement('style');s.textContent=${JSON.stringify(css)};document.head.appendChild(s);` });
     const m = u.includes('firebase-app') ? 'app.js' : u.includes('firebase-auth') ? 'auth.js' : u.includes('firebase-firestore') ? 'fs.js' : null;
     if (m) return r.fulfill({ contentType: 'application/javascript', body: fs.readFileSync(M + m, 'utf8') });
     return r.abort();
   });
   await p.goto('http://localhost:8765/index.html'); await p.waitForTimeout(1500);
 
-  // 1. 預告頁
+  const goPage = async g => { await p.click(`#nwp-nav [data-g="${g}"]`); await p.waitForTimeout(150); };
+  const noScroll = () => p.evaluate(() => { const e = document.getElementById('nwp-page'); return e.scrollHeight <= e.clientHeight + 2 && document.getElementById('nw-modal').scrollWidth <= innerWidth + 1; });
+
+  // 1. 預告：分頁、不捲動
   await p.click('#btn-nw'); await p.waitForTimeout(300);
   ok(await p.isVisible('#nw-modal'), '按鈕打得開預告頁');
-  ok((await p.$$('#nw-preview .nw-grid')).length === 6, '魔物／武器／區域／系統／裝備／造型六組卡片');
-  ok((await p.$$('#nw-preview .nw-card canvas')).length === 38, '12 魔物＋9 武器＋7 區域＋10 造型各一張像素圖');
-  ok((await p.$$('#nw-preview .nw-px canvas')).length === 41, '加上傳送門、獵人、戰鬥畫面共 41 張');
-  ok((await p.$$('#nw-preview .nwb-tag')).length === 4 && (await p.textContent('#nw-preview .nwb-tag.me')).includes('你'), '戰鬥畫面有 4 位玩家，自己有標示');
-  const sc0 = await p.evaluate(() => document.querySelector('#nw-preview [data-k="monster:coo"] canvas').toDataURL());
-  await p.click('#nw-preview [data-k="monster:coo"]');
-  const sc1 = await p.evaluate(() => document.querySelector('#nw-preview [data-k="monster:coo"] canvas').toDataURL());
-  ok(sc0 !== sc1, '點魔物會換成生氣的樣子');
-  await p.screenshot({ path: OUT + '/nw-preview.png', fullPage: false });
+  ok((await p.$$('#nwp-nav .nwp-chip')).length === 11, '上面有 11 個關鍵字：故事、獵人村、委託板、背包、稱號、戰鬥、魔物、武器、地方、新玩法、投票');
+  const total = +(await p.textContent('#nwp-count')).match(/\/ (\d+)/)[1];
+  ok(total === 16, '共 16 頁（魔物 3、武器 3、地方 2 各自分頁）');
+  ok(await p.$eval('#nw-modal', e => getComputedStyle(e).overflow) === 'hidden', '預告視窗不是捲動式');
+  let allFit = true;
+  for (let i = 0; i < total; i++) { if (!(await noScroll())) { allFit = false; console.log('  第', i + 1, '頁超出'); } if (i < total - 1) await p.click('#nwp-next'); }
+  ok(allFit, '桌面寬度：每一頁都在一個畫面內');
+  await p.click('#nwp-prev'); await p.click('#nwp-prev');
 
-  // 2. 沒填身分：看得到、不能提名
-  await p.click('#nw-tab-vote'); await p.waitForTimeout(200);
+  await goPage('story');
+  const story = await p.textContent('#nwp-page');
+  ok(story.includes('委託板') && story.includes('背包') && story.includes('稱號') && story.includes('施工中'), '故事頁寫出第一批開放的三樣與施工中的東西');
+  await goPage('village');
+  const vil = await p.textContent('#nwp-page');
+  ok(vil.includes('Enter') && vil.includes('不會直接進去') && await p.$('#nwp-page canvas') !== null, '獵人村頁：說明點選或按 Enter 進房子，有村莊圖');
+  await goPage('board');
+  ok((await p.textContent('#nwp-page')).includes('狩獵') && (await p.$$('#nwp-page canvas')).length === 3, '委託板頁：三張單子的魔物圖與說明');
+  await goPage('bag');
+  ok((await p.$$('#nwp-page .nwp-slot')).length === 5 && (await p.$$('#nwp-page .nwp-four canvas')).length === 4, '背包頁：5 個裝備格、四把初心武器');
+  await goPage('title');
+  ok((await p.$$('#nwp-page svg')).length === 3 && (await p.textContent('#nwp-page')).includes('詞條'), '稱號頁：SVG 徽章與詞條說明');
+  await goPage('battle');
+  ok((await p.$$('#nwp-page .nwb-tag')).length === 4 && (await p.textContent('#nwp-page .nwb-tag.me')).includes('你'), '戰鬥頁：4 位玩家，自己有標示');
+  ok((await p.textContent('#nwp-page')).includes('姿態條') && (await p.textContent('#nwp-page')).includes('國字'), '戰鬥頁：說明姿態條與國字題');
+  await goPage('monster');
+  ok((await p.$$('#nwp-page .nwp-card canvas')).length === 4, '魔物第 1 頁 4 隻');
+  const sc0 = await p.evaluate(() => document.querySelector('#nwp-page [data-k="monster:coo"] canvas').toDataURL());
+  await p.click('#nwp-page [data-k="monster:coo"]');
+  const sc1 = await p.evaluate(() => document.querySelector('#nwp-page [data-k="monster:coo"] canvas').toDataURL());
+  ok(sc0 !== sc1, '點魔物會換成生氣的樣子');
+  await p.click('#nwp-next'); await p.click('#nwp-next');
+  ok((await p.$$('#nwp-page .nwp-card canvas')).length === 4 && (await p.textContent('#nwp-page')).includes('混沌巨龍'), '魔物第 3 頁有混沌巨龍');
+  await goPage('weapon'); ok((await p.$$('#nwp-page .nwp-card canvas')).length === 3, '武器第 1 頁 3 把');
+  await goPage('region'); ok((await p.$$('#nwp-page .nwp-card canvas')).length === 4, '地方第 1 頁 4 個');
+  await goPage('play'); ok((await p.textContent('#nwp-page')).includes('榮譽碑') && (await p.textContent('#nwp-page')).includes('施工中'), '新玩法頁標出施工中');
+  await p.screenshot({ path: OUT + '/nw-preview.png' });
+
+  // 2. 投票頁：沒填身分
+  await goPage('vote');
+  const vt = await p.textContent('#nwp-page');
+  ok(vt.includes('一起決定') && vt.includes('按下面的分類') && vt.includes('Enter') && vt.includes('投一票'), '投票頁最上面寫出怎麼選、怎麼輸入、怎麼投');
   ok(await p.isDisabled('.nw-in[data-cat="monster"]'), '沒填姓名時輸入框停用');
-  ok((await p.textContent('#nw-who')).includes('要先填好'), '提示要先填身分');
+  ok((await p.textContent('#nw-who')).includes('要先在首頁填好'), '提示要先填身分');
   await p.click('#nw-close');
 
   // 3. 填身分後提名
   await p.selectOption('#in-grade', '五年級'); await p.selectOption('#in-class', '3班');
   await p.fill('#in-seat', '7'); await p.fill('#in-name', '小明');
-  await p.click('#btn-nw'); await p.click('#nw-tab-vote'); await p.waitForTimeout(300);
+  await p.click('#btn-nw'); await goPage('vote'); await p.waitForTimeout(300);
   ok(!(await p.isDisabled('.nw-in[data-cat="monster"]')), '填好身分後可以輸入');
   await p.fill('.nw-in[data-cat="monster"]', '火焰雞'); await p.press('.nw-in[data-cat="monster"]', 'Enter'); await p.waitForTimeout(300);
   ok((await p.textContent('#nw-list-monster')).includes('火焰雞') && (await p.textContent('#nw-list-monster')).includes('五年級3班 7號 小明'), '提名即時出現，附班級座號姓名');
   ok((await p.inputValue('.nw-in[data-cat="monster"]')) === '', '提名後輸入框清空');
+  await p.click('.nwp-cat[data-cat="region"]'); await p.waitForTimeout(100);
+  ok(await p.isVisible('#nw-list-region') && (await p.$('#nw-list-monster')) === null, '按分類切換到「想去的地方」');
   await p.fill('.nw-in[data-cat="region"]', '一二三四五六七八九十一二三四五');
   ok((await p.inputValue('.nw-in[data-cat="region"]')).length <= 12, '輸入框最多 12 字');
   await p.fill('.nw-in[data-cat="region"]', '糖果王國'); await p.click('.nw-add[data-cat="region"]'); await p.waitForTimeout(300);
+  ok((await p.textContent('#nw-list-region')).includes('糖果王國'), '另一個分類也能提名');
+  await p.click('.nwp-cat[data-cat="monster"]'); await p.waitForTimeout(100);
 
   // 4. 投票不限票數
   const id = await p.getAttribute('#nw-list-monster .nw-vote', 'data-id');
@@ -61,28 +99,39 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
   doc = await p.evaluate(() => window.__FS['mg_config/nw_vote']);
   ok(doc.noms.filter(n => n.text === '火焰雞').length === 1 && doc.votes[id] === 4, '重複提名不新增，改投 1 票');
 
-  // 6. 老師隱藏
+  // 6. 提名很多：分頁，不捲動
+  for (let i = 0; i < 12; i++) { await p.fill('.nw-in[data-cat="monster"]', '魔物' + i); await p.press('.nw-in[data-cat="monster"]', 'Enter'); await p.waitForTimeout(80); }
+  await p.waitForTimeout(300);
+  ok((await p.textContent('#nwp-vpage')).includes('共 13 則') && await noScroll(), '提名多的時候用 ◀ ▶ 翻頁，頁面不會變長');
+  const first = await p.textContent('#nw-list-monster');
+  await p.click('[data-vp="1"]'); await p.waitForTimeout(100);
+  ok((await p.textContent('#nw-list-monster')) !== first, '按 ▶ 看下一頁');
+
+  // 7. 老師隱藏
+  await p.click('.nwp-cat[data-cat="region"]'); await p.waitForTimeout(100);
   ok((await p.$$('.nw-hide')).length === 0, '一般學生看不到隱藏按鈕');
   await p.click('#nw-admin'); await p.fill('#nw-admin-pw', 'wrong'); await p.click('#nw-admin-ok');
   ok((await p.$$('.nw-hide')).length === 0, '密碼錯誤不能管理');
   await p.fill('#nw-admin-pw', 'teacher'); await p.click('#nw-admin-ok'); await p.waitForTimeout(200);
   await p.click('#nw-list-region .nw-hide'); await p.waitForTimeout(300);
   ok((await p.evaluate(() => window.__FS['mg_config/nw_vote'].hidden.length)) === 1, '老師隱藏寫進 hidden');
-  await p.screenshot({ path: OUT + '/nw-vote-admin.png', fullPage: true });
-  await p.click('#nw-admin'); await p.waitForTimeout(200);   // 結束管理
+  await p.click('#nw-admin'); await p.waitForTimeout(200);
   ok(!(await p.textContent('#nw-list-region')).includes('糖果王國'), '隱藏後學生看不到');
   await p.click('#nw-admin'); await p.fill('#nw-admin-pw', 'teacher'); await p.click('#nw-admin-ok');
   await p.click('#nw-list-region .nw-hide'); await p.waitForTimeout(300);
   ok((await p.evaluate(() => window.__FS['mg_config/nw_vote'].hidden.length)) === 0, '恢復後 hidden 清空');
 
-  // 7. 排序切換
+  // 8. 排序切換
   await p.click('#nw-sort'); ok((await p.textContent('#nw-sort')).includes('最新'), '排序可切換');
+  await p.screenshot({ path: OUT + '/nw-vote.png' });
 
-  // 8. 手機寬度
-  await p.setViewportSize({ width: 390, height: 800 }); await p.waitForTimeout(200);
-  const overflow = await p.evaluate(() => document.getElementById('nw-modal').scrollWidth > innerWidth + 1);
-  ok(!overflow, '手機寬度沒有橫向捲動');
-  await p.screenshot({ path: OUT + '/nw-vote-mobile.png', fullPage: false });
+  // 9. 手機寬度：每一頁也不捲動
+  await p.setViewportSize({ width: 390, height: 780 }); await p.waitForTimeout(300);
+  let mobFit = true;
+  await goPage('story');
+  for (let i = 0; i < total; i++) { if (!(await noScroll())) { mobFit = false; console.log('  手機第', i + 1, '頁超出'); } if (i < total - 1) await p.click('#nwp-next'); }
+  ok(mobFit, '手機寬度：每一頁都在一個畫面內，沒有橫向或直向捲動');
+  await p.screenshot({ path: OUT + '/nw-vote-mobile.png' });
 
   ok(errs.length === 0, '沒有 JS 錯誤 ' + errs.join(' | '));
   await b.close(); process.exit(fails ? 1 : 0);
