@@ -1398,6 +1398,11 @@ select option{background:var(--panel2);color:var(--ink)}
           </select>
           <input id="tc-nwcode" type="text" autocomplete="off" placeholder="想換通關密語就在這裡輸入新的（留空＝不改）"
                  class="w-full mt-2 p-3 rounded-lg bg-transparent border text-sm" style="border-color:var(--line)">
+          <label class="flex items-start gap-2 mt-2 text-sm" style="color:var(--dim)">
+            <input id="tc-nwreward" type="checkbox" class="mt-1">
+            <span>打完「標點符號挑戰」的同學，會看到這組密語（搶先體驗號碼）並自動開通。<br>
+              <b>勾選時請同時在上面輸入密語</b>，存檔後才生效；取消勾選就停止發放。密語會存在資料庫（學生練完才看得到），不會進程式碼。</span>
+          </label>
         </div>
         <div class="md:col-span-2">
           <button id="tc-save-cfg" class="w-full py-3 rounded-xl font-black text-slate-900"
@@ -4647,6 +4652,7 @@ function applyConfig(d) {
   CFG.mode       = d.mode       ?? CFG.mode;
   CFG.nwMode     = d.nwMode     ?? 'off';
   CFG.nwCodeHash = d.nwCodeHash ?? '';
+  CFG.nwRewardCode = d.nwRewardCode ?? '';
   CFG.rankLimit  = d.rankLimit  ?? CFG.rankLimit;
   if (Array.isArray(d.grades)  && d.grades.length)  CFG.grades  = d.grades;
   if (Array.isArray(d.classes) && d.classes.length) CFG.classes = d.classes;
@@ -5514,6 +5520,7 @@ async function finishPunctDrill() {
     console.error('標點練習上傳失敗', e);
     toast('點數拿到了，但還沒存到雲端', 2600);
   }
+  if (CFG.nwRewardCode && NWG) NWG.reward(CFG.nwRewardCode).then(got => { if (got) paintNwButton(); });
   setTimeout(() => { if (!PT.active) quitPunctDrill(); }, 2600);
 }
 
@@ -7051,6 +7058,7 @@ function tryAuth() {
   $('tc-classes').value    = CFG.classes.join(',');
   $('tc-nwmode').value     = CFG.nwMode || 'off';
   $('tc-nwcode').value     = '';
+  $('tc-nwreward').checked = !!CFG.nwRewardCode;
   updateTeacherBanner();
   const showLegacy = !!CFG.legacyConfig && CFG.legacyDifficulty != null;
   show('tc-legacy-notice', showLegacy);
@@ -7119,6 +7127,7 @@ async function saveConfig() {
     classes:    $('tc-classes').value.split(',').map(s => s.trim()).filter(Boolean),
     nwMode:     $('tc-nwmode').value,
     ...($('tc-nwcode').value.trim() ? { nwCodeHash: await sha256Hex($('tc-nwcode').value.trim()) } : {}),
+    ...(!$('tc-nwreward').checked ? { nwRewardCode: '' } : $('tc-nwcode').value.trim() ? { nwRewardCode: $('tc-nwcode').value.trim() } : {}),
     balanceVer: BALANCE.ver          // 存進去之後 applyConfig() 就不會再判定成舊版設定
   };
   try {

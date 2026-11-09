@@ -128,6 +128,28 @@ export function initNewWorld(C) {
     return true;
   }
 
+  function showTicket(code) {
+    const sheet = document.createElement('div');
+    sheet.id = 'nw-ticket'; sheet.className = 'fixed inset-0 z-[95] grid place-items-center p-4'; sheet.style.background = 'rgba(9,8,18,.9)';
+    sheet.innerHTML = `<div class="px-panel text-center" style="max-width:420px;width:100%;padding:20px">
+      <div class="px-title" style="font-size:1.5em">${PX.badge(3, 4)} 搶先體驗券</div>
+      <p class="px-text mt-2">標點符號挑戰通關！老師送你「新世界」的搶先體驗號碼：</p>
+      <div class="px-panel in mono mt-2" style="padding:12px;font-size:1.4em;letter-spacing:.06em;word-break:break-all;user-select:all" data-code></div>
+      <p class="px-text mt-3" style="font-size:.95em">已經幫你開通了！回到大廳，點「新世界之門」就能進去。</p>
+      <p class="text-xs mt-1" style="color:#aab0d8">這組號碼只給練過的同學，先不要告訴別人喔。</p>
+      <div class="mt-4"><button class="px-btn gold" style="padding:8px 28px" data-x>知道了</button></div></div>`;
+    sheet.querySelector('[data-code]').textContent = code;
+    sheet.addEventListener('click', e => { if (e.target === sheet || e.target.closest('[data-x]')) sheet.remove(); });
+    document.body.appendChild(sheet);
+  }
+
+  async function reward(code) {
+    if (access) return false;
+    if (!(await redeem(code))) return false;
+    showTicket(code);
+    return true;
+  }
+
   function gate() {
     if (access) return { ok: true, early: true };
     const mode = C.nwMode();
@@ -747,5 +769,5 @@ export function initNewWorld(C) {
     }
   });
 
-  return { enter, gate, leave, refresh: refreshAccess, openCode: openCodeSheet, get nw() { return NW; }, isOpen: () => !root.classList.contains('hidden') };
+  return { enter, gate, leave, reward, refresh: refreshAccess, openCode: openCodeSheet, get nw() { return NW; }, isOpen: () => !root.classList.contains('hidden') };
 }
