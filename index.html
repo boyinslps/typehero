@@ -348,6 +348,23 @@ body{
 #pt-stage{min-height:0}
 /* 稿紙格：標點單獨放大會看不出是什麼（「。」就是一個圓圈），
    套進一個十字虛線的格子裡，位置與佔一格的概念一起教。 */
+#pt-hint{font-size:22px}
+#pt-hint .pt-key{display:inline-block;min-width:2.2em;padding:.1em .6em;border:2px solid var(--gold);border-bottom-width:5px;border-radius:8px;background:var(--panel2);font-size:1.1em;text-align:center}
+.ptl-badge{background:var(--gold);color:#1a1409;font-weight:900;border-radius:99px;padding:2px 12px;font-size:14px}
+.ptl-mark{width:72px;height:72px;display:grid;place-items:center;font-size:48px;font-weight:900;border:3px solid var(--gold);border-radius:12px;background:var(--panel2);color:var(--gold)}
+.ptl-kb{background:#0e0b16;border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:4px;align-items:center}
+.dk-row{display:flex;gap:4px}
+.dk{width:34px;height:34px;display:grid;place-items:center;border:2px solid #3a3a60;border-bottom-width:4px;border-radius:6px;background:#1a1a30;color:#aab0d8;font-weight:800;font-size:14px;transition:transform .12s,background .12s}
+.dk.wide{width:78px}.dk.space{width:200px}
+.dk-mod,.dk-target{outline:2px dashed rgba(255,210,74,.55);outline-offset:2px}
+.ptl-kb[data-step="1"] .dk-mod,.ptl-kb[data-step="2"] .dk-mod{background:#e8b64c;color:#1a1409;border-color:#ffd24a;transform:translateY(3px);border-bottom-width:1px}
+.ptl-kb[data-step="2"] .dk-target{background:#6aa84f;color:#fff;border-color:#9fe07c;transform:translateY(3px);border-bottom-width:1px}
+.ptl-input{display:flex;align-items:center;gap:10px;margin-top:10px;padding:8px 12px;border:2px solid var(--line2);border-radius:10px;font-size:26px;font-weight:900;min-height:56px}
+.ptl-in-label{font-size:12px;color:var(--dim2);font-weight:700}
+#ptl-typed.pop{display:inline-block;animation:ptlPop .4s ease-out;color:var(--gold)}
+@keyframes ptlPop{0%{transform:scale(.3)}70%{transform:scale(1.35)}100%{transform:scale(1)}}
+.ptl-cur{color:var(--gold);animation:nwbBlink 1s steps(2) infinite}
+.ptl-cap{margin-top:10px;font-size:20px;font-weight:900;color:var(--gold);min-height:30px;text-align:center}
 #pt-cell{position:relative;width:180px;height:180px;flex:0 0 auto;
   border:3px solid var(--line2);border-radius:10px;background:var(--panel2)}
 #pt-cell::before,#pt-cell::after{content:'';position:absolute;background:var(--line);
@@ -1235,6 +1252,7 @@ select option{background:var(--panel2);color:var(--ink)}
     <div id="pt-name" class="text-3xl font-black">逗號</div>
     <p id="pt-use" class="text-base text-center" style="color:var(--dim)"></p>
     <div id="pt-hint" class="text-base" style="color:var(--gold)"></div>
+    <button id="pt-help" class="btn btn-ghost text-sm px-4 py-2" style="color:var(--gold)">🎬 看教學動畫</button>
     <div id="pt-feedback" class="text-xl font-black" style="min-height:30px"></div>
   </div>
 
@@ -1256,6 +1274,26 @@ select option{background:var(--panel2);color:var(--ink)}
   <div id="pt-pad" class="panel p-3">
     <p class="label mb-2">標點怎麼打（注音輸入法）</p>
     <div id="pt-keys"></div>
+  </div>
+
+  <div id="pt-lesson" class="hidden fixed inset-0 z-[88] grid place-items-center p-4" style="background:rgba(9,8,18,.94)">
+    <div class="panel p-5 w-full" style="max-width:640px">
+      <div class="flex items-center justify-between gap-2 mb-2">
+        <span id="ptl-badge" class="ptl-badge"></span>
+        <span class="text-sm" style="color:var(--dim)">看完動畫，再按「學會了」</span>
+      </div>
+      <div class="flex items-center gap-4 mb-3">
+        <div id="ptl-mark" class="ptl-mark"></div>
+        <div><div id="ptl-name" class="text-2xl font-black"></div><div id="ptl-use" class="text-sm" style="color:var(--dim)"></div></div>
+      </div>
+      <div id="ptl-kb" class="ptl-kb" data-step="0"></div>
+      <div class="ptl-input"><span class="ptl-in-label">輸入框</span><span id="ptl-typed"></span><span class="ptl-cur">▍</span></div>
+      <div id="ptl-cap" class="ptl-cap"></div>
+      <div class="flex gap-2 justify-end mt-3">
+        <button id="ptl-replay" class="btn btn-ghost px-4 py-2">▶ 再看一次</button>
+        <button id="ptl-done" class="btn btn-gold px-6 py-2 text-lg" disabled>學會了 ✓</button>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -2597,8 +2635,16 @@ function initNw() {
    版本紀錄：首頁右下角那顆 v2.0.0 按鈕點開看到的內容。
    跟 CHANGELOG.md 是同一份資料，改一邊也要記得改另一邊。
    ══════════════════════════════════════════════════════════════ */
-const APP_VERSION = '3.7.0';
+const APP_VERSION = '3.8.0';
 const VERSION_LOG = [
+  { v:'3.8.0', date:'2026-11-09', title:'標點符號挑戰有教學動畫了',
+    added: [
+      '第一次遇到新的標點時，會先跳出教學動畫：鍵盤上先亮起要按住的 Ctrl 或 Shift，再亮起要按的那一顆鍵，輸入框就跳出標點。看完按「學會了」才開始練習',
+      '練習中隨時可以按「🎬 看教學動畫」再看一次'
+    ],
+    changed: [
+      '題目上的「按哪兩顆鍵」改成大大的鍵帽，一眼就看得到'
+    ], fixed: [] },
   { v:'3.7.0', date:'2026-11-09', title:'新世界第一批開放：委託板・背包・稱號',
     added: [
       '新世界的「獵人村」開放：用 WASD 或點一下走路，點房子或在門口按 Enter 進去（灰色的房子還在施工中）',
@@ -5385,7 +5431,61 @@ const PUNCT_KEYBOARD = [
    ['M','ㄩ'],[',','ㄝ'],['.','ㄡ'],['/','ㄥ']]
 ];
 
-const PT = { queue: [], idx: 0, streak: 0, wrong: 0, active: false };
+const PT = { queue: [], idx: 0, streak: 0, wrong: 0, active: false, lesson: false };
+
+const ptLearnedKey = () => 'mg_pl_' + ME.docId;
+const ptLearned = () => { try { return new Set(JSON.parse(localStorage.getItem(ptLearnedKey()) || '[]')); } catch (e) { return new Set(); } };
+const ptLearn = ch => { const l = ptLearned(); l.add(ch); try { localStorage.setItem(ptLearnedKey(), JSON.stringify([...l])); } catch (e) { /* 存不了就下次再教一次 */ } };
+
+let PTL_TIMERS = [], PTL_Q = null;
+function ptlClear() { PTL_TIMERS.forEach(clearTimeout); PTL_TIMERS = []; }
+
+function ptlKeyboard(q) {
+  const keys = PUNCT_KEYBOARD.map(row => `<div class="dk-row">${row.map(([k]) => `<span class="dk${k === q.key ? ' dk-target' : ''}">${k}</span>`).join('')}</div>`).join('');
+  const mods = ['Ctrl', 'Shift'].map(m => `<span class="dk wide${m === q.mod ? ' dk-mod' : ''}">${m}</span>`).join('');
+  return keys + `<div class="dk-row">${mods}<span class="dk space">空白</span></div>`;
+}
+
+function runPtDemo() {
+  ptlClear();
+  const q = PTL_Q, kb = $('ptl-kb');
+  const at = (ms, fn) => PTL_TIMERS.push(setTimeout(fn, ms));
+  const step = n => {
+    kb.dataset.step = n;
+    setTxt('ptl-cap', ['看看這個符號怎麼打…', `① 先按住 ${q.mod} 不要放`, `② 再按一下「${q.key}」這顆鍵`, `③ 輸入框出現「${q.ch}」了！`][n]);
+    const t = $('ptl-typed');
+    t.textContent = n === 3 ? q.ch : '';
+    t.classList.toggle('pop', n === 3);
+  };
+  const loop = () => {
+    step(0); at(500, () => step(1)); at(1900, () => step(2)); at(3300, () => step(3));
+    at(3400, () => { $('ptl-done').disabled = false; });
+    at(5800, loop);
+  };
+  loop();
+}
+
+function openPtLesson(q, isNew) {
+  PTL_Q = q; PT.lesson = true;
+  $('pt-input').disabled = true;
+  setTxt('ptl-badge', isNew ? `新符號 ${Math.min(ptLearned().size + 1, PUNCT_LESSONS.length)} / ${PUNCT_LESSONS.length}` : '再看一次');
+  setTxt('ptl-mark', q.ch); setTxt('ptl-name', q.name); setTxt('ptl-use', q.use);
+  $('ptl-kb').innerHTML = ptlKeyboard(q);
+  $('ptl-done').disabled = !isNew ? false : true;
+  $('ptl-done').dataset.new = isNew ? '1' : '0';
+  setTxt('ptl-done', isNew ? '學會了！開始練習 ✓' : '知道了 ✓');
+  show('pt-lesson', true);
+  runPtDemo();
+}
+
+function closePtLesson(learned) {
+  ptlClear();
+  if (learned && PTL_Q) ptLearn(PTL_Q.ch);
+  show('pt-lesson', false);
+  PT.lesson = false;
+  const inp = $('pt-input'); inp.disabled = false;
+  if (PT.active) setTimeout(() => inp.focus(), 50);
+}
 
 function startPunctDrill() {
   /* 每個標點練兩次，順序打散——照固定順序背得起來，打散才是真的會 */
@@ -5394,7 +5494,8 @@ function startPunctDrill() {
     const j = Math.floor(Math.random() * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
-  PT.queue = pool; PT.idx = 0; PT.streak = 0; PT.wrong = 0; PT.active = true;
+  PT.queue = pool; PT.idx = 0; PT.streak = 0; PT.wrong = 0; PT.active = true; PT.lesson = false;
+  $('pt-input').disabled = false; show('pt-lesson', false);
 
   show('screen-lobby', false); show('screen-login', false);
   show('app-header', false); show('btn-verlog', false);
@@ -5449,6 +5550,7 @@ function paintPunctQuestion() {
     [...k.querySelectorAll('.ptk-mark')].forEach(m =>
       m.classList.toggle('want', on && m.dataset.ch === q.ch));
   });
+  if (PT.active && !PT.lesson && !ptLearned().has(q.ch)) openPtLesson(q, true);
 }
 
 function submitPunct() {
@@ -5536,6 +5638,7 @@ async function finishPunctDrill() {
 
 function quitPunctDrill() {
   PT.active = false;
+  closePtLesson(false);
   show('screen-punct', false);
   gotoLobby();
 }
@@ -6941,6 +7044,9 @@ function wireEvents() {
   /* 標點符號練習 */
   $('pt-quit').addEventListener('click', quitPunctDrill);
   $('pt-skip').addEventListener('click', () => { skipPunct(); $('pt-input').focus(); });
+  $('pt-help').addEventListener('click', () => { const q = PT.queue[PT.idx]; if (PT.active && q) openPtLesson(q, false); });
+  $('ptl-replay').addEventListener('click', runPtDemo);
+  $('ptl-done').addEventListener('click', () => closePtLesson($('ptl-done').dataset.new === '1'));
   $('pt-input').addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); submitPunct(); }
   });

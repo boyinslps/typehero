@@ -30,14 +30,45 @@ async function run(b, reward) {
   p.errs = errs; return p;
 }
 
+async function finishDrill(p) {
+  for (let i = 0; i < 80; i++) {
+    if (await p.isVisible('#pt-lesson')) { await p.waitForSelector('#ptl-done:not([disabled])', { timeout: 8000 }); await p.click('#ptl-done'); await p.waitForTimeout(60); continue; }
+    if ((await p.textContent('#pt-name')).includes('通關')) break;
+    await p.click('#pt-skip'); await p.waitForTimeout(40);
+  }
+}
+
 (async () => {
   const b = await chromium.launch();
+
+  {
+    const p = await run(b, false);
+    await p.click('[data-battle="punct"]'); await p.waitForSelector('#pt-lesson:not(.hidden)');
+    ok((await p.textContent('#ptl-badge')).includes('新符號 1 / 9'), '第一次遇到新符號：先跳出教學動畫，標示新符號 1 / 9');
+    ok(await p.isDisabled('#ptl-done') && await p.isDisabled('#pt-input'), '動畫還沒演完：「學會了」按不下去、輸入框先鎖住');
+    const mark = await p.textContent('#ptl-mark');
+    const steps = new Set();
+    for (let i = 0; i < 40 && steps.size < 3; i++) { steps.add(await p.getAttribute('#ptl-kb', 'data-step')); await p.waitForTimeout(150); }
+    ok(steps.has('1') && steps.has('2'), '動畫會一步一步演：按住修飾鍵 → 再按那顆鍵（' + [...steps].join(',') + '）');
+    await p.waitForSelector('#ptl-done:not([disabled])', { timeout: 8000 });
+    ok((await p.textContent('#ptl-cap')).length > 0 && (await p.$$('#ptl-kb .dk')).length > 40 && await p.$('#ptl-kb .dk-mod') !== null && await p.$('#ptl-kb .dk-target') !== null, '畫面上有鍵盤，修飾鍵與目標鍵都有標出來');
+    await p.screenshot({ path: OUT + '/nw3-lesson.png' });
+    await p.click('#ptl-done'); await p.waitForTimeout(150);
+    ok(await p.isHidden('#pt-lesson') && !(await p.isDisabled('#pt-input')), '按「學會了」：教學關掉、輸入框可以打字');
+    ok(await p.evaluate(() => JSON.parse(localStorage.getItem('mg_pl_五年級3班_6號')).length) === 1, '學會的符號記在本機，下次不用再教');
+    await p.click('#pt-help'); await p.waitForSelector('#pt-lesson:not(.hidden)');
+    ok((await p.textContent('#ptl-badge')).includes('再看一次'), '隨時可以按「看教學動畫」再看一次');
+    await p.click('#ptl-done'); await p.waitForTimeout(100);
+    ok(await p.isHidden('#pt-lesson'), '再看一次的教學也能關掉');
+    ok(p.errs.length === 0, '沒有 JS 錯誤 ' + p.errs.join(' | '));
+    await p.close();
+  }
 
   {
     const p = await run(b, true);
     ok(await p.$eval('#nw-door', e => e.dataset.state) === 'locked', '練習前：新世界之門是鎖著的');
     await p.click('[data-battle="punct"]'); await p.waitForSelector('#screen-punct:not(.hidden)');
-    for (let i = 0; i < 60 && await p.isVisible('#pt-skip'); i++) { if ((await p.textContent('#pt-name')).includes('通關')) break; await p.click('#pt-skip'); await p.waitForTimeout(30); }
+    await finishDrill(p);
     await p.waitForSelector('#nw-ticket', { timeout: 5000 });
     ok((await p.textContent('#nw-ticket')).includes(PASS), '打完標點符號挑戰：跳出搶先體驗券，寫著號碼');
     await p.screenshot({ path: OUT + '/nw3-ticket.png' });
@@ -53,7 +84,7 @@ async function run(b, reward) {
   {
     const p = await run(b, false);
     await p.click('[data-battle="punct"]'); await p.waitForSelector('#screen-punct:not(.hidden)');
-    for (let i = 0; i < 60 && await p.isVisible('#pt-skip'); i++) { if ((await p.textContent('#pt-name')).includes('通關')) break; await p.click('#pt-skip'); await p.waitForTimeout(30); }
+    await finishDrill(p);
     await p.waitForTimeout(3200);
     ok(await p.$('#nw-ticket') === null && await p.$eval('#nw-door', e => e.dataset.state) === 'locked', '老師沒開發放：打完也不會拿到號碼，門還是鎖著');
     ok(p.errs.length === 0, '沒有 JS 錯誤 ' + p.errs.join(' | '));
