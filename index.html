@@ -365,6 +365,12 @@ body{
 #ptl-typed.pop{display:inline-block;animation:ptlPop .4s ease-out;color:var(--gold)}
 @keyframes ptlPop{0%{transform:scale(.3)}70%{transform:scale(1.35)}100%{transform:scale(1)}}
 .ptl-cur{color:var(--gold);animation:nwbBlink 1s steps(2) infinite}
+.ptl-cand{display:none;margin-top:6px;gap:4px;flex-wrap:wrap;padding:6px;border:2px solid #4a4a80;border-radius:8px;background:#14102a}
+.ptl-cand.show{display:flex}
+.ptl-c{padding:2px 10px;border-radius:6px;font-size:22px;font-weight:800;color:#aab0d8}
+.ptl-c small{font-size:12px;margin-right:4px;color:var(--dim2)}
+.ptl-c.on{background:var(--gold);color:#1a1409}
+.ptl-c.on small{color:#1a1409}
 .ptl-cap{margin-top:10px;font-size:20px;font-weight:900;color:var(--gold);min-height:30px;text-align:center}
 #pt-cell{position:relative;width:180px;height:180px;flex:0 0 auto;
   border:3px solid var(--line2);border-radius:10px;background:var(--panel2)}
@@ -1289,6 +1295,7 @@ select option{background:var(--panel2);color:var(--ink)}
       </div>
       <div id="ptl-kb" class="ptl-kb" data-step="0"></div>
       <div class="ptl-input"><span class="ptl-in-label">輸入框</span><span id="ptl-typed"></span><span class="ptl-cur">▍</span></div>
+      <div id="ptl-cand" class="ptl-cand"></div>
       <div id="ptl-cap" class="ptl-cap"></div>
       <div class="flex gap-2 justify-end mt-3">
         <button id="ptl-replay" class="btn btn-ghost px-4 py-2">▶ 再看一次</button>
@@ -2636,8 +2643,14 @@ function initNw() {
    版本紀錄：首頁右下角那顆 v2.0.0 按鈕點開看到的內容。
    跟 CHANGELOG.md 是同一份資料，改一邊也要記得改另一邊。
    ══════════════════════════════════════════════════════════════ */
-const APP_VERSION = '3.8.1';
+const APP_VERSION = '3.8.2';
 const VERSION_LOG = [
+  { v:'3.8.2', date:'2026-11-09', title:'上下引號的教學修正',
+    added: [],
+    changed: [
+      '標點符號挑戰的「上引號」「下引號」教學動畫：按 Ctrl＋[ 後，輸入框會先出現「【」，要再從選字框選到「「」並按 Enter，教學照這個順序一步一步演（下引號同理）'
+    ],
+    fixed: [] },
   { v:'3.8.1', date:'2026-11-09', title:'投票改成一人一票',
     added: [],
     changed: [
@@ -5421,8 +5434,8 @@ const PUNCT_LESSONS = [
   { ch: '！', name: '驚嘆號', key: '1',  mod: 'Shift', use: '很興奮、很驚訝、大聲喊的時候' },
   { ch: '：', name: '冒號',   key: ';',  mod: 'Shift', use: '後面要列出東西或引出說的話' },
   { ch: '；', name: '分號',   key: ';',  mod: 'Ctrl',  use: '兩句有關係的話中間，比逗號重、比句號輕' },
-  { ch: '「', name: '上引號', key: '[',  mod: 'Ctrl',  use: '別人說的話從這裡開始' },
-  { ch: '」', name: '下引號', key: ']',  mod: 'Ctrl',  use: '別人說的話到這裡結束' }
+  { ch: '「', name: '上引號', key: '[',  mod: 'Ctrl',  use: '別人說的話從這裡開始', pick: ['【', '「', '『', '〔'] },
+  { ch: '」', name: '下引號', key: ']',  mod: 'Ctrl',  use: '別人說的話到這裡結束', pick: ['】', '」', '』', '〕'] }
 ];
 const punctKeyLabel = p => `${p.mod} + ${p.key}`;
 
@@ -5456,19 +5469,34 @@ function ptlKeyboard(q) {
 
 function runPtDemo() {
   ptlClear();
-  const q = PTL_Q, kb = $('ptl-kb');
+  const q = PTL_Q, kb = $('ptl-kb'), cand = $('ptl-cand');
   const at = (ms, fn) => PTL_TIMERS.push(setTimeout(fn, ms));
+  const caps = q.pick
+    ? ['看看這個符號怎麼打…', `① 先按住 ${q.mod} 不要放`, `② 再按一下「${q.key}」，輸入框先出現「${q.pick[0]}」（還沒選好）`,
+       `③ 看選字框，用 ↓ 方向鍵（或按前面的數字）選到「${q.ch}」`, `④ 按 Enter，輸入框變成「${q.ch}」了！`]
+    : ['看看這個符號怎麼打…', `① 先按住 ${q.mod} 不要放`, `② 再按一下「${q.key}」這顆鍵`, `③ 輸入框出現「${q.ch}」了！`];
+  const last = caps.length - 1;
+  const showCand = on => {
+    cand.classList.toggle('show', !!q.pick && on !== null);
+    if (!q.pick || on === null) return;
+    cand.innerHTML = q.pick.map((c, i) => `<span class="ptl-c${(on ? c === q.ch : i === 0) ? ' on' : ''}"><small>${i + 1}</small>${c}</span>`).join('');
+  };
   const step = n => {
-    kb.dataset.step = n;
-    setTxt('ptl-cap', ['看看這個符號怎麼打…', `① 先按住 ${q.mod} 不要放`, `② 再按一下「${q.key}」這顆鍵`, `③ 輸入框出現「${q.ch}」了！`][n]);
+    kb.dataset.step = Math.min(n, 3);
+    setTxt('ptl-cap', caps[n]);
     const t = $('ptl-typed');
-    t.textContent = n === 3 ? q.ch : '';
-    t.classList.toggle('pop', n === 3);
+    const done = n === last;
+    t.textContent = done ? q.ch : (q.pick && n >= 2 ? q.pick[0] : '');
+    t.classList.toggle('pop', done);
+    if (q.pick) showCand(n === 2 ? false : n === 3 ? true : null);
+    if (n === 1 || n === 2) kb.dataset.step = n;
+    if (q.pick && n >= 3) kb.dataset.step = 0;
   };
   const loop = () => {
-    step(0); at(500, () => step(1)); at(1900, () => step(2)); at(3300, () => step(3));
-    at(3400, () => { $('ptl-done').disabled = false; });
-    at(5800, loop);
+    step(0);
+    for (let i = 1; i <= last; i++) at(500 + (i - 1) * 1500, () => step(i));
+    at(500 + (last - 1) * 1500 + 100, () => { $('ptl-done').disabled = false; });
+    at(500 + last * 1500 + 2400, loop);
   };
   loop();
 }
@@ -5546,7 +5574,8 @@ function paintPunctQuestion() {
   setTxt('pt-name', q.name);
   setTxt('pt-use', q.use);
   $('pt-hint').innerHTML =
-    `按 <b class="pt-key">${q.mod}</b> ＋ <b class="pt-key">${q.key}</b>`;
+    `按 <b class="pt-key">${q.mod}</b> ＋ <b class="pt-key">${q.key}</b>` +
+    (q.pick ? `，先出現「${q.pick[0]}」，再從選字框選「${q.ch}」` : '');
   setTxt('pt-progress', `${PT.idx} / ${PT.queue.length}`);
   setTxt('pt-streak', PT.streak);
   $('pt-input').value = '';
@@ -5578,7 +5607,7 @@ function submitPunct() {
     fb.style.color = 'var(--gr)';
   } else {
     PT.streak = 0; PT.wrong++;
-    fb.textContent = `✗ 那是「${val}」，要打的是「${q.ch}」`;
+    fb.textContent = q.pick && val === q.pick[0] ? `✗ 那是「${val}」，還要從選字框選「${q.ch}」` : `✗ 那是「${val}」，要打的是「${q.ch}」`;
     fb.style.color = '#ff8a9c';
     $('pt-input').value = '';
     setTxt('pt-streak', PT.streak);

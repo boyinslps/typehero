@@ -65,6 +65,36 @@ async function finishDrill(p) {
   }
 
   {
+    const p = await run(b, false);
+    await p.click('[data-battle="punct"]');
+    let seen = null;
+    for (let i = 0; i < 40 && !seen; i++) {
+      await p.waitForSelector('#pt-lesson:not(.hidden)', { timeout: 6000 }).catch(() => {});
+      if (!(await p.isVisible('#pt-lesson'))) { await p.click('#pt-skip'); continue; }
+      const name = await p.textContent('#ptl-name');
+      if (name === '上引號') {
+        const steps = new Set(), cands = new Set(), typed = new Set();
+        for (let k = 0; k < 60; k++) {
+          steps.add(await p.textContent('#ptl-cap'));
+          if (await p.isVisible('#ptl-cand')) cands.add(await p.textContent('#ptl-cand'));
+          typed.add(await p.textContent('#ptl-typed'));
+          if (typed.has('「') && typed.has('【')) break;
+          await p.waitForTimeout(150);
+        }
+        seen = { caps: [...steps].join('|'), cands: [...cands].join('|'), typed: [...typed] };
+        await p.waitForSelector('#ptl-done:not([disabled])', { timeout: 8000 });
+        await p.screenshot({ path: OUT + '/nw3-quote.png' });
+      }
+      await p.waitForSelector('#ptl-done:not([disabled])', { timeout: 8000 }); await p.click('#ptl-done'); await p.waitForTimeout(60);
+    }
+    ok(seen && seen.typed.includes('【') && seen.typed.includes('「'), '上引號教學：輸入框先出現「【」，最後才變成「「」');
+    ok(seen && seen.caps.includes('選字框') && seen.caps.includes('Enter'), '上引號教學：說明要從選字框選，再按 Enter');
+    ok(seen && seen.cands.includes('【') && seen.cands.includes('「') && seen.cands.includes('『'), '上引號教學：畫出選字框（【 「 『 …）並把「亮起來');
+    ok(p.errs.length === 0, '沒有 JS 錯誤 ' + p.errs.join(' | '));
+    await p.close();
+  }
+
+  {
     const p = await run(b, true);
     ok(await p.$eval('#nw-door', e => e.dataset.state) === 'locked', '練習前：新世界之門是鎖著的');
     await p.click('[data-battle="punct"]'); await p.waitForSelector('#screen-punct:not(.hidden)');
