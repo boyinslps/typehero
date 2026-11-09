@@ -1,6 +1,6 @@
 # 交接：目前進度與下一步
 
-> 更新：2026-11-05　開發分支：`claude/youthful-cerf-a6t41t`
+> 更新：2026-11-09　開發分支：`claude/youthful-cerf-a6t41t`
 > **分段開放表在 [`RELEASE-STAGES.md`](RELEASE-STAGES.md)**：現在只開討伐看板、武器背包、稱號（榮譽碑等到防作弊做完才開）。
 > `main` 在 `9df6109`（委託板、房間、國字判定、姿態條都已合併）；之後的「稱號＋榮譽碑排行」在分支上，**還沒合併到 main，要老師點頭**。
 
@@ -32,6 +32,9 @@
 - 加詞條：`nw-data.js` 的 `WORDS` 加一列（`id`、`w`、`g` 組別、`how` 條件文字、`test(nw)`）；武器詞條用 `wword()`。解鎖在 `checkWords()`（進村與每場結束時跑），存在 `NW.words`；學生拚的存在 `NW.titleParts`／`NW.title`。
 - 武器進度靠 `NW.used`、`NW.wwin`（`finishHunt` 累加）。之後新增武器要在 `WORDS` 補 3 個詞條。
 - 舊世界顯示：`index.html` 的 `nwTitleChip`／`paintWho`，資料來自 `mg_scores.nwTitle`／`nwTitleN`。
+
+### 學生回饋待決（2026-11-09）
+題目太長導致閃避／防禦太難；想法：三線戰鬥（方向鍵換線、長按 ▼ 防禦）與武器專屬詞庫。分析、風險（注音輸入法會吃方向鍵）、分步做法見 [`PROPOSAL-LANES.md`](PROPOSAL-LANES.md)，**等老師決定**。
 
 ### 第 1 段還沒做完的（給下一位）
 1. **防作弊第 2、3 道**（GDD §20.3～20.4）：正確率 90% 才進排行、可疑紀錄（按鍵太少、節奏太平均…）送「待審核」。現在 `res.valid`/`lvAcc` 只做了第 1 道。新紀錄存 `mg_nw_runs`／`mg_nw_flags`（規則已在 `firestore-rules.txt` 裡，老師貼最新版即可）。
