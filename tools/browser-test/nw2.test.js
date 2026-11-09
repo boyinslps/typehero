@@ -134,6 +134,16 @@ async function playUntil(p, pred, max = 80) {
     await p.close();
   }
 
+  {
+    const p = await open(b, 'staff');
+    await goHunt(p, 'grass', 'coo', 1);
+    const lens = [];
+    for (let i = 0; i < 6; i++) { if (await p.isDisabled('#nwb-in')) break; lens.push([...(await qText(p))].length); await answer(p); }
+    ok(lens.length >= 5 && lens.slice(0, 4).every(n => n <= 4), '★1 的前 4 題最多 4 個字（' + lens.join(',') + '）');
+    ok(lens.every(n => n <= 6), '第 5 題法杖詠唱也不超過 6 個字');
+    await p.close();
+  }
+
   for (const [wk, mon] of [['staff', 'frog'], ['bow', 'coo'], ['dagger', 'coo'], ['crossbow', 'coo']]) {
     const p = await open(b, wk);
     await goHunt(p, 'grass', mon, 1);

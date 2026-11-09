@@ -1,4 +1,4 @@
-import { BAL, TIERS, MONSTERS, regionLv, monMaxHp, monDmg, atkInterval, castTime, STATUS } from './nw-data.js';
+import { BAL, TIERS, MONSTERS, MAX_CHARS, CHANT_MAX, SHORT_CHANTS, regionLv, monMaxHp, monDmg, atkInterval, castTime, STATUS } from './nw-data.js';
 
 const CSS = `
 #nwb-root{position:fixed;inset:0;z-index:70;display:flex;flex-direction:column;background:#000;color:var(--ink);font-size:clamp(13px,1.5vmin + 7px,21px);font-weight:700}
@@ -150,22 +150,27 @@ export function startBattle(env, cfg, done) {
   $q('nwb-side').innerHTML = '<b class="px-text">操作</b><br>Enter 送出<br>Esc 換題<br>' + (weapon === 'crossbow' ? '空白 Enter＝連射' : '閃／防＝躲開／擋住');
 
   const tierIdx = () => Math.min(3, (lv < 10 ? 0 : lv < 20 ? 1 : 2) + (S.mon.angry ? 1 : 0));
+  const maxChars = MAX_CHARS(cfg.star);
+  const fits = p => p.filter(q => [...q.t].length <= maxChars);
+  function wordPool() {
+    for (let i = tierIdx(); i >= 0; i--) { const f = fits(C.q.pool('common_' + TIER_KEYS[i])); if (f.length) return f; }
+    return C.q.pool('common_normal');
+  }
   function pickWord() {
-    const p = C.q.pool('common_' + TIER_KEYS[tierIdx()]);
+    const p = wordPool();
     let q, n = 0;
     do { q = rnd(p); n++; } while (p.length > 1 && q.t === S.lastT && n < 10);
     S.lastT = q.t; return { t: q.t, z: q.z, sp: null };
   }
   function pickChant() {
-    const all = C.q.pool('special_staff');
-    const short = all.filter(q => [...q.t].length <= (lv < 10 ? 16 : 22));
-    const q = rnd(short.length ? short : all);
+    const short = C.q.pool('special_staff').filter(q => [...q.t].length <= CHANT_MAX);
+    const q = rnd(short.length ? short : SHORT_CHANTS);
     return { t: q.t, z: q.z, sp: 'chant' };
   }
   function pickFlurry() {
-    const p = C.q.pool('common_' + TIER_KEYS[tierIdx()]), pick = [];
+    const p = wordPool(), pick = [];
     let chars = 0;
-    for (let i = 0; i < 3; i++) { const q = rnd(p); const n = [...q.t].length; if (pick.length && chars + n > 13) break; pick.push(q); chars += n; }
+    for (let i = 0; i < 3; i++) { const q = rnd(p); const n = [...q.t].length; if (pick.length && chars + n > Math.max(6, maxChars + 2)) break; pick.push(q); chars += n; }
     return { t: pick.map(q => q.t).join(''), z: pick.map(q => q.z).join(' '), sp: 'flurry' };
   }
   function nextQuestion() {

@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>三線戰鬥 mockup</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#0b0a14;color:#fff;font-family:system-ui,"Noto Sans TC","Microsoft JhengHei",sans-serif;display:flex;justify-content:center}
+  #wrap{width:min(100vw,920px);padding:8px}
+  canvas{width:100%;display:block;image-rendering:pixelated;border:4px solid #1c1008;background:#000}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
+  .q{flex:1;min-width:200px;background:#14102a;border:3px solid #4a4a80;padding:8px 12px}
+  .q b{font-size:34px;letter-spacing:.1em}.q small{display:block;color:#aab0d8;font-size:14px}
+  input{flex:1;min-width:160px;font-size:26px;padding:10px;background:#0a0714;border:3px solid #ffd24a;color:#fff;text-align:center}
+  button,select{font:inherit;font-weight:800;padding:10px 16px;border:3px solid #6a5ab0;background:#2a2460;color:#fff;cursor:pointer}
+  button.gold{background:#e8b64c;color:#1a1409;border-color:#ffd24a}
+  .pad{display:none;gap:8px;margin-top:8px}
+  .pad button{flex:1;font-size:26px;padding:16px}
+  @media (pointer:coarse){.pad{display:flex}}
+  #log{font-family:ui-monospace,Consolas,monospace;font-size:13px;color:#aab0d8;margin-top:8px;min-height:2.6em}
+  #help{font-size:14px;color:#aab0d8;line-height:1.6;margin-top:8px}
+  #help b{color:#ffd98a}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="c" width="576" height="336"></canvas>
+  <div class="row">
+    <div class="q"><b id="qt"></b><small id="qz"></small></div>
+    <input id="in" autocomplete="off" placeholder="打字、按 Enter 攻擊" autofocus>
+  </div>
+  <div class="pad" id="pad"><button data-k="L">◀</button><button data-k="D">▼ 防禦</button><button data-k="R">▶</button></div>
+  <div class="row">
+    <label>紅線預警時間 <select id="spd"><option value="1.8">慢（1.8 秒）</option><option value="1.3" selected>一般（1.3 秒）</option><option value="0.95">快（0.95 秒）</option></select></label>
+    <button id="restart" class="gold">重新開始</button>
+  </div>
+  <div id="log">最近收到的按鍵：（還沒有）</div>
+  <div id="help">
+    <b>玩法：</b>一邊打字攻擊魔物（Enter 送出）、一邊看地上的線。<br>
+    <b>◀ ▶ 方向鍵（或 Ctrl＋方向鍵）</b>換線，<b>按住 ▼</b> 舉盾。<br>
+    某一線<b style="color:#ff6a6a">變紅</b>＝快要被打，離開那一線；整排紅色有盾牌＝要<b>按住 ▼</b>才擋得住；站在紅線上舉盾只會少受傷。<br>
+    <b>請測試：</b>注音輸入法打到一半（剛打ㄅ還沒選字）時按方向鍵，上面「最近收到的按鍵」有沒有出現？沒有＝被輸入法吃掉了。
+  </div>
+</div>
+<script>
+(() => {
+  const cv = document.getElementById('c'), g = cv.getContext('2d');
+  const $ = id => document.getElementById(id);
+  const inp = $('in');
+  const WORDS = [['太陽','ㄊㄞˋ ㄧㄤˊ'],['小狗','ㄒㄧㄠˇ ㄍㄡˇ'],['老師','ㄌㄠˇ ㄕ'],['書包','ㄕㄨ ㄅㄠ'],['朋友','ㄆㄥˊ ㄧㄡˇ'],['學校','ㄒㄩㄝˊ ㄒㄧㄠˋ'],['蘋果','ㄆㄧㄥˊ ㄍㄨㄛˇ'],['下雨','ㄒㄧㄚˋ ㄩˇ'],['電腦','ㄉㄧㄢˋ ㄋㄠˇ'],['花朵','ㄏㄨㄚ ㄉㄨㄛˇ']];
+  const LX = [40, 96, 152];
+  const S = {};
+  const rnd = a => a[Math.floor(Math.random() * a.length)];
+
+  const MON = ['....OOOOOOOO....','..OOGGGGGGGGOO..','.OGGGGGGGGGGGGO.','OGGWWGGGGGGWWGGO','OGGWKGGGGGGWKGGO','OGGGGGGGGGGGGGGO','OGGGRRRRRRRRGGGO','.OGGRWRWRWRWGGO.','..OGGRRRRRRGGO..','..OOGGGGGGGGOO..','.OGOOOGGGGOOOGO.','.OO..OOOOOO..OO.'];
+  const HERO = ['..HHHH..','.HHHHHH.','.SSSSSS.','.SKSSKS.','..SSSS..','.AAAAAA.','AAAAAAAA','.AAAAAA.','.AA..AA.','.BB..BB.'];
+  const COL = { O:'#1c1008', G:'#6aa84f', W:'#fff', K:'#111', R:'#d8402a', H:'#5a3a22', S:'#f6d7b8', A:'#3e9a96', B:'#4a3a2a' };
+  const sprite = (rows, x, y, sc, tint) => rows.forEach((r, j) => [...r].forEach((c, i) => { if (c !== '.') { g.fillStyle = tint && c === 'G' ? tint : COL[c]; g.fillRect(x + i * sc, y + j * sc, sc, sc); } }));
+
+  function reset() {
+    Object.assign(S, { t: 0, last: performance.now(), lane: 1, defending: false, hp: 100, mhp: 100, strikes: [], next: 1.5, over: 0, fx: [], shake: 0, flash: 0, stat: { dodge: 0, block: 0, hit: 0 }, mon: 0 });
+    newQ(); inp.value = ''; inp.focus();
+  }
+  function newQ() { S.q = rnd(WORDS); $('qt').textContent = S.q[0]; $('qz').textContent = S.q[1]; }
+  const W = () => +$('spd').value;
+  const float = (txt, x, y, col) => S.fx.push({ txt, x, y, col, t: 0 });
+
+  const PATTERNS = {
+    single: () => [{ lane: Math.floor(Math.random() * 3), warn: S.t, hit: S.t + W() }],
+    pair: () => { const safe = Math.floor(Math.random() * 3); return [0, 1, 2].filter(l => l !== safe).map(l => ({ lane: l, warn: S.t, hit: S.t + W() })); },
+    sweep: () => { const o = Math.random() < .5 ? [0, 1, 2] : [2, 1, 0]; return o.map((l, i) => ({ lane: l, warn: S.t + i * .5, hit: S.t + i * .5 + W() * .8 })); },
+    slam: () => [0, 1, 2].map(l => ({ lane: l, warn: S.t, hit: S.t + W() * 1.2, slam: true })),
+    fake: () => { const a = Math.floor(Math.random() * 3), b = (a + 1 + Math.floor(Math.random() * 2)) % 3; return [{ lane: a, warn: S.t, hit: S.t + W(), cancel: S.t + W() * .45 }, { lane: b, warn: S.t + W() * .45, hit: S.t + W() * 1.25 }]; }
+  };
+  function attack() {
+    const k = rnd(['single', 'single', 'pair', 'sweep', 'slam', 'fake']);
+    S.strikes = PATTERNS[k]();
+    S.pname = { single: '啄擊', pair: '夾擊（站安全那條）', sweep: '橫掃', slam: '重壓（按住 ▼）', fake: '假動作' }[k];
+    S.pat = S.t;
+  }
+
+  function resolve(st) {
+    if (st.cancel) return;
+    const hitX = LX[st.lane];
+    S.flash = .15; S.shake = .25;
+    if (st.slam) {
+      if (S.defending) { S.stat.block++; float('擋住了！', LX[S.lane], 70, '#9fd8ff'); }
+      else { dmg(20, '被壓扁！'); }
+    } else if (S.lane === st.lane) {
+      if (S.defending) { dmg(5, '勉強擋住 -5', '#ffd24a'); S.stat.block++; }
+      else dmg(15, '被打到！');
+    } else { S.stat.dodge++; float('躲開了！', LX[S.lane], 70, '#7ccfff'); }
+  }
+  function dmg(n, txt, col) { S.hp = Math.max(0, S.hp - n); S.stat.hit++; float(txt + (txt.includes('-') ? '' : ' -' + n), LX[S.lane], 66, col || '#ff6a6a'); if (!S.hp) S.over = -1; }
+
+  function update(dt) {
+    if (S.over) return;
+    S.t += dt;
+    if (!S.strikes.length && S.t >= S.next) attack();
+    S.strikes = S.strikes.filter(st => { if (st.cancel && S.t >= st.cancel) return false; if (S.t >= st.hit) { resolve(st); return false; } return true; });
+    if (!S.strikes.length && S.pat !== undefined && S.next <= S.t) S.next = S.t + 1.6;
+    S.fx.forEach(f => f.t += dt); S.fx = S.fx.filter(f => f.t < 1);
+    S.shake = Math.max(0, S.shake - dt); S.flash = Math.max(0, S.flash - dt);
+  }
+
+  function draw() {
+    g.setTransform(3, 0, 0, 3, 0, 0);
+    const sh = S.shake ? (Math.random() - .5) * 4 : 0;
+    g.save(); g.translate(sh, 0);
+    g.fillStyle = '#6ec6ff'; g.fillRect(0, 0, 192, 44);
+    g.fillStyle = '#7fcf5a'; g.fillRect(0, 36, 192, 8);
+    g.fillStyle = '#4e9a3c'; g.fillRect(0, 44, 192, 68);
+    for (let i = 0; i < 3; i++) {
+      g.fillStyle = i % 2 ? '#58a844' : '#4a9238'; g.fillRect(LX[i] - 28, 44, 56, 68);
+      g.fillStyle = '#2a5a22'; g.fillRect(LX[i] - 28, 44, 1, 68);
+    }
+    g.fillStyle = '#2a5a22'; g.fillRect(LX[2] + 28, 44, 1, 68);
+    S.strikes.forEach(st => {
+      if (S.t < st.warn || st.cancel && S.t >= st.cancel) return;
+      const k = (S.t - st.warn) / (st.hit - st.warn);
+      const a = .25 + .5 * k * (Math.sin(S.t * 22) > 0 ? 1 : .6);
+      g.fillStyle = st.slam ? `rgba(80,140,255,${a})` : `rgba(255,50,50,${a})`;
+      g.fillRect(LX[st.lane] - 27, 45, 54, 66);
+      if (st.slam) { g.fillStyle = '#fff'; g.font = 'bold 10px sans-serif'; g.textAlign = 'center'; g.fillText('▼', LX[st.lane], 80); }
+      else { g.fillStyle = '#fff'; g.font = 'bold 12px sans-serif'; g.textAlign = 'center'; g.fillText('!', LX[st.lane], 80); }
+    });
+    const bob = Math.sin(S.t * 3) * 1;
+    sprite(MON, 80, 14 + bob, 2, S.over > 0 ? '#999' : null);
+    const px = LX[S.lane] - 8, py = 84;
+    sprite(HERO, px, py, 2);
+    if (S.defending) { g.fillStyle = '#9fd8ff'; g.fillRect(px - 3, py - 3, 22, 3); g.fillRect(px - 3, py - 3, 3, 14); g.fillRect(px + 16, py - 3, 3, 14); g.fillStyle = 'rgba(159,216,255,.35)'; g.fillRect(px - 3, py - 3, 22, 26); }
+    g.fillStyle = '#ffd24a'; g.fillRect(LX[S.lane] - 8, 108, 16, 2);
+    g.restore();
+    if (S.flash) { g.fillStyle = `rgba(255,255,255,${S.flash * 2})`; g.fillRect(0, 0, 192, 112); }
+    g.textAlign = 'left';
+    const bar = (x, y, w, v, c, label) => { g.fillStyle = '#0a0714'; g.fillRect(x - 1, y - 1, w + 2, 7); g.fillStyle = c; g.fillRect(x, y, w * v, 5); g.fillStyle = '#fff'; g.font = 'bold 7px sans-serif'; g.fillText(label, x, y - 2); };
+    bar(4, 8, 70, S.mhp / 100, '#d8402a', '大魔物');
+    bar(4, 106, 50, S.hp / 100, '#6aa84f', '你');
+    g.fillStyle = '#fff'; g.font = 'bold 7px sans-serif'; g.textAlign = 'right';
+    g.fillText(`躲 ${S.stat.dodge}　擋 ${S.stat.block}　被打 ${S.stat.hit}`, 188, 8);
+    if (S.pname && S.strikes.length) { g.textAlign = 'center'; g.fillStyle = '#ffd24a'; g.fillText(S.pname, 96, 12); }
+    g.textAlign = 'center';
+    S.fx.forEach(f => { g.fillStyle = f.col; g.font = 'bold 8px sans-serif'; g.fillText(f.txt, f.x, f.y - f.t * 14); });
+    if (S.over) { g.fillStyle = 'rgba(9,8,18,.78)'; g.fillRect(0, 30, 192, 52); g.fillStyle = S.over > 0 ? '#ffd98a' : '#e5705f'; g.font = 'bold 16px sans-serif'; g.fillText(S.over > 0 ? '討伐成功！' : '倒下了…', 96, 56); g.font = '7px sans-serif'; g.fillStyle = '#fff'; g.fillText('按「重新開始」再玩一次', 96, 70); }
+  }
+
+  function loop(now) {
+    const dt = Math.min(.05, (now - S.last) / 1000); S.last = now;
+    update(dt); draw(); requestAnimationFrame(loop);
+  }
+
+  const log = (e, extra) => { $('log').textContent = `最近收到的按鍵：${e.key}　(組字中：${e.isComposing ? '是' : '否'}，keyCode ${e.keyCode})${extra || ''}`; };
+  const MAP = { ArrowLeft: 'L', ArrowRight: 'R', ArrowDown: 'D' };
+  addEventListener('keydown', e => {
+    if (e.isComposing || e.keyCode === 229) { $('log').textContent = '最近收到的按鍵：輸入法組字中，只收到 Process（keyCode 229）——方向鍵被輸入法吃掉了'; return; }
+    const k = MAP[e.key];
+    if (k) { log(e); e.preventDefault(); press(k, true); }
+    else if (e.key === 'Enter') submit();
+  });
+  addEventListener('keyup', e => { const k = MAP[e.key]; if (k) { log(e, '（放開）'); press(k, false); } });
+  addEventListener('blur', () => { S.defending = false; });
+  function press(k, down) {
+    if (S.over) return;
+    if (k === 'D') S.defending = down;
+    else if (down) S.lane = Math.max(0, Math.min(2, S.lane + (k === 'L' ? -1 : 1)));
+  }
+  document.querySelectorAll('#pad button').forEach(b => {
+    const k = b.dataset.k;
+    b.addEventListener('pointerdown', e => { e.preventDefault(); press(k, true); });
+    b.addEventListener('pointerup', () => press(k, false));
+    b.addEventListener('pointerleave', () => { if (k === 'D') press(k, false); });
+  });
+  function submit() {
+    if (S.over || !inp.value.trim()) return;
+    if (inp.value.trim() === S.q[0]) {
+      S.mhp = Math.max(0, S.mhp - 12); float('-12', 96, 30, '#ffd24a'); S.flash = .06;
+      if (!S.mhp) S.over = 1; else newQ();
+    } else float('打錯了', 96, 90, '#ff8a9c');
+    inp.value = '';
+  }
+  $('restart').addEventListener('click', reset);
+  cv.addEventListener('click', () => inp.focus());
+  reset(); requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
