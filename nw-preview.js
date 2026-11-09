@@ -68,7 +68,7 @@ const PAGES = [
 
 export function initNwPreview(C) {
   const { $, show, toast, escHtml, setTxt } = C;
-  const S = { i: 0, cat: 'monster', vp: 0, sort: 'votes', admin: false, data: { noms: [], votes: {}, hidden: [] }, unsub: null };
+  const S = { i: 0, cat: 'monster', vp: 0, sort: 'votes', admin: false, data: { noms: [], v: {}, hidden: [] }, unsub: null };
   const ref = () => C.doc(C.db, 'mg_config', 'nw_vote');
 
   const tag = (t, ok) => `<span class="nwp-tag ${ok ? 'ok' : ''}">${t}</span>`;
@@ -175,7 +175,7 @@ export function initNwPreview(C) {
         <div class="nwp-vh">🗳 一起決定新世界的樣子！</div>
         ${steps(['按下面的<b>分類</b>（魔物名字、想去的地方…）。',
           `在大格子裡<b>打字</b>（最多 ${MAXLEN} 個字），按 <b>Enter</b> 或「<b>提名</b>」。`,
-          '看到喜歡的，按「<b>👍 投一票</b>」，喜歡就多按幾下，票數不限！'])}
+          '看到喜歡的，按「<b>👍 投一票</b>」，每個想法你只能投一票，喜歡的都可以投！'])}
       </div>
       <div id="nw-who" class="nwp-who"></div>
       <div class="nwp-cats">${CATS.map(x => `<button class="nwp-cat" data-cat="${x.k}" aria-pressed="${x.k === S.cat}">${x.icon} ${x.name}</button>`).join('')}</div>
@@ -188,6 +188,7 @@ export function initNwPreview(C) {
         <button id="nw-sort" class="nwp-mini">排序：${S.sort === 'votes' ? '票數' : '最新'}</button>
         <span id="nwp-vpage" class="nwp-sm"></span>
         <button class="nwp-mini" data-vp="-1">◀</button><button class="nwp-mini" data-vp="1">▶</button>
+        ${S.admin ? '<button id="nw-clear" class="nwp-mini" style="color:#e5705f">清空所有投票</button>' : ''}
         <button id="nw-admin" class="nwp-mini dim">${S.admin ? '結束管理' : '老師管理'}</button>
       </div>
       <div id="nw-admin-box" class="nwp-adm ${S.adminBox ? '' : 'hidden'}"><input id="nw-admin-pw" type="password" placeholder="教師密碼"><button id="nw-admin-ok">確定</button></div>`;
@@ -206,7 +207,8 @@ export function initNwPreview(C) {
   function paintList() {
     const el = document.querySelector('#nwp-page .nwp-list'); if (!el) return;
     const hidden = new Set(S.data.hidden || []), now = Date.now(), can = C.online() && !!C.who();
-    const votes = n => Math.max(0, +(S.data.votes || {})[n.id] || 0);
+    const votes = n => Object.keys((S.data.v || {})[n.id] || {}).length;
+    const me = voterId();
     const list = (S.data.noms || []).filter(n => n.cat === S.cat && (S.admin || !hidden.has(n.id)));
     list.sort(S.sort === 'votes' ? (a, b) => votes(b) - votes(a) || b.t - a.t : (a, b) => b.t - a.t);
     const per = Math.max(2, Math.floor(el.clientHeight / 54));
@@ -217,7 +219,7 @@ export function initNwPreview(C) {
         <div class="flex-1 min-w-0"><div class="font-bold nwp-ell">${escHtml(n.text)}${now - n.t < 60000 ? ' <span class="text-xs" style="color:var(--gold)">新！</span>' : ''}${hidden.has(n.id) ? ' <span class="text-xs" style="color:#e5705f">（已隱藏）</span>' : ''}</div>
           <div class="text-xs dim nwp-ell">${escHtml(n.cls)} ${escHtml(n.seat)}號 ${escHtml(n.name)}</div></div>
         <b style="color:var(--gold);min-width:2.2em;text-align:right">${votes(n)}</b>
-        <button class="nw-vote" data-id="${n.id}" ${can ? '' : 'disabled'}>👍 投一票</button>
+        ${me && (S.data.v[n.id] || {})[me] ? '<button class="nw-vote done" disabled>✓ 已投票</button>' : `<button class="nw-vote" data-id="${n.id}" ${can ? '' : 'disabled'}>👍 投一票</button>`}
         ${S.admin ? `<button class="nw-hide nwp-mini" data-id="${n.id}" data-hid="${hidden.has(n.id) ? 1 : 0}">${hidden.has(n.id) ? '恢復' : '隱藏'}</button>` : ''}
       </div>`).join('') : '<div class="dim" style="padding:14px 4px">還沒有人提名，你當第一個！</div>';
     setTxt('nwp-vpage', `共 ${list.length} 則・第 ${S.vp + 1}/${pages} 頁`);
@@ -281,7 +283,8 @@ export function initNwPreview(C) {
     if (dup) {
       inp.value = '';
       if ((S.data.hidden || []).includes(dup.id)) { toast('這則不能提名'); return; }
-      toast('已經有人提過了，幫你投了一票！'); vote(dup.id); return;
+      if ((S.data.v[dup.id] || {})[voterId()]) toast('已經有人提過了，你也投過票了'); else toast('已經有人提過了，幫你投了一票！');
+      vote(dup.id); return;
     }
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     const item = { id, cat, text, cls: w.cls, seat: w.seat, name: w.name, t: Date.now() };
@@ -289,10 +292,22 @@ export function initNwPreview(C) {
     try { await C.withTimeout(C.setDoc(ref(), { noms: C.arrayUnion(item) }, { merge: true }), 6000, 'nw-nominate'); toast('提名成功！'); }
     catch (e) { console.warn('提名失敗', e); toast('送出失敗，再試一次'); inp.value = text; }
   }
+  const voterId = () => { const w = C.who(); return w ? `${w.cls}_${w.seat}號` : ''; };
   async function vote(id) {
-    if (!C.online() || !C.who()) return;
-    try { await C.withTimeout(C.setDoc(ref(), { votes: { [id]: C.increment(1) } }, { merge: true }), 6000, 'nw-vote'); }
-    catch (e) { console.warn('投票失敗', e); toast('投票失敗，再試一次'); }
+    const me = voterId();
+    if (!C.online() || !me) return;
+    if ((S.data.v[id] || {})[me]) { toast('你已經投過這一個了'); return; }
+    S.data.v[id] = Object.assign({}, S.data.v[id], { [me]: 1 });
+    paintList();
+    try { await C.withTimeout(C.setDoc(ref(), { v: { [id]: { [me]: 1 } } }, { merge: true }), 6000, 'nw-vote'); }
+    catch (e) { delete S.data.v[id][me]; paintList(); console.warn('投票失敗', e); toast('投票失敗，再試一次'); }
+  }
+  async function clearVotes() {
+    if (!S.admin || !confirm('確定要清空所有投票嗎？提名會留著，票數全部歸零。')) return;
+    try {
+      await C.withTimeout(C.setDoc(ref(), { noms: S.data.noms, hidden: S.data.hidden, v: {}, votes: {} }), 6000, 'nw-clear');
+      toast('已清空所有投票');
+    } catch (e) { console.warn('清空失敗', e); toast('清空失敗，再試一次'); }
   }
   async function hide(id, was) {
     if (!S.admin) return;
@@ -306,7 +321,7 @@ export function initNwPreview(C) {
     if (C.online() && !S.unsub) {
       S.unsub = C.onSnapshot(ref(), snap => {
         const d = snap.exists() ? snap.data() : {};
-        S.data = { noms: d.noms || [], votes: d.votes || {}, hidden: d.hidden || [] };
+        S.data = { noms: d.noms || [], v: d.v || {}, hidden: d.hidden || [] };
         if (PAGES[S.i].g === 'vote') paintList();
       }, e => console.warn('提名監聽失敗', e));
     }
@@ -331,15 +346,16 @@ export function initNwPreview(C) {
     const vp = e.target.closest('[data-vp]'); if (vp) { S.vp += +vp.dataset.vp; paintList(); return; }
     if (e.target.closest('#nw-sort')) { S.sort = S.sort === 'votes' ? 'new' : 'votes'; setTxt('nw-sort', `排序：${S.sort === 'votes' ? '票數' : '最新'}`); paintList(); return; }
     if (e.target.closest('#nw-admin')) {
-      if (S.admin) { S.admin = false; setTxt('nw-admin', '老師管理'); paintList(); return; }
+      if (S.admin) { S.admin = false; render(); return; }
       S.adminBox = true; show('nw-admin-box', true); $('nw-admin-pw').focus(); return;
     }
+    if (e.target.closest('#nw-clear')) { clearVotes(); return; }
     if (e.target.closest('#nw-admin-ok')) adminOk();
   });
   function adminOk() {
     if ($('nw-admin-pw').value !== C.adminPw) { toast('密碼錯誤'); return; }
     $('nw-admin-pw').value = ''; S.adminBox = false; show('nw-admin-box', false);
-    S.admin = true; setTxt('nw-admin', '結束管理'); paintList();
+    S.admin = true; render();
   }
   $('nw-modal').addEventListener('keydown', e => {
     if (e.isComposing) return;

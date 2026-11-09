@@ -96,6 +96,7 @@ body{
 .nwp-input input:disabled{border-color:var(--line);opacity:.6}
 .nw-add,.nw-vote{padding:10px 18px;border-radius:10px;background:var(--gold);color:#1a1409;font-weight:900;border:0;cursor:pointer;white-space:nowrap}
 .nw-vote{padding:8px 14px;background:#6aa84f;color:#fff;font-size:15px}
+.nw-vote.done{background:var(--panel2);color:var(--gr);border:2px solid var(--gr)}
 .nw-add:disabled,.nw-vote:disabled{opacity:.35;cursor:default}
 .nwp-list{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;gap:6px}
 .nwp-ell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -2635,8 +2636,15 @@ function initNw() {
    版本紀錄：首頁右下角那顆 v2.0.0 按鈕點開看到的內容。
    跟 CHANGELOG.md 是同一份資料，改一邊也要記得改另一邊。
    ══════════════════════════════════════════════════════════════ */
-const APP_VERSION = '3.8.0';
+const APP_VERSION = '3.8.1';
 const VERSION_LOG = [
+  { v:'3.8.1', date:'2026-11-09', title:'投票改成一人一票',
+    added: [],
+    changed: [
+      '新世界提名投票：每個人對每個想法只能投一次，投過的按鈕會變成「✓ 已投票」',
+      '之前的票數全部清空，請大家重新投；提名都還在'
+    ],
+    fixed: ['修正同一個人一直按、可以刷票的問題'] },
   { v:'3.8.0', date:'2026-11-09', title:'標點符號挑戰有教學動畫了',
     added: [
       '第一次遇到新的標點時，會先跳出教學動畫：鍵盤上先亮起要按住的 Ctrl 或 Shift，再亮起要按的那一顆鍵，輸入框就跳出標點。看完按「學會了」才開始練習',
@@ -2683,7 +2691,7 @@ const VERSION_LOG = [
     added: [
       '登入畫面新增「🌋 新世界預告・提名投票」：背景故事、獵人使命、9 種新武器、7 個區域、新系統，全部附 ASCII 小圖',
       '提名投票：魔物名字、希望的區域、希望的武器、其他想要的東西，每則最多 12 個字，大家提了什麼會即時出現',
-      '每則提名都能按「投一票」，票數不限；要先填好班級、座號、姓名才能提名和投票',
+      '每則提名每個人只能投一票；要先填好班級、座號、姓名才能提名和投票',
       '老師可以在投票頁用教師密碼「隱藏」不適當的提名'
     ],
     changed: [], fixed: [] },
