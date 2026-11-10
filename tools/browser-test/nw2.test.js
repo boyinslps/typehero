@@ -3,21 +3,20 @@ const path = require('path'); const M = path.join(__dirname, 'mock') + '/'; cons
 const css = fs.existsSync(OUT + '/tw.css') ? fs.readFileSync(OUT + '/tw.css', 'utf8') : '';
 let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++; };
 const ID = '五年級3班_5號';
-const seedFor = (starter, extra, mode) => ({
-  'mg_config/settings': { nwBattleMode: mode || 'type' },
+const seedFor = (starter, extra) => ({
   ['mg_scores/' + ID]: {
     className: '五年級3班', seat: 5, name: '小明', bestLevel: 10, bestScore: 20, scoreVer: 2, plays: 9, tutorialDone: true, talentIntroDone: true, tier: 'B', balanceVer: 3,
     nw: Object.assign({ v: 1, savedAt: 5, look: { style: 1, hair: 2, skin: 1 }, starter, quest: { done: ['1-0'] }, items: { potion: 3 } }, extra || {})
   }
 });
-async function open(browser, starter, extra, mode) {
+async function open(browser, starter, extra) {
   const p = await browser.newPage({ viewport: { width: 1200, height: 900 } });
   const errs = []; p.on('dialog', d => d.accept());
   p.on('pageerror', e => errs.push('pageerror: ' + e.message));
   p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push('console: ' + m.text()); });
   const { sha256Hex } = await import('../../nw-access.js');
   const hash = await sha256Hex('Test-Pass_9!x');
-  await p.addInitScript(a => { window.__FS = a.s; localStorage.clear(); localStorage.setItem('mg_nw_fast', '1'); window.__NW_CODE_HASH__ = a.hash; localStorage.setItem('mg_nw_code', a.hash); window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas'); }, { s: seedFor(starter, extra, mode), hash });
+  await p.addInitScript(a => { window.__FS = a.s; localStorage.clear(); localStorage.setItem('mg_nw_fast', '1'); window.__NW_CODE_HASH__ = a.hash; localStorage.setItem('mg_nw_code', a.hash); window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas'); }, { s: seedFor(starter, extra), hash });
   await p.route('**/*', r => {
     const u = r.request().url();
     if (u.startsWith('http://localhost')) return r.continue();
@@ -38,6 +37,11 @@ const goHunt = async (p, region, mon, star) => {
   await p.click('[data-go]'); await p.waitForSelector('[data-view="room"]');
   await p.click('[data-act="startroom"]'); await p.waitForTimeout(80);
 };
+    const lane = p => p.$eval('#nwb-root', e => +e.dataset.lane);
+const hp = p => p.$eval('#nwb-hpt', e => +e.textContent.split('/')[0]);
+const waitDanger = p => p.waitForFunction(() => document.getElementById('nwb-root').dataset.danger, null, { timeout: 30000, polling: 50 });
+const waitEnd = p => p.waitForFunction(() => document.getElementById('nwb-cast').style.display === 'none', null, { timeout: 15000, polling: 50 });
+const goTo = async (p, n) => { for (let i = 0; i < 3 && await lane(p) !== n; i++) { await p.keyboard.press(await lane(p) > n ? 'ControlLeft' : 'ControlRight'); await p.waitForTimeout(60); } };
 const qText = p => p.$$eval('#nwb-q .zy-han', els => els.map(e => e.textContent).join(''));
 const hpPct = (p, id) => p.$eval('#' + id, e => parseFloat(e.style.width));
 async function answer(p, text, wait = 480) {
@@ -74,30 +78,25 @@ async function playUntil(p, pred, max = 80) {
     await answer(p, wrong);
     ok(await hpPct(p, 'nwb-hp') < hp0, '整題亂打：被反擊扣血');
 
+    await p.evaluate(() => { window.__NW_PATTERN__ = 'single'; });
     await p.waitForFunction(() => document.getElementById('nwb-cast') && document.getElementById('nwb-cast').style.display === 'block', null, { timeout: 15000 });
-    const type = (await p.getAttribute('#nwb-cast', 'class')).includes('defend') ? 'defend' : 'dodge';
-    ok(true, `魔物出招：${type === 'dodge' ? '閃避型（紅）' : '防禦型（藍）'}`);
+    ok(true, '魔物出招，開始蓄力');
     await p.screenshot({ path: OUT + '/nw2-cast.png' });
-    await p.waitForFunction(() => document.getElementById('nwb-stance').dataset.state === 'go', null, { timeout: 12000, polling: 50 });
-    ok(true, '時機到了：姿態條會亮綠燈寫「現在打」');
-    await p.waitForTimeout(1400);
-    await p.fill('#nwb-in', type === 'dodge' ? '閃' : '防');
-    await p.waitForTimeout(150);
-    ok(await p.isDisabled('#nwb-in'), '打出動作詞後輸入框變灰');
-    ok(['dodge', 'defend'].includes(await p.$eval('#nwb-stance', e => e.dataset.state)) && (await p.textContent('#nwb-st-name')).includes('姿態'), '輸入框上出現「閃避／防禦姿態」條');
-    ok((await p.textContent('#nwb-st-hint')).includes('攻擊會落在姿態裡'), '姿態條告訴你這一下擋不擋得住');
+    await waitDanger(p);
+    const dd = +(await p.$eval('#nwb-root', e => e.dataset.danger));
+    await goTo(p, dd === 0 ? 1 : 0);
     await p.screenshot({ path: OUT + '/nw2-action.png' });
     const hpBefore = await hpPct(p, 'nwb-hp');
-    await p.waitForFunction(() => document.getElementById('nwb-cast').style.display === 'none', null, { timeout: 8000 });
+    await waitEnd(p);
     await p.waitForTimeout(300);
-    ok(await hpPct(p, 'nwb-hp') >= hpBefore, '時機對了：這一下沒受傷');
+    ok(await hpPct(p, 'nwb-hp') >= hpBefore, '換到沒有紅色的線：這一下沒受傷');
 
     const done = await playUntil(p, async () => false, 90);
     ok(done, '打到結算');
     try { await p.waitForSelector('#nw-result', { timeout: 8000 }); } catch (e) { console.log('ERRS', p.errs.join(' | ')); throw e; }
     const txt = await p.textContent('#nw-result');
     ok(txt.includes('討伐成功'), '結算：討伐成功');
-    ok(/閃避 1\/1|防禦 1\/1/.test(txt), '結算：記到 1 次成功的動作');
+    ok(/閃避 1\/1|防禦 1\/1/.test(txt), '結算：記到 1 次成功的躲避');
     await p.screenshot({ path: OUT + '/nw2-result.png' });
     await p.click('[data-close]'); await p.waitForTimeout(500);
     const nw = await p.evaluate(() => JSON.parse(localStorage.getItem('mg_nw_五年級3班_5號')));
@@ -146,12 +145,7 @@ async function playUntil(p, pred, max = 80) {
   }
 
   {
-    const lane = p => p.$eval('#nwb-root', e => +e.dataset.lane);
-    const hp = p => p.$eval('#nwb-hpt', e => +e.textContent.split('/')[0]);
-    const waitDanger = p => p.waitForFunction(() => document.getElementById('nwb-root').dataset.danger, null, { timeout: 30000, polling: 50 });
-    const waitEnd = p => p.waitForFunction(() => document.getElementById('nwb-cast').style.display === 'none', null, { timeout: 15000, polling: 50 });
-    const goTo = async (p, n) => { for (let i = 0; i < 3 && await lane(p) !== n; i++) { await p.keyboard.press(await lane(p) > n ? 'ControlLeft' : 'ControlRight'); await p.waitForTimeout(60); } };
-    const setup = async pat => { const p = await open(b, 'staff', undefined, 'lanes'); await goHunt(p, 'grass', 'coo', 1); await p.evaluate(x => { window.__NW_PATTERN__ = x; }, pat); return p; };
+    const setup = async pat => { const p = await open(b, 'staff'); await goHunt(p, 'grass', 'coo', 1); await p.evaluate(x => { window.__NW_PATTERN__ = x; }, pat); return p; };
 
     let p = await setup('single');
     ok(await lane(p) === 1 && (await p.textContent('#nwb-st-name')).includes('Ctrl'), '三線模式：一開始站中間，提示寫左右 Ctrl 換線與 Alt 舉盾');
