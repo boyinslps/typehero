@@ -1444,6 +1444,11 @@ select option{background:var(--panel2);color:var(--ink)}
           </select>
           <input id="tc-nwcode" type="text" autocomplete="off" placeholder="想換通關密語就在這裡輸入新的（留空＝不改）"
                  class="w-full mt-2 p-3 rounded-lg bg-transparent border text-sm" style="border-color:var(--line)">
+          <label class="label block mt-3 mb-1">新世界戰鬥操作</label>
+          <select id="tc-nwbattle" class="w-full p-3 rounded-lg bg-transparent border text-sm" style="border-color:var(--line)">
+            <option value="lanes">三線：左右 Ctrl 換線、Alt 舉盾（預設）</option>
+            <option value="type">舊版：打字輸入「閃」「防」</option>
+          </select>
           <label class="flex items-start gap-2 mt-2 text-sm" style="color:var(--dim)">
             <input id="tc-nwreward" type="checkbox" class="mt-1">
             <span>打完「標點符號挑戰」的同學，會看到這組密語（搶先體驗號碼）並自動開通。<br>
@@ -2643,8 +2648,15 @@ function initNw() {
    版本紀錄：首頁右下角那顆 v2.0.0 按鈕點開看到的內容。
    跟 CHANGELOG.md 是同一份資料，改一邊也要記得改另一邊。
    ══════════════════════════════════════════════════════════════ */
-const APP_VERSION = '3.8.3';
+const APP_VERSION = '3.9.0';
 const VERSION_LOG = [
+  { v:'3.9.0', date:'2026-11-10', title:'新世界三線戰鬥',
+    added: [
+      '新世界的戰鬥地面分成左、中、右三條線。魔物快出招時，有的線會變紅：按左 Ctrl 往左、右 Ctrl 往右，換到沒有紅色的線就不會被打到',
+      '整排變藍色的時候，按 Alt 舉盾就擋得住。站在紅線上舉盾，只會少受一半的傷',
+      '不用再在輸入框打「閃」「防」，邊打字邊躲更輕鬆。魔物的招式也更多變：單線、夾擊、橫掃、假動作'
+    ],
+    changed: ['老師可以在控制台把戰鬥操作切回舊的「打字輸入閃、防」'], fixed: [] },
   { v:'3.8.3', date:'2026-11-09', title:'新世界的題目變短了',
     added: [],
     changed: [
@@ -4736,6 +4748,7 @@ function applyConfig(d) {
   CFG.nwMode     = d.nwMode     ?? 'off';
   CFG.nwCodeHash = d.nwCodeHash ?? '';
   CFG.nwRewardCode = d.nwRewardCode ?? '';
+  CFG.nwBattleMode = d.nwBattleMode ?? 'lanes';
   CFG.rankLimit  = d.rankLimit  ?? CFG.rankLimit;
   if (Array.isArray(d.grades)  && d.grades.length)  CFG.grades  = d.grades;
   if (Array.isArray(d.classes) && d.classes.length) CFG.classes = d.classes;
@@ -7054,6 +7067,7 @@ function wireEvents() {
     bestLevel: myBestLevel,
     unlockLevel: BALANCE.unlockLevel.epic,
     nwMode: () => CFG.nwMode || 'off',
+    battleMode: () => CFG.nwBattleMode || 'lanes',
     nwCodeHash: () => CFG.nwCodeHash || '',
     setTitle: setNwTitle,
     q: { questionUnits, judge, canon, splitZhuyin, IS_PUNCT,
@@ -7218,6 +7232,7 @@ function tryAuth() {
   $('tc-nwmode').value     = CFG.nwMode || 'off';
   $('tc-nwcode').value     = '';
   $('tc-nwreward').checked = !!CFG.nwRewardCode;
+  $('tc-nwbattle').value = CFG.nwBattleMode || 'lanes';
   updateTeacherBanner();
   const showLegacy = !!CFG.legacyConfig && CFG.legacyDifficulty != null;
   show('tc-legacy-notice', showLegacy);
@@ -7285,6 +7300,7 @@ async function saveConfig() {
     grades:     $('tc-grades').value.split(',').map(s => s.trim()).filter(Boolean),
     classes:    $('tc-classes').value.split(',').map(s => s.trim()).filter(Boolean),
     nwMode:     $('tc-nwmode').value,
+    nwBattleMode: $('tc-nwbattle').value,
     ...($('tc-nwcode').value.trim() ? { nwCodeHash: await sha256Hex($('tc-nwcode').value.trim()) } : {}),
     ...(!$('tc-nwreward').checked ? { nwRewardCode: '' } : $('tc-nwcode').value.trim() ? { nwRewardCode: $('tc-nwcode').value.trim() } : {}),
     balanceVer: BALANCE.ver          // 存進去之後 applyConfig() 就不會再判定成舊版設定

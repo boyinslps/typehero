@@ -34,7 +34,7 @@
 - 舊世界顯示：`index.html` 的 `nwTitleChip`／`paintWho`，資料來自 `mg_scores.nwTitle`／`nwTitleN`。
 
 ### 學生回饋待決（2026-11-09）
-題目太長導致閃避／防禦太難；想法：三線戰鬥（方向鍵換線、長按 ▼ 防禦）與武器專屬詞庫。分析、風險（注音輸入法會吃方向鍵）、分步做法見 [`PROPOSAL-LANES.md`](PROPOSAL-LANES.md)，可玩 mockup 在 `tools/mockups/lanes.html`，**等老師試玩後決定**。題目字數上限與詠唱 6 字已做（v3.8.3）；還沒重跑 `tools/nw-sim/`。
+題目太長導致閃避／防禦太難；**三線戰鬥已在 v3.9.0 做成正式版**（`nw-battle.js` 的 `laneMode`，教師控制台可切回舊版）；原本的想法：三線戰鬥（方向鍵換線、長按 ▼ 防禦）與武器專屬詞庫。分析、風險（注音輸入法會吃方向鍵）、分步做法見 [`PROPOSAL-LANES.md`](PROPOSAL-LANES.md)，可玩 mockup 在 `tools/mockups/lanes.html`，**等老師試玩後決定**。題目字數上限與詠唱 6 字已做（v3.8.3）；還沒重跑 `tools/nw-sim/`。
 
 ### 第 1 段還沒做完的（給下一位）
 1. **防作弊第 2、3 道**（GDD §20.3～20.4）：正確率 90% 才進排行、可疑紀錄（按鍵太少、節奏太平均…）送「待審核」。現在 `res.valid`/`lvAcc` 只做了第 1 道。新紀錄存 `mg_nw_runs`／`mg_nw_flags`（規則已在 `firestore-rules.txt` 裡，老師貼最新版即可）。

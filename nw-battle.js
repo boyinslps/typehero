@@ -32,6 +32,7 @@ const CSS = `
 .nwb-stance{margin-top:6px;padding:4px 8px 6px;background:#0a0714;border:3px solid #3a3070;--sc:#7b6ac8}
 .nwb-stance[data-state="dodge"]{border-color:#9fd8ff}
 .nwb-stance[data-state="defend"]{border-color:#ffd24a}
+.nwb-stance[data-state="danger"]{border-color:#ff5a5a;--sc:#ff5a5a;animation:nwbGo .45s steps(2) infinite}
 .nwb-stance[data-state="go"]{border-color:#8ec96b;--sc:#8ec96b;animation:nwbGo .45s steps(2) infinite}
 .nwb-stance[data-state="wait"]{--sc:#7b6ac8}
 @keyframes nwbGo{50%{background:#16301c}}
@@ -51,6 +52,8 @@ const CSS = `
 const ACTIONS = [['閃', 'dodge'], ['防', 'defend'], ['jump', 'dodge'], ['stop', 'defend']];
 const TIER_KEYS = ['normal', 'fine', 'epic', 'legend'];
 const LEAD = { A: 2.0, B: 1.2, C: .9, D: .7 };
+const LANE_C = [27, 80, 133];
+const LANE_W = { A: 3.0, B: 2.5, C: 2.2, D: 2.0 };
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const rnd = arr => arr[Math.floor(Math.random() * arr.length)];
 
@@ -62,6 +65,7 @@ export function startBattle(env, cfg, done) {
   const tier = env.tier();
   const weapon = NW.starter || 'staff';
   const mode = 'hanzi';
+  const laneMode = !(C.battleMode && C.battleMode() === 'type');
   const nowS = () => performance.now() / 1000;
 
   if (!document.getElementById('nwb-style')) {
@@ -134,7 +138,7 @@ export function startBattle(env, cfg, done) {
     over: false, T0, mon: { hp: monMaxHp(cfg.mk, lv, tier), max: monMaxHp(cfg.mk, lv), angry: false, flashUntil: 0, lungeAt: -9 },
     me: { hp: BAL.playerHp, max: BAL.playerHp, down: false, downUntil: 0, downs: 0, hitAt: -9, x: 0, atkAt: -9 },
     st: { burn: 0, poison: [], ice: 0, lastTick: T0 },
-    cast: null, nextCast: T0 + 6, action: null,
+    cast: null, nextCast: T0 + 6, action: null, lane: 1, hx: LANE_C[1] - 2, shieldUntil: 0, laneFlash: [],
     q: null, units: [], qAt: 0, qCount: 0, lastT: '', composing: false, committed: '',
     combo: 0, maxCombo: 0, typed: 0, correct: 0, answered: 0, perfect: 0,
     gauge: 0, sharp: 0, mag: 0,
@@ -145,9 +149,11 @@ export function startBattle(env, cfg, done) {
 
   $q('nwb-mname').textContent = `${mon0.name} Lv ${lv}`;
   $q('nwb-wlabel').textContent = weapon === 'staff' ? '下一次詠唱' : weapon === 'bow' ? '力量條' : weapon === 'dagger' ? '下一次連環斬' : '彈匣';
-  $q('nwb-hint').innerHTML = '紅／藍區域出現：打「<b style="color:#ffd98a">閃</b>」躲開、打「<b style="color:#ffd98a">防</b>」擋住';
+  $q('nwb-hint').innerHTML = laneMode
+    ? '紅色的線出現：<b style="color:#ffd98a">左 Ctrl／右 Ctrl</b> 換線躲開、<b style="color:#ffd98a">Alt</b> 舉盾'
+    : '紅／藍區域出現：打「<b style="color:#ffd98a">閃</b>」躲開、打「<b style="color:#ffd98a">防</b>」擋住';
 
-  $q('nwb-side').innerHTML = '<b class="px-text">操作</b><br>Enter 送出<br>Esc 換題<br>' + (weapon === 'crossbow' ? '空白 Enter＝連射' : '閃／防＝躲開／擋住');
+  $q('nwb-side').innerHTML = '<b class="px-text">操作</b><br>Enter 送出<br>Esc 換題<br>' + (weapon === 'crossbow' ? '空白 Enter＝連射' : laneMode ? 'Ctrl 換線／Alt 舉盾' : '閃／防＝躲開／擋住');
 
   const tierIdx = () => Math.min(3, (lv < 10 ? 0 : lv < 20 ? 1 : 2) + (S.mon.angry ? 1 : 0));
   const maxChars = MAX_CHARS(cfg.star);
@@ -378,18 +384,38 @@ export function startBattle(env, cfg, done) {
     if (!S.me.down && !S.over) { inp.disabled = false; inp.focus(); }
   }
 
+  function pickPattern() {
+    const r = Math.random();
+    if (cfg.star <= 2) return r < .6 ? 'single' : 'pair';
+    if (cfg.star <= 4) return r < .35 ? 'single' : r < .65 ? 'pair' : 'sweep';
+    return r < .25 ? 'single' : r < .5 ? 'pair' : r < .75 ? 'sweep' : 'fake';
+  }
+  function buildStrikes(atk, H) {
+    const W = LANE_W[tier] || 2.5, rl = () => Math.floor(Math.random() * 3);
+    const forced = location.hostname === 'localhost' && window.__NW_PATTERN__;
+    const kind = forced || (atk.type === 'defend' ? 'slam' : pickPattern());
+    let strikes = [];
+    if (kind === 'slam') strikes = [0, 1, 2].map(l => ({ lane: l, warn: H - W * 1.1, hit: H, slam: true, mul: 1 }));
+    else if (kind === 'single') strikes = [{ lane: rl(), warn: H - W, hit: H, mul: 1 }];
+    else if (kind === 'pair') { const safe = rl(); strikes = [0, 1, 2].filter(l => l !== safe).map(l => ({ lane: l, warn: H - W, hit: H, mul: 1 })); }
+    else if (kind === 'sweep') { const o = Math.random() < .5 ? [0, 1, 2] : [2, 1, 0]; strikes = o.map((l, i) => ({ lane: l, warn: H + i * .7 - W * .8, hit: H + i * .7, mul: .5 })); }
+    else { const a = rl(), b = (a + 1 + Math.floor(Math.random() * 2)) % 3; strikes = [{ lane: a, warn: H - W, hit: H, cancel: H - W * .5, mul: 1 }, { lane: b, warn: H - W * .5, hit: H + .4, mul: 1 }]; }
+    return { kind, strikes, base: monDmg(lv, atk.mul), hurt: false };
+  }
   function castStart(T) {
     const atk = rnd(mon0.attacks);
     const quick = mon0.spKey === 'quick';
     const dur = castTime(lv, tier) * (quick ? .75 : 1);
     S.cast = { atk, start: T, dur, hitAt: T + dur };
+    if (laneMode) { Object.assign(S.cast, buildStrikes(atk, T + dur)); S.cast.hitAt = Math.max(...S.cast.strikes.map(x => x.hit)); }
     const rage = mon0.spKey === 'rage' && S.mon.angry;
     S.nextCast = T + atkInterval(lv, tier, rage) * (quick ? BAL.quickMul : 1);
     const box = $q('nwb-cast');
     box.style.display = 'block'; box.className = 'nwb2-cast ' + atk.type;
-    $q('nwb-cast-t').textContent = `${atk.type === 'dodge' ? '💨' : '🛡'} ${mon0.name}要用「${atk.name}」！`;
+    $q('nwb-cast-t').textContent = `${laneMode ? '⚠' : atk.type === 'dodge' ? '💨' : '🛡'} ${mon0.name}要用「${atk.name}」！`;
     const learn = NW.hunts < 3;
-    $q('nwb-cast-h').textContent = atk.type === 'dodge'
+    if (laneMode) $q('nwb-cast-h').textContent = S.cast.kind === 'slam' ? '👉 整排都會危險，按 Alt 舉盾' : '👉 紅色的線出現後，站到沒有紅色的線（左右 Ctrl 換線）';
+    else $q('nwb-cast-h').textContent = atk.type === 'dodge'
       ? (learn ? '👉 條快滿了，快打「閃」！' : '紅色：快滿的時候打「閃」')
       : (learn ? '👉 現在就打「防」，擋得住！' : '藍色：過一半就可以打「防」');
     if (mon0.spKey === 'bubble') { S.bubUntil = T + 5; showBubbles(); host.classList.add('nwb2-nozy'); }
@@ -420,6 +446,50 @@ export function startBattle(env, cfg, done) {
     if (dmg > 0) hurt(dmg, avoid === 'full' ? null : c.atk.status);
   }
 
+  function resolveStrike(st, T) {
+    const c = S.cast;
+    S.mon.lungeAt = T; S.laneFlash.push({ lane: st.lane, t0: T });
+    if (S.me.down) return;
+    const shielded = S.shieldUntil > T;
+    let dmg = Math.max(1, Math.round(c.base * st.mul));
+    if (st.slam) { if (shielded) return; }
+    else if (S.lane !== st.lane) return;
+    else if (shielded) { dmg = Math.ceil(dmg / 2); banner('盾只擋了一部分…', '#ffd24a', true); }
+    c.hurt = true;
+    hurt(dmg, c.atk.status);
+  }
+  function laneResolve(T) {
+    const c = S.cast;
+    for (const st of c.strikes) {
+      if (st.done) continue;
+      if (st.cancel && T >= st.cancel) { st.done = true; continue; }
+      if (T >= st.hit) { st.done = true; resolveStrike(st, T); }
+    }
+    if (!c.strikes.every(x => x.done)) return;
+    S.cast = null; $q('nwb-cast').style.display = 'none';
+    if (S.me.down) return;
+    if (c.kind === 'slam') { S.defAll++; if (!c.hurt) S.defOk++; } else { S.dodgeAll++; if (!c.hurt) S.dodgeOk++; }
+    if (!c.hurt) { banner(c.kind === 'slam' ? '🛡 擋下來了！' : '✨ 躲開了！', '#8ec96b'); floatText('成功！', 80, 56, '#8ec96b', true); }
+  }
+  function laneStance(T, stEl, nm, ht, fl, mkr) {
+    mkr.style.display = 'none';
+    const c = S.cast, shieldLeft = Math.max(0, S.shieldUntil - T);
+    const live = c ? c.strikes.filter(x => !x.done && !(x.cancel && T >= x.cancel) && T >= x.warn) : [];
+    if (c && live.length) {
+      const slam = live.some(x => x.slam), here = live.some(x => x.lane === S.lane);
+      stEl.dataset.state = slam ? 'defend' : here ? 'danger' : 'go';
+      nm.textContent = slam ? '🛡 整排都危險！按 Alt 舉盾' : here ? '⚠ 你這一線危險！用 Ctrl 換線' : '✅ 你這一線安全';
+      ht.textContent = `出手倒數 ${Math.max(0, c.hitAt - T).toFixed(1)} 秒`;
+    } else if (c) {
+      stEl.dataset.state = 'wait'; nm.textContent = '⏳ 魔物在蓄力…先專心打字';
+      ht.textContent = `出手倒數 ${Math.max(0, c.hitAt - T).toFixed(1)} 秒`;
+    } else { stEl.dataset.state = 'idle'; nm.textContent = '左 Ctrl／右 Ctrl 換線　Alt 舉盾'; ht.textContent = ''; }
+    if (shieldLeft > 0) ht.textContent += `　🛡 盾 ${shieldLeft.toFixed(1)} 秒`;
+    fl.style.width = c ? (clamp((T - c.start) / c.dur, 0, 1) * 100) + '%' : '0';
+    root.dataset.lane = S.lane; root.dataset.shield = shieldLeft > 0 ? '1' : '0';
+    root.dataset.danger = live.map(x => x.lane).join(','); root.dataset.kind = c ? c.kind : '';
+  }
+
   function updateUi(force) {
     const T = nowS();
     if (!force && T - S.lastUi < .08) return;
@@ -441,7 +511,8 @@ export function startBattle(env, cfg, done) {
     $q('nwb-wg').style.width = wg + '%'; $q('nwb-wlabel').textContent = wl;
     const stEl = $q('nwb-stance'), nm = $q('nwb-st-name'), ht = $q('nwb-st-hint'), fl = $q('nwb-st-i'), mkr = $q('nwb-st-mark');
     const iceMul = S.st.ice > T ? .7 : 1, dW = TIERS[tier].dodge * iceMul, fW = TIERS[tier].defend * iceMul;
-    if (S.action) {
+    if (laneMode) laneStance(T, stEl, nm, ht, fl, mkr);
+    else if (S.action) {
       const a = S.action, k = clamp((T - a.start) / a.dur, 0, 1);
       stEl.dataset.state = a.type;
       stEl.style.setProperty('--sc', a.type === 'dodge' ? '#7ccfff' : '#ffd24a');
@@ -473,10 +544,25 @@ export function startBattle(env, cfg, done) {
     } else $q('nwb-down').style.display = 'none';
   }
 
+  function drawLanes(T) {
+    g.save(); g.translate(OX, EXTRA);
+    g.fillStyle = 'rgba(0,0,0,.2)'; [1, 54, 107, 159].forEach(x => g.fillRect(x, 52, 1, 44));
+    if (S.cast) S.cast.strikes.forEach(st => {
+      if (st.done || T < st.warn || (st.cancel && T >= st.cancel)) return;
+      const k = clamp((T - st.warn) / (st.hit - st.warn), 0, 1);
+      const a = .38 + .5 * k * (Math.sin(T * 22) > 0 ? 1 : .6);
+      g.fillStyle = st.slam ? `rgba(80,140,255,${a})` : `rgba(255,50,50,${a})`;
+      g.fillRect(LANE_C[st.lane] - 25, 52, 50, 44);
+    });
+    S.laneFlash = S.laneFlash.filter(f => T - f.t0 < .25);
+    S.laneFlash.forEach(f => { g.fillStyle = `rgba(255,255,255,${(1 - (T - f.t0) / .25) * .8})`; g.fillRect(LANE_C[f.lane] - 25, 52, 50, 44); });
+    g.restore();
+  }
   function draw(T) {
     g.fillStyle = SKY; g.fillRect(0, 0, LW, 96 + EXTRA);
     g.drawImage(art.bg, 0, EXTRA);
-    if (S.cast) {
+    if (laneMode) drawLanes(T);
+    else if (S.cast) {
       g.globalAlpha = .65 + .3 * Math.sin(T * 9);
       g.drawImage(S.cast.atk.type === 'dodge' ? art.zr : art.zb, 0, EXTRA);
       g.globalAlpha = 1;
@@ -489,6 +575,8 @@ export function startBattle(env, cfg, done) {
     if (T < S.mon.flashUntil) g.drawImage(art.monW, mx, my);
 
     let hx = 62, hy = 88;
+    if (laneMode) { S.hx += (LANE_C[S.lane] - 2 - S.hx) * .35; hx = S.hx; }
+    const shielding = laneMode ? S.shieldUntil > T : false;
     let offs = 0;
     const a = S.action;
     if (a && a.type === 'dodge') {
@@ -506,7 +594,8 @@ export function startBattle(env, cfg, done) {
     } else if (!blink) {
       if (a && a.type === 'dodge') { g.globalAlpha = .3; g.drawImage(art.hero, hx - 11, hy - 30); g.globalAlpha = 1; }
       g.drawImage(art.hero, Math.round(hx - 11 + offs), hy - 30 + atk + (Math.sin(T * 4) > 0 ? 0 : 1));
-      if (a && a.type === 'defend') {
+      if (laneMode) { g.fillStyle = '#ffd24a'; g.fillRect(Math.round(hx - 8), hy + 4, 20, 2); }
+      if ((a && a.type === 'defend') || shielding) {
         g.fillStyle = '#3a6ea5'; g.fillRect(hx - 24, hy - 26, 12, 15); g.fillStyle = '#e8b64c'; g.fillRect(hx - 24, hy - 26, 12, 2);
         g.fillStyle = '#f0f4f8'; g.fillRect(hx - 19, hy - 23, 2, 9); g.fillRect(hx - 22, hy - 19, 8, 2);
         g.strokeStyle = 'rgba(159,216,255,.8)'; g.lineWidth = 1; g.beginPath(); g.arc(hx, hy - 16, 18 + Math.sin(T * 12), 0, 7); g.stroke();
@@ -541,7 +630,7 @@ export function startBattle(env, cfg, done) {
     runVolley(T);
     if (S.action && T >= S.action.end) endAction();
     if (!S.cast && T >= S.nextCast && !S.me.down) castStart(T);
-    if (S.cast && T >= S.cast.hitAt) castResolve(T);
+    if (S.cast && laneMode) laneResolve(T); else if (S.cast && T >= S.cast.hitAt) castResolve(T);
     if (S.bubUntil && T > S.bubUntil) { S.bubUntil = 0; $q('nwb-bub').style.display = 'none'; host.classList.remove('nwb2-nozy'); }
     if (S.sporeUntil && T > S.sporeUntil) { S.sporeUntil = 0; host.classList.remove('nwb2-spore'); }
     if (T - S.st.lastTick >= 1) {
@@ -557,6 +646,7 @@ export function startBattle(env, cfg, done) {
   }
 
   function detectAction(val) {
+    if (laneMode) return null;
     const low = val.toLowerCase(), typed = [...val];
     for (const [w, type] of ACTIONS) {
       if (!low.endsWith(w)) continue;
@@ -577,6 +667,16 @@ export function startBattle(env, cfg, done) {
     if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); submit(); }
     else if (e.key === 'Escape') { e.preventDefault(); skip(); }
   };
+  const laneKey = e => {
+    if (S.over) return;
+    const alt = e.code === 'AltLeft' || e.code === 'AltRight';
+    if (alt) { e.preventDefault(); if (!S.me.down) S.shieldUntil = Math.max(S.shieldUntil, nowS() + 1.5); return; }
+    if (S.me.down || e.repeat) return;
+    if (e.code === 'ControlLeft') S.lane = Math.max(0, S.lane - 1);
+    else if (e.code === 'ControlRight') S.lane = Math.min(2, S.lane + 1);
+  };
+  const laneKeyUp = e => { if (e.code === 'AltLeft' || e.code === 'AltRight') e.preventDefault(); };
+  if (laneMode) { addEventListener('keydown', laneKey); addEventListener('keyup', laneKeyUp); }
   const blockPaste = e => { e.preventDefault(); S.flags.paste++; toast('這裡不能貼上喔，要自己打！'); };
   inp.addEventListener('input', onInput);
   inp.addEventListener('keydown', onKey);
@@ -590,6 +690,7 @@ export function startBattle(env, cfg, done) {
   function finish(result) {
     if (S.over) return;
     S.over = true; S.volley = null; S.hits = []; cancelAnimationFrame(raf);
+    removeEventListener('keydown', laneKey); removeEventListener('keyup', laneKeyUp);
     const secs = Math.min(BAL.timeLimit, nowS() - S.T0);
     inp.disabled = true;
     const win = result === 'win';

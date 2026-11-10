@@ -3,20 +3,21 @@ const path = require('path'); const M = path.join(__dirname, 'mock') + '/'; cons
 const css = fs.existsSync(OUT + '/tw.css') ? fs.readFileSync(OUT + '/tw.css', 'utf8') : '';
 let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++; };
 const ID = '五年級3班_5號';
-const seedFor = (starter, extra) => ({
+const seedFor = (starter, extra, mode) => ({
+  'mg_config/settings': { nwBattleMode: mode || 'type' },
   ['mg_scores/' + ID]: {
     className: '五年級3班', seat: 5, name: '小明', bestLevel: 10, bestScore: 20, scoreVer: 2, plays: 9, tutorialDone: true, talentIntroDone: true, tier: 'B', balanceVer: 3,
     nw: Object.assign({ v: 1, savedAt: 5, look: { style: 1, hair: 2, skin: 1 }, starter, quest: { done: ['1-0'] }, items: { potion: 3 } }, extra || {})
   }
 });
-async function open(browser, starter, extra) {
+async function open(browser, starter, extra, mode) {
   const p = await browser.newPage({ viewport: { width: 1200, height: 900 } });
   const errs = []; p.on('dialog', d => d.accept());
   p.on('pageerror', e => errs.push('pageerror: ' + e.message));
   p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push('console: ' + m.text()); });
   const { sha256Hex } = await import('../../nw-access.js');
   const hash = await sha256Hex('Test-Pass_9!x');
-  await p.addInitScript(a => { window.__FS = a.s; localStorage.clear(); localStorage.setItem('mg_nw_fast', '1'); window.__NW_CODE_HASH__ = a.hash; localStorage.setItem('mg_nw_code', a.hash); window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas'); }, { s: seedFor(starter, extra), hash });
+  await p.addInitScript(a => { window.__FS = a.s; localStorage.clear(); localStorage.setItem('mg_nw_fast', '1'); window.__NW_CODE_HASH__ = a.hash; localStorage.setItem('mg_nw_code', a.hash); window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas'); }, { s: seedFor(starter, extra, mode), hash });
   await p.route('**/*', r => {
     const u = r.request().url();
     if (u.startsWith('http://localhost')) return r.continue();
@@ -141,6 +142,66 @@ async function playUntil(p, pred, max = 80) {
     for (let i = 0; i < 6; i++) { if (await p.isDisabled('#nwb-in')) break; lens.push([...(await qText(p))].length); await answer(p); }
     ok(lens.length >= 5 && lens.slice(0, 4).every(n => n <= 4), '★1 的前 4 題最多 4 個字（' + lens.join(',') + '）');
     ok(lens.every(n => n <= 6), '第 5 題法杖詠唱也不超過 6 個字');
+    await p.close();
+  }
+
+  {
+    const lane = p => p.$eval('#nwb-root', e => +e.dataset.lane);
+    const hp = p => p.$eval('#nwb-hpt', e => +e.textContent.split('/')[0]);
+    const waitDanger = p => p.waitForFunction(() => document.getElementById('nwb-root').dataset.danger, null, { timeout: 30000, polling: 50 });
+    const waitEnd = p => p.waitForFunction(() => document.getElementById('nwb-cast').style.display === 'none', null, { timeout: 15000, polling: 50 });
+    const goTo = async (p, n) => { for (let i = 0; i < 3 && await lane(p) !== n; i++) { await p.keyboard.press(await lane(p) > n ? 'ControlLeft' : 'ControlRight'); await p.waitForTimeout(60); } };
+    const setup = async pat => { const p = await open(b, 'staff', undefined, 'lanes'); await goHunt(p, 'grass', 'coo', 1); await p.evaluate(x => { window.__NW_PATTERN__ = x; }, pat); return p; };
+
+    let p = await setup('single');
+    ok(await lane(p) === 1 && (await p.textContent('#nwb-st-name')).includes('Ctrl'), '三線模式：一開始站中間，提示寫左右 Ctrl 換線與 Alt 舉盾');
+    ok(!(await p.isDisabled('#nwb-in')), '輸入框一直能打字（動作不再搶輸入框）');
+    await p.keyboard.press('ControlLeft'); await p.waitForTimeout(80);
+    ok(await lane(p) === 0, '左 Ctrl：往左一線');
+    await p.keyboard.press('ControlLeft'); await p.waitForTimeout(80);
+    ok(await lane(p) === 0, '最左邊再按左 Ctrl：不會跑出去');
+    await p.keyboard.press('ControlRight'); await p.keyboard.press('ControlRight'); await p.waitForTimeout(80);
+    ok(await lane(p) === 2, '右 Ctrl：往右（兩下到最右）');
+    await p.fill('#nwb-in', '1'); await p.keyboard.press('AltLeft'); await p.waitForTimeout(80);
+    ok(await p.$eval('#nwb-root', e => e.dataset.shield) === '1', 'Alt：舉盾');
+    await p.fill('#nwb-in', '');
+    await waitDanger(p);
+    const d = +(await p.$eval('#nwb-root', e => e.dataset.danger));
+    ok((await p.textContent('#nwb-st-name')).includes('危險') || (await p.textContent('#nwb-st-name')).includes('安全'), '紅線出現：姿態條告訴你這一線危不危險');
+    const full = await hp(p);
+    await goTo(p, d === 0 ? 1 : 0);
+    await waitEnd(p); await p.waitForTimeout(200);
+    ok(await hp(p) === full, '換到沒有紅色的線：沒受傷（紅色在第 ' + (d + 1) + ' 線）');
+    await p.close();
+
+    p = await setup('single');
+    await waitDanger(p);
+    const d2 = +(await p.$eval('#nwb-root', e => e.dataset.danger));
+    const full2 = await hp(p);
+    await goTo(p, d2);
+    await waitEnd(p); await p.waitForTimeout(200);
+    ok(await hp(p) < full2, '站在紅色的線上：被打到');
+    await p.close();
+
+    p = await setup('single');
+    await waitDanger(p);
+    const d3 = +(await p.$eval('#nwb-root', e => e.dataset.danger));
+    const full3 = await hp(p);
+    await goTo(p, d3); await p.keyboard.press('AltLeft');
+    await waitEnd(p); await p.waitForTimeout(200);
+    const lost = full3 - await hp(p);
+    ok(lost > 0 && lost < 12, '站在紅線上舉盾：只擋一部分（少了 ' + lost + ' 點）');
+    await p.close();
+
+    p = await setup('slam');
+    await waitDanger(p);
+    ok((await p.$eval('#nwb-root', e => e.dataset.danger)) === '0,1,2' && (await p.textContent('#nwb-st-name')).includes('Alt'), '整排藍色：提示要按 Alt 舉盾');
+    const full4 = await hp(p);
+    await p.waitForFunction(() => { const m = document.getElementById('nwb-st-hint').textContent.match(/出手倒數 ([\d.]+)/); return m && +m[1] <= 1.0; }, null, { timeout: 8000, polling: 30 });
+    await p.keyboard.press('AltLeft');
+    await waitEnd(p); await p.waitForTimeout(200);
+    ok(await hp(p) === full4, '重壓時舉盾：完全擋住');
+    ok(p.errs.length === 0, '三線模式沒有 JS 錯誤 ' + p.errs.join(' | '));
     await p.close();
   }
 

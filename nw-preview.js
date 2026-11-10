@@ -152,10 +152,10 @@ export function initNwPreview(C) {
         <div class="nwp-cols col">
           ${pic('battle', '-', .46)}
           <div class="nwp-text">
-            <p class="nwp-sm">① 魔物 ② 紅色危險區 ③ 同學 ④ 你（金色圈圈） ⑤ 題目</p>
-            ${steps(['看魔物頭上的條慢慢變滿，地上會出現紅色（要閃）或藍色（要擋）。',
-              '輸入框上面的「<b>姿態條</b>」變綠色、寫「現在打」，就打一個字：紅色打「<b>閃</b>」、藍色打「<b>防</b>」。',
-              '打完會進入「閃避姿態」或「防禦姿態」，條走完以前攻擊打到你，就會被躲掉或擋住。'])}
+            <p class="nwp-sm">① 魔物 ② 地上分成<b>左、中、右</b>三條線 ③ 同學 ④ 你（金色底線） ⑤ 題目</p>
+            ${steps(['一邊打字，一邊看魔物下面的攻擊條慢慢變滿，快出招時，有幾條線會變<b>紅色</b>。',
+              '站的那一線變紅了，就按<b>左 Ctrl</b>（往左）或<b>右 Ctrl</b>（往右）換到沒有紅色的線。',
+              '整排變<b>藍色</b>的時候，按 <b>Alt</b> 舉盾，就擋得住。站在紅線上舉盾，只會少受一半的傷。'])}
             <p class="nwp-sm">題目都是<b>國字</b>，不用打注音符號。打對的字才有傷害，亂打會被反擊。</p>
           </div>
         </div>`;
@@ -249,12 +249,12 @@ export function initNwPreview(C) {
     el.innerHTML = `<div class="nwb" style="width:${w}px;--u:${sc}px">
       <div class="nwb-sc" style="height:${96 * sc}px">
         <div class="nwb-plate"><div>炎牙狼 Lv25 <span style="color:#ff8a6a">🔥生氣中</span></div><div class="nwb-bar"><i style="width:62%"></i></div></div>
-        <div class="nwb-call">快打「閃」！</div><div class="nwb-timer">⏱ 3:12</div>
+        <div class="nwb-call">換線躲開！</div><div class="nwb-timer">⏱ 3:12</div>
         ${tg(22, 78, '小華', '詠唱中 ✨')}${tg(90, 74, '小美', '擋住了 🛡')}${tg(134, 80, '阿傑', '躲開了 💨')}${tg(62, 88, '你・小明', '打字中 ⌨', true)}
         ${num('①', 116, 8)}${num('②', 46, 70)}${num('③', 150, 56)}${num('④', 74, 54)}
       </div>
       <div class="nwb-bottom"><span class="nwb-n">⑤</span>
-        <div style="flex:1;min-width:0"><div class="nwp-stance"><b>✅ 現在打「閃」！</b><div class="nwp-sbar"><i></i></div></div>
+        <div style="flex:1;min-width:0"><div class="nwp-stance"><b>⚠ 你這一線危險！用 Ctrl 換線</b><div class="nwp-sbar"><i></i></div></div>
           <div class="nwb-q"><span style="color:var(--dim)">題目</span> 持之以恆<span class="nwb-in">▍</span></div></div>
       </div></div>`;
     el.querySelector('.nwb-sc').prepend(PX.canvas('battle', '-', sc, false));

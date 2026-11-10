@@ -48,7 +48,7 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
   ok((await p.$$('#nwp-page svg')).length === 3 && (await p.textContent('#nwp-page')).includes('詞條'), '稱號頁：SVG 徽章與詞條說明');
   await goPage('battle');
   ok((await p.$$('#nwp-page .nwb-tag')).length === 4 && (await p.textContent('#nwp-page .nwb-tag.me')).includes('你'), '戰鬥頁：4 位玩家，自己有標示');
-  ok((await p.textContent('#nwp-page')).includes('姿態條') && (await p.textContent('#nwp-page')).includes('國字'), '戰鬥頁：說明姿態條與國字題');
+  ok((await p.textContent('#nwp-page')).includes('Ctrl') && (await p.textContent('#nwp-page')).includes('Alt') && (await p.textContent('#nwp-page')).includes('國字'), '戰鬥頁：說明左右 Ctrl 換線、Alt 舉盾與國字題');
   await goPage('monster');
   ok((await p.$$('#nwp-page .nwp-card canvas')).length === 4, '魔物第 1 頁 4 隻');
   const sc0 = await p.evaluate(() => document.querySelector('#nwp-page [data-k="monster:coo"] canvas').toDataURL());

@@ -78,7 +78,7 @@ async function finishDrill(p) {
           steps.add(await p.textContent('#ptl-cap'));
           if (await p.isVisible('#ptl-cand')) cands.add(await p.textContent('#ptl-cand'));
           typed.add(await p.textContent('#ptl-typed'));
-          if (typed.has('「') && typed.has('【')) break;
+          if (typed.has('「') && typed.has('【') && [...steps].join('').includes('Enter') && [...cands].join('').includes('『')) break;
           await p.waitForTimeout(150);
         }
         seen = { caps: [...steps].join('|'), cands: [...cands].join('|'), typed: [...typed] };
