@@ -29,18 +29,17 @@
     <div class="q"><b id="qt"></b><small id="qz"></small></div>
     <input id="in" autocomplete="off" placeholder="打字、按 Enter 攻擊" autofocus>
   </div>
-  <div class="pad" id="pad"><button data-lane="0">1 左</button><button data-lane="1">2 中</button><button data-lane="2">3 右</button><button data-k="D">0 防禦</button></div>
+  <div class="pad" id="pad"><button data-step="-1">◀ 左（左 Ctrl）</button><button data-k="D">🛡 防禦（左右 Ctrl 一起）</button><button data-step="1">右（右 Ctrl） ▶</button></div>
   <div class="row">
-    <label>紅線預警時間 <select id="spd"><option value="1.8">慢（1.8 秒）</option><option value="1.3" selected>一般（1.3 秒）</option><option value="0.95">快（0.95 秒）</option></select></label>
+    <label>攻擊預警時間 <select id="spd"><option value="2" selected>2 秒（最快）</option><option value="2.5">2.5 秒</option><option value="3">3 秒（慢）</option></select></label>
     <button id="restart" class="gold">重新開始</button>
   </div>
   <div id="log">最近收到的按鍵：（還沒有）</div>
   <div id="help">
-    <b>玩法：</b>一邊打字攻擊魔物（Enter 送出）、一邊看地上的線。<br>
-    <b>數字鍵 1 2 3</b>＝跳到左、中、右線（也可以用 ← →、或滑鼠點那一線）。<b>數字鍵 0</b>＝舉盾 1.2 秒（之後要等一下才能再舉）。<br>
-    <b>數字鍵不會被攔截</b>：注音選字時照樣可以按數字選字；沒在選字時，數字也不會跑進輸入框。<br>
+    <b>玩法：</b>一邊打字攻擊魔物（Enter 送出）、一邊看地上的線和魔物下面的<b>攻擊條</b>（滿了就出招，最快 2 秒）。<br>
+    <b>左 Ctrl</b>＝往左一線，<b>右 Ctrl</b>＝往右一線，<b>兩個 Ctrl 一起按</b>＝舉盾 1.5 秒（之後要等一下才能再舉）。也可以用 ← →、↓、滑鼠點那一線、滑鼠右鍵。<br>
     某一線<b style="color:#ff6a6a">變紅</b>＝快要被打，離開那一線；整排藍色有 ▼＝要<b>舉盾</b>才擋得住；站在紅線上舉盾只會少受傷。<br>
-    <b>請測試：</b>注音打到一半、選字清單出現時按 1 2 3 0：下方記錄有沒有出現「組字中＝是」、角色有沒有動、選字有沒有也正常。注意：按數字選字的同時角色也會跟著換線，這樣可不可以接受？
+    <b>請測試：</b>注音打到一半（剛打ㄅ、選字清單出現時）按左右 Ctrl，角色有沒有動？下方記錄有沒有「【Ctrl】」？按 Ctrl 會不會影響輸入法（例如切換、清掉組字）？兩個 Ctrl 一起按好不好按？
   </div>
 </div>
 <script>
@@ -69,15 +68,15 @@
   const PATTERNS = {
     single: () => [{ lane: Math.floor(Math.random() * 3), warn: S.t, hit: S.t + W() }],
     pair: () => { const safe = Math.floor(Math.random() * 3); return [0, 1, 2].filter(l => l !== safe).map(l => ({ lane: l, warn: S.t, hit: S.t + W() })); },
-    sweep: () => { const o = Math.random() < .5 ? [0, 1, 2] : [2, 1, 0]; return o.map((l, i) => ({ lane: l, warn: S.t + i * .5, hit: S.t + i * .5 + W() * .8 })); },
+    sweep: () => { const o = Math.random() < .5 ? [0, 1, 2] : [2, 1, 0]; return o.map((l, i) => ({ lane: l, warn: S.t + i * .7, hit: S.t + i * .7 + W() * .8 })); },
     slam: () => [0, 1, 2].map(l => ({ lane: l, warn: S.t, hit: S.t + W() * 1.2, slam: true })),
     fake: () => { const a = Math.floor(Math.random() * 3), b = (a + 1 + Math.floor(Math.random() * 2)) % 3; return [{ lane: a, warn: S.t, hit: S.t + W(), cancel: S.t + W() * .45 }, { lane: b, warn: S.t + W() * .45, hit: S.t + W() * 1.25 }]; }
   };
   function attack() {
     const k = rnd(['single', 'single', 'pair', 'sweep', 'slam', 'fake']);
     S.strikes = PATTERNS[k]();
-    S.pname = { single: '啄擊', pair: '夾擊（站安全那條）', sweep: '橫掃', slam: '重壓（按住 ▼）', fake: '假動作' }[k];
-    S.pat = S.t;
+    S.pname = { single: '啄擊', pair: '夾擊（站安全那條）', sweep: '橫掃', slam: '重壓（兩個 Ctrl 舉盾）', fake: '假動作' }[k];
+    S.pat = S.t; S.patEnd = Math.max(...S.strikes.map(x => x.hit));
   }
 
   function resolve(st) {
@@ -132,15 +131,18 @@
     sprite(HERO, px, py, 2);
     if (S.defending) { g.fillStyle = '#9fd8ff'; g.fillRect(px - 3, py - 3, 22, 3); g.fillRect(px - 3, py - 3, 3, 14); g.fillRect(px + 16, py - 3, 3, 14); g.fillStyle = 'rgba(159,216,255,.35)'; g.fillRect(px - 3, py - 3, 22, 26); }
     g.fillStyle = '#ffd24a'; g.fillRect(LX[S.lane] - 8, 108, 16, 2);
-    g.fillStyle = 'rgba(255,255,255,.55)'; g.font = 'bold 8px sans-serif'; g.textAlign = 'center'; [1, 2, 3].forEach((n, i) => g.fillText(n, LX[i], 52));
     g.restore();
+    if (S.strikes.length) {
+      const k = Math.max(0, Math.min(1, (S.t - S.pat) / (S.patEnd - S.pat)));
+      g.fillStyle = '#0a0714'; g.fillRect(60, 40, 72, 5); g.fillStyle = k > .75 ? '#ff4a4a' : '#ffd24a'; g.fillRect(61, 41, 70 * k, 3);
+    }
     if (S.flash) { g.fillStyle = `rgba(255,255,255,${S.flash * 2})`; g.fillRect(0, 0, 192, 112); }
     g.textAlign = 'left';
     const bar = (x, y, w, v, c, label) => { g.fillStyle = '#0a0714'; g.fillRect(x - 1, y - 1, w + 2, 7); g.fillStyle = c; g.fillRect(x, y, w * v, 5); g.fillStyle = '#fff'; g.font = 'bold 7px sans-serif'; g.fillText(label, x, y - 2); };
     bar(4, 8, 70, S.mhp / 100, '#d8402a', '大魔物');
     bar(4, 106, 50, S.hp / 100, '#6aa84f', '你');
     g.fillStyle = '#fff'; g.font = 'bold 7px sans-serif'; g.textAlign = 'right';
-    g.fillStyle = S.t < S.shieldCd ? '#778' : '#9fd8ff'; g.fillText(S.defending ? '盾 0：舉盾中' : S.t < S.shieldCd ? '盾 0：冷卻中' : '盾 0：可用', 188, 17); g.fillStyle = '#fff';
+    g.fillStyle = S.t < S.shieldCd ? '#778' : '#9fd8ff'; g.fillText(S.defending ? '盾：舉盾中' : S.t < S.shieldCd ? '盾：冷卻中' : '盾：可用', 188, 17); g.fillStyle = '#fff';
     g.fillText(`躲 ${S.stat.dodge}　擋 ${S.stat.block}　被打 ${S.stat.hit}`, 188, 8);
     if (S.pname && S.strikes.length) { g.textAlign = 'center'; g.fillStyle = '#ffd24a'; g.fillText(S.pname, 96, 12); }
     g.textAlign = 'center';
@@ -159,27 +161,35 @@
     hist.length = Math.min(hist.length, 6);
     $('log').innerHTML = '最近收到的按鍵（新的在上面）：<br>' + hist.join('<br>');
   };
-  /* 用 e.code（實體按鍵）判斷；組字中不攔截（不 preventDefault），數字照樣給輸入法選字 */
-  const LANE = { Digit1: 0, Digit2: 1, Digit3: 2, Numpad1: 0, Numpad2: 1, Numpad3: 2 };
+  /* 用 e.code（實體按鍵）判斷；組字中不攔截。
+     左 Ctrl＝往左一線、右 Ctrl＝往右一線、兩個 Ctrl 一起＝舉盾。
+     為了分得出「一起按」，第一個 Ctrl 按下後等 90 毫秒，沒等到另一個才換線。 */
   const ARROW = { ArrowLeft: -1, ArrowRight: 1 };
-  const isShield = c => c === 'Digit0' || c === 'Numpad0' || c === 'ArrowDown';
-  const goLane = i => { if (!S.over) S.lane = i; };
+  const step = d => { if (!S.over) S.lane = Math.max(0, Math.min(2, S.lane + d)); };
   function shield() {
     if (S.over || S.t < S.shieldCd) return;
-    S.defending = true; S.defEnd = S.t + 1.2; S.shieldCd = S.t + 2.0;
+    S.defending = true; S.defEnd = S.t + 1.5; S.shieldCd = S.t + 2.5;
   }
+  const ctrl = { ControlLeft: false, ControlRight: false };
+  let pend = null;
   addEventListener('keydown', e => {
     const composing = e.isComposing || e.keyCode === 229;
-    const lane = LANE[e.code], arrow = ARROW[e.code], sh = isShield(e.code);
-    const act = lane !== undefined || arrow !== undefined || sh;
-    log(e, act ? '【有動作】' : '（沒動作）');
-    if (act) {
-      if (lane !== undefined) goLane(lane);
-      else if (arrow !== undefined) { if (!e.repeat) goLane(Math.max(0, Math.min(2, S.lane + arrow))); }
-      else if (!e.repeat) shield();
+    if (e.code in ctrl) {
+      log(e, '【Ctrl】');
+      if (e.repeat) return;
+      ctrl[e.code] = true;
+      if (ctrl.ControlLeft && ctrl.ControlRight) { clearTimeout(pend); pend = null; shield(); }
+      else { const d = e.code === 'ControlLeft' ? -1 : 1; clearTimeout(pend); pend = setTimeout(() => { pend = null; step(d); }, 90); }
+      return;
+    }
+    const arrow = ARROW[e.code], down = e.code === 'ArrowDown';
+    log(e, arrow !== undefined || down ? '【有動作】' : '（沒動作）');
+    if (arrow !== undefined || down) {
+      if (!e.repeat) { if (down) shield(); else step(arrow); }
       if (!composing) e.preventDefault();
     } else if (e.key === 'Enter' && !composing) submit();
   });
+  addEventListener('keyup', e => { if (e.code in ctrl) { ctrl[e.code] = false; log(e, '【Ctrl 放開】'); } });
   /* 數字只拿來操作，不能留在輸入框裡；組字（選字）中不處理 */
   const DIG = /[0-9０-９]/g, ONLY_DIG = /^[0-9０-９]+$/;
   let comp = false;
@@ -199,11 +209,11 @@
   cv.addEventListener('pointerdown', e => {
     const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * 192;
     if (e.button === 2) { shield(); return; }
-    goLane(x < 68 ? 0 : x < 124 ? 1 : 2); inp.focus();
+    S.lane = x < 68 ? 0 : x < 124 ? 1 : 2; inp.focus();
   });
   addEventListener('blur', () => { S.defending = false; });
   document.querySelectorAll('#pad button').forEach(b => {
-    b.addEventListener('pointerdown', e => { e.preventDefault(); if (b.dataset.lane !== undefined) goLane(+b.dataset.lane); else shield(); inp.focus(); });
+    b.addEventListener('pointerdown', e => { e.preventDefault(); if (b.dataset.step) step(+b.dataset.step); else shield(); inp.focus(); });
   });
   function submit() {
     if (S.over || !inp.value.trim()) return;
