@@ -15,8 +15,6 @@
   input{flex:1;min-width:160px;font-size:26px;padding:10px;background:#0a0714;border:3px solid #ffd24a;color:#fff;text-align:center}
   button,select{font:inherit;font-weight:800;padding:10px 16px;border:3px solid #6a5ab0;background:#2a2460;color:#fff;cursor:pointer}
   button.gold{background:#e8b64c;color:#1a1409;border-color:#ffd24a}
-  .pad{display:flex;gap:8px;margin-top:8px}
-  .pad button{flex:1;font-size:26px;padding:16px}
   #log{font-family:ui-monospace,Consolas,monospace;font-size:13px;color:#aab0d8;margin-top:8px;min-height:2.6em}
   #help{font-size:14px;color:#aab0d8;line-height:1.6;margin-top:8px}
   #help b{color:#ffd98a}
@@ -29,7 +27,6 @@
     <div class="q"><b id="qt"></b><small id="qz"></small></div>
     <input id="in" autocomplete="off" placeholder="打字、按 Enter 攻擊" autofocus>
   </div>
-  <div class="pad" id="pad"><button data-step="-1">◀ 左（左 Ctrl）</button><button data-k="D">🛡 防禦（Alt）</button><button data-step="1">右（右 Ctrl） ▶</button></div>
   <div class="row">
     <label>攻擊預警時間 <select id="spd"><option value="2" selected>2 秒（最快）</option><option value="2.5">2.5 秒</option><option value="3">3 秒（慢）</option></select></label>
     <button id="restart" class="gold">重新開始</button>
@@ -37,9 +34,8 @@
   <div id="log">最近收到的按鍵：（還沒有）</div>
   <div id="help">
     <b>玩法：</b>一邊打字攻擊魔物（Enter 送出）、一邊看地上的線和魔物下面的<b>攻擊條</b>（滿了就出招，最快 2 秒）。<br>
-    <b>左 Ctrl</b>＝往左一線，<b>右 Ctrl</b>＝往右一線，<b>Alt</b>（左右都可以）＝舉盾 1.5 秒（之後要等一下才能再舉）。也可以用 ← →、↓、滑鼠點那一線、滑鼠右鍵。<br>
-    某一線<b style="color:#ff6a6a">變紅</b>＝快要被打，離開那一線；整排藍色有 ▼＝要<b>舉盾</b>才擋得住；站在紅線上舉盾只會少受傷。<br>
-    <b>請測試：</b>注音打到一半（剛打ㄅ、選字清單出現時）按左右 Ctrl，角色有沒有動？下方記錄有沒有「【Ctrl】」？按 Ctrl、Alt 會不會影響輸入法（例如切換、清掉組字）？按 Alt 時瀏覽器有沒有跳出選單或抓走焦點？
+    <b>左 Ctrl</b>＝往左一線，<b>右 Ctrl</b>＝往右一線，<b>Alt</b>（左右都可以）＝舉盾，按一下舉 1.5 秒、按住就一直舉，<b>沒有冷卻</b>。<br>
+    某一線<b style="color:#ff6a6a">變紅</b>＝快要被打，離開那一線；整排藍色有 ▼＝要<b>舉盾</b>才擋得住；站在紅線上舉盾只會少受傷。
   </div>
 </div>
 <script>
@@ -58,7 +54,7 @@
   const sprite = (rows, x, y, sc, tint) => rows.forEach((r, j) => [...r].forEach((c, i) => { if (c !== '.') { g.fillStyle = tint && c === 'G' ? tint : COL[c]; g.fillRect(x + i * sc, y + j * sc, sc, sc); } }));
 
   function reset() {
-    Object.assign(S, { t: 0, last: performance.now(), lane: 1, defending: false, defEnd: 0, shieldCd: 0, hp: 100, mhp: 100, strikes: [], next: 1.5, over: 0, fx: [], shake: 0, flash: 0, stat: { dodge: 0, block: 0, hit: 0 }, mon: 0 });
+    Object.assign(S, { t: 0, last: performance.now(), lane: 1, defending: false, defEnd: 0, hp: 100, mhp: 100, strikes: [], next: 1.5, over: 0, fx: [], shake: 0, flash: 0, stat: { dodge: 0, block: 0, hit: 0 }, mon: 0 });
     newQ(); inp.value = ''; inp.focus();
   }
   function newQ() { S.q = rnd(WORDS); $('qt').textContent = S.q[0]; $('qz').textContent = S.q[1]; }
@@ -142,7 +138,7 @@
     bar(4, 8, 70, S.mhp / 100, '#d8402a', '大魔物');
     bar(4, 106, 50, S.hp / 100, '#6aa84f', '你');
     g.fillStyle = '#fff'; g.font = 'bold 7px sans-serif'; g.textAlign = 'right';
-    g.fillStyle = S.t < S.shieldCd ? '#778' : '#9fd8ff'; g.fillText(S.defending ? '盾：舉盾中' : S.t < S.shieldCd ? '盾：冷卻中' : '盾：可用', 188, 17); g.fillStyle = '#fff';
+    g.fillStyle = '#9fd8ff'; g.fillText(S.defending ? '舉盾中' : 'Alt＝舉盾', 188, 17); g.fillStyle = '#fff';
     g.fillText(`躲 ${S.stat.dodge}　擋 ${S.stat.block}　被打 ${S.stat.hit}`, 188, 8);
     if (S.pname && S.strikes.length) { g.textAlign = 'center'; g.fillStyle = '#ffd24a'; g.fillText(S.pname, 96, 12); }
     g.textAlign = 'center';
@@ -164,22 +160,17 @@
   /* 用 e.code（實體按鍵）判斷；組字中不攔截。
      左 Ctrl＝往左一線、右 Ctrl＝往右一線、Alt（左右都可以）＝舉盾。
      Alt 單獨按放開時，瀏覽器可能會跳出選單，所以 Alt 的按下與放開都擋掉預設動作。 */
-  const ARROW = { ArrowLeft: -1, ArrowRight: 1 };
   const step = d => { if (!S.over) S.lane = Math.max(0, Math.min(2, S.lane + d)); };
-  function shield() {
-    if (S.over || S.t < S.shieldCd) return;
-    S.defending = true; S.defEnd = S.t + 1.5; S.shieldCd = S.t + 2.5;
-  }
+  const shield = () => { if (!S.over) { S.defending = true; S.defEnd = Math.max(S.defEnd, S.t + 1.5); } };
   addEventListener('keydown', e => {
     const composing = e.isComposing || e.keyCode === 229;
     const ctrlDir = e.code === 'ControlLeft' ? -1 : e.code === 'ControlRight' ? 1 : 0;
     const alt = e.code === 'AltLeft' || e.code === 'AltRight';
-    const arrow = ARROW[e.code], down = e.code === 'ArrowDown';
-    const act = ctrlDir || alt || arrow !== undefined || down;
+    const act = ctrlDir || alt;
     log(e, act ? '【有動作】' : '（沒動作）');
     if (!act) { if (e.key === 'Enter' && !composing) submit(); return; }
-    if (!e.repeat) { if (alt || down) shield(); else step(ctrlDir || arrow); }
-    if (alt || !composing) e.preventDefault();
+    if (alt) { shield(); e.preventDefault(); return; }
+    if (!e.repeat) step(ctrlDir);
   });
   addEventListener('keyup', e => { if (e.code === 'AltLeft' || e.code === 'AltRight') { e.preventDefault(); log(e, '【Alt 放開】'); } });
   /* 數字只拿來操作，不能留在輸入框裡；組字（選字）中不處理 */
@@ -196,17 +187,7 @@
   });
   inp.addEventListener('compositionend', e => { comp = false; note('組字結束，送出「' + e.data + '」'); setTimeout(strip, 0); });
   inp.addEventListener('input', () => { if (!comp) strip(); });
-  /* 滑鼠：點哪一線就跳到哪一線；右鍵＝舉盾。滑鼠不會被輸入法吃掉 */
-  cv.addEventListener('contextmenu', e => e.preventDefault());
-  cv.addEventListener('pointerdown', e => {
-    const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * 192;
-    if (e.button === 2) { shield(); return; }
-    S.lane = x < 68 ? 0 : x < 124 ? 1 : 2; inp.focus();
-  });
   addEventListener('blur', () => { S.defending = false; });
-  document.querySelectorAll('#pad button').forEach(b => {
-    b.addEventListener('pointerdown', e => { e.preventDefault(); if (b.dataset.step) step(+b.dataset.step); else shield(); inp.focus(); });
-  });
   function submit() {
     if (S.over || !inp.value.trim()) return;
     if (inp.value.trim() === S.q[0]) {
