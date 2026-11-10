@@ -15,9 +15,8 @@
   input{flex:1;min-width:160px;font-size:26px;padding:10px;background:#0a0714;border:3px solid #ffd24a;color:#fff;text-align:center}
   button,select{font:inherit;font-weight:800;padding:10px 16px;border:3px solid #6a5ab0;background:#2a2460;color:#fff;cursor:pointer}
   button.gold{background:#e8b64c;color:#1a1409;border-color:#ffd24a}
-  .pad{display:none;gap:8px;margin-top:8px}
+  .pad{display:flex;gap:8px;margin-top:8px}
   .pad button{flex:1;font-size:26px;padding:16px}
-  @media (pointer:coarse){.pad{display:flex}}
   #log{font-family:ui-monospace,Consolas,monospace;font-size:13px;color:#aab0d8;margin-top:8px;min-height:2.6em}
   #help{font-size:14px;color:#aab0d8;line-height:1.6;margin-top:8px}
   #help b{color:#ffd98a}
@@ -38,9 +37,10 @@
   <div id="log">最近收到的按鍵：（還沒有）</div>
   <div id="help">
     <b>玩法：</b>一邊打字攻擊魔物（Enter 送出）、一邊看地上的線。<br>
-    <b>◀ ▶ 方向鍵（或 Ctrl＋方向鍵）</b>換線，<b>按住 ▼</b> 舉盾。<br>
+    <b>換線</b>：← → 方向鍵、或左 Ctrl（往左）／右 Ctrl（往右）、或數字鍵盤 4／6、或<b>用滑鼠點那一線</b>。<br>
+    <b>舉盾（按住）</b>：↓ 方向鍵、或 Tab、或數字鍵盤 2、或滑鼠右鍵、或按住下面的「▼ 防禦」按鈕。<br>
     某一線<b style="color:#ff6a6a">變紅</b>＝快要被打，離開那一線；整排紅色有盾牌＝要<b>按住 ▼</b>才擋得住；站在紅線上舉盾只會少受傷。<br>
-    <b>請測試：</b>注音輸入法打到一半（剛打ㄅ還沒選字）時按方向鍵，上面「最近收到的按鍵」有沒有出現？沒有＝被輸入法吃掉了。
+    <b>請測試：</b>注音輸入法打到一半（剛打ㄅ還沒選字）時，分別按 ← → ↓、左右 Ctrl、Tab、數字鍵盤 4 6 2。看下面的記錄有沒有出現「組字中＝是」那幾行、角色有沒有真的動。哪一種在組字時還能動，就是我們可以用的鍵。
   </div>
 </div>
 <script>
@@ -150,15 +150,30 @@
     update(dt); draw(); requestAnimationFrame(loop);
   }
 
-  const log = (e, extra) => { $('log').textContent = `最近收到的按鍵：${e.key}　(組字中：${e.isComposing ? '是' : '否'}，keyCode ${e.keyCode})${extra || ''}`; };
-  const MAP = { ArrowLeft: 'L', ArrowRight: 'R', ArrowDown: 'D' };
+  const hist = [];
+  const log = (e, how) => {
+    hist.unshift(`${how} key=${e.key} code=${e.code} keyCode=${e.keyCode} 組字中=${e.isComposing ? '是' : '否'}`);
+    hist.length = Math.min(hist.length, 6);
+    $('log').innerHTML = '最近收到的按鍵（新的在上面）：<br>' + hist.join('<br>');
+  };
+  /* 用 e.code（實體按鍵）判斷：輸入法組字時 e.key 會變成 Process，但 e.code 多半還在 */
+  const MAP = { ArrowLeft: 'L', ArrowRight: 'R', ArrowDown: 'D', ControlLeft: 'L', ControlRight: 'R', Tab: 'D', Numpad4: 'L', Numpad6: 'R', Numpad2: 'D' };
   addEventListener('keydown', e => {
-    if (e.isComposing || e.keyCode === 229) { $('log').textContent = '最近收到的按鍵：輸入法組字中，只收到 Process（keyCode 229）——方向鍵被輸入法吃掉了'; return; }
-    const k = MAP[e.key];
-    if (k) { log(e); e.preventDefault(); press(k, true); }
-    else if (e.key === 'Enter') submit();
+    const k = MAP[e.code];
+    log(e, k ? '【有動作】' : '（沒動作）');
+    if (k) { e.preventDefault(); if (!e.repeat) press(k, true); }
+    else if (e.key === 'Enter' && !e.isComposing) submit();
   });
-  addEventListener('keyup', e => { const k = MAP[e.key]; if (k) { log(e, '（放開）'); press(k, false); } });
+  addEventListener('keyup', e => { const k = MAP[e.code]; if (k) { log(e, '【放開】'); press(k, false); } });
+  /* 滑鼠：點哪一線就跳到哪一線；在角色上按住（或按右鍵）＝舉盾。滑鼠不會被輸入法吃掉 */
+  cv.addEventListener('contextmenu', e => e.preventDefault());
+  cv.addEventListener('pointerdown', e => {
+    const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * 192;
+    const lane = x < 68 ? 0 : x < 124 ? 1 : 2;
+    if (e.button === 2) { press('D', true); return; }
+    S.lane = lane; inp.focus();
+  });
+  cv.addEventListener('pointerup', e => { if (e.button === 2) press('D', false); });
   addEventListener('blur', () => { S.defending = false; });
   function press(k, down) {
     if (S.over) return;
