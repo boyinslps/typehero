@@ -181,8 +181,19 @@
     } else if (e.key === 'Enter' && !composing) submit();
   });
   /* 數字只拿來操作，不能留在輸入框裡；組字（選字）中不處理 */
-  inp.addEventListener('beforeinput', e => { if (!e.isComposing && /[0-9０-９]/.test(e.data || '')) e.preventDefault(); });
-  inp.addEventListener('input', e => { if (!e.isComposing) inp.value = inp.value.replace(/[0-9０-９]/g, ''); });
+  const DIG = /[0-9０-９]/g, ONLY_DIG = /^[0-9０-９]+$/;
+  let comp = false;
+  const strip = () => { if (DIG.test(inp.value)) inp.value = inp.value.replace(DIG, ''); DIG.lastIndex = 0; };
+  const note = t => { hist.unshift('（輸入法）' + t); hist.length = Math.min(hist.length, 6); $('log').innerHTML = '最近收到的按鍵（新的在上面）：<br>' + hist.join('<br>'); };
+  inp.addEventListener('beforeinput', e => { if (e.cancelable && ONLY_DIG.test(e.data || '')) e.preventDefault(); });
+  inp.addEventListener('compositionstart', () => { comp = true; note('開始組字'); });
+  inp.addEventListener('compositionupdate', e => {
+    note('組字內容＝「' + e.data + '」');
+    /* 輸入法把數字當成組字內容時：馬上取消這次組字，數字不能留在輸入框 */
+    if (ONLY_DIG.test(e.data || '')) setTimeout(() => { inp.blur(); strip(); inp.focus(); }, 0);
+  });
+  inp.addEventListener('compositionend', e => { comp = false; note('組字結束，送出「' + e.data + '」'); setTimeout(strip, 0); });
+  inp.addEventListener('input', () => { if (!comp) strip(); });
   /* 滑鼠：點哪一線就跳到哪一線；右鍵＝舉盾。滑鼠不會被輸入法吃掉 */
   cv.addEventListener('contextmenu', e => e.preventDefault());
   cv.addEventListener('pointerdown', e => {
