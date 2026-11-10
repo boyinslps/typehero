@@ -29,7 +29,7 @@
     <div class="q"><b id="qt"></b><small id="qz"></small></div>
     <input id="in" autocomplete="off" placeholder="打字、按 Enter 攻擊" autofocus>
   </div>
-  <div class="pad" id="pad"><button data-step="-1">◀ 左（左 Ctrl）</button><button data-k="D">🛡 防禦（左右 Ctrl 一起）</button><button data-step="1">右（右 Ctrl） ▶</button></div>
+  <div class="pad" id="pad"><button data-step="-1">◀ 左（左 Ctrl）</button><button data-k="D">🛡 防禦（Alt）</button><button data-step="1">右（右 Ctrl） ▶</button></div>
   <div class="row">
     <label>攻擊預警時間 <select id="spd"><option value="2" selected>2 秒（最快）</option><option value="2.5">2.5 秒</option><option value="3">3 秒（慢）</option></select></label>
     <button id="restart" class="gold">重新開始</button>
@@ -37,9 +37,9 @@
   <div id="log">最近收到的按鍵：（還沒有）</div>
   <div id="help">
     <b>玩法：</b>一邊打字攻擊魔物（Enter 送出）、一邊看地上的線和魔物下面的<b>攻擊條</b>（滿了就出招，最快 2 秒）。<br>
-    <b>左 Ctrl</b>＝往左一線，<b>右 Ctrl</b>＝往右一線，<b>兩個 Ctrl 一起按</b>＝舉盾 1.5 秒（之後要等一下才能再舉）。也可以用 ← →、↓、滑鼠點那一線、滑鼠右鍵。<br>
+    <b>左 Ctrl</b>＝往左一線，<b>右 Ctrl</b>＝往右一線，<b>Alt</b>（左右都可以）＝舉盾 1.5 秒（之後要等一下才能再舉）。也可以用 ← →、↓、滑鼠點那一線、滑鼠右鍵。<br>
     某一線<b style="color:#ff6a6a">變紅</b>＝快要被打，離開那一線；整排藍色有 ▼＝要<b>舉盾</b>才擋得住；站在紅線上舉盾只會少受傷。<br>
-    <b>請測試：</b>注音打到一半（剛打ㄅ、選字清單出現時）按左右 Ctrl，角色有沒有動？下方記錄有沒有「【Ctrl】」？按 Ctrl 會不會影響輸入法（例如切換、清掉組字）？兩個 Ctrl 一起按好不好按？
+    <b>請測試：</b>注音打到一半（剛打ㄅ、選字清單出現時）按左右 Ctrl，角色有沒有動？下方記錄有沒有「【Ctrl】」？按 Ctrl、Alt 會不會影響輸入法（例如切換、清掉組字）？按 Alt 時瀏覽器有沒有跳出選單或抓走焦點？
   </div>
 </div>
 <script>
@@ -75,7 +75,7 @@
   function attack() {
     const k = rnd(['single', 'single', 'pair', 'sweep', 'slam', 'fake']);
     S.strikes = PATTERNS[k]();
-    S.pname = { single: '啄擊', pair: '夾擊（站安全那條）', sweep: '橫掃', slam: '重壓（兩個 Ctrl 舉盾）', fake: '假動作' }[k];
+    S.pname = { single: '啄擊', pair: '夾擊（站安全那條）', sweep: '橫掃', slam: '重壓（按 Alt 舉盾）', fake: '假動作' }[k];
     S.pat = S.t; S.patEnd = Math.max(...S.strikes.map(x => x.hit));
   }
 
@@ -162,34 +162,26 @@
     $('log').innerHTML = '最近收到的按鍵（新的在上面）：<br>' + hist.join('<br>');
   };
   /* 用 e.code（實體按鍵）判斷；組字中不攔截。
-     左 Ctrl＝往左一線、右 Ctrl＝往右一線、兩個 Ctrl 一起＝舉盾。
-     為了分得出「一起按」，第一個 Ctrl 按下後等 90 毫秒，沒等到另一個才換線。 */
+     左 Ctrl＝往左一線、右 Ctrl＝往右一線、Alt（左右都可以）＝舉盾。
+     Alt 單獨按放開時，瀏覽器可能會跳出選單，所以 Alt 的按下與放開都擋掉預設動作。 */
   const ARROW = { ArrowLeft: -1, ArrowRight: 1 };
   const step = d => { if (!S.over) S.lane = Math.max(0, Math.min(2, S.lane + d)); };
   function shield() {
     if (S.over || S.t < S.shieldCd) return;
     S.defending = true; S.defEnd = S.t + 1.5; S.shieldCd = S.t + 2.5;
   }
-  const ctrl = { ControlLeft: false, ControlRight: false };
-  let pend = null;
   addEventListener('keydown', e => {
     const composing = e.isComposing || e.keyCode === 229;
-    if (e.code in ctrl) {
-      log(e, '【Ctrl】');
-      if (e.repeat) return;
-      ctrl[e.code] = true;
-      if (ctrl.ControlLeft && ctrl.ControlRight) { clearTimeout(pend); pend = null; shield(); }
-      else { const d = e.code === 'ControlLeft' ? -1 : 1; clearTimeout(pend); pend = setTimeout(() => { pend = null; step(d); }, 90); }
-      return;
-    }
+    const ctrlDir = e.code === 'ControlLeft' ? -1 : e.code === 'ControlRight' ? 1 : 0;
+    const alt = e.code === 'AltLeft' || e.code === 'AltRight';
     const arrow = ARROW[e.code], down = e.code === 'ArrowDown';
-    log(e, arrow !== undefined || down ? '【有動作】' : '（沒動作）');
-    if (arrow !== undefined || down) {
-      if (!e.repeat) { if (down) shield(); else step(arrow); }
-      if (!composing) e.preventDefault();
-    } else if (e.key === 'Enter' && !composing) submit();
+    const act = ctrlDir || alt || arrow !== undefined || down;
+    log(e, act ? '【有動作】' : '（沒動作）');
+    if (!act) { if (e.key === 'Enter' && !composing) submit(); return; }
+    if (!e.repeat) { if (alt || down) shield(); else step(ctrlDir || arrow); }
+    if (alt || !composing) e.preventDefault();
   });
-  addEventListener('keyup', e => { if (e.code in ctrl) { ctrl[e.code] = false; log(e, '【Ctrl 放開】'); } });
+  addEventListener('keyup', e => { if (e.code === 'AltLeft' || e.code === 'AltRight') { e.preventDefault(); log(e, '【Alt 放開】'); } });
   /* 數字只拿來操作，不能留在輸入框裡；組字（選字）中不處理 */
   const DIG = /[0-9０-９]/g, ONLY_DIG = /^[0-9０-９]+$/;
   let comp = false;
