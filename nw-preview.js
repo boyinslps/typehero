@@ -157,6 +157,7 @@ export function initNwPreview(C) {
               '站的那一線變紅了，就按<b>左 Ctrl</b>（往左）或<b>右 Ctrl</b>（往右）換到沒有紅色的線。',
               '整排變<b>藍色</b>的時候，按 <b>Alt</b> 舉盾，就擋得住。站在紅線上舉盾，只會少受一半的傷。'])}
             <p class="nwp-sm">題目都是<b>國字</b>，不用打注音符號。打對的字才有傷害，亂打會被反擊。</p>
+            <p class="nwp-sm">現在魔物<b>還不會攻擊</b>，先專心練打字；牠們的攻擊會一隻一隻慢慢加入。</p>
           </div>
         </div>`;
       case 'monster': return `<div class="nwp-grid">${p.items.map(m => card(`${m.n} ${m.e}`, 'monster', m.k, m.t, openTag(m.open), hfFor(p.items.length))).join('')}</div><p class="nwp-sm">點一下魔物，看牠生氣的樣子。</p>`;

@@ -9,7 +9,7 @@ const seedFor = (starter, extra) => ({
     nw: Object.assign({ v: 1, savedAt: 5, look: { style: 1, hair: 2, skin: 1 }, starter, quest: { done: ['1-0'] }, items: { potion: 3 } }, extra || {})
   }
 });
-async function open(browser, starter, extra) {
+async function open(browser, starter, extra, attacks) {
   const p = await browser.newPage({ viewport: { width: 1200, height: 900 } });
   const errs = []; p.on('dialog', d => d.accept());
   p.on('pageerror', e => errs.push('pageerror: ' + e.message));
@@ -17,6 +17,7 @@ async function open(browser, starter, extra) {
   const { sha256Hex } = await import('../../nw-access.js');
   const hash = await sha256Hex('Test-Pass_9!x');
   await p.addInitScript(a => { window.__FS = a.s; localStorage.clear(); localStorage.setItem('mg_nw_fast', '1'); window.__NW_CODE_HASH__ = a.hash; localStorage.setItem('mg_nw_code', a.hash); window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas'); }, { s: seedFor(starter, extra), hash });
+  await p.addInitScript(a => { if (a) window.__NW_ATTACKS__ = a; }, attacks === 'none' ? null : ['single', 'pair', 'sweep', 'fake', 'slam']);
   await p.route('**/*', r => {
     const u = r.request().url();
     if (u.startsWith('http://localhost')) return r.continue();
@@ -196,6 +197,17 @@ async function playUntil(p, pred, max = 80) {
     await waitEnd(p); await p.waitForTimeout(200);
     ok(await hp(p) === full4, '重壓時舉盾：完全擋住');
     ok(p.errs.length === 0, '三線模式沒有 JS 錯誤 ' + p.errs.join(' | '));
+    await p.close();
+  }
+
+  {
+    const p = await open(b, 'staff', undefined, 'none');
+    await goHunt(p, 'grass', 'coo', 1);
+    const full = await hpPct(p, 'nwb-hp');
+    await p.waitForTimeout(9500);
+    ok(await p.$eval('#nwb-cast', e => e.style.display) !== 'block' && await hpPct(p, 'nwb-hp') === full, '魔物目前還不會攻擊：9 秒內沒有出招、沒有受傷');
+    ok((await p.textContent('#nwb-st-name')).includes('還不會攻擊') && (await p.textContent('#nwb-hint')).includes('還不會攻擊'), '畫面告訴學生：這隻魔物還不會攻擊，專心打字');
+    ok(p.errs.length === 0, '沒有 JS 錯誤 ' + p.errs.join(' | '));
     await p.close();
   }
 

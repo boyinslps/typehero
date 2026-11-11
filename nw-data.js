@@ -99,6 +99,8 @@ export const regionLv = (rk, star) => {
   return Math.round(r.lv[0] + (r.lv[1] - r.lv[0]) * (star - 1) / 4);
 };
 
+export const ATTACKS_OPEN = { coo: [], frog: [], shroom: [], wolf: [] };
+export const attacksOn = () => Object.values(ATTACKS_OPEN).some(a => a.length > 0);
 export const MAX_CHARS = star => (star <= 2 ? 4 : star <= 4 ? 6 : 8);
 export const CHANT_MAX = 6;
 export const SHORT_CHANTS = [
@@ -179,9 +181,9 @@ export const COLOR_HEX = { gray: '#9aa3ad', green: '#6aa84f', blue: '#3f9be0', p
 
 export const MAIN_QUESTS = [
   { id: '1-0', ch: 1, t: '選擇你的初心武器', hint: '在「裝備與造型」選一把武器', reward: { items: { potion: 3 } }, rewardText: '回復藥 ×3', test: nw => !!nw.starter },
-  { id: '1-1', ch: 1, t: '討伐泡泡蛙（草原 ★1）', hint: '到委託板，選草原的泡泡蛙。整排藍色的時候要按 Alt 舉盾', rewardText: '獵人經驗 +30', reward: { hrExp: 30 }, test: nw => (nw.dex.frog || 0) > 0 },
-  { id: '1-2', ch: 1, t: '討伐咕咕鳥（草原 ★1）', hint: '紅色的那一線要用左右 Ctrl 換線躲開', rewardText: '獵人經驗 +30', reward: { hrExp: 30 }, test: nw => (nw.dex.coo || 0) > 0 },
-  { id: '1-3', ch: 1, t: '閃避成功 5 次、防禦成功 5 次', hint: '狩獵時多試試閃避和防禦', rewardText: '稱號詞條「見習」', reward: {}, test: nw => nw.stat.dodgeOk >= 5 && nw.stat.defOk >= 5, prog: nw => `閃避 ${Math.min(5, nw.stat.dodgeOk)}/5　防禦 ${Math.min(5, nw.stat.defOk)}/5` },
+  { id: '1-1', ch: 1, t: '討伐泡泡蛙（草原 ★1）', hint: '到委託板，選草原的泡泡蛙', rewardText: '獵人經驗 +30', reward: { hrExp: 30 }, test: nw => (nw.dex.frog || 0) > 0 },
+  { id: '1-2', ch: 1, t: '討伐咕咕鳥（草原 ★1）', hint: '到委託板，選草原的咕咕鳥', rewardText: '獵人經驗 +30', reward: { hrExp: 30 }, test: nw => (nw.dex.coo || 0) > 0 },
+  { id: '1-3', ch: 1, hold: () => !attacksOn(), t: '閃避成功 5 次、防禦成功 5 次', hint: '狩獵時多試試閃避和防禦', rewardText: '稱號詞條「見習」', reward: {}, test: nw => nw.stat.dodgeOk >= 5 && nw.stat.defOk >= 5, prog: nw => `閃避 ${Math.min(5, nw.stat.dodgeOk)}/5　防禦 ${Math.min(5, nw.stat.defOk)}/5` },
   { id: '1-4', ch: 1, t: '討伐草原任何 ★3 的魔物', hint: '先打過 ★1、★2 才會開放 ★3', rewardText: '另外三把初心武器的圖紙', reward: { bp: ['bp_staff', 'bp_bow', 'bp_dagger', 'bp_crossbow'] }, test: nw => (nw.zone.grass || 0) >= 3 },
   { id: '1-7', ch: 1, t: '討伐草原任何 ★5 的魔物', hint: '打倒 ★5 就會開放迷霧森林', rewardText: '開放迷霧森林', reward: {}, test: nw => (nw.zone.grass || 0) >= 5 }
 ];
@@ -247,7 +249,7 @@ export function setTitleParts(nw, ids) {
   nw.title = seen.map(id => wordById(id).w).join('');
 }
 
-export const currentQuest = nw => MAIN_QUESTS.find(q => !nw.quest.done.includes(q.id)) || null;
+export const currentQuest = nw => MAIN_QUESTS.find(q => !nw.quest.done.includes(q.id) && !(q.hold && q.hold())) || null;
 
 export function zoneOpen(nw, rk) {
   const r = REGIONS[rk];

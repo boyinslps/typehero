@@ -33,6 +33,9 @@
 - 武器進度靠 `NW.used`、`NW.wwin`（`finishHunt` 累加）。之後新增武器要在 `WORDS` 補 3 個詞條。
 - 舊世界顯示：`index.html` 的 `nwTitleChip`／`paintWho`，資料來自 `mg_scores.nwTitle`／`nwTitleN`。
 
+### 魔物攻擊「慢慢加入」（2026-11-11）
+目前所有魔物都**不攻擊**。開放方式：改 `nw-data.js` 的 `ATTACKS_OPEN`（見 CHANGELOG v3.9.2）。開放前建議用 `tools/nw-sim/` 重算血量與勝率，並先在一隻魔物上試；開放後同步更新預告頁的說明、CHANGELOG、`VERSION_LOG`、pcclass 的 `TYPEHERO_UPDATES`。
+
 ### 學生回饋待決（2026-11-09）
 題目太長導致閃避／防禦太難；**三線戰鬥已在 v3.9.0 做成正式版，v3.9.1 起舊版（打字閃／防）已刪除**（`nw-battle.js` 的 `buildStrikes`／`laneResolve`／`laneStance`）；原本的想法：三線戰鬥（方向鍵換線、長按 ▼ 防禦）與武器專屬詞庫。分析、風險（注音輸入法會吃方向鍵）、分步做法見 [`PROPOSAL-LANES.md`](PROPOSAL-LANES.md)，可玩 mockup 在 `tools/mockups/lanes.html`，**等老師試玩後決定**。題目字數上限與詠唱 6 字已做（v3.8.3）；還沒重跑 `tools/nw-sim/`。
 

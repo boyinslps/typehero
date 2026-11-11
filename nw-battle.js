@@ -1,4 +1,4 @@
-import { BAL, TIERS, MONSTERS, MAX_CHARS, CHANT_MAX, SHORT_CHANTS, regionLv, monMaxHp, monDmg, atkInterval, castTime, STATUS } from './nw-data.js';
+import { BAL, TIERS, MONSTERS, ATTACKS_OPEN, MAX_CHARS, CHANT_MAX, SHORT_CHANTS, regionLv, monMaxHp, monDmg, atkInterval, castTime, STATUS } from './nw-data.js';
 
 const CSS = `
 #nwb-root{position:fixed;inset:0;z-index:70;display:flex;flex-direction:column;background:#000;color:var(--ink);font-size:clamp(13px,1.5vmin + 7px,21px);font-weight:700}
@@ -63,6 +63,7 @@ export function startBattle(env, cfg, done) {
   const tier = env.tier();
   const weapon = NW.starter || 'staff';
   const mode = 'hanzi';
+  const enabled = (location.hostname === 'localhost' && window.__NW_ATTACKS__) || ATTACKS_OPEN[cfg.mk] || [];
   const nowS = () => performance.now() / 1000;
 
   if (!document.getElementById('nwb-style')) {
@@ -145,9 +146,9 @@ export function startBattle(env, cfg, done) {
 
   $q('nwb-mname').textContent = `${mon0.name} Lv ${lv}`;
   $q('nwb-wlabel').textContent = weapon === 'staff' ? '下一次詠唱' : weapon === 'bow' ? '力量條' : weapon === 'dagger' ? '下一次連環斬' : '彈匣';
-  $q('nwb-hint').innerHTML = '紅色的線出現：<b style="color:#ffd98a">左 Ctrl／右 Ctrl</b> 換線躲開、<b style="color:#ffd98a">Alt</b> 舉盾';
+  $q('nwb-hint').innerHTML = enabled.length ? '紅色的線出現：<b style="color:#ffd98a">左 Ctrl／右 Ctrl</b> 換線躲開、<b style="color:#ffd98a">Alt</b> 舉盾' : '這隻魔物還不會攻擊，專心打字打倒牠！';
 
-  $q('nwb-side').innerHTML = '<b class="px-text">操作</b><br>Enter 送出<br>Esc 換題<br>' + (weapon === 'crossbow' ? '空白 Enter＝連射' : 'Ctrl 換線／Alt 舉盾');
+  $q('nwb-side').innerHTML = '<b class="px-text">操作</b><br>Enter 送出<br>Esc 換題<br>' + (weapon === 'crossbow' ? '空白 Enter＝連射' : enabled.length ? 'Ctrl 換線／Alt 舉盾' : '');
 
   const tierIdx = () => Math.min(3, (lv < 10 ? 0 : lv < 20 ? 1 : 2) + (S.mon.angry ? 1 : 0));
   const maxChars = MAX_CHARS(cfg.star);
@@ -365,10 +366,9 @@ export function startBattle(env, cfg, done) {
   }
 
   function pickPattern() {
-    const r = Math.random();
-    if (cfg.star <= 2) return r < .6 ? 'single' : 'pair';
-    if (cfg.star <= 4) return r < .35 ? 'single' : r < .65 ? 'pair' : 'sweep';
-    return r < .25 ? 'single' : r < .5 ? 'pair' : r < .75 ? 'sweep' : 'fake';
+    const star = cfg.star, allowed = ['single', 'pair', ...(star >= 3 ? ['sweep'] : []), ...(star >= 5 ? ['fake'] : [])];
+    const pool = enabled.filter(k => allowed.includes(k));
+    return rnd(pool.length ? pool : enabled.filter(k => k !== 'slam'));
   }
   function buildStrikes(atk, H) {
     const W = LANE_W[tier] || 2.5, rl = () => Math.floor(Math.random() * 3);
@@ -383,7 +383,9 @@ export function startBattle(env, cfg, done) {
     return { kind, strikes, base: monDmg(lv, atk.mul), hurt: false };
   }
   function castStart(T) {
-    const atk = rnd(mon0.attacks);
+    const usable = mon0.attacks.filter(a => a.type === 'defend' ? enabled.includes('slam') : enabled.some(k => k !== 'slam'));
+    if (!usable.length) { S.nextCast = T + 8; return; }
+    const atk = rnd(usable);
     const quick = mon0.spKey === 'quick';
     const dur = castTime(lv, tier) * (quick ? .75 : 1);
     S.cast = { atk, start: T, dur, hitAt: T + dur };
@@ -439,7 +441,7 @@ export function startBattle(env, cfg, done) {
     } else if (c) {
       stEl.dataset.state = 'wait'; nm.textContent = '⏳ 魔物在蓄力…先專心打字';
       ht.textContent = `出手倒數 ${Math.max(0, c.hitAt - T).toFixed(1)} 秒`;
-    } else { stEl.dataset.state = 'idle'; nm.textContent = '左 Ctrl／右 Ctrl 換線　Alt 舉盾'; ht.textContent = ''; }
+    } else { stEl.dataset.state = 'idle'; nm.textContent = enabled.length ? '左 Ctrl／右 Ctrl 換線　Alt 舉盾' : '這隻魔物還不會攻擊，專心打字！'; ht.textContent = ''; }
     if (shieldLeft > 0) ht.textContent += `　🛡 盾 ${shieldLeft.toFixed(1)} 秒`;
     fl.style.width = c ? (clamp((T - c.start) / c.dur, 0, 1) * 100) + '%' : '0';
     root.dataset.lane = S.lane; root.dataset.shield = shieldLeft > 0 ? '1' : '0';
@@ -546,7 +548,7 @@ export function startBattle(env, cfg, done) {
       banner('站起來了！', '#8ec96b', true);
     }
     runVolley(T);
-    if (!S.cast && T >= S.nextCast && !S.me.down) castStart(T);
+    if (enabled.length && !S.cast && T >= S.nextCast && !S.me.down) castStart(T);
     if (S.cast) laneResolve(T);
     if (S.bubUntil && T > S.bubUntil) { S.bubUntil = 0; $q('nwb-bub').style.display = 'none'; host.classList.remove('nwb2-nozy'); }
     if (S.sporeUntil && T > S.sporeUntil) { S.sporeUntil = 0; host.classList.remove('nwb2-spore'); }

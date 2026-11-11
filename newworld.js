@@ -191,6 +191,7 @@ export function initNewWorld(C) {
     const got = [];
     for (const q of MAIN_QUESTS) {
       if (NW.quest.done.includes(q.id)) continue;
+      if (q.hold && q.hold()) continue;
       if (!q.test(NW)) break;
       NW.quest.done.push(q.id);
       const r = q.reward || {};
