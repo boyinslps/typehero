@@ -2,13 +2,14 @@ import { PX } from './pixel.js';
 import {
   LOOK, DEFAULT_LOOK, heroLook, STARTERS, LOCKED_WEAPONS, REGIONS, MAP_POS, ELEM, STATUS, MONSTERS,
   regionLv, MAIN_QUESTS, normalizeNw, currentQuest, zoneOpen, starOpen, addHrExp, hrNeed, huntExp, huntCoins,
-  COLOR_NAME, COLOR_HEX, HR_MAX, VILLAGE, doorTile, buildingOpen, goalOf, TEST_TAGS, FB_COINS, FB_MINLEN, GIFT_WEAPONS, weaponInfo, weaponBase, curWeapon, WORDS, WORD_GROUPS, checkWords, setTitleParts, wordById
+  COLOR_NAME, COLOR_HEX, HR_MAX, VILLAGE, doorTile, buildingOpen, goalOf, TEST_TAGS, FB_COINS, FB_MINLEN, BUG_COINS, BUG_REWARD_MAX, TESTER_MISSIONS, checkMissions, GIFT_WEAPONS, weaponInfo, weaponBase, curWeapon, WORDS, WORD_GROUPS, checkWords, setTitleParts, wordById
 } from './nw-data.js';
 import { injectUi } from './nw-ui.js';
 import { mountVillage } from './nw-village.js';
 import { mountBoard } from './nw-board.js';
 import { startBattle } from './nw-battle.js';
 import { openNwRank } from './nw-rank.js';
+import { tour, openAcademy } from './nw-academy.js';
 import { DEFAULT_CODE_HASH, sha256Hex, cleanCode } from './nw-access.js';
 
 const CSS = `
@@ -247,7 +248,7 @@ export function initNewWorld(C) {
     if (b.id === 'gate') { leave(); return; }
     const d = doorTile(b);
     NW.pos = [d[0], d[1] + 1];
-    if (buildingOpen(b)) { ({ map: viewBoard, rank: openRank }[b.act] || (() => {}))(); return; }
+    if (buildingOpen(b)) { ({ map: viewBoard, rank: openRank, academy: openAcademyUI }[b.act] || (() => {}))(); return; }
     openWip(b);
   }
 
@@ -270,6 +271,8 @@ export function initNewWorld(C) {
           </div>
           <button class="px-btn gold" data-act="bagopen">🎒 背包</button>
           <button class="px-btn" data-act="gift">🎁 序號</button>
+          <button class="px-btn" data-act="book">📓 測試員手冊</button>
+          <button class="px-btn" data-act="bug">🐛 回報問題</button>
           <button class="px-btn" data-act="leave">← 回舊世界</button>
         </div>
       </div>
@@ -278,7 +281,7 @@ export function initNewWorld(C) {
       el.querySelector('[data-hero]').replaceChildren(PX.chibi(myChibi(), 'down', 0, 3));
       village = mountVillage(el.querySelector('#vmap'), {
         PX, look: myChibi(), open: VILLAGE.buildings.filter(buildingOpen).map(b => b.id),
-        start: NW.pos || VILLAGE.start, scroller: root, fast: FAST, onEnter: enterBuilding, guide: goalOf(NW) ? goalOf(NW).building : null
+        start: NW.pos || VILLAGE.start, scroller: root, fast: FAST, onEnter: enterBuilding, guide: guideBuilding()
       });
       earlyGift();
     });
@@ -519,6 +522,87 @@ export function initNewWorld(C) {
     return null;
   }
 
+  const guideBuilding = () => (NW.hunts === 0 && !(NW.tut && NW.tut.attack) && !NW.tutSkip) ? 'academy' : (goalOf(NW) ? goalOf(NW).building : null);
+
+  async function awardMissions() {
+    const ms = checkMissions(NW);
+    if (!ms.length) return;
+    const ws = checkWords(NW); saveNw();
+    for (const m of ms) await showGift({ icon: m.icon, title: `🏅 任務完成：${m.t}`, note: `${m.how}。得到 🪙 ${m.coins} 字元（新世界的貨幣）。${ws.length ? '新的稱號詞條：' + ws.join('、') + '。' : ''}` });
+  }
+
+  function openAcademyUI() {
+    openAcademy({ PX, NW: () => NW, look: () => myHero(), close: () => viewHub(), weaponTour, lessonDone });
+  }
+  async function lessonDone(id) {
+    if (NW.tut[id]) return;
+    NW.tut[id] = 1; NW.coins += 20; saveNw();
+    await showGift({ icon: '🏫', title: '字元 ×20', note: '學會了新本領！字元是新世界的貨幣，之後可以買東西、打造裝備。' });
+    await awardMissions();
+  }
+  async function weaponTour() {
+    const key = NW.gw[NW.gw.length - 1] || NW.starter;
+    const name = (weaponInfo(key) || {}).name || '新武器';
+    const ok = await tour([
+      { text: '先打開背包：按這個「🎒 背包」按鈕（也可以按鍵盤的 B）。', target: () => document.querySelector('[data-act="bagopen"]'), done: () => !!document.getElementById('nw-bag') },
+      { text: `點一下「${name}」，把它換到手上！`, target: () => document.querySelector(`#nw-bag [data-equip="${key}"]`), done: () => curWeapon(NW) === key },
+      { text: '換好了！看看左邊的角色，手上換成新武器了。按「關閉」回到村莊。', target: () => document.querySelector('#nw-bag [data-bag-close]'), done: () => !document.getElementById('nw-bag') }
+    ], { title: '換裝備教學' });
+    if (ok && !NW.tut.equip) { NW.tut.equip = 1; saveNw(); }
+  }
+
+  function openBugReport() {
+    const sheet = document.createElement('div');
+    sheet.className = 'fixed inset-0 grid place-items-center p-3'; sheet.style.zIndex = 96; sheet.style.background = 'rgba(9,8,18,.92)';
+    sheet.innerHTML = `<div class="px-panel" style="max-width:520px;width:100%;padding:16px">
+      <div class="px-title" style="font-size:1.4em">🐛 回報問題</div>
+      <p class="px-text mt-1 text-sm">遊戲哪裡怪怪的？畫面、按鍵、題目、魔物……都可以告訴我們，幫忙抓蟲的人會得到「除蟲員」稱號和字元！</p>
+      <div class="flex gap-2 mt-3 flex-wrap" data-cat>${['畫面', '按鍵／操作', '題目', '魔物', '其他'].map(t => `<button class="px-btn" data-c="${t}">${t}</button>`).join('')}</div>
+      <textarea data-text maxlength="300" rows="4" placeholder="發生了什麼事？你在做什麼的時候發生的？（至少 5 個字）" class="w-full mt-3 p-3 px-panel in" style="color:#fff"></textarea>
+      <p class="text-xs mt-1" style="color:#ffd98a">前 ${BUG_REWARD_MAX} 次回報，每次送 🪙 ${BUG_COINS} 字元。</p>
+      <div data-err class="text-sm mt-1" style="color:#e5705f;min-height:1.2em"></div>
+      <div class="flex gap-2 justify-end mt-2"><button class="px-btn" data-close>取消</button><button class="px-btn gold" data-send style="padding:8px 22px">送出</button></div></div>`;
+    let cat = '';
+    sheet.addEventListener('click', async e => {
+      const c = e.target.closest('[data-c]');
+      if (c) { cat = c.dataset.c; sheet.querySelectorAll('[data-c]').forEach(b => b.classList.toggle('gold', b === c)); return; }
+      if (e.target === sheet || e.target.closest('[data-close]')) { sheet.remove(); return; }
+      if (!e.target.closest('[data-send]')) return;
+      const err = sheet.querySelector('[data-err]'), text = sheet.querySelector('[data-text]').value.trim();
+      if (text.length < 5) { err.textContent = '多寫幾個字吧（至少 5 個字），這樣我們才看得懂'; return; }
+      if (!C.online()) { err.textContent = '現在連不上網路'; return; }
+      if (Date.now() - (openBugReport.last || 0) < 20000) { err.textContent = '剛剛才送過，等一下再送下一個'; return; }
+      try {
+        await C.withTimeout(C.setDoc(C.doc(C.db, 'mg_nw_flags', `bug_${ME.docId}_${Date.now()}`), { type: 'bug', cat, text, view, cls: ME.className, seat: ME.seat, name: ME.name, t: Date.now() }), 6000, 'nw-bug');
+      } catch (er) { err.textContent = '送出失敗，再試一次'; return; }
+      openBugReport.last = Date.now();
+      NW.bugs++;
+      const gift = NW.bugs <= BUG_REWARD_MAX;
+      if (gift) NW.coins += BUG_COINS;
+      const ws = checkWords(NW); saveNw(); sheet.remove();
+      await showGift({ icon: '🐛', title: gift ? `字元 ×${BUG_COINS}` : '謝謝你的回報', note: `收到了！你已經回報 ${NW.bugs} 個問題。${ws.length ? '新的稱號詞條：' + ws.join('、') + '。' : ''}` });
+      await awardMissions();
+      if (view === 'hub') viewHub();
+    });
+    document.body.appendChild(sheet);
+  }
+
+  function openTesterBook() {
+    const sheet = document.createElement('div');
+    sheet.className = 'fixed inset-0 overflow-y-auto'; sheet.style.zIndex = 94; sheet.style.background = 'rgba(9,8,18,.94)';
+    const done = TESTER_MISSIONS.filter(m => NW.tm[m.id]).length;
+    sheet.innerHTML = `<div class="max-w-2xl mx-auto p-3"><div class="px-panel" style="padding:14px">
+      <div class="flex items-center justify-between gap-2"><div class="px-title" style="font-size:1.5em">📓 測試員手冊</div><button class="px-btn" data-close>關閉</button></div>
+      <p class="px-text mt-1 text-sm">新世界還在試玩中，你是第一批冒險者！完成任務、抓到蟲蟲，都會蓋章、得字元和稱號。已完成 <b>${done} / ${TESTER_MISSIONS.length}</b>。</p>
+      <div class="flex flex-col gap-2 mt-3">${TESTER_MISSIONS.map(m => `<div class="px-panel in flex items-center gap-3" style="padding:8px 12px;${NW.tm[m.id] ? '' : 'opacity:.75'}"><span style="font-size:28px">${m.icon}</span><span style="flex:1"><b class="px-text">${m.t}</b><br><span class="text-xs" style="color:#aab0d8">${m.how}</span></span><span class="px-chip" style="color:${NW.tm[m.id] ? '#8ec96b' : '#ffd98a'}">${NW.tm[m.id] ? '✓ 已蓋章' : '🪙 ' + m.coins}</span></div>`).join('')}</div>
+      <div class="flex gap-2 justify-end mt-3 flex-wrap"><span class="px-text text-sm" style="align-self:center">已回報 ${NW.bugs} 個問題・寫了 ${Object.values(NW.fb).filter(v => v === 1).length} 份回饋</span><button class="px-btn gold" data-bug>🐛 回報問題</button></div></div></div>`;
+    sheet.addEventListener('click', e => {
+      if (e.target.closest('[data-close]')) sheet.remove();
+      else if (e.target.closest('[data-bug]')) { sheet.remove(); openBugReport(); }
+    });
+    document.body.appendChild(sheet);
+  }
+
   async function earlyGift() {
     if (!NW.starter || NW.giftedEarly || NW.gw.includes('testblade') || window.__NW_NOGIFT__) return;
     if (!gate().early) return;
@@ -527,6 +611,7 @@ export function initNewWorld(C) {
     saveNw();
     await showGift(Object.assign({}, g, { note: '謝謝你提前來測試新世界！' + g.note }));
     viewHub();
+    weaponTour();
   }
 
   const giftHash = async raw => sha256Hex('gift:' + cleanCode(raw));
@@ -555,6 +640,7 @@ export function initNewWorld(C) {
       NW.gifts.push(key); saveNw();
       C.withTimeout(C.setDoc(C.doc(C.db, 'mg_config', 'gift_codes'), { codes: { [h]: { used: C.increment(1) } } }, { merge: true }), 5000, 'gift-used').catch(() => {});
       sheet.remove(); await showGift(g); viewHub();
+      if (entry.reward.type === 'weapon') weaponTour();
     };
     sheet.addEventListener('click', e => { if (e.target === sheet || e.target.closest('[data-close]')) sheet.remove(); else if (e.target.closest('[data-ok]')) submit(); });
     inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) submit(); });
@@ -747,6 +833,7 @@ export function initNewWorld(C) {
     showResult(res, sum, async () => {
       if (sum.quests.length) toast(`任務完成：${sum.quests[0].t}　獎勵：${sum.quests[0].rewardText}`, 3600);
       if (sum.win && TEST_TAGS[res.mk] && !NW.fb[res.mk]) await askFeedback(res);
+      await awardMissions();
       viewBoard();
     });
   }
@@ -883,7 +970,7 @@ export function initNewWorld(C) {
     const a = e.target.closest('[data-act]');
     if (a) {
       const act = a.dataset.act;
-      ({ leave, gift: openGiftInput, hub: viewHub, map: viewBoard, bagopen: () => openBackpack('equip'), bagq: () => openBackpack('quest'),
+      ({ leave, gift: openGiftInput, book: openTesterBook, bug: openBugReport, hub: viewHub, map: viewBoard, bagopen: () => openBackpack('equip'), bagq: () => openBackpack('quest'),
          bag: () => { viewHub(); openBackpack('equip'); }, creator: () => viewCreator(false),
          leaveroom: () => { closeRoom(); viewBoard(); }, startroom: () => launch(cur.q),
          starter: viewStarter, rank: () => openRank() }[act] || (() => {}))();
@@ -891,5 +978,6 @@ export function initNewWorld(C) {
     }
   });
 
-  return { enter, gate, leave, reward, refresh: refreshAccess, openCode: openCodeSheet, get nw() { return NW; }, isOpen: () => !root.classList.contains('hidden') };
+  const giftPending = () => { if (!gate().early) return false; try { const l = JSON.parse(localStorage.getItem(lkey()) || 'null'); return !(l && (l.giftedEarly || (l.gw || []).includes('testblade'))); } catch (e) { return true; } };
+  return { enter, gate, leave, reward, giftPending, refresh: refreshAccess, openCode: openCodeSheet, get nw() { return NW; }, isOpen: () => !root.classList.contains('hidden') };
 }

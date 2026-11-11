@@ -56,6 +56,9 @@ body{
 .nwp-text h3,.nwp-page>h3{font-size:22px;font-weight:900;color:var(--gold);margin:0 0 4px}
 .nwp-text p{margin:4px 0}
 .nwp-sm{font-size:14px;color:var(--dim);line-height:1.45}
+#nw-door{position:relative}
+#nw-door[data-gift="1"]::after{content:'🎁';position:absolute;top:-8px;right:-4px;font-size:30px;animation:nwGiftBob .8s ease-in-out infinite}
+@keyframes nwGiftBob{50%{transform:translateY(-6px) rotate(10deg)}}
 .nwp-cta{padding:12px;border-radius:12px;background:var(--gold);color:#1a1409;font-weight:900;font-size:18px;border:0;cursor:pointer}
 .nwp-note{border:2px dashed var(--gold2);border-radius:var(--r);padding:8px 12px}
 .nwp-tag{display:inline-block;font-size:12px;font-weight:800;padding:1px 8px;border-radius:99px;border:1px solid var(--dim2);color:var(--dim);white-space:nowrap}
@@ -2692,14 +2695,16 @@ function initNw() {
    ══════════════════════════════════════════════════════════════ */
 const APP_VERSION = '3.11.0';
 const VERSION_LOG = [
-  { v:'3.11.0', date:'2026-11-11', title:'新世界：三隻測試魔物、序號禮物、測試者之刃',
+  { v:'3.11.0', date:'2026-11-11', title:'新世界：教學大樓、測試員手冊、序號禮物',
     added: [
-      '最先開放的三隻魔物改成「測試魔物」，各有不同的攻擊：咕咕鳥（閃避測試）、泡泡蛙（防禦測試）、跳跳菇（綜合測試）。打贏後可以寫回饋，寫了就送字元（新世界的貨幣）',
-      '村莊地板有黃色箭頭，帶你走到現在任務要去的地方；委託板上，任務要打的魔物會貼「任務目標」',
-      '新世界多了「🎁 序號」：輸入老師給的序號（輸入時會藏起來）就能領禮物，領到會跳出收到禮物的通知',
-      '提前來測試新世界的同學，會收到「測試者之刃」：黑色粒子環繞的雙刀，比一般雙刀強一點點'
+      '村莊多了「教學大樓」：閃避、防禦、打字攻擊三堂課，每一堂都是先看示範，再自己一步一步做；沒做對會一直等你，做對才換下一步。學會有字元可以拿',
+      '三隻測試魔物：咕咕鳥（閃避測試）、泡泡蛙（防禦測試）、跳跳菇（攻擊測試）。打贏可以寫回饋（可寫可不寫），寫了送字元（新世界的貨幣）',
+      '「📓 測試員手冊」：完成測試任務就蓋章、拿字元和稱號詞條；「🐛 回報問題」幫忙抓蟲，可以得到「除蟲員」「蟲蟲剋星」',
+      '提前來測試的同學，登入時大廳會通知有禮物；進村收到「測試者之刃」（黑色粒子的雙刀，比一般雙刀強一點點），還有一步一步的換裝備教學',
+      '「🎁 序號」：輸入老師給的序號（輸入時會藏起來）領禮物，領到會跳出收到禮物的通知',
+      '村莊地板有黃色箭頭帶路；委託板上，任務要打的魔物會貼「任務目標」'
     ],
-    changed: ['魔物的血量可以依人數調整（參考魔物獵人），之後組隊會用到'], fixed: [] },
+    changed: ['投票頁改叫「許願池」，提醒大家的想法不一定都會做；名字類的提名最多 8 個字，想法放到「其他想法」', '魔物的血量可以依人數調整（參考魔物獵人），之後組隊會用到'], fixed: [] },
   { v:'3.10.1', date:'2026-11-11', title:'投票整理一下',
     added: ['投票頁會寫出你在這一類已經提名幾個、投了幾票'],
     changed: [
@@ -5338,7 +5343,7 @@ function gotoLobby() {
   paintNwButton();
 }
 
-let doorTimer = 0, doorState = '';
+let doorTimer = 0, doorState = '', NW_GIFT_TOASTED = '';
 function paintNwDoor(state, sub) {
   $('nw-door').dataset.state = state;
   setTxt('nw-door-sub', sub);
@@ -5355,7 +5360,10 @@ async function paintNwButton() {
   if (!NWG) return;
   await NWG.refresh();
   const g = NWG.gate();
-  if (g.ok) paintNwDoor('open', g.early ? '搶先體驗！穿過去，開始冒險。' : '穿過去，開始冒險。');
+  const pending = g.ok && g.early && NWG.giftPending();
+  if (g.ok) paintNwDoor('open', pending ? '🎁 有禮物等你領！穿過去看看。' : g.early ? '搶先體驗！穿過去，開始冒險。' : '穿過去，開始冒險。');
+  if (pending && NW_GIFT_TOASTED !== ME.docId) { NW_GIFT_TOASTED = ME.docId; toast('🎁 新世界有一份禮物等你領取！到「新世界之門」穿過去看看', 5000); }
+  if (g.ok) { $('nw-door').dataset.gift = pending ? '1' : '0'; return; }
   else if (g.closed) paintNwDoor('locked', '還沒開放。有通關密語的同學，點一下門輸入。');
   else paintNwDoor('locked', `打到 LV ${BALANCE.unlockLevel.epic} 才能進（你目前最高 LV ${myBestLevel()}）。`);
 }

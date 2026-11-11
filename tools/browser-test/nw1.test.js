@@ -72,7 +72,7 @@ const seed = {
   ok(await p.evaluate(() => window.__FS['mg_scores/五年級3班_5號'].bestLevel) === 10, '原世界紀錄沒被動到');
   await p.screenshot({ path: OUT + '/nw1-hub.png' });
 
-  ok((await p.$$('.vb')).length === 9, '村莊有 8 棟建築與 1 個傳送門');
+  ok((await p.$$('.vb')).length === 10, '村莊有 9 棟建築（含教學大樓）與 1 個傳送門');
   ok((await p.$$eval('.vb', els => els.filter(e => e.textContent.includes('🔒')).length)) === 7, '第 1 階段只開委託板：七棟建築有鎖（含榮譽碑）');
   await p.click('.vb[data-bld="forge"]'); await p.waitForTimeout(900);
   ok((await p.textContent('body')).includes('施工中') && !/施工中・第/.test(await p.textContent('body')), '走到施工中的建築門口：跳出預告卡，不寫第幾段');

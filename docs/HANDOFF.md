@@ -6,6 +6,8 @@
 
 ## 現在在哪裡
 
+> 想加入的內容（寵物、轉蛋、造型衣服等）見 [`IDEAS-FUTURE.md`](IDEAS-FUTURE.md)；那只是點子池，沒有一項是承諾。
+
 | 項目 | 狀態 | 在哪 |
 |---|---|---|
 | 新世界企畫書 v2.2 | 完成，老師已審過四輪 | [`GDD-NEWWORLD.md`](GDD-NEWWORLD.md) |
@@ -32,6 +34,12 @@
 - 加詞條：`nw-data.js` 的 `WORDS` 加一列（`id`、`w`、`g` 組別、`how` 條件文字、`test(nw)`）；武器詞條用 `wword()`。解鎖在 `checkWords()`（進村與每場結束時跑），存在 `NW.words`；學生拚的存在 `NW.titleParts`／`NW.title`。
 - 武器進度靠 `NW.used`、`NW.wwin`（`finishHunt` 累加）。之後新增武器要在 `WORDS` 補 3 個詞條。
 - 舊世界顯示：`index.html` 的 `nwTitleChip`／`paintWho`，資料來自 `mg_scores.nwTitle`／`nwTitleN`。
+
+### 教學大樓與導覽（v3.11.0）
+- 教學課在 `nw-academy.js`：`LESSONS`（選單）、`STEPS`（每步 `demo` 示範或 `task` 讓學生做；`task` 回 true 過關、false 重來）、`makeScene()`（小場景，不會受傷）。新增教學＝加一組 `STEPS` 與 `LESSONS` 一列，`newworld.js` 的 `lessonDone()` 負責獎勵。
+- 導覽 `tour(steps)`：每步 `{text, target(), done()}`。用在換裝備教學（`weaponTour()`）。
+- 測試員手冊 `TESTER_MISSIONS`／`checkMissions()`；回報問題 `openBugReport()`；兩者都在 `newworld.js`，資料欄位 `NW.tm`、`NW.bugs`、`NW.tut`。
+- 之後的點子在 `docs/IDEAS-FUTURE.md`。
 
 ### 測試魔物、序號禮物、測試者之刃（v3.11.0）
 - 三隻測試魔物與各自的攻擊在 `nw-data.js` 的 `TEST_TAGS`／`ATTACKS_OPEN`；回饋視窗 `askFeedback()`、禮物 `showGift()`／`applyReward()`／`openGiftInput()`、提前送刀 `earlyGift()` 都在 `newworld.js`。

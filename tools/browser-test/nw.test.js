@@ -65,7 +65,7 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
   // 2. 投票頁：沒填身分
   await goPage('vote');
   const vt = await p.textContent('#nwp-page');
-  ok(vt.includes('一起決定') && vt.includes('按下面的分類') && vt.includes('Enter') && vt.includes('投一票'), '投票頁最上面寫出怎麼選、怎麼輸入、怎麼投');
+  ok(vt.includes('許願池') && vt.includes('按下面的分類') && vt.includes('Enter') && vt.includes('投一票'), '投票頁最上面寫出怎麼選、怎麼輸入、怎麼投');
   ok(await p.isDisabled('.nw-in[data-cat="monster"]'), '沒填姓名時輸入框停用');
   ok((await p.textContent('#nw-who')).includes('要先在首頁填好'), '提示要先填身分');
   await p.click('#nw-close');
@@ -177,6 +177,19 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
   ok(doc.noms.filter(n => n.cat === 'monster').length === 0 && (await p.textContent('#nw-list-monster')).includes('還沒有人提名'), '老師按「刪除這一類全部提名」：整個分類清空');
   await p.click('#nw-admin'); await p.waitForTimeout(200);
   ok((await p.$$('.nw-del')).length === 0 && (await p.$$('#nw-clearcat')).length === 0, '一般學生看不到刪除按鈕');
+
+  // 7d. 老師把放錯分類的提名搬到對的地方
+  await p.click('.nwp-cat[data-cat="monster"]'); await p.waitForTimeout(100);
+  await p.evaluate(() => { const d = window.__FS['mg_config/nw_vote']; d.noms.push({ id: 'misfiled', cat: 'monster', text: '雙人 PK 等同學上線時可以玩', cls: '五年級9班', seat: '11', name: '同學', t: 5000 }); });
+  await p.click('#nw-close'); await p.click('#btn-nw'); await goPage('vote'); await p.waitForTimeout(300);
+  await p.click('#nw-admin'); await p.fill('#nw-admin-pw', 'teacher'); await p.click('#nw-admin-ok'); await p.waitForTimeout(200);
+  await p.evaluate(() => { const sel = [...document.querySelectorAll('#nw-list-monster .nw-mv')].find(x => x.dataset.id === 'misfiled'); if (sel) { sel.value = 'other'; sel.dispatchEvent(new Event('change', { bubbles: true })); } });
+  await p.waitForTimeout(300);
+  doc = await p.evaluate(() => window.__FS['mg_config/nw_vote']);
+  ok(doc.noms.find(n => n.id === 'misfiled').cat === 'other', '老師用「搬到…」把放錯分類的提名搬到「其他想法」');
+  await p.click('#nw-admin'); await p.waitForTimeout(200);
+  await p.fill('.nw-in[data-cat="monster"]', '這是一個很長的魔物名字喔不是想法');
+  ok((await p.inputValue('.nw-in[data-cat="monster"]')).length <= 8, '名字類的輸入框最多 8 個字（想法放到「其他想法」，那格最多 20 字）');
 
   // 8. 排序切換
   await p.click('#nw-sort'); ok((await p.textContent('#nw-sort')).includes('最新'), '排序可切換');

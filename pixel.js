@@ -718,7 +718,7 @@ function buildingGrid(kind) {
   } else {
     const defs = {
       quest: ['#3a5aa8', '#c9b8a0'], equip: ['#a84a8a', '#e8d8c0'], forge: ['#6a4a3a', '#8a6a5a'], storage: ['#7a5a2a', '#a8844f'],
-      shop: ['#c0392b', '#e8d8c0'], armor: ['#5a6a7a', '#aab0b8'], rooms: ['#8a3a2a', '#c8a070']
+      shop: ['#c0392b', '#e8d8c0'], armor: ['#5a6a7a', '#aab0b8'], rooms: ['#8a3a2a', '#c8a070'], academy: ['#2a6a9a', '#e8e0c8']
     };
     const [roof, wall] = defs[kind];
     if (kind === 'forge') { rect(s, 34, 0, 7, 16, '#7a5a4a'); rect(s, 34, 0, 7, 2, '#4a3a2a'); }
@@ -732,6 +732,7 @@ function buildingGrid(kind) {
       rect(s, 6, 34, 8, 8, '#c8964f'); rect(s, 6, 34, 8, 1, '#e8c07a'); rect(s, 6, 38, 8, 1, '#8a5a2b'); rect(s, 34, 34, 8, 8, '#c8964f'); rect(s, 34, 34, 8, 1, '#e8c07a'); rect(s, 34, 38, 8, 1, '#8a5a2b');
     } else {
       door(8); win(9, 26); win(34, 26);
+      if (kind === 'academy') { rect(s, 21, 0, 6, 9, '#c8912f'); rect(s, 22, 1, 4, 7, '#f6d77a'); put(s, 24, 9, '#6a4a12'); rect(s, 8, 12, 1, 8, '#e8e8e8'); poly(s, [[9, 12], [17, 14], [9, 16]], '#e8453a'); rect(s, 20, 24, 8, 1, '#2a6a9a'); rect(s, 22, 26, 4, 3, '#2a6a9a'); }
       if (kind === 'quest') { [[8, 0, '#c0392b'], [38, 0, '#3a7ad8']].forEach(([x, y, c]) => { rect(s, x, y + 4, 1, 12, '#e8e8e8'); poly(s, [[x + 1, y + 4], [x + 9, y + 7], [x + 1, y + 10]], c); }); }
       if (kind === 'equip') { awning('#e8b64c', '#a84a8a', 5, 38); rect(s, 21, 30, 6, 2, '#3a2414'); disc(s, 40, 14, 3, '#f2c7a0'); }
       if (kind === 'shop') { awning('#c0392b', '#fff6dc', 5, 38); disc(s, 24, 14, 4, '#e8b64c'); rect(s, 23, 12, 2, 5, '#c8912f'); }
