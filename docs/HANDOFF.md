@@ -33,6 +33,12 @@
 - 武器進度靠 `NW.used`、`NW.wwin`（`finishHunt` 累加）。之後新增武器要在 `WORDS` 補 3 個詞條。
 - 舊世界顯示：`index.html` 的 `nwTitleChip`／`paintWho`，資料來自 `mg_scores.nwTitle`／`nwTitleN`。
 
+### 測試魔物、序號禮物、測試者之刃（v3.11.0）
+- 三隻測試魔物與各自的攻擊在 `nw-data.js` 的 `TEST_TAGS`／`ATTACKS_OPEN`；回饋視窗 `askFeedback()`、禮物 `showGift()`／`applyReward()`／`openGiftInput()`、提前送刀 `earlyGift()` 都在 `newworld.js`。
+- 序號資料 `mg_config/gift_codes.codes[雜湊]`（`reward`、`max`、`used`、`label`）；教師控制台管理（`index.html` 的 `tgLoad`／`tgAdd`／`tgDel`）。回饋在 `mg_nw_flags`（`type:'feedback'`），控制台 `openNwFeedback()` 查看。以上都不需要改 Firestore 規則。
+- 新增武器：在 `GIFT_WEAPONS` 加一列（`base` 指向用哪種機制），`pixel.js` 的 `W.xxx` 與手上的武器圖，戰鬥用 `wmod.dmgMul`／`chantEvery`。
+- 魔物血量依人數：`hpPlayersMul()`；組隊時把人數放進 `cfg.players`。
+
 ### 魔物攻擊「慢慢加入」（2026-11-11）
 目前所有魔物都**不攻擊**。開放方式：改 `nw-data.js` 的 `ATTACKS_OPEN`（見 CHANGELOG v3.9.2）。開放前建議用 `tools/nw-sim/` 重算血量與勝率，並先在一隻魔物上試；開放後同步更新預告頁的說明、CHANGELOG、`VERSION_LOG`、pcclass 的 `TYPEHERO_UPDATES`。
 

@@ -2,7 +2,7 @@ import { PX } from './pixel.js';
 import {
   LOOK, DEFAULT_LOOK, heroLook, STARTERS, LOCKED_WEAPONS, REGIONS, MAP_POS, ELEM, STATUS, MONSTERS,
   regionLv, MAIN_QUESTS, normalizeNw, currentQuest, zoneOpen, starOpen, addHrExp, hrNeed, huntExp, huntCoins,
-  COLOR_NAME, COLOR_HEX, HR_MAX, VILLAGE, doorTile, buildingOpen, WORDS, WORD_GROUPS, checkWords, setTitleParts, wordById
+  COLOR_NAME, COLOR_HEX, HR_MAX, VILLAGE, doorTile, buildingOpen, goalOf, TEST_TAGS, FB_COINS, FB_MINLEN, GIFT_WEAPONS, weaponInfo, weaponBase, curWeapon, WORDS, WORD_GROUPS, checkWords, setTitleParts, wordById
 } from './nw-data.js';
 import { injectUi } from './nw-ui.js';
 import { mountVillage } from './nw-village.js';
@@ -185,7 +185,7 @@ export function initNewWorld(C) {
   }
 
   const tier = () => (C.getHist() && C.getHist().tier) || 'B';
-  const myHero = (weapon, gear) => heroLook(NW.look, weapon || NW.starter || 'staff', gear);
+  const myHero = (weapon, gear) => heroLook(NW.look, weapon || curWeapon(NW) || 'staff', gear);
 
   function checkQuests() {
     const got = [];
@@ -241,7 +241,7 @@ export function initNewWorld(C) {
 
   const FAST = location.hostname === 'localhost' && (() => { try { return localStorage.getItem('mg_nw_fast') === '1'; } catch (e) { return false; } })();
   let village = null;
-  const myChibi = () => heroLook(NW.look, NW.starter || 'staff');
+  const myChibi = () => heroLook(NW.look, curWeapon(NW) || 'staff');
 
   function enterBuilding(b) {
     if (b.id === 'gate') { leave(); return; }
@@ -269,6 +269,7 @@ export function initNewWorld(C) {
               ${q ? `<button class="px-chip" data-act="bagq" style="color:#ffd98a;cursor:pointer">📌 ${escHtml(q.t)}</button>` : ''}</div>
           </div>
           <button class="px-btn gold" data-act="bagopen">🎒 背包</button>
+          <button class="px-btn" data-act="gift">🎁 序號</button>
           <button class="px-btn" data-act="leave">← 回舊世界</button>
         </div>
       </div>
@@ -277,8 +278,9 @@ export function initNewWorld(C) {
       el.querySelector('[data-hero]').replaceChildren(PX.chibi(myChibi(), 'down', 0, 3));
       village = mountVillage(el.querySelector('#vmap'), {
         PX, look: myChibi(), open: VILLAGE.buildings.filter(buildingOpen).map(b => b.id),
-        start: NW.pos || VILLAGE.start, scroller: root, fast: FAST, onEnter: enterBuilding
+        start: NW.pos || VILLAGE.start, scroller: root, fast: FAST, onEnter: enterBuilding, guide: goalOf(NW) ? goalOf(NW).building : null
       });
+      earlyGift();
     });
   }
 
@@ -334,7 +336,7 @@ export function initNewWorld(C) {
         <div class="mt-5 text-right"><button class="px-btn gold px-8 py-3 text-lg" data-save>${first ? '決定了！下一步' : '儲存'}</button></div>
       </div>`, el => {
       const prev = el.querySelector('[data-prev]');
-      const redraw = () => prev.replaceChildren(PX.hero(heroLook(look, NW.starter || 'staff'), 9));
+      const redraw = () => prev.replaceChildren(PX.hero(heroLook(look, curWeapon(NW) || 'staff'), 9));
       redraw();
       wireLook(el, look, redraw);
       el.querySelector('[data-save]').addEventListener('click', () => {
@@ -450,15 +452,16 @@ export function initNewWorld(C) {
 
   function bagBody(tab) {
     if (tab === 'equip') {
-      const w = STARTERS[NW.starter], swapLeft = Math.max(0, 3 - NW.hunts);
-      const cells = (w ? [`<div class="bp-cell on" title="${w.name}"><div data-sprite="weapon:${NW.starter}:3"></div></div>`] : []).concat(Array(15).fill('<div class="bp-cell"></div>')).slice(0, 16).join('');
+      const cur = curWeapon(NW), w = weaponInfo(cur), swapLeft = Math.max(0, 3 - NW.hunts);
+      const owned = (NW.starter ? [NW.starter] : []).concat(NW.gw);
+      const cells = owned.map(k => `<div class="bp-cell ${k === cur ? 'on' : ''} ${GIFT_WEAPONS[k] ? 'dark' : ''}" data-equip="${k}" title="${weaponInfo(k).name}（點一下換上）" style="cursor:pointer"><div data-sprite="weapon:${k}:3"></div>${GIFT_WEAPONS[k] ? darkDots() : ''}</div>`).concat(Array(16).fill('<div class="bp-cell"></div>')).slice(0, 16).join('');
       return `<h3 class="text-lg mb-2">裝備背包</h3>
         <div class="grid gap-2" style="grid-template-columns:repeat(4,minmax(0,1fr));max-width:340px">${cells}</div>
         <div class="mt-3"><div class="label">現在的武器</div>
           <div class="text-xl px-title">${w ? w.name : '還沒選'} <span class="text-sm" style="color:#aab0d8">${w ? w.kind : ''}</span></div>
           <p class="text-sm mt-1 px-text">${w ? w.desc : ''}</p>
           <button class="px-btn gold mt-2" data-bag-act="starter">${swapLeft > 0 ? '換武器' : '武器（不能再免費換）'}</button>
-          <p class="text-xs mt-2" style="color:#aab0d8">${swapLeft > 0 ? `前 3 場狩獵可以免費換，還剩 ${swapLeft} 場。` : '前 3 場已經過了，之後要打造新武器才能換。'}打造出來的裝備會放在這個背包裡。</p></div>`;
+          <p class="text-xs mt-2" style="color:#aab0d8">${swapLeft > 0 ? `前 3 場狩獵可以免費換，還剩 ${swapLeft} 場。` : '前 3 場已經過了，之後要打造新武器才能換。'}${NW.gw.length ? '格子裡的武器，點一下就能換上。' : ''}打造出來的裝備會放在這個背包裡。</p></div>`;
     }
     if (tab === 'items') {
       const rows = Object.entries(NW.items).filter(([, n]) => n > 0).map(([id, n]) => `<div class="px-panel in flex justify-between"><span>🧪 ${id === 'potion' ? '回復藥' : id}</span><b>×${n}</b></div>`);
@@ -484,6 +487,79 @@ export function initNewWorld(C) {
   }
 
   function syncTitle() { if (C.setTitle) C.setTitle(NW.title || '', (NW.titleParts || []).length); }
+
+  const darkDots = () => Array.from({ length: 7 }, (_, i) => `<i class="dkp" style="left:${8 + i * 7}px;bottom:${6 + (i * 5) % 18}px;animation-delay:${(i * .23).toFixed(2)}s;--dx:${(i % 2 ? 6 : -6)}px"></i>`).join('');
+
+  function showGift(g) {
+    return new Promise(done => {
+      const sheet = document.createElement('div');
+      sheet.id = 'nw-gift'; sheet.className = 'fixed inset-0 z-[97] grid place-items-center p-3'; sheet.style.zIndex = 97; sheet.style.background = 'rgba(9,8,18,.92)';
+      sheet.innerHTML = `<style>@keyframes giftPop{0%{transform:scale(.4) rotate(-8deg)}60%{transform:scale(1.12) rotate(3deg)}100%{transform:scale(1) rotate(0)}}@keyframes giftBob{50%{transform:translateY(-6px)}}</style>
+        <div class="px-panel text-center" style="max-width:420px;width:100%;padding:20px;animation:giftPop .5s ease-out">
+          <div class="px-title" style="font-size:1.5em">🎁 收到禮物！</div>
+          <div data-ico style="position:relative;display:inline-block;margin:14px auto 6px;min-width:90px;min-height:90px;animation:giftBob 1.4s ease-in-out infinite">${g.dark ? darkDots() : ''}</div>
+          <div class="px-title" style="font-size:1.3em;color:#ffd98a">${escHtml(g.title)}</div>
+          <p class="px-text mt-2" style="font-size:.95em">${escHtml(g.note || '')}</p>
+          <div class="mt-4"><button class="px-btn gold" style="padding:8px 30px" data-ok>收下</button></div></div>`;
+      const ico = sheet.querySelector('[data-ico]');
+      if (g.weapon) ico.prepend(PX.canvas('weapon', g.weapon, 4, false)); else ico.insertAdjacentHTML('afterbegin', `<span style="font-size:60px;line-height:90px">${g.icon || '🎁'}</span>`);
+      sheet.addEventListener('click', e => { if (e.target.closest('[data-ok]')) { sheet.remove(); done(); } });
+      document.body.appendChild(sheet);
+    });
+  }
+
+  function applyReward(r) {
+    if (r.type === 'weapon') {
+      const w = GIFT_WEAPONS[r.key]; if (!w) return null;
+      if (!NW.gw.includes(r.key)) NW.gw.push(r.key);
+      return { weapon: r.key, dark: !!w.dark, title: w.name, note: `${w.desc}　到背包的裝備格點一下就能換上。` };
+    }
+    if (r.type === 'coins') { NW.coins += r.n; return { icon: '🪙', title: `字元 ×${r.n}`, note: '字元是新世界的貨幣，之後可以買東西、打造裝備。' }; }
+    if (r.type === 'potion') { NW.items.potion = (NW.items.potion || 0) + r.n; return { icon: '🧪', title: `回復藥 ×${r.n}`, note: '回復藥要等商店開張才能在戰鬥中使用，先幫你存著。' }; }
+    return null;
+  }
+
+  async function earlyGift() {
+    if (!NW.starter || NW.giftedEarly || NW.gw.includes('testblade') || window.__NW_NOGIFT__) return;
+    if (!gate().early) return;
+    NW.giftedEarly = true;
+    const g = applyReward({ type: 'weapon', key: 'testblade' });
+    saveNw();
+    await showGift(Object.assign({}, g, { note: '謝謝你提前來測試新世界！' + g.note }));
+    viewHub();
+  }
+
+  const giftHash = async raw => sha256Hex('gift:' + cleanCode(raw));
+  function openGiftInput() {
+    const sheet = document.createElement('div');
+    sheet.className = 'fixed inset-0 z-[90] grid place-items-center p-3'; sheet.style.zIndex = 90; sheet.style.background = 'rgba(9,8,18,.9)';
+    sheet.innerHTML = `<div class="px-panel" style="max-width:420px;width:100%;padding:18px">
+      <div class="px-title" style="font-size:1.4em">🎁 兌換序號</div>
+      <p class="px-text mt-1 text-sm">輸入老師給你的序號，就能領禮物。輸入的字會藏起來。</p>
+      <input data-code type="password" autocomplete="new-password" autocapitalize="off" spellcheck="false" placeholder="輸入序號" class="w-full mt-3 p-3 px-panel in mono" style="color:#fff">
+      <div data-err class="text-sm mt-2" style="color:#e5705f;min-height:1.3em"></div>
+      <div class="flex gap-2 justify-end mt-2"><button class="px-btn" data-close>取消</button><button class="px-btn gold" data-ok style="padding:8px 22px">兌換</button></div></div>`;
+    const inp = sheet.querySelector('[data-code]'), err = sheet.querySelector('[data-err]');
+    let bad = 0, lockUntil = 0;
+    const submit = async () => {
+      if (Date.now() < lockUntil) { err.textContent = '錯太多次了，等一下再試試看'; return; }
+      const raw = inp.value; if (!cleanCode(raw)) { err.textContent = '請先輸入序號'; return; }
+      if (!C.online()) { err.textContent = '現在連不上網路'; return; }
+      const h = await giftHash(raw), key = h.slice(0, 16);
+      let entry = null;
+      try { const s = await C.withTimeout(C.getDoc(C.doc(C.db, 'mg_config', 'gift_codes')), 5000, 'gift'); entry = s.exists() ? ((s.data().codes || {})[h] || null) : null; } catch (e) { err.textContent = '讀取失敗，再試一次'; return; }
+      if (!entry) { bad++; err.textContent = '序號不對喔'; if (bad >= 5) { lockUntil = Date.now() + 30000; bad = 0; } return; }
+      if (NW.gifts.includes(key)) { err.textContent = '這組序號你已經領過了'; return; }
+      if (entry.max && (entry.used || 0) >= entry.max) { err.textContent = '這組序號已經被領完了'; return; }
+      const g = applyReward(entry.reward); if (!g) { err.textContent = '這組序號有問題，請告訴老師'; return; }
+      NW.gifts.push(key); saveNw();
+      C.withTimeout(C.setDoc(C.doc(C.db, 'mg_config', 'gift_codes'), { codes: { [h]: { used: C.increment(1) } } }, { merge: true }), 5000, 'gift-used').catch(() => {});
+      sheet.remove(); await showGift(g); viewHub();
+    };
+    sheet.addEventListener('click', e => { if (e.target === sheet || e.target.closest('[data-close]')) sheet.remove(); else if (e.target.closest('[data-ok]')) submit(); });
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) submit(); });
+    document.body.appendChild(sheet); inp.focus();
+  }
 
   function closeBag() { const b = document.getElementById('nw-bag'); if (b) b.remove(); }
 
@@ -541,6 +617,9 @@ export function initNewWorld(C) {
       .bp-title:hover{border-color:#ffd24a}
       .bp-cell{aspect-ratio:1;display:grid;place-items:center;background:#0e0b16;border:3px solid #2a2450;position:relative}
       .bp-cell.on{border-color:#e8b64c}
+      .bp-cell.dark,.bp-slot.dark{overflow:visible}
+      .dkp{position:absolute;width:3px;height:3px;background:#12081e;box-shadow:0 0 0 1px #9a5ae8;opacity:0;animation:dkp 1.6s infinite;pointer-events:none}
+      @keyframes dkp{0%{opacity:0;transform:translateY(0)}20%{opacity:1}100%{opacity:0;transform:translateY(-30px) translateX(var(--dx,0))}}
     </style><div class="max-w-5xl mx-auto p-3"><div class="px-panel" style="padding:12px">
       <div class="flex items-center justify-between mb-3"><div class="px-title text-2xl">🎒 背包</div><button class="px-btn" data-bag-close>關閉（B）</button></div>
       <div class="flex gap-3 flex-wrap items-start">
@@ -548,8 +627,8 @@ export function initNewWorld(C) {
         <div class="flex-1" style="min-width:280px"><div class="flex gap-2 flex-wrap mb-2">${TABS.map(([k, i, n]) => `<button class="px-btn" data-bag-tab="${k}">${i} ${n}</button>`).join('')}</div>
           <div class="px-panel in" style="min-height:360px" data-body></div></div></div></div></div>`;
     const slot = (k, n) => {
-      const w = k === 'weapon' && NW.starter;
-      return `<div class="bp-slot ${w ? 'on' : ''}" data-slot="${k}">${w ? `<div data-sprite="weapon:${NW.starter}:3"></div>` : '<span>＋</span>'}<i>${n}</i></div>`;
+      const w = k === 'weapon' && curWeapon(NW);
+      return `<div class="bp-slot ${w ? 'on' : ''} ${w && GIFT_WEAPONS[w] ? 'dark' : ''}" data-slot="${k}">${w ? `<div data-sprite="weapon:${w}:3"></div>${GIFT_WEAPONS[w] ? darkDots() : ''}` : '<span>＋</span>'}<i>${n}</i></div>`;
     };
     const renderCard = () => {
       const c = sheet.querySelector('[data-card]');
@@ -575,6 +654,8 @@ export function initNewWorld(C) {
       if (e.target === sheet || e.target.closest('[data-bag-close]')) { closeBag(); return; }
       const t = e.target.closest('[data-bag-tab]'); if (t) { render(t.dataset.bagTab); return; }
       if (e.target.closest('[data-title-edit]')) { openTitleEditor(renderCard); return; }
+      const eq = e.target.closest('[data-equip]');
+      if (eq) { NW.equip = eq.dataset.equip === NW.starter ? '' : eq.dataset.equip; saveNw(); renderCard(); render('equip'); return; }
       const a = e.target.closest('[data-bag-act]');
       if (a) { closeBag(); if (a.dataset.bagAct === 'starter') viewStarter(); else viewCreator(false); }
     });
@@ -611,7 +692,7 @@ export function initNewWorld(C) {
 
   function viewBoard() {
     setView('board', `${topbar('📜 冒險者公會', 'hub')}<div id="board"></div>`, el => {
-      village = mountBoard(el.querySelector('#board'), { PX, NW, selected: boardSel, loadRooms, onSelect: id => { boardSel = id; }, onHunt: q => openRoom(q) });
+      village = mountBoard(el.querySelector('#board'), { PX, NW, goal: goalOf(NW), selected: boardSel, loadRooms, onSelect: id => { boardSel = id; }, onHunt: q => openRoom(q) });
     });
   }
 
@@ -663,20 +744,60 @@ export function initNewWorld(C) {
 
   function afterHunt(res) {
     const sum = finishHunt(res);
-    showResult(res, sum, () => { if (sum.quests.length) toast(`任務完成：${sum.quests[0].t}　獎勵：${sum.quests[0].rewardText}`, 3600); viewBoard(); });
+    showResult(res, sum, async () => {
+      if (sum.quests.length) toast(`任務完成：${sum.quests[0].t}　獎勵：${sum.quests[0].rewardText}`, 3600);
+      if (sum.win && TEST_TAGS[res.mk] && !NW.fb[res.mk]) await askFeedback(res);
+      viewBoard();
+    });
+  }
+
+  function askFeedback(res) {
+    return new Promise(done => {
+      const m = MONSTERS[res.mk];
+      const sheet = document.createElement('div');
+      sheet.id = 'nw-fb'; sheet.className = 'fixed inset-0 z-[96] grid place-items-center p-3'; sheet.style.zIndex = 96; sheet.style.background = 'rgba(9,8,18,.92)';
+      sheet.innerHTML = `<div class="px-panel" style="max-width:520px;width:100%;padding:16px;max-height:94vh;overflow-y:auto">
+        <div class="px-title" style="font-size:1.4em">🧪 測試回饋</div>
+        <p class="px-text mt-2">你剛打完「<b>${escHtml(m.name)}</b>」，謝謝你幫忙測試！覺得好打嗎？紅線看得清楚嗎？有什麼想法？<b>可以寫，也可以不寫。</b></p>
+        <div class="flex gap-2 mt-3" data-rate>${[['😀', '好玩'], ['😐', '普通'], ['😣', '太難']].map(([e, t]) => `<button class="px-btn" data-r="${t}" style="flex:1;font-size:1.1em">${e} ${t}</button>`).join('')}</div>
+        <textarea data-text maxlength="200" rows="4" placeholder="想說什麼都可以寫在這裡（最多 200 字）" class="w-full mt-3 p-3 px-panel in" style="color:#fff;font-size:1.05em"></textarea>
+        <p class="text-sm mt-2" style="color:#ffd98a">寫了（至少 ${FB_MINLEN} 個字）就送你 🪙 <b>${FB_COINS} 字元</b>！字元是新世界的<b>貨幣</b>，之後可以在商店買東西、到鐵匠鋪打造裝備。</p>
+        <div class="flex gap-2 justify-end mt-3"><button class="px-btn" data-skip>先不要</button><button class="px-btn gold" data-send style="padding:8px 22px">送出</button></div></div>`;
+      let rate = '';
+      sheet.addEventListener('click', async e => {
+        const r = e.target.closest('[data-r]');
+        if (r) { rate = r.dataset.r; sheet.querySelectorAll('[data-r]').forEach(b => b.classList.toggle('gold', b === r)); return; }
+        if (e.target.closest('[data-skip]')) { NW.fb[res.mk] = 'skip'; saveNw(); sheet.remove(); done(); return; }
+        if (!e.target.closest('[data-send]')) return;
+        const text = sheet.querySelector('[data-text]').value.trim();
+        if (!text && !rate) { NW.fb[res.mk] = 'skip'; saveNw(); sheet.remove(); done(); return; }
+        if (!C.online()) { toast('現在連不上網路，回饋還沒送出，等一下再試試看', 3000); return; }
+        const id = `fb_${ME.docId}_${res.mk}_${Date.now()}`;
+        try {
+          await C.withTimeout(C.setDoc(C.doc(C.db, 'mg_nw_flags', id), { type: 'feedback', mk: res.mk, mon: m.name, star: res.star, rate, text, cls: ME.className, seat: ME.seat, name: ME.name, t: Date.now() }), 6000, 'nw-fb');
+        } catch (err) { console.warn('回饋送出失敗', err); toast('送出失敗，再試一次', 2500); return; }
+        const gift = text.length >= FB_MINLEN;
+        NW.fb[res.mk] = 1;
+        if (gift) NW.coins += FB_COINS;
+        saveNw(); sheet.remove();
+        if (gift) await showGift({ icon: '🪙', title: `字元 ×${FB_COINS}`, note: '謝謝你的回饋！字元是新世界的貨幣，之後可以買東西、打造裝備。' }); else toast('收到你的回饋了，謝謝！', 2600);
+        done();
+      });
+      document.body.appendChild(sheet);
+    });
   }
 
   function finishHunt(res) {
     const lv = regionLv(res.rk, res.star), m = MONSTERS[res.mk];
     const s = NW.stat;
     NW.hunts++;
-    if (NW.starter) NW.used[NW.starter] = 1;
+    if (NW.starter) NW.used[weaponBase(curWeapon(NW))] = 1;
     s.dodgeOk += res.dodgeOk; s.dodgeAll += res.dodgeAll; s.defOk += res.defOk; s.defAll += res.defAll;
     const sum = { lv, win: res.result === 'win', exp: 0, coins: 0, drops: [], rare: [], ups: 0, quests: [], star: res.star };
     if (res.valid) {
       if (sum.win) {
         s.wins++;
-        NW.wwin[NW.starter] = (NW.wwin[NW.starter] || 0) + 1;
+        NW.wwin[weaponBase(curWeapon(NW))] = (NW.wwin[weaponBase(curWeapon(NW))] || 0) + 1;
         if (res.accuracy >= 100 && lv >= 10) NW.perfect = (NW.perfect || 0) + 1;
         NW.dex[res.mk] = (NW.dex[res.mk] || 0) + 1;
         if (res.star > (NW.zone[res.rk] || 0)) NW.zone[res.rk] = res.star;
@@ -762,7 +883,7 @@ export function initNewWorld(C) {
     const a = e.target.closest('[data-act]');
     if (a) {
       const act = a.dataset.act;
-      ({ leave, hub: viewHub, map: viewBoard, bagopen: () => openBackpack('equip'), bagq: () => openBackpack('quest'),
+      ({ leave, gift: openGiftInput, hub: viewHub, map: viewBoard, bagopen: () => openBackpack('equip'), bagq: () => openBackpack('quest'),
          bag: () => { viewHub(); openBackpack('equip'); }, creator: () => viewCreator(false),
          leaveroom: () => { closeRoom(); viewBoard(); }, startroom: () => launch(cur.q),
          starter: viewStarter, rank: () => openRank() }[act] || (() => {}))();

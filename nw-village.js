@@ -4,7 +4,7 @@ const T = 16;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 export function mountVillage(host, o) {
-  const { PX, look, open, start, onEnter, scroller, fast } = o;
+  const { PX, look, open, start, onEnter, scroller, fast, guide } = o;
   const V = VILLAGE, W = V.cols * T, H = V.rows * T;
   const availW = host.clientWidth || innerWidth, availH = (scroller ? scroller.clientHeight : innerHeight) - 130;
   const sc = clamp(Math.floor(Math.min(availW / W, (availH + 110) / H)), 2, 5);
@@ -153,6 +153,23 @@ export function mountVillage(host, o) {
   const onEnterKey = e => { if (e.key === 'Enter' && !/INPUT|TEXTAREA|SELECT|BUTTON/.test((e.target && e.target.tagName) || '')) { e.preventDefault(); act(); } };
   addEventListener('keydown', onEnterKey);
 
+  function drawGuide() {
+    if (P.t - gT > .3) { gT = P.t; const d = doorTile(gB); gPath = bfs(tileOf(), [d[0], d[1]]) || []; }
+    let prev = tileOf();
+    gPath.forEach((c, i) => {
+      const ang = Math.atan2(c[1] - prev[1], c[0] - prev[0]); prev = c;
+      if (i >= gPath.length - 1) return;
+      const a = .3 + .7 * Math.max(0, Math.sin(P.t * 5 - i * .7));
+      g.save(); g.translate(c[0] * T + 8, c[1] * T + 8); g.rotate(ang);
+      g.fillStyle = `rgba(255,214,74,${a})`; g.strokeStyle = `rgba(60,36,8,${a})`; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(-4, -5); g.lineTo(3, 0); g.lineTo(-4, 5); g.lineTo(-2, 0); g.closePath(); g.fill(); g.stroke();
+      g.restore();
+    });
+    const bob = Math.round(Math.sin(P.t * 5) * 2), cx = gB.x * T + 24, cy = gB.y * T - 8 + bob;
+    g.fillStyle = '#ffd24a'; g.strokeStyle = '#3c2408'; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(cx - 6, cy - 7); g.lineTo(cx + 6, cy - 7); g.lineTo(cx, cy + 1); g.closePath(); g.fill(); g.stroke();
+  }
+
   function moveBy(ent, dx, dy) {
     let moved = false;
     if (dx && footFree(ent.fx + dx, ent.fy)) { ent.fx += dx; moved = true; }
@@ -160,6 +177,8 @@ export function mountVillage(host, o) {
     return moved;
   }
 
+  const gB = guide ? V.buildings.find(b => b.id === guide) : null;
+  let gPath = [], gT = -9;
   let raf = 0, last = performance.now(), alive = true;
   const speed = fast ? 500 : 5 * T;
   function frame(now) {
@@ -201,6 +220,7 @@ export function mountVillage(host, o) {
     });
 
     g.drawImage(base, 0, 0);
+    if (gB) drawGuide();
     const tt = Math.floor(P.t * 8) / 8;
     g.drawImage(PX.door('open', tt, 1), gateEl.x, gateEl.y);
     const px = V.plaza.x * T, py = V.plaza.y * T;

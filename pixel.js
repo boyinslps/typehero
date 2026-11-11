@@ -100,6 +100,15 @@ function dagger(s, hx, hy, tx, ty) {
   const [ex, ey] = at(-.8); put(s, ex, ey, '#e8b64c');
 }
 W.dagger = () => { const s = mk(28, 28); dagger(s, 4, 24, 23, 4); dagger(s, 24, 24, 5, 4); outline(s, OL); return s; };
+function darkBlade(s, hx, hy, tx, ty) {
+  const dx = tx - hx, dy = ty - hy, L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L, px = -uy, py = ux;
+  const at = (t, o = 0) => [hx + ux * t + px * o, hy + uy * t + py * o];
+  for (let t = 5; t < L; t += .5) { const w = t > L - 3 ? 0 : 1; const [x, y] = at(t); put(s, x, y, '#2a1b3a'); if (w) { const [x2, y2] = at(t, 1); put(s, x2, y2, '#9a5ae8'); } }
+  for (let t = 0; t < 4.5; t += .5) { const [x, y] = at(t); put(s, x, y, '#4a2a6a'); }
+  for (let o = -3; o <= 3; o += .5) { const [x, y] = at(4.8, o); put(s, x, y, '#c9a6ff'); }
+  const [ex, ey] = at(-.8); put(s, ex, ey, '#c9a6ff');
+}
+W.testblade = () => { const s = mk(28, 28); darkBlade(s, 4, 24, 23, 4); darkBlade(s, 24, 24, 5, 4); outline(s, '#0d0714'); [[14, 8], [9, 14], [19, 17], [13, 21]].forEach(([x, y]) => put(s, x, y, '#c9a6ff')); return s; };
 W.crossbow = () => {
   const s = mk(28, 28), cx = 30, cy = 14, r = 11;
   rect(s, 2, 12, 19, 5, '#8a5a2b'); rect(s, 2, 12, 19, 1, '#b0814a'); rect(s, 2, 16, 19, 1, '#5a3a22');
@@ -559,6 +568,7 @@ function hero(look) {
     for (let a = -62; a <= 62; a += 3) { const t = a * Math.PI / 180; put(s, cx + 3 + 11 * Math.cos(t), 17 + 11 * Math.sin(t), wood); put(s, cx + 4 + 11 * Math.cos(t), 17 + 11 * Math.sin(t), '#74491f'); }
     line(s, cx + 8, 8, cx + 8, 26, '#efe6c8');
   }
+  if (L.weapon === 'testblade') { rect(s, cx + 6, 11, 2, 11, '#2a1b3a'); rect(s, cx + 7, 11, 1, 11, '#9a5ae8'); rect(s, cx + 5, 22, 4, 1, '#c9a6ff'); put(s, cx + 9, 10, '#c9a6ff'); put(s, cx + 4, 14, '#9a5ae8'); }
   if (L.weapon === 'dagger') { rect(s, cx + 6, 12, 2, 10, steel); rect(s, cx + 7, 12, 1, 10, '#8e9aa6'); rect(s, cx + 5, 22, 4, 1, L.trim); }
   if (L.weapon === 'sword') {
     rect(s, cx + 6, 8, 2, 14, steel); rect(s, cx + 7, 8, 1, 14, '#8e9aa6'); rect(s, cx + 5, 22, 4, 1, L.trim);

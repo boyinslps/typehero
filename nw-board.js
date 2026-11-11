@@ -14,6 +14,10 @@ const CSS = `
 .qs-wrap{filter:drop-shadow(3px 4px 0 rgba(0,0,0,.55));transition:transform .12s;margin:var(--m);transform:rotate(var(--r)) translateY(var(--dy))}
 .qs-wrap:hover{transform:rotate(0) translateY(-4px)}
 .qs-wrap.on{transform:rotate(0) translateY(-6px) scale(1.05);filter:drop-shadow(2px 0 0 #ffd24a) drop-shadow(-2px 0 0 #ffd24a) drop-shadow(0 2px 0 #ffd24a) drop-shadow(0 -2px 0 #ffd24a) drop-shadow(4px 6px 0 rgba(0,0,0,.6));z-index:3}
+.nwbd-goal{position:relative;z-index:2;margin:0 0 8px;padding:5px 10px;background:#fff2c4;color:#4a2a08;border:3px solid #d83a3a;font-size:.9em;line-height:1.4}
+.qs-wrap.goal .qs{outline:3px dashed #d83a3a;outline-offset:2px}
+.qs-goal{position:absolute;top:-10px;left:-8px;z-index:4;background:#d83a3a;color:#fff;font-weight:900;font-size:12px;padding:2px 8px;border:2px solid #1c1008;transform:rotate(-6deg);animation:qsGoal 1s steps(2) infinite}
+@keyframes qsGoal{50%{background:#ff6a4a}}
 .qs{position:relative;display:block;width:var(--w);padding:14px 12px 12px;border:0;text-align:left;cursor:pointer;color:#3a2814;font-family:inherit;font-weight:800}
 .qs-pin{position:absolute;left:50%;top:-6px;transform:translateX(-50%);z-index:2}
 .qs-stars{font-size:1.05em;letter-spacing:.06em;color:#9a2a1a;text-shadow:1px 1px 0 rgba(0,0,0,.2)}
@@ -48,7 +52,8 @@ export function mountBoard(host, env) {
   const { PX, NW } = env;
   if (!document.getElementById('nwbd-css')) { const st = document.createElement('style'); st.id = 'nwbd-css'; st.textContent = CSS; document.head.appendChild(st); }
   const quests = boardQuests(NW);
-  let tab = 'quests', sel = env.selected && quests.find(q => q.id === env.selected && !q.locked) ? env.selected : (quests.find(q => !q.locked) || {}).id;
+  const goal = env.goal || null, isGoal = q => !!goal && !q.locked && goal.match(q);
+  let tab = 'quests', sel = env.selected && quests.find(q => q.id === env.selected && !q.locked) ? env.selected : ((quests.find(isGoal) || quests.find(q => !q.locked)) || {}).id;
   let rooms = [], raf = 0, alive = true, poll = 0;
   const wood = PX.wood().toDataURL(), pinURL = PX.pin('#d83a3a').toDataURL();
   const papers = ['#e8d8b0', '#e0cfa0', '#ead9b8', '#dccb9a'].map(c => PX.paper(c).toDataURL());
@@ -60,6 +65,7 @@ export function mountBoard(host, env) {
     <div class="nwbd-wrap">
       <div class="nwbd-board" id="nwbd-board" style="background-image:url(${wood});background-size:144px 144px;image-rendering:pixelated">
         <div class="nwbd-sign">冒險者公會・委託板</div>
+        ${goal ? `<div class="nwbd-goal">📌 現在的任務：<b>${goal.text}</b>　→ 選有紅色「任務目標」標籤的委託單</div>` : ''}
         <div class="nwbd-tabs"><button class="nwbd-tab" data-tab="quests">📜 委託單</button><button class="nwbd-tab" data-tab="rooms">🚪 房間 <span id="nwbd-rc">0</span></button></div>
         <div class="nwbd-sheets" id="nwbd-list"></div>
       </div>
@@ -103,6 +109,7 @@ export function mountBoard(host, env) {
       }
       const pin = document.createElement('img'); pin.className = 'qs-pin'; pin.src = pinURL; pin.style.cssText = 'width:27px;image-rendering:pixelated'; pin.alt = '';
       wrap.appendChild(b); wrap.appendChild(pin);
+      if (isGoal(q)) { wrap.classList.add('goal'); const tg = document.createElement('div'); tg.className = 'qs-goal'; tg.textContent = '📌 任務目標'; wrap.appendChild(tg); }
       list.appendChild(wrap);
     });
   }

@@ -29,6 +29,14 @@ export const STARTERS = {
   crossbow: { name: '木弩', kind: '連弩', fam: '新的', desc: '答對一個字就裝一支箭。輸入框空著時按 Enter，把箭一口氣射出去！' }
 };
 
+export const GIFT_WEAPONS = {
+  testblade: { name: '測試者之刃', kind: '黑刃', fam: '測試者限定', base: 'dagger', dmgMul: 1.12, chantEvery: 4, dark: true,
+    desc: '黑色粒子環繞的雙刀，只送給幫忙測試的人。打中的傷害多 12%，連環斬每 4 題就能砍一次（一般雙刀是 5 題）。' }
+};
+export const weaponInfo = k => STARTERS[k] || GIFT_WEAPONS[k] || null;
+export const weaponBase = k => (GIFT_WEAPONS[k] && GIFT_WEAPONS[k].base) || k;
+export const curWeapon = nw => (nw.equip && (nw.gw || []).includes(nw.equip)) ? nw.equip : nw.starter;
+
 export const LOCKED_WEAPONS = [
   ['book', '元素書', 6], ['shield', '劍盾', 2], ['fist', '拳套', 2], ['great', '大劍', 5], ['bell', '召喚鈴', 5]
 ];
@@ -99,10 +107,13 @@ export const regionLv = (rk, star) => {
   return Math.round(r.lv[0] + (r.lv[1] - r.lv[0]) * (star - 1) / 4);
 };
 
-export const ATTACKS_OPEN = { coo: [], frog: [], shroom: [], wolf: [] };
+export const ATTACKS_OPEN = { coo: ['single', 'pair'], frog: ['slam'], shroom: ['pair', 'slam'], wolf: [] };
+export const TEST_TAGS = { coo: '閃避測試', frog: '防禦測試', shroom: '綜合測試' };
 export const attacksOn = () => Object.values(ATTACKS_OPEN).some(a => a.length > 0);
 export const MAX_CHARS = star => (star <= 2 ? 4 : star <= 4 ? 6 : 8);
 export const CHANT_MAX = 6;
+export const FB_COINS = 30;
+export const FB_MINLEN = 5;
 export const SHORT_CHANTS = [
   { t: '風起，雲湧', z: 'ㄈㄥ ㄑㄧˇ - ㄩㄣˊ ㄩㄥˇ' },
   { t: '星光，閃耀', z: 'ㄒㄧㄥ ㄍㄨㄤ - ㄕㄢˇ ㄧㄠˋ' },
@@ -119,6 +130,8 @@ export const SHORT_CHANTS = [
   { t: '日出，天大亮', z: 'ㄖˋ ㄔㄨ - ㄊㄧㄢ ㄉㄚˋ ㄌㄧㄤˋ' },
   { t: '花開，蝴蝶來', z: 'ㄏㄨㄚ ㄎㄞ - ㄏㄨˊ ㄉㄧㄝˊ ㄌㄞˊ' }
 ];
+
+Object.entries(TEST_TAGS).forEach(([k, t]) => { if (MONSTERS[k]) MONSTERS[k].name += `（${t}）`; });
 
 export const BAL = {
   playerHp: 100,
@@ -150,7 +163,9 @@ export const BAL = {
 };
 
 export const HP_TIER = { A: 0.35, B: 0.5, C: 0.7, D: 1.7 };
-export const monMaxHp = (mk, lv, tier) => Math.round((BAL.hpBase + BAL.hpPerLv * lv) * MONSTERS[mk].hpMul * (HP_TIER[tier] || HP_TIER.B));
+export const HP_PLAYERS = { 1: 1, 2: 1.75, 3: 2.4, 4: 3 };
+export const hpPlayersMul = n => HP_PLAYERS[Math.max(1, Math.min(4, Math.round(n) || 1))];
+export const monMaxHp = (mk, lv, tier, players = 1) => Math.round((BAL.hpBase + BAL.hpPerLv * lv) * MONSTERS[mk].hpMul * (HP_TIER[tier] || HP_TIER.B) * hpPlayersMul(players));
 export const monDmg = (lv, mul) => Math.max(4, Math.round((BAL.atkBase + BAL.atkPerLv * lv) * mul));
 export const atkInterval = (lv, tier, angryRage) => {
   let t = 30 - 15 * (lv - 1) / 54;
@@ -181,11 +196,11 @@ export const COLOR_HEX = { gray: '#9aa3ad', green: '#6aa84f', blue: '#3f9be0', p
 
 export const MAIN_QUESTS = [
   { id: '1-0', ch: 1, t: '選擇你的初心武器', hint: '在「裝備與造型」選一把武器', reward: { items: { potion: 3 } }, rewardText: '回復藥 ×3', test: nw => !!nw.starter },
-  { id: '1-1', ch: 1, t: '討伐泡泡蛙（草原 ★1）', hint: '到委託板，選草原的泡泡蛙', rewardText: '獵人經驗 +30', reward: { hrExp: 30 }, test: nw => (nw.dex.frog || 0) > 0 },
-  { id: '1-2', ch: 1, t: '討伐咕咕鳥（草原 ★1）', hint: '到委託板，選草原的咕咕鳥', rewardText: '獵人經驗 +30', reward: { hrExp: 30 }, test: nw => (nw.dex.coo || 0) > 0 },
+  { id: '1-1', ch: 1, target: { mk: 'frog', star: 1 }, t: '討伐泡泡蛙（草原 ★1）', hint: '到委託板，選草原的泡泡蛙', rewardText: '獵人經驗 +30', reward: { hrExp: 30 }, test: nw => (nw.dex.frog || 0) > 0 },
+  { id: '1-2', ch: 1, target: { mk: 'coo', star: 1 }, t: '討伐咕咕鳥（草原 ★1）', hint: '到委託板，選草原的咕咕鳥', rewardText: '獵人經驗 +30', reward: { hrExp: 30 }, test: nw => (nw.dex.coo || 0) > 0 },
   { id: '1-3', ch: 1, hold: () => !attacksOn(), t: '閃避成功 5 次、防禦成功 5 次', hint: '狩獵時多試試閃避和防禦', rewardText: '稱號詞條「見習」', reward: {}, test: nw => nw.stat.dodgeOk >= 5 && nw.stat.defOk >= 5, prog: nw => `閃避 ${Math.min(5, nw.stat.dodgeOk)}/5　防禦 ${Math.min(5, nw.stat.defOk)}/5` },
-  { id: '1-4', ch: 1, t: '討伐草原任何 ★3 的魔物', hint: '先打過 ★1、★2 才會開放 ★3', rewardText: '另外三把初心武器的圖紙', reward: { bp: ['bp_staff', 'bp_bow', 'bp_dagger', 'bp_crossbow'] }, test: nw => (nw.zone.grass || 0) >= 3 },
-  { id: '1-7', ch: 1, t: '討伐草原任何 ★5 的魔物', hint: '打倒 ★5 就會開放迷霧森林', rewardText: '開放迷霧森林', reward: {}, test: nw => (nw.zone.grass || 0) >= 5 }
+  { id: '1-4', ch: 1, target: { rk: 'grass', star: 3 }, t: '討伐草原任何 ★3 的魔物', hint: '先打過 ★1、★2 才會開放 ★3', rewardText: '另外三把初心武器的圖紙', reward: { bp: ['bp_staff', 'bp_bow', 'bp_dagger', 'bp_crossbow'] }, test: nw => (nw.zone.grass || 0) >= 3 },
+  { id: '1-7', ch: 1, target: { rk: 'grass', star: 5 }, t: '討伐草原任何 ★5 的魔物', hint: '打倒 ★5 就會開放迷霧森林', rewardText: '開放迷霧森林', reward: {}, test: nw => (nw.zone.grass || 0) >= 5 }
 ];
 
 export const defaultNw = () => ({
@@ -194,7 +209,7 @@ export const defaultNw = () => ({
   zone: { grass: 0, forest: 0 }, dex: {}, fastest: {},
   quest: { done: [] }, title: '', titleParts: [], words: [], used: {}, wwin: {},
   stat: { dodgeOk: 0, dodgeAll: 0, defOk: 0, defAll: 0, accN: 0, accSum: 0, wins: 0, fails: 0 },
-  flags: 0
+  flags: 0, fb: {}, gw: [], equip: '', gifts: [], giftedEarly: false
 });
 
 export function normalizeNw(d) {
@@ -209,7 +224,8 @@ export function normalizeNw(d) {
   o.bp = Array.isArray(d.bp) ? d.bp : [];
   o.words = Array.isArray(d.words) ? d.words : [];
   o.titleParts = Array.isArray(d.titleParts) ? d.titleParts : [];
-  o.used = d.used || {}; o.wwin = d.wwin || {};
+  o.used = d.used || {}; o.wwin = d.wwin || {}; o.fb = d.fb || {};
+  o.gw = Array.isArray(d.gw) ? d.gw : []; o.gifts = Array.isArray(d.gifts) ? d.gifts : [];
   return o;
 }
 
@@ -250,6 +266,13 @@ export function setTitleParts(nw, ids) {
 }
 
 export const currentQuest = nw => MAIN_QUESTS.find(q => !nw.quest.done.includes(q.id) && !(q.hold && q.hold())) || null;
+
+export function goalOf(nw) {
+  const q = currentQuest(nw);
+  if (!q || !q.target) return null;
+  const t = q.target;
+  return { text: q.t, building: 'board', match: x => (!t.rk || t.rk === x.rk) && (!t.mk || t.mk === x.mk) && (!t.star || t.star === x.star) };
+}
 
 export function zoneOpen(nw, rk) {
   const r = REGIONS[rk];

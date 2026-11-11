@@ -15,7 +15,7 @@ async function run(b, reward) {
     'mg_scores/五年級3班_6號': { className: '五年級3班', seat: 6, name: '新手', bestLevel: 3, plays: 2, tutorialDone: true, talentIntroDone: true, tier: 'B', balanceVer: 3 },
     'mg_config/settings': reward ? { nwRewardCode: PASS } : {}
   };
-  await p.addInitScript(a => { window.__NW_CODE_HASH__ = a.hash; window.__FS = a.s; localStorage.clear(); window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas'); }, { s: seed, hash });
+  await p.addInitScript(a => { window.__NW_CODE_HASH__ = a.hash; window.__NW_NOGIFT__ = true; window.__FS = a.s; localStorage.clear(); window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas'); }, { s: seed, hash });
   await p.route('**/*', r => {
     const u = r.request().url();
     if (u.startsWith('http://localhost')) return r.continue();

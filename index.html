@@ -1482,6 +1482,22 @@ select option{background:var(--panel2);color:var(--ink)}
           </label>
         </div>
         <div class="md:col-span-2">
+          <label class="label block mb-2">🎁 序號禮物（學生在新世界按「🎁 序號」兌換）</label>
+          <div class="flex gap-2 flex-wrap">
+            <input id="tg-code" type="text" autocomplete="off" placeholder="新序號" class="flex-1 min-w-[120px] p-2 rounded-lg bg-transparent border text-sm" style="border-color:var(--line)">
+            <select id="tg-reward" class="p-2 rounded-lg bg-transparent border text-sm" style="border-color:var(--line)">
+              <option value="weapon:testblade">測試者之刃（黑色粒子）</option>
+              <option value="coins:50">字元 ×50</option><option value="coins:200">字元 ×200</option><option value="potion:3">回復藥 ×3</option>
+            </select>
+            <input id="tg-max" type="number" min="0" placeholder="可領幾次（0＝不限）" class="w-40 p-2 rounded-lg bg-transparent border text-sm" style="border-color:var(--line)">
+            <input id="tg-note" type="text" placeholder="備註（例：五年級 3 班）" class="w-44 p-2 rounded-lg bg-transparent border text-sm" style="border-color:var(--line)">
+            <button id="tg-add" class="btn btn-gold px-4 py-2 text-sm">新增序號</button>
+          </div>
+          <div id="tg-list" class="mt-2"></div>
+          <p class="text-xs mt-1" style="color:var(--dim)">序號只存雜湊，新增後就看不到原本的字了，請自己記好（備註可以幫你分辨）。每位同學每組序號只能領一次。</p>
+          <button id="tc-nwfb" class="btn btn-ghost text-sm px-3 py-2 mt-3">📝 查看新世界測試回饋</button>
+        </div>
+        <div class="md:col-span-2">
           <button id="tc-save-cfg" class="w-full py-3 rounded-xl font-black text-slate-900"
                   style="background:var(--gold)">儲存設定並同步全班</button>
         </div>
@@ -1646,7 +1662,7 @@ select option{background:var(--panel2);color:var(--ink)}
 import { PX } from './pixel.js';
 import { initNewWorld } from './newworld.js';
 import { initNwPreview } from './nw-preview.js';
-import { sha256Hex } from './nw-access.js';
+import { sha256Hex, cleanCode } from './nw-access.js';
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
 import { getFirestore, doc, collection, setDoc, getDoc, getDocs, deleteDoc,
@@ -2674,8 +2690,16 @@ function initNw() {
    版本紀錄：首頁右下角那顆 v2.0.0 按鈕點開看到的內容。
    跟 CHANGELOG.md 是同一份資料，改一邊也要記得改另一邊。
    ══════════════════════════════════════════════════════════════ */
-const APP_VERSION = '3.10.1';
+const APP_VERSION = '3.11.0';
 const VERSION_LOG = [
+  { v:'3.11.0', date:'2026-11-11', title:'新世界：三隻測試魔物、序號禮物、測試者之刃',
+    added: [
+      '最先開放的三隻魔物改成「測試魔物」，各有不同的攻擊：咕咕鳥（閃避測試）、泡泡蛙（防禦測試）、跳跳菇（綜合測試）。打贏後可以寫回饋，寫了就送字元（新世界的貨幣）',
+      '村莊地板有黃色箭頭，帶你走到現在任務要去的地方；委託板上，任務要打的魔物會貼「任務目標」',
+      '新世界多了「🎁 序號」：輸入老師給的序號（輸入時會藏起來）就能領禮物，領到會跳出收到禮物的通知',
+      '提前來測試新世界的同學，會收到「測試者之刃」：黑色粒子環繞的雙刀，比一般雙刀強一點點'
+    ],
+    changed: ['魔物的血量可以依人數調整（參考魔物獵人），之後組隊會用到'], fixed: [] },
   { v:'3.10.1', date:'2026-11-11', title:'投票整理一下',
     added: ['投票頁會寫出你在這一類已經提名幾個、投了幾票'],
     changed: [
@@ -7191,7 +7215,7 @@ const POOL_LABEL_HTML = k => {
 let NWG = null;
 function wireEvents() {
   NWG = initNewWorld({
-    $, show, toast, escHtml, ME, db, doc, getDoc, setDoc, deleteDoc, collection, getDocs, query, where, documentId, REF, withTimeout, gotoLobby,
+    $, show, toast, escHtml, ME, db, doc, getDoc, setDoc, deleteDoc, collection, getDocs, query, where, documentId, increment, REF, withTimeout, gotoLobby,
     online: () => ONLINE,
     getHist: () => MY_HIST,
     bestLevel: myBestLevel,
@@ -7316,6 +7340,9 @@ function wireEvents() {
   $('tc-reset-round').addEventListener('click', resetRound);
   $('tc-preview-result').addEventListener('click', previewResult);
   $('tc-save-cfg').addEventListener('click', saveConfig);
+  $('tg-add').addEventListener('click', tgAdd);
+  $('tg-list').addEventListener('click', e => { const d = e.target.closest('[data-del]'); if (d) tgDel(d.dataset.del); });
+  $('tc-nwfb').addEventListener('click', openNwFeedback);
   $('proof-only-poly').addEventListener('click', togglePolyFilter);
   $('proof-export').addEventListener('click', exportProofSheet);
   $('sc-refresh').addEventListener('click', loadScores);
@@ -7360,6 +7387,7 @@ function tryAuth() {
   $('tc-nwmode').value     = CFG.nwMode || 'off';
   $('tc-nwcode').value     = '';
   $('tc-nwreward').checked = !!CFG.nwRewardCode;
+  tgLoad();
   updateTeacherBanner();
   const showLegacy = !!CFG.legacyConfig && CFG.legacyDifficulty != null;
   show('tc-legacy-notice', showLegacy);
@@ -7416,6 +7444,57 @@ async function resetRound() {
                                   duration: CFG.duration, roundId: '' });
         toast('已回到營地'); }
   catch (e) { console.error(e); toast('操作失敗'); }
+}
+
+const TG_LABEL = { 'weapon:testblade': '測試者之刃', 'coins:50': '字元 ×50', 'coins:200': '字元 ×200', 'potion:3': '回復藥 ×3' };
+async function tgLoad() {
+  const box = $('tg-list'); if (!box) return;
+  box.textContent = '載入中…';
+  try {
+    const sn = await withTimeout(getDoc(doc(db, 'mg_config', 'gift_codes')), 5000, '讀取逾時');
+    const codes = sn.exists() ? (sn.data().codes || {}) : {};
+    const rows = Object.entries(codes).sort((a, b) => (b[1].t || 0) - (a[1].t || 0));
+    box.innerHTML = rows.length ? rows.map(([h, c]) => `<div class="flex items-center gap-2 text-sm py-1"><span class="flex-1">${escHtml(c.label || '')}　<span style="color:var(--dim)">已領 ${c.used || 0}${c.max ? ' / ' + c.max : ''}</span></span><button data-del="${h}" class="btn btn-ghost text-xs px-2 py-1">刪除</button></div>`).join('')
+      : '<div class="text-sm" style="color:var(--dim)">還沒有序號</div>';
+  } catch (e) { box.textContent = '讀取失敗'; }
+}
+async function tgAdd() {
+  const code = $('tg-code').value.trim();
+  if (!code) { toast('先輸入序號'); return; }
+  const rv = $('tg-reward').value, [type, v] = rv.split(':');
+  const reward = type === 'weapon' ? { type, key: v } : { type, n: +v };
+  const max = Math.max(0, parseInt($('tg-max').value) || 0), note = $('tg-note').value.trim();
+  const h = await sha256Hex('gift:' + cleanCode(code));
+  try {
+    await withTimeout(setDoc(doc(db, 'mg_config', 'gift_codes'), { codes: { [h]: { reward, max, used: 0, label: TG_LABEL[rv] + (note ? '・' + note : ''), t: Date.now() } } }, { merge: true }), 6000, '儲存逾時');
+    $('tg-code').value = ''; $('tg-note').value = ''; toast('序號已新增'); tgLoad();
+  } catch (e) { console.warn('新增序號失敗', e); toast('新增失敗，再試一次'); }
+}
+async function tgDel(h) {
+  if (!confirm('確定要刪除這組序號嗎？')) return;
+  try { await withTimeout(setDoc(doc(db, 'mg_config', 'gift_codes'), { codes: { [h]: deleteField() } }, { merge: true }), 6000, '儲存逾時'); tgLoad(); }
+  catch (e) { toast('刪除失敗，再試一次'); }
+}
+async function openNwFeedback() {
+  const ov = document.createElement('div');
+  ov.className = 'fixed inset-0 z-[95] p-4 overflow-y-auto'; ov.style.zIndex = 95; ov.style.background = 'rgba(9,8,18,.95)';
+  ov.innerHTML = '<div class="max-w-3xl mx-auto panel p-4"><div class="flex items-center justify-between mb-3"><h3 class="text-xl font-black">📝 新世界測試回饋</h3><div class="flex gap-2"><button data-copy class="btn btn-ghost text-sm px-3 py-1.5">複製全部</button><button data-x class="btn btn-ghost text-sm px-3 py-1.5">關閉</button></div></div><div data-body>載入中…</div></div>';
+  document.body.appendChild(ov);
+  const body = ov.querySelector('[data-body]'); let rows = [];
+  const draw = () => {
+    body.innerHTML = rows.length ? rows.map(r => `<div class="py-2" style="border-bottom:1px solid var(--line)"><div class="text-xs" style="color:var(--dim)">${escHtml(r.cls)} ${escHtml(String(r.seat))}號 ${escHtml(r.name)}　${escHtml(r.mon || '')}　${escHtml(r.rate || '')}　${new Date(r.t || 0).toLocaleString()}</div><div class="flex gap-2 items-start"><div class="flex-1" style="white-space:pre-wrap">${escHtml(r.text || '（沒有寫字）')}</div><button data-del="${r.id}" class="btn btn-ghost text-xs px-2 py-1">刪除</button></div></div>`).join('') : '<div style="color:var(--dim)">還沒有回饋</div>';
+  };
+  try {
+    const sn = await withTimeout(getDocs(query(collection(db, 'mg_nw_flags'), where('type', '==', 'feedback'))), 8000, '讀取逾時');
+    sn.forEach(d => rows.push({ id: d.id, ...d.data() }));
+    rows.sort((a, b) => (b.t || 0) - (a.t || 0)); draw();
+  } catch (e) { body.textContent = '讀取失敗，再試一次'; }
+  ov.addEventListener('click', async e => {
+    if (e.target.closest('[data-x]') || e.target === ov) { ov.remove(); return; }
+    if (e.target.closest('[data-copy]')) { try { await navigator.clipboard.writeText(rows.map(r => `${r.cls} ${r.seat}號 ${r.name}｜${r.mon}｜${r.rate || ''}｜${r.text || ''}`).join('\n')); toast('已複製'); } catch (err) { toast('複製失敗'); } return; }
+    const d = e.target.closest('[data-del]');
+    if (d && confirm('刪掉這則回饋？')) { try { await withTimeout(deleteDoc(doc(db, 'mg_nw_flags', d.dataset.del)), 5000, '刪除逾時'); rows = rows.filter(r => r.id !== d.dataset.del); draw(); } catch (err) { toast('刪除失敗'); } }
+  });
 }
 
 async function saveConfig() {

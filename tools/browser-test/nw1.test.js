@@ -15,7 +15,7 @@ const seed = {
   const errs = []; p.on('dialog', d => d.accept());
   p.on('pageerror', e => errs.push('pageerror: ' + e.message));
   p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push('console: ' + m.text()); });
-  await p.addInitScript(a => { const s = a.s; window.__NW_CODE_HASH__ = a.hash; window.__FS = s; localStorage.clear(); localStorage.setItem('mg_nw_fast', '1'); window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas'); }, { s: seed, hash: HASH });
+  await p.addInitScript(a => { const s = a.s; window.__NW_CODE_HASH__ = a.hash; window.__NW_NOGIFT__ = true; window.__FS = s; localStorage.clear(); localStorage.setItem('mg_nw_fast', '1'); window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas'); }, { s: seed, hash: HASH });
   await p.route('**/*', r => {
     const u = r.request().url();
     if (u.startsWith('http://localhost')) return r.continue();

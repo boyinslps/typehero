@@ -1,4 +1,4 @@
-import { BAL, TIERS, MONSTERS, ATTACKS_OPEN, MAX_CHARS, CHANT_MAX, SHORT_CHANTS, regionLv, monMaxHp, monDmg, atkInterval, castTime, STATUS } from './nw-data.js';
+import { BAL, TIERS, MONSTERS, GIFT_WEAPONS, weaponBase, curWeapon, hpPlayersMul, ATTACKS_OPEN, MAX_CHARS, CHANT_MAX, SHORT_CHANTS, regionLv, monMaxHp, monDmg, atkInterval, castTime, STATUS } from './nw-data.js';
 
 const CSS = `
 #nwb-root{position:fixed;inset:0;z-index:70;display:flex;flex-direction:column;background:#000;color:var(--ink);font-size:clamp(13px,1.5vmin + 7px,21px);font-weight:700}
@@ -61,7 +61,7 @@ export function startBattle(env, cfg, done) {
   const mon0 = MONSTERS[cfg.mk];
   const lv = regionLv(cfg.rk, cfg.star);
   const tier = env.tier();
-  const weapon = NW.starter || 'staff';
+  const wkey = curWeapon(NW) || 'staff', weapon = weaponBase(wkey), wmod = GIFT_WEAPONS[wkey] || null, CE = (wmod && wmod.chantEvery) || BAL.chantEvery;
   const mode = 'hanzi';
   const enabled = (location.hostname === 'localhost' && window.__NW_ATTACKS__) || ATTACKS_OPEN[cfg.mk] || [];
   const nowS = () => performance.now() / 1000;
@@ -126,13 +126,13 @@ export function startBattle(env, cfg, done) {
   const art = {
     bg: PX.bg(cfg.rk === 'forest' ? 'forest' : 'grass', LW),
     mon: PX.canvas('monster', cfg.mk, 2, false), monA: PX.canvas('monster', cfg.mk, 2, true),
-    hero: PX.hero(env.myHero(weapon), 1)
+    hero: PX.hero(env.myHero(wkey), 1)
   };
   art.monW = whiteOf(art.mon);
 
   const T0 = nowS();
   const S = {
-    over: false, T0, mon: { hp: monMaxHp(cfg.mk, lv, tier), max: monMaxHp(cfg.mk, lv), angry: false, flashUntil: 0, lungeAt: -9 },
+    over: false, T0, mon: { hp: monMaxHp(cfg.mk, lv, tier, cfg.players || 1), max: monMaxHp(cfg.mk, lv, undefined, cfg.players || 1), angry: false, flashUntil: 0, lungeAt: -9 },
     me: { hp: BAL.playerHp, max: BAL.playerHp, down: false, downUntil: 0, downs: 0, hitAt: -9, x: 0, atkAt: -9 },
     st: { burn: 0, poison: [], ice: 0, lastTick: T0 },
     cast: null, nextCast: T0 + 6, lane: 1, hx: LANE_C[1] - 2, shieldUntil: 0, laneFlash: [],
@@ -177,7 +177,7 @@ export function startBattle(env, cfg, done) {
   function nextQuestion() {
     if (S.over) return;
     S.qCount++;
-    const every = S.qCount % BAL.chantEvery === 0;
+    const every = S.qCount % CE === 0;
     S.q = (weapon === 'staff' && every) ? pickChant() : (weapon === 'dagger' && every) ? pickFlurry() : pickWord();
     S.units = C.q.questionUnits(S.q, mode);
     renderUnits();
@@ -238,8 +238,21 @@ export function startBattle(env, cfg, done) {
   }
   const addFx = (kind, o) => S.fx.push(Object.assign({ kind, t0: nowS(), dur: .3 }, o));
 
+  S.dark = [];
+  function darkBurst() { const T = nowS(); for (let i = 0; i < 12; i++) S.dark.push({ x: 80 + (Math.random() - .5) * 30, y: 30 + (Math.random() - .5) * 18, vx: (Math.random() - .5) * 1.6, vy: -.4 - Math.random() * 1.2, t0: T, life: .6 + Math.random() * .4 }); }
+  function drawDark(T, hx, hy) {
+    if (Math.random() < .55) S.dark.push({ x: hx + 8 + Math.random() * 8, y: hy - 24 + Math.random() * 14, vx: (Math.random() - .5) * .3, vy: -.2 - Math.random() * .3, t0: T, life: .8 + Math.random() * .5 });
+    S.dark = S.dark.filter(p => T - p.t0 < p.life).slice(-80);
+    S.dark.forEach(p => {
+      const k = (T - p.t0) / p.life, x = Math.round(p.x + p.vx * (T - p.t0) * 40), y = Math.round(p.y + p.vy * (T - p.t0) * 40);
+      g.fillStyle = `rgba(14,6,24,${1 - k})`; g.fillRect(x - 1, y - 1, 3, 3);
+      g.fillStyle = `rgba(170,100,240,${(1 - k) * .9})`; g.fillRect(x, y, 1, 1);
+    });
+  }
   function hitMonster(dmg, note, color, small) {
     if (dmg <= 0 || S.over) return;
+    if (wmod && wmod.dmgMul) dmg = Math.max(1, Math.round(dmg * wmod.dmgMul));
+    if (wmod && wmod.dark) darkBurst();
     S.mon.hp = Math.max(0, S.mon.hp - dmg);
     S.mon.flashUntil = nowS() + .15;
     if (small) floatText(String(dmg), 66 + Math.random() * 28, 14 + Math.random() * 18, color || '#fff', false);
@@ -462,9 +475,9 @@ export function startBattle(env, cfg, done) {
     if (S.st.burn > T) stIcons.push('🔥'); if (S.st.poison.some(u => u > T)) stIcons.push('☠'.repeat(S.st.poison.filter(u => u > T).length)); if (S.st.ice > T) stIcons.push('❄');
     $q('nwb-st').textContent = stIcons.join(' ');
     let wg = 0, wl = '';
-    if (weapon === 'staff') { const k = S.qCount % BAL.chantEvery; wg = k / BAL.chantEvery * 100; wl = `詠唱還要 ${BAL.chantEvery - k} 題`; }
+    if (weapon === 'staff') { const k = S.qCount % CE; wg = k / CE * 100; wl = `詠唱還要 ${CE - k} 題`; }
     else if (weapon === 'bow') { wg = S.sharp > 0 ? 100 : S.gauge; wl = S.sharp > 0 ? `神射手！還有 ${S.sharp} 題` : '力量條'; }
-    else if (weapon === 'dagger') { const k = S.qCount % BAL.chantEvery; wg = k / BAL.chantEvery * 100; wl = `連環斬還要 ${BAL.chantEvery - k} 題`; }
+    else if (weapon === 'dagger') { const k = S.qCount % CE; wg = k / CE * 100; wl = `連環斬還要 ${CE - k} 題`; }
     else { wg = S.mag / BAL.magMax * 100; wl = `彈匣 ${S.mag}/${BAL.magMax}　空白時按 Enter 射出`; }
     $q('nwb-wg').style.width = wg + '%'; $q('nwb-wlabel').textContent = wl;
     const stEl = $q('nwb-stance'), nm = $q('nwb-st-name'), ht = $q('nwb-st-hint'), fl = $q('nwb-st-i'), mkr = $q('nwb-st-mark');
@@ -521,6 +534,7 @@ export function startBattle(env, cfg, done) {
         g.strokeStyle = 'rgba(159,216,255,.8)'; g.lineWidth = 1; g.beginPath(); g.arc(hx, hy - 16, 18 + Math.sin(T * 12), 0, 7); g.stroke();
       }
     }
+    if (wmod && wmod.dark) drawDark(T, hx, hy);
     S.fx = S.fx.filter(f => T - f.t0 < f.dur);
     S.fx.forEach(f => {
       const p = (T - f.t0) / f.dur, sx = hx + 20 + S.me.x, sy = hy - 24;
