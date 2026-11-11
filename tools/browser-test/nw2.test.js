@@ -163,8 +163,9 @@ async function playUntil(p, pred, max = 80) {
     await waitDanger(p);
     const d = +(await p.$eval('#nwb-root', e => e.dataset.danger));
     ok((await p.textContent('#nwb-st-name')).includes('危險') || (await p.textContent('#nwb-st-name')).includes('安全'), '紅線出現：姿態條告訴你這一線危不危險');
-    const full = await hp(p);
     await goTo(p, d === 0 ? 1 : 0);
+    await p.waitForTimeout(100);
+    const full = await hp(p);
     await waitEnd(p); await p.waitForTimeout(200);
     ok(await hp(p) === full, '換到沒有紅色的線：沒受傷（紅色在第 ' + (d + 1) + ' 線）');
     await p.close();

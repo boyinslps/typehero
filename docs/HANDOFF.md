@@ -81,7 +81,8 @@
 - 新世界預設關閉。營地只有「🔑 搶先體驗」小按鈕，輸入通關密語才會出現「新世界」，不受 LV8 限制。
 - **通關密語是一個全班共用的字串**（分大小寫）。網站裡只放它的 SHA-256 雜湊（`nw-access.js` 的 `DEFAULT_CODE_HASH`），原始碼看不到密語本身。
 - **提名投票資料**（`nw-preview.js`）：`mg_config/nw_vote` 的 `noms`（提名）、`hidden`、`v`（`{提案ID: {班級_座號: 1}}`，一人一票）。舊欄位 `votes`（數字計數）已不使用。老師管理模式可「清空所有投票」。
-- **標點符號挑戰教學動畫**：`index.html` 的 `ptlKeyboard()`／`runPtDemo()`／`openPtLesson()`。遇到沒學過的標點（`mg_pl_{座號}` 沒記錄）會先跳教學，動畫用 `#ptl-kb[data-step]` 的 CSS 切換鍵帽。新增標點只要在 `PUNCT_LESSONS` 加一列，教學自動有。
+- **標點符號挑戰（v3.10.0）**：三關＋打怪。關卡在 `PUNCT_STAGES`、短句在 `PUNCT_SENTENCES`、符號向量圖在 `PUNCT_SVG`；教學視窗與練習時的小動畫視窗共用 `makeDemo()`。
+- **標點符號挑戰教學動畫（舊記錄）**：`index.html` 的 `ptlKeyboard()`／`runPtDemo()`／`openPtLesson()`。遇到沒學過的標點（`mg_pl_{座號}` 沒記錄）會先跳教學，動畫用 `#ptl-kb[data-step]` 的 CSS 切換鍵帽。新增標點只要在 `PUNCT_LESSONS` 加一列，教學自動有。
 - **標點符號挑戰獎勵**：教師控制台「新世界」下方的勾選（`tc-nwreward`）。勾選並輸入密語儲存後，`mg_config/settings.nwRewardCode` 會存明文密語，學生打完標點符號挑戰時 `index.html` 的 `finishPunctDrill()` 呼叫 `NWG.reward()`：密語對（雜湊吻合）就自動開通並跳出「搶先體驗券」。取消勾選會清空。要換密語記得同時輸入新密語並保持勾選，否則發出去的是舊的（雜湊不吻合時不會發）。
 - 換密語：教師控制台「新世界」下面的欄位輸入新密語並儲存（存的也是雜湊，在 `mg_config/settings.nwCodeHash`）；換了以後，所有人手上的舊密語立刻失效。
 - 開放程度：教師控制台「新世界」選單（關閉／LV8 開放／全部開放），存在 `mg_config/settings.nwMode`。

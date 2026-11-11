@@ -1,4 +1,4 @@
-/* 標點符號挑戰通關 → 老師開了的話，拿到搶先體驗號碼並自動開通 */
+/* 標點符號挑戰：三關教學（Shift → Ctrl → 上下引號要選字）→ 打怪挑戰 → 老師開了的話拿搶先體驗號碼 */
 const { chromium } = require('playwright'); const fs = require('fs');
 const path = require('path'); const M = path.join(__dirname, 'mock') + '/'; const OUT = process.argv[2] || require('os').tmpdir();
 const css = fs.existsSync(OUT + '/tw.css') ? fs.readFileSync(OUT + '/tw.css', 'utf8') : '';
@@ -30,12 +30,24 @@ async function run(b, reward) {
   p.errs = errs; return p;
 }
 
-async function finishDrill(p) {
-  for (let i = 0; i < 80; i++) {
-    if (await p.isVisible('#pt-lesson')) { await p.waitForSelector('#ptl-done:not([disabled])', { timeout: 8000 }); await p.click('#ptl-done'); await p.waitForTimeout(60); continue; }
-    if ((await p.textContent('#pt-name')).includes('通關')) break;
-    await p.click('#pt-skip'); await p.waitForTimeout(40);
+/* 跑完整個挑戰：教學視窗一律等「學會了」可以按再按；練習題用「跳過」；打怪挑戰照題目打。onLesson 可以在教學視窗出現時做檢查 */
+async function finishDrill(p, onLesson) {
+  const seen = []; const sentences = [];
+  for (let i = 0; i < 400; i++) {
+    if (await p.isVisible('#pt-lesson')) {
+      const name = await p.textContent('#ptl-name'); seen.push(name);
+      if (onLesson) await onLesson(name);
+      await p.waitForSelector('#ptl-done:not([disabled])', { timeout: 25000 }); await p.click('#ptl-done'); await p.waitForTimeout(60); continue;
+    }
+    if (await p.isVisible('#pt-mon')) {
+      const t = await p.textContent('#ptm-text');
+      if (t.includes('打倒牠了')) break;
+      sentences.push(t);
+      await p.fill('#pt-input', t); await p.press('#pt-input', 'Enter'); await p.waitForTimeout(40); continue;
+    }
+    await p.click('#pt-skip').catch(() => {}); await p.waitForTimeout(40);
   }
+  return { seen, sentences };
 }
 
 (async () => {
@@ -44,52 +56,23 @@ async function finishDrill(p) {
   {
     const p = await run(b, false);
     await p.click('[data-battle="punct"]'); await p.waitForSelector('#pt-lesson:not(.hidden)');
-    ok((await p.textContent('#ptl-badge')).includes('新符號 1 / 9'), '第一次遇到新符號：先跳出教學動畫，標示新符號 1 / 9');
+    ok((await p.textContent('#ptl-badge')).includes('第 1 關') && (await p.textContent('#ptl-name')) === '驚嘆號', '第 1 關先從 Shift 的「！」開始教');
     ok(await p.isDisabled('#ptl-done') && await p.isDisabled('#pt-input'), '動畫還沒演完：「學會了」按不下去、輸入框先鎖住');
-    const mark = await p.textContent('#ptl-mark');
     const steps = new Set();
-    for (let i = 0; i < 40 && steps.size < 3; i++) { steps.add(await p.getAttribute('#ptl-kb', 'data-step')); await p.waitForTimeout(150); }
-    ok(steps.has('1') && steps.has('2'), '動畫會一步一步演：按住修飾鍵 → 再按那顆鍵（' + [...steps].join(',') + '）');
+    for (let i = 0; i < 40 && steps.size < 3; i++) { steps.add(await p.getAttribute('#ptl-demo .ptl-kb', 'data-step')); await p.waitForTimeout(150); }
+    ok(steps.has('1') && steps.has('2'), '動畫會一步一步演：按住 Shift → 再按那顆鍵（' + [...steps].join(',') + '）');
     await p.waitForSelector('#ptl-done:not([disabled])', { timeout: 8000 });
-    ok((await p.textContent('#ptl-cap')).length > 0 && (await p.$$('#ptl-kb .dk')).length > 40 && await p.$('#ptl-kb .dk-mod') !== null && await p.$('#ptl-kb .dk-target') !== null, '畫面上有鍵盤，修飾鍵與目標鍵都有標出來');
+    ok(await p.$('#ptl-demo .dk-mod') !== null && await p.$('#ptl-demo .dk-target') !== null && (await p.$$('#ptl-demo .dk')).length > 40, '畫面上有鍵盤，修飾鍵與目標鍵都有標出來');
     await p.screenshot({ path: OUT + '/nw3-lesson.png' });
-    await p.click('#ptl-done'); await p.waitForTimeout(150);
-    ok(await p.isHidden('#pt-lesson') && !(await p.isDisabled('#pt-input')), '按「學會了」：教學關掉、輸入框可以打字');
-    ok(await p.evaluate(() => JSON.parse(localStorage.getItem('mg_pl_五年級3班_6號')).length) === 1, '學會的符號記在本機，下次不用再教');
-    await p.click('#pt-help'); await p.waitForSelector('#pt-lesson:not(.hidden)');
-    ok((await p.textContent('#ptl-badge')).includes('再看一次'), '隨時可以按「看教學動畫」再看一次');
-    await p.click('#ptl-done'); await p.waitForTimeout(100);
-    ok(await p.isHidden('#pt-lesson'), '再看一次的教學也能關掉');
-    ok(p.errs.length === 0, '沒有 JS 錯誤 ' + p.errs.join(' | '));
-    await p.close();
-  }
-
-  {
-    const p = await run(b, false);
-    await p.click('[data-battle="punct"]');
-    let seen = null;
-    for (let i = 0; i < 40 && !seen; i++) {
-      await p.waitForSelector('#pt-lesson:not(.hidden)', { timeout: 6000 }).catch(() => {});
-      if (!(await p.isVisible('#pt-lesson'))) { await p.click('#pt-skip'); continue; }
-      const name = await p.textContent('#ptl-name');
-      if (name === '上引號') {
-        const steps = new Set(), cands = new Set(), typed = new Set();
-        for (let k = 0; k < 60; k++) {
-          steps.add(await p.textContent('#ptl-cap'));
-          if (await p.isVisible('#ptl-cand')) cands.add(await p.textContent('#ptl-cand'));
-          typed.add(await p.textContent('#ptl-typed'));
-          if (typed.has('「') && typed.has('【') && [...steps].join('').includes('Enter') && [...cands].join('').includes('『')) break;
-          await p.waitForTimeout(150);
-        }
-        seen = { caps: [...steps].join('|'), cands: [...cands].join('|'), typed: [...typed] };
-        await p.waitForSelector('#ptl-done:not([disabled])', { timeout: 8000 });
-        await p.screenshot({ path: OUT + '/nw3-quote.png' });
-      }
-      await p.waitForSelector('#ptl-done:not([disabled])', { timeout: 8000 }); await p.click('#ptl-done'); await p.waitForTimeout(60);
-    }
-    ok(seen && seen.typed.includes('【') && seen.typed.includes('「'), '上引號教學：輸入框先出現「【」，最後才變成「「」');
-    ok(seen && seen.caps.includes('選字框') && seen.caps.includes('Enter'), '上引號教學：說明要從選字框選，再按 Enter');
-    ok(seen && seen.cands.includes('【') && seen.cands.includes('「') && seen.cands.includes('『'), '上引號教學：畫出選字框（【 「 『 …）並把「亮起來');
+    await p.click('#ptl-done'); await p.waitForTimeout(200);
+    ok(await p.evaluate(() => JSON.parse(localStorage.getItem('mg_pl_五年級3班_6號')).length) === 1, '學會的符號記在本機');
+    ok(await p.isVisible('#pt-lesson') && (await p.textContent('#ptl-name')) === '問號', '按「學會了」：接著教這一關的下一個符號（問號）');
+    for (const n of ['問號', '冒號']) { await p.waitForSelector('#ptl-done:not([disabled])', { timeout: 10000 }); await p.click('#ptl-done'); await p.waitForTimeout(150); }
+    ok(await p.isHidden('#pt-lesson') && !(await p.isDisabled('#pt-input')), '這一關的三個符號都學會了：教學關掉、輸入框可以打字');
+    ok(await p.$('#pt-mark svg') !== null && await p.$('#pt-mini .dk') !== null, '練習時：標點用向量圖、旁邊有小動畫視窗');
+    const nm = await p.textContent('#pt-name'), cap = await p.textContent('#pt-mini .ptl-cap');
+    ok(cap.includes({ 驚嘆號: '！', 問號: '？', 冒號: '：' }[nm]) && await p.$('#pt-help') === null, '小動畫視窗同步演現在這題（' + nm + '），沒有擠人的「看教學」按鈕');
+    await p.screenshot({ path: OUT + '/nw3-practice.png' });
     ok(p.errs.length === 0, '沒有 JS 錯誤 ' + p.errs.join(' | '));
     await p.close();
   }
@@ -97,14 +80,30 @@ async function finishDrill(p) {
   {
     const p = await run(b, true);
     ok(await p.$eval('#nw-door', e => e.dataset.state) === 'locked', '練習前：新世界之門是鎖著的');
-    await p.click('[data-battle="punct"]'); await p.waitForSelector('#screen-punct:not(.hidden)');
-    await finishDrill(p);
-    await p.waitForSelector('#nw-ticket', { timeout: 5000 });
-    ok((await p.textContent('#nw-ticket')).includes(PASS), '打完標點符號挑戰：跳出搶先體驗券，寫著號碼');
+    await p.click('[data-battle="punct"]'); await p.waitForSelector('#pt-lesson:not(.hidden)');
+    let quote = null;
+    const { seen, sentences } = await finishDrill(p, async name => {
+      if (name !== '上下引號') return;
+      const caps = new Set(), typed = new Set(), cands = new Set();
+      for (let k = 0; k < 110; k++) {
+        caps.add(await p.textContent('#ptl-demo .ptl-cap'));
+        typed.add(await p.textContent('#ptl-demo .ptl-typed'));
+        if (await p.isVisible('#ptl-demo .ptl-cand')) cands.add(await p.textContent('#ptl-demo .ptl-cand'));
+        if (['【', '「', '】', '」'].every(c => typed.has(c))) break;
+        await p.waitForTimeout(150);
+      }
+      quote = { caps: [...caps].join('|'), typed: [...typed], cands: [...cands].join('|'), marks: (await p.$$('#ptl-marks .ptl-mark')).length };
+      await p.screenshot({ path: OUT + '/nw3-quote.png' });
+    });
+    ok(JSON.stringify(seen) === JSON.stringify(['驚嘆號', '問號', '冒號', '逗號', '句號', '頓號', '分號', '上下引號']), '由簡單到難：Shift 三個 → Ctrl 四個 → 上下引號放在一起只教一次（' + seen.join('、') + '）');
+    ok(quote && quote.marks === 2 && quote.typed.includes('【') && quote.typed.includes('「') && quote.typed.includes('】') && quote.typed.includes('」'), '上下引號的動畫：先出現【再變成「，接著】再變成」');
+    ok(quote && quote.caps.includes('選字框') && quote.caps.includes('Enter') && quote.cands.includes('『'), '上下引號的動畫：說明要從選字框選，畫出選字框');
+    ok(sentences.length === 8 && sentences.every(t => [...t].length <= 8 && /[，。、？！：；「」]/.test(t)), '打怪挑戰：打 8 句短句，每句不超過 8 個字且有標點（' + sentences.join(' ') + '）');
+    await p.waitForSelector('#nw-ticket', { timeout: 6000 });
+    ok((await p.textContent('#nw-ticket')).includes(PASS), '全部練完（含打怪挑戰）：跳出搶先體驗券，寫著號碼');
     await p.screenshot({ path: OUT + '/nw3-ticket.png' });
     await p.click('#nw-ticket [data-x]'); await p.waitForTimeout(2800);
-    ok(await p.$('#nw-ticket') === null, '關得掉搶先體驗券');
-    ok(await p.$eval('#nw-door', e => e.dataset.state) === 'open', '回到大廳：新世界之門已經是開的');
+    ok(await p.$('#nw-ticket') === null && await p.$eval('#nw-door', e => e.dataset.state) === 'open', '回到大廳：新世界之門已經是開的');
     await p.click('#nw-door'); await p.waitForTimeout(900);
     ok(await p.isVisible('#nw-root'), '不用再輸入密語，點門就進得去');
     ok(p.errs.length === 0, '沒有 JS 錯誤 ' + p.errs.join(' | '));
@@ -113,7 +112,7 @@ async function finishDrill(p) {
 
   {
     const p = await run(b, false);
-    await p.click('[data-battle="punct"]'); await p.waitForSelector('#screen-punct:not(.hidden)');
+    await p.click('[data-battle="punct"]'); await p.waitForSelector('#pt-lesson:not(.hidden)');
     await finishDrill(p);
     await p.waitForTimeout(3200);
     ok(await p.$('#nw-ticket') === null && await p.$eval('#nw-door', e => e.dataset.state) === 'locked', '老師沒開發放：打完也不會拿到號碼，門還是鎖著');
