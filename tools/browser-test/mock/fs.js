@@ -8,6 +8,7 @@ export async function getDoc(ref){ return snapOf(ref.path); }
 export function increment(n){ return { __op: 'inc', n }; }
 export function arrayUnion(...v){ return { __op: 'union', v }; }
 export function arrayRemove(...v){ return { __op: 'remove', v }; }
+export function deleteField(){ return { __op: 'del' }; }
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 function applyOps(cur, inc){
   const out = Array.isArray(inc) ? [] : {};
@@ -16,6 +17,7 @@ function applyOps(cur, inc){
     if (v && v.__op === 'inc') out[k] = (typeof c === 'number' ? c : 0) + v.n;
     else if (v && v.__op === 'union') { const a = Array.isArray(c) ? c.slice() : []; v.v.forEach(x => { if (!a.some(y => same(x, y))) a.push(x); }); out[k] = a; }
     else if (v && v.__op === 'remove') out[k] = (Array.isArray(c) ? c : []).filter(y => !v.v.some(x => same(x, y)));
+    else if (v && v.__op === 'del') out[k] = { __del: true };
     else if (v && v.__ts) out[k] = new Date().toISOString();
     else if (v && typeof v === 'object' && !Array.isArray(v)) out[k] = applyOps(c && typeof c === 'object' ? c : {}, v);
     else out[k] = v;
@@ -27,7 +29,7 @@ function notify(path){ (LISTEN[path] || []).forEach(fn => fn(snapOf(path))); }
 export async function setDoc(ref, data, opt){
   const merge = opt && opt.merge;
   const base = merge ? JSON.parse(JSON.stringify(FS[ref.path] || {})) : {};
-  const deep = (a, b) => { for (const k of Object.keys(b)) { a[k] = (b[k] && typeof b[k] === 'object' && !Array.isArray(b[k]) && a[k] && typeof a[k] === 'object' && !Array.isArray(a[k])) ? deep(a[k], b[k]) : b[k]; } return a; };
+  const deep = (a, b) => { for (const k of Object.keys(b)) { if (b[k] && b[k].__del) { delete a[k]; continue; } a[k] = (b[k] && typeof b[k] === 'object' && !Array.isArray(b[k]) && a[k] && typeof a[k] === 'object' && !Array.isArray(a[k])) ? deep(a[k], b[k]) : b[k]; } return a; };
   FS[ref.path] = merge ? deep(base, applyOps(base, data)) : applyOps({}, data);
   notify(ref.path);
 }

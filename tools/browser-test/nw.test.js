@@ -92,11 +92,13 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
   await p.click('#nw-list-monster .nw-vote'); await p.waitForTimeout(300);
   let doc = await p.evaluate(() => window.__FS['mg_config/nw_vote']);
   ok(Object.keys(doc.v[id]).length === 1 && doc.v[id]['五年級3班_7號'] === 1, '按一次＝1 票，記下是誰投的');
-  ok(await p.isDisabled('#nw-list-monster .nw-vote.done') && (await p.textContent('#nw-list-monster')).includes('已投票'), '投過的按鈕變成「✓ 已投票」，不能再按');
-  await p.evaluate(() => { document.querySelector('#nw-list-monster .nw-vote.done').disabled = false; document.querySelector('#nw-list-monster .nw-vote.done').click(); });
-  await p.waitForTimeout(200);
+  ok(await p.isVisible('#nw-list-monster .nw-vote.done') && (await p.textContent('#nw-list-monster')).includes('已投票'), '投過的按鈕變成「✓ 已投票」');
+  await p.click('#nw-list-monster .nw-vote.done'); await p.waitForTimeout(250);
   doc = await p.evaluate(() => window.__FS['mg_config/nw_vote']);
-  ok(Object.keys(doc.v[id]).length === 1, '就算硬按，同一個人還是只算 1 票');
+  ok(Object.keys(doc.v[id] || {}).length === 0, '點「✓ 已投票」會收回這一票');
+  await p.click('#nw-list-monster .nw-vote'); await p.waitForTimeout(250);
+  doc = await p.evaluate(() => window.__FS['mg_config/nw_vote']);
+  ok(Object.keys(doc.v[id]).length === 1, '收回後可以再投，同一個人還是只算 1 票');
   await p.click('#nw-close');
   await p.fill('#in-seat', '8'); await p.fill('#in-name', '小華');
   await p.click('#btn-nw'); await goPage('vote'); await p.waitForTimeout(300);
@@ -112,12 +114,39 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
   ok((await p.textContent('#nw-list-monster')).includes('舊提名') && /舊提名[\s\S]*?\b0\b/.test(await p.textContent('#nw-list-monster')), '改版前的舊票數（刷出來的 99 票）不再計算，已清空');
 
   // 6. 提名很多：分頁，不捲動
-  for (let i = 0; i < 12; i++) { await p.fill('.nw-in[data-cat="monster"]', '魔物' + i); await p.press('.nw-in[data-cat="monster"]', 'Enter'); await p.waitForTimeout(80); }
-  await p.waitForTimeout(300);
+  await p.evaluate(() => {
+    const d = window.__FS['mg_config/nw_vote']; d.noms = d.noms || [];
+    for (let i = 0; i < 12; i++) d.noms.push({ id: 'seed' + i, cat: 'monster', text: '魔物' + i, cls: '五年級1班', seat: String(i + 1), name: '同學', t: 1000 + i });
+  });
+  await p.click('#nw-close'); await p.click('#btn-nw'); await goPage('vote'); await p.waitForTimeout(400);
   ok((await p.textContent('#nwp-vpage')).includes('共 14 則') && await noScroll(), '提名多的時候用 ◀ ▶ 翻頁，頁面不會變長');
   const first = await p.textContent('#nw-list-monster');
   await p.click('[data-vp="1"]'); await p.waitForTimeout(100);
   ok((await p.textContent('#nw-list-monster')) !== first, '按 ▶ 看下一頁');
+
+  // 6b. 一個分類最多提名 3 個、最多投 3 票，投過的可以收回
+  await p.click('[data-vp="-1"]'); await p.waitForTimeout(100);
+  const nomIn = async t => { await p.fill('.nw-in[data-cat="monster"]', t); await p.press('.nw-in[data-cat="monster"]', 'Enter'); await p.waitForTimeout(150); };
+  const mineN = () => p.evaluate(() => window.__FS['mg_config/nw_vote'].noms.filter(n => n.cat === 'monster' && n.cls === '五年級3班' && String(n.seat) === '8').length);
+  await nomIn('甲乙怪'); await nomIn('丙丁怪'); await nomIn('戊己怪');
+  ok(await mineN() === 3, '這個分類可以提名 3 個');
+  await nomIn('庚辛怪');
+  ok(await mineN() === 3, '第 4 個被擋下來：每個分類最多提名 3 個');
+  await nomIn('怪'); await nomIn('１２３');
+  ok(await p.evaluate(() => window.__FS['mg_config/nw_vote'].noms.filter(n => n.text === '怪' || n.text === '１２３').length) === 0, '只有 1 個字、或只有數字的提名會被擋下');
+  await nomIn('火焰，雞！');
+  ok(await p.evaluate(() => window.__FS['mg_config/nw_vote'].noms.filter(n => n.cat === 'monster' && n.text.includes('火焰')).length) === 1, '標點、空白不同的同一個名字，算重複');
+  ok((await p.textContent('#nw-quota')).includes('3/3'), '畫面寫出這一類已提名幾個、已投幾票');
+  const myVotes = () => p.evaluate(() => { const d = window.__FS['mg_config/nw_vote']; return d.noms.filter(n => n.cat === 'monster' && (d.v || {})[n.id] && d.v[n.id]['五年級3班_8號']).length; });
+  const clickVote = async () => { await p.evaluate(() => { const b = document.querySelector('#nw-list-monster .nw-vote:not(.done)'); if (b) b.click(); }); await p.waitForTimeout(250); };
+  await clickVote(); await clickVote(); await clickVote();
+  ok(await myVotes() === 3, '這個分類投到 3 票');
+  await clickVote();
+  ok(await myVotes() === 3, '第 4 票被擋下來：每個分類最多投 3 票');
+  await p.evaluate(() => document.querySelector('#nw-list-monster .nw-vote.done').click()); await p.waitForTimeout(250);
+  ok(await myVotes() === 2, '點「✓ 已投票」可以收回一票');
+  await clickVote();
+  ok(await myVotes() === 3, '收回以後又可以投別的');
 
   // 7. 老師隱藏
   await p.click('.nwp-cat[data-cat="region"]'); await p.waitForTimeout(100);
@@ -137,7 +166,17 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
   await p.click('#nw-clear'); await p.waitForTimeout(300);
   doc = await p.evaluate(() => window.__FS['mg_config/nw_vote']);
   ok(Object.keys(doc.v || {}).length === 0 && doc.noms.length >= 14, '老師按「清空所有投票」：票數歸零，提名都還在');
+  // 7c. 老師刪提名：單一則、整個分類
+  await p.click('.nwp-cat[data-cat="region"]'); await p.waitForTimeout(100);
+  await p.click('#nw-list-region .nw-del'); await p.waitForTimeout(300);
+  doc = await p.evaluate(() => window.__FS['mg_config/nw_vote']);
+  ok(!doc.noms.some(n => n.text === '糖果王國') && !Object.keys(doc.v || {}).some(id => !doc.noms.some(n => n.id === id)), '老師按「刪除」：這則提名與它的票一起刪掉');
+  await p.click('.nwp-cat[data-cat="monster"]'); await p.waitForTimeout(100);
+  await p.click('#nw-clearcat'); await p.waitForTimeout(300);
+  doc = await p.evaluate(() => window.__FS['mg_config/nw_vote']);
+  ok(doc.noms.filter(n => n.cat === 'monster').length === 0 && (await p.textContent('#nw-list-monster')).includes('還沒有人提名'), '老師按「刪除這一類全部提名」：整個分類清空');
   await p.click('#nw-admin'); await p.waitForTimeout(200);
+  ok((await p.$$('.nw-del')).length === 0 && (await p.$$('#nw-clearcat')).length === 0, '一般學生看不到刪除按鈕');
 
   // 8. 排序切換
   await p.click('#nw-sort'); ok((await p.textContent('#nw-sort')).includes('最新'), '排序可切換');

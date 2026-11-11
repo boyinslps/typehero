@@ -80,6 +80,7 @@
 
 - 新世界預設關閉。營地只有「🔑 搶先體驗」小按鈕，輸入通關密語才會出現「新世界」，不受 LV8 限制。
 - **通關密語是一個全班共用的字串**（分大小寫）。網站裡只放它的 SHA-256 雜湊（`nw-access.js` 的 `DEFAULT_CODE_HASH`），原始碼看不到密語本身。
+- **投票規則（v3.10.1）**：每類每人最多提名 3、最多投 3 票（`NOM_MAX`／`VOTE_MAX`），可收回；老師管理模式可刪除單則提名、刪除整類、清空所有投票。
 - **提名投票資料**（`nw-preview.js`）：`mg_config/nw_vote` 的 `noms`（提名）、`hidden`、`v`（`{提案ID: {班級_座號: 1}}`，一人一票）。舊欄位 `votes`（數字計數）已不使用。老師管理模式可「清空所有投票」。
 - **標點符號挑戰（v3.10.0）**：三關＋打怪。關卡在 `PUNCT_STAGES`、短句在 `PUNCT_SENTENCES`、符號向量圖在 `PUNCT_SVG`；教學視窗與練習時的小動畫視窗共用 `makeDemo()`。
 - **標點符號挑戰教學動畫（舊記錄）**：`index.html` 的 `ptlKeyboard()`／`runPtDemo()`／`openPtLesson()`。遇到沒學過的標點（`mg_pl_{座號}` 沒記錄）會先跳教學，動畫用 `#ptl-kb[data-step]` 的 CSS 切換鍵帽。新增標點只要在 `PUNCT_LESSONS` 加一列，教學自動有。

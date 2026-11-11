@@ -8,6 +8,9 @@ const CATS = [
   { k: 'other', icon: '💡', name: '其他想法', ph: '例：可以養寵物' }
 ];
 const MAXLEN = 12;
+const NOM_MAX = 3;
+const VOTE_MAX = 3;
+const normText = t => String(t).toLowerCase().replace(/[\s\p{P}\p{S}]/gu, '');
 
 const WEAPONS = [
   { k: 'staff', n: '法杖', first: 1, t: '打對 5 題就能「詠唱」，把很長的咒語全部打對，傷害變 3 倍！' },
@@ -175,8 +178,8 @@ export function initNwPreview(C) {
       <div class="nwp-vbanner">
         <div class="nwp-vh">🗳 一起決定新世界的樣子！</div>
         ${steps(['按下面的<b>分類</b>（魔物名字、想去的地方…）。',
-          `在大格子裡<b>打字</b>（最多 ${MAXLEN} 個字），按 <b>Enter</b> 或「<b>提名</b>」。`,
-          '看到喜歡的，按「<b>👍 投一票</b>」，每個想法你只能投一票，喜歡的都可以投！'])}
+          `在大格子裡<b>打字</b>（${2}～${MAXLEN} 個字），按 <b>Enter</b> 或「<b>提名</b>」。每個分類最多提名 ${NOM_MAX} 個。`,
+          `看到喜歡的，按「<b>👍 投一票</b>」。每個分類最多投 ${VOTE_MAX} 票，想改就點「✓ 已投票」收回。`])}
       </div>
       <div id="nw-who" class="nwp-who"></div>
       <div class="nwp-cats">${CATS.map(x => `<button class="nwp-cat" data-cat="${x.k}" aria-pressed="${x.k === S.cat}">${x.icon} ${x.name}</button>`).join('')}</div>
@@ -189,7 +192,7 @@ export function initNwPreview(C) {
         <button id="nw-sort" class="nwp-mini">排序：${S.sort === 'votes' ? '票數' : '最新'}</button>
         <span id="nwp-vpage" class="nwp-sm"></span>
         <button class="nwp-mini" data-vp="-1">◀</button><button class="nwp-mini" data-vp="1">▶</button>
-        ${S.admin ? '<button id="nw-clear" class="nwp-mini" style="color:#e5705f">清空所有投票</button>' : ''}
+        ${S.admin ? '<button id="nw-clearcat" class="nwp-mini" style="color:#e5705f">刪除這一類全部提名</button><button id="nw-clear" class="nwp-mini" style="color:#e5705f">清空所有投票</button>' : ''}
         <button id="nw-admin" class="nwp-mini dim">${S.admin ? '結束管理' : '老師管理'}</button>
       </div>
       <div id="nw-admin-box" class="nwp-adm ${S.adminBox ? '' : 'hidden'}"><input id="nw-admin-pw" type="password" placeholder="教師密碼"><button id="nw-admin-ok">確定</button></div>`;
@@ -199,7 +202,7 @@ export function initNwPreview(C) {
     const box = $('nw-who'); if (!box) return;
     const w = C.who();
     if (!C.online()) box.innerHTML = '<span style="color:#e5705f">目前連不上網路，沒辦法提名或投票。先看看預告吧！</span>';
-    else if (w) box.innerHTML = `你是：<b>${escHtml(w.cls)}　${escHtml(w.seat)}號　${escHtml(w.name)}</b> <span class="dim">（提名會顯示你的班級、座號、姓名）</span>`;
+    else if (w) box.innerHTML = `你是：<b>${escHtml(w.cls)}　${escHtml(w.seat)}號　${escHtml(w.name)}</b>　<b id="nw-quota" style="color:var(--gold)"></b>`;
     else box.innerHTML = '<span style="color:var(--gold)">要先在首頁填好班級、座號、姓名，才能提名和投票。</span>（只看不用填）';
     const can = C.online() && !!w;
     document.querySelectorAll('#nwp-page .nw-in, #nwp-page .nw-add, #nwp-page .nw-vote').forEach(e => { e.disabled = !can; });
@@ -209,19 +212,22 @@ export function initNwPreview(C) {
     const el = document.querySelector('#nwp-page .nwp-list'); if (!el) return;
     const hidden = new Set(S.data.hidden || []), now = Date.now(), can = C.online() && !!C.who();
     const votes = n => Object.keys((S.data.v || {})[n.id] || {}).length;
-    const me = voterId();
+    const me = voterId(), w = C.who();
     const list = (S.data.noms || []).filter(n => n.cat === S.cat && (S.admin || !hidden.has(n.id)));
+    const qEl = document.getElementById('nw-quota');
+    if (qEl && w) qEl.textContent = `這一類：已提名 ${mineIn(S.cat, w).length}/${NOM_MAX}・已投 ${usedIn(S.cat, me)}/${VOTE_MAX} 票`;
     list.sort(S.sort === 'votes' ? (a, b) => votes(b) - votes(a) || b.t - a.t : (a, b) => b.t - a.t);
     const per = Math.max(2, Math.floor(el.clientHeight / 54));
     const pages = Math.max(1, Math.ceil(list.length / per));
     S.vp = Math.min(Math.max(0, S.vp), pages - 1);
-    el.innerHTML = list.length ? list.slice(S.vp * per, S.vp * per + per).map(n => `
+    el.innerHTML = list.length ? list.slice(S.vp * per, S.vp * per + per).map((n, i) => `
       <div class="nw-nom ${hidden.has(n.id) ? 'hid' : ''} ${now - n.t < 60000 ? 'fresh' : ''}">
-        <div class="flex-1 min-w-0"><div class="font-bold nwp-ell">${escHtml(n.text)}${now - n.t < 60000 ? ' <span class="text-xs" style="color:var(--gold)">新！</span>' : ''}${hidden.has(n.id) ? ' <span class="text-xs" style="color:#e5705f">（已隱藏）</span>' : ''}</div>
+        <b class="nwp-rank">${S.sort === 'votes' ? S.vp * per + i + 1 : ''}</b>
+        <div class="flex-1 min-w-0"><div class="font-bold nwp-ell">${escHtml(n.text)}${w && n.cls === w.cls && String(n.seat) === String(w.seat) ? ' <span class="text-xs" style="color:var(--gr)">（我提的）</span>' : ''}${now - n.t < 60000 ? ' <span class="text-xs" style="color:var(--gold)">新！</span>' : ''}${hidden.has(n.id) ? ' <span class="text-xs" style="color:#e5705f">（已隱藏）</span>' : ''}</div>
           <div class="text-xs dim nwp-ell">${escHtml(n.cls)} ${escHtml(n.seat)}號 ${escHtml(n.name)}</div></div>
         <b style="color:var(--gold);min-width:2.2em;text-align:right">${votes(n)}</b>
-        ${me && (S.data.v[n.id] || {})[me] ? '<button class="nw-vote done" disabled>✓ 已投票</button>' : `<button class="nw-vote" data-id="${n.id}" ${can ? '' : 'disabled'}>👍 投一票</button>`}
-        ${S.admin ? `<button class="nw-hide nwp-mini" data-id="${n.id}" data-hid="${hidden.has(n.id) ? 1 : 0}">${hidden.has(n.id) ? '恢復' : '隱藏'}</button>` : ''}
+        ${me && (S.data.v[n.id] || {})[me] ? `<button class="nw-vote done" data-id="${n.id}" title="點一下收回這一票">✓ 已投票</button>` : `<button class="nw-vote" data-id="${n.id}" ${can ? '' : 'disabled'}>👍 投一票</button>`}
+        ${S.admin ? `<button class="nw-hide nwp-mini" data-id="${n.id}" data-hid="${hidden.has(n.id) ? 1 : 0}">${hidden.has(n.id) ? '恢復' : '隱藏'}</button><button class="nw-del nwp-mini" data-id="${n.id}" style="color:#e5705f">刪除</button>` : ''}
       </div>`).join('') : '<div class="dim" style="padding:14px 4px">還沒有人提名，你當第一個！</div>';
     setTxt('nwp-vpage', `共 ${list.length} 則・第 ${S.vp + 1}/${pages} 頁`);
   }
@@ -272,6 +278,7 @@ export function initNwPreview(C) {
   }
   const go = i => { S.i = Math.min(PAGES.length - 1, Math.max(0, i)); S.vp = 0; render(); };
 
+  const mineIn = (cat, w) => (S.data.noms || []).filter(n => n.cat === cat && n.cls === w.cls && String(n.seat) === String(w.seat));
   async function nominate(cat) {
     const w = C.who();
     if (!C.online()) { toast('目前連不上網路'); return; }
@@ -280,13 +287,17 @@ export function initNwPreview(C) {
     const text = inp.value.replace(/\s+/g, ' ').trim();
     if (!text) { toast('先打上你想提名的內容'); inp.focus(); return; }
     if (Array.from(text).length > MAXLEN) { toast(`最多 ${MAXLEN} 個字`); return; }
-    const dup = (S.data.noms || []).find(n => n.cat === cat && n.text === text);
+    const key = normText(text);
+    if (Array.from(key).length < 2 || /^[0-9]+$/.test(key)) { toast('請打成一個有意思的名字（至少 2 個字，不能只有數字）'); inp.focus(); return; }
+    const dup = (S.data.noms || []).find(n => n.cat === cat && normText(n.text) === key);
     if (dup) {
       inp.value = '';
       if ((S.data.hidden || []).includes(dup.id)) { toast('這則不能提名'); return; }
-      if ((S.data.v[dup.id] || {})[voterId()]) toast('已經有人提過了，你也投過票了'); else toast('已經有人提過了，幫你投了一票！');
+      if ((S.data.v[dup.id] || {})[voterId()]) { toast('已經有人提過了，你也投過票了'); return; }
+      toast('已經有人提過了，幫你投了一票！');
       vote(dup.id); return;
     }
+    if (mineIn(cat, w).length >= NOM_MAX) { toast(`這個分類你最多提名 ${NOM_MAX} 個，已經提滿囉！`); return; }
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     const item = { id, cat, text, cls: w.cls, seat: w.seat, name: w.name, t: Date.now() };
     inp.value = '';
@@ -294,14 +305,41 @@ export function initNwPreview(C) {
     catch (e) { console.warn('提名失敗', e); toast('送出失敗，再試一次'); inp.value = text; }
   }
   const voterId = () => { const w = C.who(); return w ? `${w.cls}_${w.seat}號` : ''; };
+  const usedIn = (cat, me) => (S.data.noms || []).filter(n => n.cat === cat && (S.data.v[n.id] || {})[me]).length;
   async function vote(id) {
     const me = voterId();
     if (!C.online() || !me) return;
-    if ((S.data.v[id] || {})[me]) { toast('你已經投過這一個了'); return; }
+    const nom = (S.data.noms || []).find(n => n.id === id); if (!nom) return;
+    if ((S.data.v[id] || {})[me]) {
+      const had = S.data.v[id][me]; delete S.data.v[id][me]; paintList();
+      try { await C.withTimeout(C.setDoc(ref(), { v: { [id]: { [me]: C.deleteField() } } }, { merge: true }), 6000, 'nw-unvote'); toast('已收回這一票'); }
+      catch (e) { S.data.v[id][me] = had; paintList(); console.warn('收回失敗', e); toast('收回失敗，再試一次'); }
+      return;
+    }
+    if (usedIn(nom.cat, me) >= VOTE_MAX) { toast(`這個分類最多投 ${VOTE_MAX} 票，先點「✓ 已投票」收回一票吧`); return; }
     S.data.v[id] = Object.assign({}, S.data.v[id], { [me]: 1 });
     paintList();
     try { await C.withTimeout(C.setDoc(ref(), { v: { [id]: { [me]: 1 } } }, { merge: true }), 6000, 'nw-vote'); }
     catch (e) { delete S.data.v[id][me]; paintList(); console.warn('投票失敗', e); toast('投票失敗，再試一次'); }
+  }
+  async function rewrite(patch, okMsg) {
+    try { await C.withTimeout(C.setDoc(ref(), Object.assign({ noms: S.data.noms, hidden: S.data.hidden, v: S.data.v, votes: {} }, patch)), 6000, 'nw-rewrite'); toast(okMsg); }
+    catch (e) { console.warn('整理失敗', e); toast('操作失敗，再試一次'); }
+  }
+  async function deleteNom(id) {
+    if (!S.admin) return;
+    const n = (S.data.noms || []).find(x => x.id === id); if (!n) return;
+    if (!confirm(`確定要刪掉「${n.text}」嗎？它的票也會一起刪掉。`)) return;
+    const v = Object.assign({}, S.data.v); delete v[id];
+    await rewrite({ noms: S.data.noms.filter(x => x.id !== id), hidden: (S.data.hidden || []).filter(x => x !== id), v }, '已刪除');
+  }
+  async function clearCat() {
+    if (!S.admin) return;
+    const c = CATS.find(x => x.k === S.cat);
+    if (!confirm(`確定要把「${c.name}」的提名全部刪掉嗎？票也會一起刪掉。`)) return;
+    const gone = new Set(S.data.noms.filter(x => x.cat === S.cat).map(x => x.id)), v = Object.assign({}, S.data.v);
+    gone.forEach(id => delete v[id]);
+    await rewrite({ noms: S.data.noms.filter(x => !gone.has(x.id)), hidden: (S.data.hidden || []).filter(x => !gone.has(x)), v }, `已刪除「${c.name}」的全部提名`);
   }
   async function clearVotes() {
     if (!S.admin || !confirm('確定要清空所有投票嗎？提名會留著，票數全部歸零。')) return;
@@ -343,6 +381,7 @@ export function initNwPreview(C) {
     const cat = e.target.closest('.nwp-cat'); if (cat) { S.cat = cat.dataset.cat; S.vp = 0; render(); return; }
     const add = e.target.closest('.nw-add'); if (add) { nominate(add.dataset.cat); return; }
     const v = e.target.closest('.nw-vote'); if (v) { vote(v.dataset.id); return; }
+    const del = e.target.closest('.nw-del'); if (del) { deleteNom(del.dataset.id); return; }
     const hd = e.target.closest('.nw-hide'); if (hd) { hide(hd.dataset.id, hd.dataset.hid === '1'); return; }
     const vp = e.target.closest('[data-vp]'); if (vp) { S.vp += +vp.dataset.vp; paintList(); return; }
     if (e.target.closest('#nw-sort')) { S.sort = S.sort === 'votes' ? 'new' : 'votes'; setTxt('nw-sort', `排序：${S.sort === 'votes' ? '票數' : '最新'}`); paintList(); return; }
@@ -350,6 +389,7 @@ export function initNwPreview(C) {
       if (S.admin) { S.admin = false; render(); return; }
       S.adminBox = true; show('nw-admin-box', true); $('nw-admin-pw').focus(); return;
     }
+    if (e.target.closest('#nw-clearcat')) { clearCat(); return; }
     if (e.target.closest('#nw-clear')) { clearVotes(); return; }
     if (e.target.closest('#nw-admin-ok')) adminOk();
   });

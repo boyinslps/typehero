@@ -97,6 +97,7 @@ body{
 .nw-add,.nw-vote{padding:10px 18px;border-radius:10px;background:var(--gold);color:#1a1409;font-weight:900;border:0;cursor:pointer;white-space:nowrap}
 .nw-vote{padding:8px 14px;background:#6aa84f;color:#fff;font-size:15px}
 .nw-vote.done{background:var(--panel2);color:var(--gr);border:2px solid var(--gr)}
+.nwp-rank{min-width:1.6em;text-align:center;color:var(--gold);font-size:18px}
 .nw-add:disabled,.nw-vote:disabled{opacity:.35;cursor:default}
 .nwp-list{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;gap:6px}
 .nwp-ell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -1650,7 +1651,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebas
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
 import { getFirestore, doc, collection, setDoc, getDoc, getDocs, deleteDoc,
          onSnapshot, query, orderBy, where, serverTimestamp,
-         increment, arrayUnion, arrayRemove, documentId }
+         increment, arrayUnion, arrayRemove, deleteField, documentId }
   from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
 /* ══════════════════════════════════════════════════════════════
@@ -2664,7 +2665,7 @@ function nwWho() {
 }
 function initNw() {
   initNwPreview({
-    $, show, toast, escHtml, setTxt, db, doc, onSnapshot, setDoc, arrayUnion, arrayRemove, increment, withTimeout,
+    $, show, toast, escHtml, setTxt, db, doc, onSnapshot, setDoc, arrayUnion, arrayRemove, increment, deleteField, withTimeout,
     online: () => ONLINE, who: nwWho, adminPw: ADMIN_PASSWORD
   });
 }
@@ -2673,8 +2674,15 @@ function initNw() {
    版本紀錄：首頁右下角那顆 v2.0.0 按鈕點開看到的內容。
    跟 CHANGELOG.md 是同一份資料，改一邊也要記得改另一邊。
    ══════════════════════════════════════════════════════════════ */
-const APP_VERSION = '3.10.0';
+const APP_VERSION = '3.10.1';
 const VERSION_LOG = [
+  { v:'3.10.1', date:'2026-11-11', title:'投票整理一下',
+    added: ['投票頁會寫出你在這一類已經提名幾個、投了幾票'],
+    changed: [
+      '每個分類，每個人最多提名 3 個、最多投 3 票；投錯了可以點「✓ 已投票」收回再投別的',
+      '提名要 2～12 個字，不能只有 1 個字或只有數字；標點、空白不同的同一個名字會算成重複',
+      '列表前面加上名次，自己提的會標「（我提的）」'
+    ], fixed: [] },
   { v:'3.10.0', date:'2026-11-11', title:'標點符號挑戰改成三關＋打怪',
     added: [
       '標點符號挑戰分成三關，由簡單到難：先練 Shift 的 ！ ？ ：，再練 Ctrl 的 ， 。 、 ；，最後是要選字的上下引號「」（兩個放在一起教一次）',
