@@ -35,7 +35,12 @@
 - 武器進度靠 `NW.used`、`NW.wwin`（`finishHunt` 累加）。之後新增武器要在 `WORDS` 補 3 個詞條。
 - 舊世界顯示：`index.html` 的 `nwTitleChip`／`paintWho`，資料來自 `mg_scores.nwTitle`／`nwTitleN`。
 
-### 抓蟲王與導覽退回（v3.12.1）
+### 改版公告（v3.13.0）
+- **寫法規範在 [`ANNOUNCEMENT-GUIDE.md`](ANNOUNCEMENT-GUIDE.md)**（學生看得懂的語氣、用詞對照、檢查表）。公告、版本紀錄、入口頁小訊息都照它寫。
+- `newworld.js` 的 `NOTICES`（最新的放最前面，`id` 當版本）：進新世界跳一次（`NW.seenNotice`），之後在上面的「📢 佈告欄」看全部。第一次來的新人直接記成已讀。要發新公告＝在 `NOTICES` 最前面加一筆，別改舊的。
+- 標點教學的「學會了」不再 disabled：太早按會提醒「先看完動畫」（`ptlReady()`）。
+
+### 職業除錯師與導覽退回（v3.12.1）
 - 老師在控制台頒發 → `mg_nw_flags/award_bugking_<docId>`（`type:'award'`）→ 學生 `claimBugs()` 順便呼叫 `claimAwards()` 領取，詞條 `bugking`。要加別的特別稱號就沿用 `type:'award'` + `award` 欄位。
 - `tour()` 的步驟可以寫 `back: () => bool`（回 true 就退回上一步），`text` 可以是函式。新導覽請都考慮「學生太快或做了別的事」。
 
@@ -101,15 +106,15 @@
 | `paintTalentDot()`、`#btn-talent.can-buy` | 天賦可點時發亮 |
 | `showResult()`、`#r-lowacc` | 正確率不足提醒 |
 
-## 新世界搶先體驗（尚未對外開放）
+## 新世界搶先體驗
 
-- 新世界預設關閉。營地只有「🔑 搶先體驗」小按鈕，輸入通關密語才會出現「新世界」，不受 LV8 限制。
+- 打完標點符號挑戰就開放（v3.13.0）。其他人營地只有「🔑 搶先體驗」小按鈕，輸入通關密語才會出現「新世界」，不受 LV8 限制。
 - **通關密語是一個全班共用的字串**（分大小寫）。網站裡只放它的 SHA-256 雜湊（`nw-access.js` 的 `DEFAULT_CODE_HASH`），原始碼看不到密語本身。
 - **投票規則（v3.10.1）**：每類每人最多提名 3、最多投 3 票（`NOM_MAX`／`VOTE_MAX`），可收回；老師管理模式可刪除單則提名、刪除整類、清空所有投票。
 - **提名投票資料**（`nw-preview.js`）：`mg_config/nw_vote` 的 `noms`（提名）、`hidden`、`v`（`{提案ID: {班級_座號: 1}}`，一人一票）。舊欄位 `votes`（數字計數）已不使用。老師管理模式可「清空所有投票」。
 - **標點符號挑戰（v3.10.0）**：三關＋打怪。關卡在 `PUNCT_STAGES`、短句在 `PUNCT_SENTENCES`、符號向量圖在 `PUNCT_SVG`；教學視窗與練習時的小動畫視窗共用 `makeDemo()`。
 - **標點符號挑戰教學動畫（舊記錄）**：`index.html` 的 `ptlKeyboard()`／`runPtDemo()`／`openPtLesson()`。遇到沒學過的標點（`mg_pl_{座號}` 沒記錄）會先跳教學，動畫用 `#ptl-kb[data-step]` 的 CSS 切換鍵帽。新增標點只要在 `PUNCT_LESSONS` 加一列，教學自動有。
-- **標點符號挑戰獎勵**：教師控制台「新世界」下方的勾選（`tc-nwreward`）。勾選並輸入密語儲存後，`mg_config/settings.nwRewardCode` 會存明文密語，學生打完標點符號挑戰時 `index.html` 的 `finishPunctDrill()` 呼叫 `NWG.reward()`：密語對（雜湊吻合）就自動開通並跳出「搶先體驗券」。取消勾選會清空。要換密語記得同時輸入新密語並保持勾選，否則發出去的是舊的（雜湊不吻合時不會發）。
+- **標點符號挑戰獎勵（v3.13.0 起）**：打完就開放，沒有開關。`finishPunctDrill()` 第一次打完會存 `punctDone`（本機＋雲端 `mg_scores`；`histFromDoc`／`mergeHist` 都要帶這欄，不然重新登入就忘了），並呼叫 `NWG.ticket()` 跳出「新世界門票」。`newworld.js` 的 `gate()` 看 `C.punctDone()`，算「搶先體驗」（會收到測試者之刃）。舊的 `mg_config/settings.nwRewardCode` 和教師控制台勾選已拿掉；通關密語、`nwMode` 還是可以另外開放。
 - 換密語：教師控制台「新世界」下面的欄位輸入新密語並儲存（存的也是雜湊，在 `mg_config/settings.nwCodeHash`）；換了以後，所有人手上的舊密語立刻失效。
 - 開放程度：教師控制台「新世界」選單（關閉／LV8 開放／全部開放），存在 `mg_config/settings.nwMode`。
 - 這是前端檢查，懂技術的學生仍可能繞過；它擋的是「不知道密語就看不到入口」，不是防駭客。

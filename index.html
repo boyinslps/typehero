@@ -374,6 +374,8 @@ body{
 .pt-left{display:flex;flex-direction:column;align-items:center;gap:8px}
 .pt-right{width:min(460px,100%)}
 .ptl-demo.compact .ptl-kb{padding:6px;gap:3px}
+@keyframes ptlNudge{0%,100%{box-shadow:0 0 0 0 rgba(255,210,74,0)}30%{box-shadow:0 0 0 6px rgba(255,210,74,.9)}}
+.ptl-nudge{animation:ptlNudge .9s ease-out 2}
 .compact .dk{width:25px;height:25px;font-size:11px;border-bottom-width:3px}
 .compact .dk.wide{width:56px}.compact .dk.space{width:140px}
 .compact .ptl-input{min-height:40px;margin-top:6px;padding:3px 10px;font-size:22px}
@@ -1350,7 +1352,7 @@ select option{background:var(--panel2);color:var(--ink)}
       <div id="ptl-demo" class="ptl-demo"></div>
       <div class="flex gap-2 justify-end mt-3">
         <button id="ptl-replay" class="btn btn-ghost px-4 py-2">▶ 再看一次</button>
-        <button id="ptl-done" class="btn btn-gold px-6 py-2 text-lg" disabled>學會了 ✓</button>
+        <button id="ptl-done" class="btn btn-gold px-6 py-2 text-lg" data-ready="0" style="opacity:.45">學會了 ✓</button>
       </div>
     </div>
   </div>
@@ -1489,17 +1491,13 @@ select option{background:var(--panel2);color:var(--ink)}
         <div class="md:col-span-2">
           <label class="label block mb-2">新世界</label>
           <select id="tc-nwmode" class="w-full p-3 rounded-lg bg-transparent border text-sm" style="border-color:var(--line)">
-            <option value="off">還沒開放（只有拿到通關密語的同學能進）</option>
+            <option value="off">一般（打完標點符號挑戰、或有通關密語的同學能進）</option>
             <option value="epic">開放給歷史最高 LV8 以上的同學</option>
             <option value="all">全部開放</option>
           </select>
           <input id="tc-nwcode" type="text" autocomplete="off" placeholder="想換通關密語就在這裡輸入新的（留空＝不改）"
                  class="w-full mt-2 p-3 rounded-lg bg-transparent border text-sm" style="border-color:var(--line)">
-          <label class="flex items-start gap-2 mt-2 text-sm" style="color:var(--dim)">
-            <input id="tc-nwreward" type="checkbox" class="mt-1">
-            <span>打完「標點符號挑戰」的同學，會看到這組密語（搶先體驗號碼）並自動開通。<br>
-              <b>勾選時請同時在上面輸入密語</b>，存檔後才生效；取消勾選就停止發放。密語會存在資料庫（學生練完才看得到），不會進程式碼。</span>
-          </label>
+          <p class="mt-2 text-sm" style="color:var(--dim)">打完「標點符號挑戰」的同學會自動拿到「新世界門票」、開放新世界，不用在這裡設定。</p>
         </div>
         <div class="md:col-span-2">
           <label class="label block mb-2">🎁 序號禮物（學生在新世界按「🎁 序號」兌換）</label>
@@ -2710,12 +2708,22 @@ function initNw() {
    版本紀錄：首頁右下角那顆 v2.0.0 按鈕點開看到的內容。
    跟 CHANGELOG.md 是同一份資料，改一邊也要記得改另一邊。
    ══════════════════════════════════════════════════════════════ */
-const APP_VERSION = '3.12.1';
+const APP_VERSION = '3.13.0';
 const VERSION_LOG = [
-  { v:'3.12.1', date:'2026-11-12', title:'新世界：回報問題說明、抓蟲王、教學導覽修正',
+  { v:'3.13.0', date:'2026-11-12', title:'打完標點挑戰就開放新世界、新世界公告',
+    added: [
+      '打完「標點符號挑戰」就拿到「新世界門票」，直接開放新世界，不用輸入密語',
+      '新世界多了「📢 佈告欄」：進去會跳一次改版說明，想再看就按佈告欄',
+      '稱號「職業除錯師」：抓蟲抓得最多的人，由老師頒發'
+    ],
+    fixed: [
+      '標點教學：還沒看完動畫就按「學會了」，會提醒先看完',
+      '重新登入後，標點挑戰的通關紀錄不會不見'
+    ] },
+  { v:'3.12.1', date:'2026-11-12', title:'新世界：回報問題說明、職業除錯師、教學導覽修正',
     added: [
       '「回報問題」多了寫法說明和好壞例子，分成兩格：① 你做了什麼事、② 出現什麼錯誤狀況，老師才找得到蟲',
-      '抓蟲抓得最多的人，老師可以頒發特別稱號「抓蟲王」'
+      '抓蟲抓得最多的人，老師可以頒發特別稱號「職業除錯師」'
     ],
     fixed: [
       '換裝備教學：太快點背包、或背包開在「任務」那一頁時，不會再卡住或指著不存在的按鈕，會退回上一步或提示先點「裝備背包」'
@@ -4755,6 +4763,7 @@ function histFromDoc(d) {
     totalKills:  d.totalKills  || 0,
     tutorialDone: !!d.tutorialDone,
     talentIntroDone: !!d.talentIntroDone,
+    punctDone: !!d.punctDone,
     plays:      d.plays || 0,
     balanceVer: d.balanceVer || 0,
     lastPlayedMs: (ts && ts.toDate) ? ts.toDate().getTime() : 0
@@ -4798,6 +4807,7 @@ function mergeHist(a, b) {
     totalKills:  pick('totalKills'),
     tutorialDone: !!((a && a.tutorialDone) || (b && b.tutorialDone)),
     talentIntroDone: !!((a && a.talentIntroDone) || (b && b.talentIntroDone)),
+    punctDone: !!((a && a.punctDone) || (b && b.punctDone)),
     balanceVer: Math.max((a && a.balanceVer) || 0, (b && b.balanceVer) || 0),
     lastPlayedMs: pick('lastPlayedMs')
   };
@@ -4862,7 +4872,6 @@ function applyConfig(d) {
   CFG.mode       = d.mode       ?? CFG.mode;
   CFG.nwMode     = d.nwMode     ?? 'off';
   CFG.nwCodeHash = d.nwCodeHash ?? '';
-  CFG.nwRewardCode = d.nwRewardCode ?? '';
   CFG.rankLimit  = d.rankLimit  ?? CFG.rankLimit;
   if (Array.isArray(d.grades)  && d.grades.length)  CFG.grades  = d.grades;
   if (Array.isArray(d.classes) && d.classes.length) CFG.classes = d.classes;
@@ -5401,8 +5410,8 @@ async function paintNwButton() {
   if (g.ok) paintNwDoor('open', pending ? '🎁 有禮物等你領！穿過去看看。' : g.early ? '搶先體驗！穿過去，開始冒險。' : '穿過去，開始冒險。');
   if (pending && NW_GIFT_TOASTED !== ME.docId) { NW_GIFT_TOASTED = ME.docId; toast('🎁 新世界有一份禮物等你領取！到「新世界之門」穿過去看看', 5000); }
   if (g.ok) { $('nw-door').dataset.gift = pending ? '1' : '0'; return; }
-  else if (g.closed) paintNwDoor('locked', '還沒開放。有通關密語的同學，點一下門輸入。');
-  else paintNwDoor('locked', `打到 LV ${BALANCE.unlockLevel.epic} 才能進（你目前最高 LV ${myBestLevel()}）。`);
+  else if (g.closed) paintNwDoor('locked', '打完「標點符號挑戰」就能進！有通關密語的同學，點一下門輸入。');
+  else paintNwDoor('locked', `打完「標點符號挑戰」，或打到 LV ${BALANCE.unlockLevel.epic} 才能進（你目前最高 LV ${myBestLevel()}）。`);
 }
 
 /* 「結算」鍵：提早結束這一場，但**成績照算照存**。
@@ -5657,6 +5666,8 @@ function makeDemo(host, items, onCycle) {
   return { stop() { stopped = true; timers.forEach(clearTimeout); timers = []; } };
 }
 
+/* 不用 disabled：被鎖住的按鈕按了沒反應，學生不知道為什麼，會以為壞掉 */
+function ptlReady(on) { const b = $('ptl-done'); b.dataset.ready = on ? '1' : '0'; b.style.opacity = on ? '' : '.45'; }
 function openPtLesson(items) {
   PT.lesson = true; PT.items = items;
   $('pt-input').disabled = true;
@@ -5665,9 +5676,9 @@ function openPtLesson(items) {
   $('ptl-marks').innerHTML = items.map(q => `<div class="ptl-mark">${punctSvg(q.ch, 40)}</div>`).join('');
   setTxt('ptl-name', one ? items[0].name : st.name);
   setTxt('ptl-use', one ? items[0].use : `${items.length} 個符號，每個演一次。不用跟著打，看完再練習。`);
-  $('ptl-done').disabled = true;
+  ptlReady(false);
   show('pt-lesson', true);
-  const play = () => { if (PT.demo) PT.demo.stop(); PT.demo = makeDemo($('ptl-demo'), items, () => { $('ptl-done').disabled = false; }); };
+  const play = () => { if (PT.demo) PT.demo.stop(); PT.demo = makeDemo($('ptl-demo'), items, () => ptlReady(true)); };
   PT.replay = play; play();
 }
 
@@ -5799,7 +5810,7 @@ function ptStageDone() {
 function ptPaintTicket() {
   const el = $('pt-ticket'); if (!el) return;
   el.innerHTML = ['Shift', 'Ctrl', '打怪'].map((t, i) => `<span class="st" data-i="${i}">${t}</span>`).join('') +
-    `<span class="tk">${CFG.nwRewardCode ? '🎫 三關全過，領「新世界門票」！' : '三關全過，拿成長點數！'}</span>`;
+    '<span class="tk">🎫 三關全過，拿「新世界門票」！</span>';
 }
 function ptBurst(el, n = 22, icons = ['✨', '⭐', '🌟', '💫', '🎉']) {
   const r = (el || $('pt-stage')).getBoundingClientRect(), box = document.createElement('div'); box.className = 'pt-fx';
@@ -5888,11 +5899,11 @@ async function finishPunctDrill() {
   const total = pts + bonus;
 
   setTxt('ptm-text', perfect ? '全對！打倒牠了！' : '打倒牠了！');
-  ptStamp(2); ptBanner(CFG.nwRewardCode ? '🎫 新世界門票到手！' : '三關全過！'); setTimeout(() => ptBurst(null, 40), 250);
+  ptStamp(2); ptBanner(first ? '🎫 新世界門票到手！' : '三關全過！'); setTimeout(() => ptBurst(null, 40), 250);
   setTxt('pt-sub', `打錯 ${PT.wrong} 次`);
   const fb = $('pt-feedback');
   fb.style.color = 'var(--gr)';
-  fb.textContent = `成長點數 +${total}` + (bonus ? `（全對再加 ${bonus}）` : '') + (CFG.nwRewardCode ? '　🎫 新世界門票！' : '');
+  fb.textContent = `成長點數 +${total}` + (bonus ? `（全對再加 ${bonus}）` : '') + (first ? '　🎫 新世界門票！' : '');
   setTxt('pt-progress', `${PT_MON_HITS} / ${PT_MON_HITS}`);
 
   /* 寫回點數。訓練場不寫 plays、不寫任何 best*／last*——
@@ -5913,7 +5924,8 @@ async function finishPunctDrill() {
     console.error('標點練習上傳失敗', e);
     toast('點數拿到了，但還沒存到雲端', 2600);
   }
-  if (CFG.nwRewardCode && NWG) NWG.reward(CFG.nwRewardCode).then(got => { if (got) paintNwButton(); });
+  /* 打完就開放：之後的 gate() 看 punctDone（雲端也有存，換電腦不會不見） */
+  if (first && NWG) { NWG.ticket(); paintNwButton(); }
   setTimeout(() => { if (!PT.active) quitPunctDrill(); }, 2600);
 }
 
@@ -7293,6 +7305,7 @@ function wireEvents() {
     unlockLevel: BALANCE.unlockLevel.epic,
     nwMode: () => CFG.nwMode || 'off',
     nwCodeHash: () => CFG.nwCodeHash || '',
+    punctDone: () => !!(MY_HIST && MY_HIST.punctDone),
     setTitle: setNwTitle,
     q: { questionUnits, judge, canon, splitZhuyin, IS_PUNCT,
          pool: name => (BANK[name] && BANK[name].length) ? BANK[name] : (DEFAULT_BANK[name] || []) }
@@ -7326,7 +7339,14 @@ function wireEvents() {
   $('pt-quit').addEventListener('click', quitPunctDrill);
   $('pt-skip').addEventListener('click', () => { skipPunct(); $('pt-input').focus(); });
   $('ptl-replay').addEventListener('click', () => { if (PT.replay) PT.replay(); });
-  $('ptl-done').addEventListener('click', () => closePtLesson(true, true));
+  $('ptl-done').addEventListener('click', () => {
+    if ($('ptl-done').dataset.ready !== '1') {
+      toast('先看完動畫喔！看完才能按「學會了」', 2400);
+      const d = $('ptl-demo'); d.classList.remove('ptl-nudge'); void d.offsetWidth; d.classList.add('ptl-nudge');
+      return;
+    }
+    closePtLesson(true, true);
+  });
   $('pt-input').addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); submitPunct(); }
   });
@@ -7457,7 +7477,6 @@ function tryAuth() {
   $('tc-classes').value    = CFG.classes.join(',');
   $('tc-nwmode').value     = CFG.nwMode || 'off';
   $('tc-nwcode').value     = '';
-  $('tc-nwreward').checked = !!CFG.nwRewardCode;
   tgLoad();
   updateTeacherBanner();
   const showLegacy = !!CFG.legacyConfig && CFG.legacyDifficulty != null;
@@ -7560,7 +7579,7 @@ async function openNwFeedback() {
     const cnt = {}; list.forEach(r => { if (r.type === 'bug' && r.status === 'approved') (cnt[r.docId] = cnt[r.docId] || { n: 0, who: `${r.cls} ${r.seat}號 ${r.name}` }).n++; });
     const given = new Set(rows.filter(r => r.type === 'award' && r.award === 'bugking').map(r => r.docId));
     const rank = Object.entries(cnt).sort((a, b) => b[1].n - a[1].n).slice(0, 5);
-    const rankHtml = rank.length ? `<div class="p-2 mb-2" style="border:1px solid var(--gold);border-radius:8px"><div class="text-sm font-black" style="color:var(--gold)">🐛 抓蟲排行（只算已確認的）</div>${rank.map(([id, c], i) => `<div class="flex items-center gap-2 text-sm py-0.5"><span>${i === 0 ? '👑' : (i + 1) + '.'}</span><span class="flex-1">${escHtml(c.who)}　${c.n} 個</span>${given.has(id) ? '<span style="color:var(--gr)">✓ 已頒發「抓蟲王」</span>' : `<button data-king="${escHtml(id)}" class="btn btn-gold text-xs px-2 py-1">頒發「抓蟲王」</button>`}</div>`).join('')}<div class="text-xs" style="color:var(--dim)">頒發後，學生下次進新世界會收到「抓蟲王」稱號詞條。可以頒給不只一位。</div></div>` : '';
+    const rankHtml = rank.length ? `<div class="p-2 mb-2" style="border:1px solid var(--gold);border-radius:8px"><div class="text-sm font-black" style="color:var(--gold)">🐛 抓蟲排行（只算已確認的）</div>${rank.map(([id, c], i) => `<div class="flex items-center gap-2 text-sm py-0.5"><span>${i === 0 ? '👑' : (i + 1) + '.'}</span><span class="flex-1">${escHtml(c.who)}　${c.n} 個</span>${given.has(id) ? '<span style="color:var(--gr)">✓ 已頒發「職業除錯師」</span>' : `<button data-king="${escHtml(id)}" class="btn btn-gold text-xs px-2 py-1">頒發「職業除錯師」</button>`}</div>`).join('')}<div class="text-xs" style="color:var(--dim)">頒發後，學生下次進新世界會收到「職業除錯師」稱號詞條。可以頒給不只一位。</div></div>` : '';
     sum.textContent = `共 ${list.length} 則，其中問題回報待確認 ${pend} 則。「✓ 確認」的回報，學生下次進新世界會收到字元與稱號；亂寫的按「✗ 不採用」就不會有獎勵。`;
     body.innerHTML = rankHtml + (list.length ? list.map(r => `<div class="py-2" style="border-bottom:1px solid var(--line)"><div class="text-xs" style="color:var(--dim)">${escHtml(r.cls)} ${escHtml(String(r.seat))}號 ${escHtml(r.name)}　${label(r)}　${new Date(r.t || 0).toLocaleString()}　${stat(r)}</div><div class="flex gap-2 items-start flex-wrap"><div class="flex-1" style="white-space:pre-wrap;min-width:200px">${escHtml(r.text || '（沒有寫字）')}</div>${r.type === 'bug' && (r.status || 'pending') === 'pending' ? `<button data-ok="${r.id}" class="btn btn-gold text-xs px-2 py-1">✓ 確認</button><button data-no="${r.id}" class="btn btn-ghost text-xs px-2 py-1">✗ 不採用</button>` : ''}<button data-del="${r.id}" class="btn btn-ghost text-xs px-2 py-1">刪除</button></div></div>`).join('') : '<div style="color:var(--dim)">還沒有回饋</div>');
   };
@@ -7605,7 +7624,6 @@ async function saveConfig() {
     classes:    $('tc-classes').value.split(',').map(s => s.trim()).filter(Boolean),
     nwMode:     $('tc-nwmode').value,
     ...($('tc-nwcode').value.trim() ? { nwCodeHash: await sha256Hex($('tc-nwcode').value.trim()) } : {}),
-    ...(!$('tc-nwreward').checked ? { nwRewardCode: '' } : $('tc-nwcode').value.trim() ? { nwRewardCode: $('tc-nwcode').value.trim() } : {}),
     balanceVer: BALANCE.ver          // 存進去之後 applyConfig() 就不會再判定成舊版設定
   };
   try {
