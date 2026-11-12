@@ -15,7 +15,7 @@ const seed = {
   const errs = []; p.on('dialog', d => d.accept());
   p.on('pageerror', e => errs.push('pageerror: ' + e.message));
   p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push('console: ' + m.text()); });
-  await p.addInitScript(a => { const s = a.s; window.__NW_CODE_HASH__ = a.hash; window.__NW_NOGIFT__ = true; window.__FS = s; localStorage.clear(); localStorage.setItem('mg_nw_fast', '1'); window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas'); }, { s: seed, hash: HASH });
+  await p.addInitScript(a => { const s = a.s; window.__NW_CODE_HASH__ = a.hash; window.__NW_NOGIFT__ = true; window.__NW_NOINTRO__ = true; window.__FS = s; localStorage.clear(); localStorage.setItem('mg_nw_fast', '1'); window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas'); }, { s: seed, hash: HASH });
   await p.route('**/*', r => {
     const u = r.request().url();
     if (u.startsWith('http://localhost')) return r.continue();
@@ -86,7 +86,7 @@ const seed = {
   await p.click('[data-bag-tab="dex"]'); await p.waitForTimeout(200);
   ok(((await p.textContent('#nw-bag')).match(/🔒/g) || []).length === 5, '圖鑑裡 5 把武器鎖著');
   await p.click('[data-bag-tab="quest"]'); await p.waitForTimeout(200);
-  ok((await p.textContent('#nw-bag')).includes('討伐泡泡蛙'), '背包的任務頁顯示 1-1');
+  ok((await p.textContent('#nw-bag')).includes('教學大樓'), '背包的任務頁顯示第一個任務：到教學大樓');
   await p.click('[data-bag-tab="mats"]'); await p.click('[data-bag-tab="items"]');
   ok((await p.textContent('#nw-bag')).includes('回復藥'), '道具裡有任務給的回復藥');
   await p.click('[data-bag-close]'); await p.waitForTimeout(100);

@@ -131,10 +131,10 @@ export function initNewWorld(C) {
 
   function showTicket(code) {
     const sheet = document.createElement('div');
-    sheet.id = 'nw-ticket'; sheet.className = 'fixed inset-0 z-[95] grid place-items-center p-4'; sheet.style.background = 'rgba(9,8,18,.9)';
+    sheet.id = 'nw-ticket'; sheet.className = 'nw-sheet fixed inset-0 z-[95] grid place-items-center p-4'; sheet.style.background = 'rgba(9,8,18,.9)';
     sheet.innerHTML = `<div class="px-panel text-center" style="max-width:420px;width:100%;padding:20px">
-      <div class="px-title" style="font-size:1.5em">${PX.badge(3, 4)} 搶先體驗券</div>
-      <p class="px-text mt-2">標點符號挑戰通關！老師送你「新世界」的搶先體驗號碼：</p>
+      <div class="px-title" style="font-size:1.5em">${PX.badge(3, 4)} 🎫 新世界門票</div>
+      <p class="px-text mt-2">標點符號挑戰全部通關！這是你的「新世界門票」號碼：</p>
       <div class="px-panel in mono mt-2" style="padding:12px;font-size:1.4em;letter-spacing:.06em;word-break:break-all;user-select:all" data-code></div>
       <p class="px-text mt-3" style="font-size:.95em">已經幫你開通了！回到大廳，點「新世界之門」就能進去。</p>
       <p class="text-xs mt-1" style="color:#aab0d8">這組號碼只給練過的同學，先不要告訴別人喔。</p>
@@ -161,7 +161,7 @@ export function initNewWorld(C) {
 
   function openCodeSheet(after) {
     const sheet = document.createElement('div');
-    sheet.className = 'fixed inset-0 z-[80] grid place-items-center p-4';
+    sheet.className = 'nw-sheet fixed inset-0 z-[80] grid place-items-center p-4';
     sheet.style.background = 'rgba(9,8,18,.88)';
     sheet.innerHTML = `<div class="px-panel p-6 w-full max-w-md">
       <div class="text-xl font-black mb-1">🔑 搶先體驗</div>
@@ -193,11 +193,12 @@ export function initNewWorld(C) {
     for (const q of MAIN_QUESTS) {
       if (NW.quest.done.includes(q.id)) continue;
       if (q.hold && q.hold()) continue;
-      if (!q.test(NW)) break;
+      if (!q.test(NW)) { if (q.soft) continue; break; }
       NW.quest.done.push(q.id);
       const r = q.reward || {};
       if (r.items) for (const k in r.items) NW.items[k] = (NW.items[k] || 0) + r.items[k];
       if (r.hrExp) addHrExp(NW, r.hrExp);
+      if (r.coins) NW.coins += r.coins;
       if (r.bp) r.bp.forEach(b => { if (!NW.bp.includes(b)) NW.bp.push(b); });
       got.push(q);
     }
@@ -246,9 +247,11 @@ export function initNewWorld(C) {
 
   function enterBuilding(b) {
     if (b.id === 'gate') { leave(); return; }
+    /* 點過的按鈕會一直拿著焦點，之後在建築裡按 Enter 會被瀏覽器當成又點了一次 */
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     const d = doorTile(b);
     NW.pos = [d[0], d[1] + 1];
-    if (buildingOpen(b)) { ({ map: viewBoard, rank: openRank, academy: openAcademyUI }[b.act] || (() => {}))(); return; }
+    if (buildingOpen(b)) { const go = { map: viewBoard, rank: openRank, academy: openAcademyUI }[b.act] || (() => {}); introOnce(b.id === 'board' ? 'board' : b.id).then(go); return; }
     openWip(b);
   }
 
@@ -283,8 +286,7 @@ export function initNewWorld(C) {
         PX, look: myChibi(), open: VILLAGE.buildings.filter(buildingOpen).map(b => b.id),
         start: NW.pos || VILLAGE.start, scroller: root, fast: FAST, onEnter: enterBuilding, guide: guideBuilding()
       });
-      earlyGift();
-      claimBugs();
+      hubStart();
     });
   }
 
@@ -293,7 +295,7 @@ export function initNewWorld(C) {
     const extra = (b.id === 'forge' || b.id === 'storage')
       ? `<p class="text-sm mt-2" style="color:#ffd98a">你已經存了 ${matN} 個材料、${NW.bp.length} 張圖紙，開張那天就能用！</p>` : '';
     const sheet = document.createElement('div');
-    sheet.className = 'fixed inset-0 z-[80] grid place-items-center p-4';
+    sheet.className = 'nw-sheet fixed inset-0 z-[80] grid place-items-center p-4';
     sheet.style.background = 'rgba(9,8,18,.88)';
     sheet.innerHTML = `<div class="px-panel w-full max-w-md text-center">
       <div class="px-img mx-auto mb-3" data-bld style="display:inline-block;background:#0e0b16;padding:8px;border:3px solid #0a0714"></div>
@@ -497,7 +499,7 @@ export function initNewWorld(C) {
   function showGift(g) {
     return new Promise(done => {
       const sheet = document.createElement('div');
-      sheet.id = 'nw-gift'; sheet.className = 'fixed inset-0 z-[97] grid place-items-center p-3'; sheet.style.zIndex = 97; sheet.style.background = 'rgba(9,8,18,.92)';
+      sheet.id = 'nw-gift'; sheet.className = 'nw-sheet fixed inset-0 z-[97] grid place-items-center p-3'; sheet.style.zIndex = 97; sheet.style.background = 'rgba(9,8,18,.92)';
       sheet.innerHTML = `<style>@keyframes giftPop{0%{transform:scale(.4) rotate(-8deg)}60%{transform:scale(1.12) rotate(3deg)}100%{transform:scale(1) rotate(0)}}@keyframes giftBob{50%{transform:translateY(-6px)}}</style>
         <div class="px-panel text-center" style="max-width:420px;width:100%;padding:20px;animation:giftPop .5s ease-out">
           <div class="px-title" style="font-size:1.5em">🎁 收到禮物！</div>
@@ -523,7 +525,46 @@ export function initNewWorld(C) {
     return null;
   }
 
-  const guideBuilding = () => (NW.hunts === 0 && !(NW.tut && NW.tut.attack) && !NW.tutSkip) ? 'academy' : (goalOf(NW) ? goalOf(NW).building : null);
+  const guideBuilding = () => (goalOf(NW) ? goalOf(NW).building : null);
+
+  const INTROS = {
+    hub: [
+      { icon: '🏘', title: '歡迎來到獵人村', text: '這裡是新世界的大廳。用 W A S D 或方向鍵走路，也可以用滑鼠點想去的地方。想進房子：點一下房子，或站在門口按 Enter。灰色的房子還在施工中。' },
+      { icon: '📌', title: '任務系統', text: '上面金色的「📌」就是你現在的任務，做完會有獎勵。地上黃色的箭頭會帶你走到目的地，房子上面彈跳的箭頭就是要去的地方。點「📌」可以看任務怎麼做。現在的第一個任務：到教學大樓學會三堂課！' },
+      { icon: '🧰', title: '上面的按鈕', text: '🎒 背包：看裝備、道具、稱號。🎁 序號：輸入老師給的序號領禮物。📓 測試員手冊：新世界還在試玩，完成測試任務有獎勵。🐛 回報問題：發現哪裡怪怪的，告訴我們。' }
+    ],
+    academy: [{ icon: '🏫', title: '教學大樓', text: '這裡有閃避、防禦、打字三堂課。每一堂都是先看示範，再自己一步一步做；沒做對會一直等你，做對才換下一步；最後還要把稻草魔物打倒（打 5 下）。學會一堂送 200 字元！' }],
+    board: [{ icon: '📜', title: '委託板', text: '選一張委託單，右邊的大地圖會亮起魔物住的地方。有紅色「任務目標」標籤的，就是現在任務要打的魔物。按「狩獵」開房間，再按「出發」就開打。★ 越多越難，打贏低星才會開高星。' }],
+    bag: [{ icon: '🎒', title: '背包', text: '左邊是你的角色和 5 個裝備格，點名字下面的稱號可以自己拚稱號。右邊的分頁看裝備、道具、材料、圖紙、任務、圖鑑。拿到新武器，點格子裡的武器就能換上。' }],
+    title: [{ icon: '🏅', title: '自己拚稱號', text: '稱號是用「詞條」拚的：一次選 1～3 個，順序自己決定。灰色的詞條還沒解鎖，會寫怎麼拿。打贏魔物、完成任務、抓蟲都能解鎖新詞條。' }],
+    book: [{ icon: '📓', title: '測試員手冊', text: '新世界還在試玩，你是第一批冒險者！每完成一個任務就蓋一個章，拿字元和稱號詞條。字元是新世界的貨幣，之後可以買東西、打造裝備。' }],
+    gift: [{ icon: '🎁', title: '序號禮物', text: '老師會發序號給你。在這裡輸入（輸入的字會藏起來），就能領禮物，領到會跳出通知。每組序號每個人只能領一次。' }]
+  };
+  function introOnce(key) {
+    return new Promise(res => {
+      const pages = INTROS[key];
+      if (!pages || NW.intro[key] || window.__NW_NOINTRO__) return res();
+      let i = 0;
+      const sheet = document.createElement('div');
+      sheet.id = 'nw-intro'; sheet.className = 'nw-sheet fixed inset-0 grid place-items-center p-3'; sheet.style.zIndex = 99; sheet.style.background = 'rgba(9,8,18,.88)';
+      const draw = () => {
+        const p = pages[i];
+        sheet.innerHTML = `<div class="px-panel text-center" style="max-width:460px;width:100%;padding:20px">
+          <div style="font-size:48px;line-height:1.1">${p.icon}</div>
+          <div class="px-title mt-2" style="font-size:1.5em">${p.title}</div>
+          <p class="px-text mt-3" style="font-size:1.05em;line-height:1.6;text-align:left">${p.text}</p>
+          <div class="flex items-center justify-between mt-4"><span class="px-text text-sm" style="color:#aab0d8">${pages.length > 1 ? `${i + 1} / ${pages.length}` : ''}</span>
+            <button class="px-btn gold" data-next style="padding:8px 26px">${i + 1 < pages.length ? '下一頁 ▶' : '知道了 ✓'}</button></div></div>`;
+      };
+      sheet.addEventListener('click', e => {
+        if (!e.target.closest('[data-next]')) return;
+        if (++i < pages.length) { draw(); return; }
+        NW.intro[key] = 1; saveNw(); sheet.remove(); res();
+      });
+      draw(); document.body.appendChild(sheet);
+    });
+  }
+  async function hubStart() { await introOnce('hub'); await earlyGift(); claimBugs(); }
 
   async function awardMissions() {
     const ms = checkMissions(NW);
@@ -575,7 +616,7 @@ export function initNewWorld(C) {
 
   function openBugReport() {
     const sheet = document.createElement('div');
-    sheet.className = 'fixed inset-0 grid place-items-center p-3'; sheet.style.zIndex = 96; sheet.style.background = 'rgba(9,8,18,.92)';
+    sheet.className = 'nw-sheet fixed inset-0 grid place-items-center p-3'; sheet.style.zIndex = 96; sheet.style.background = 'rgba(9,8,18,.92)';
     sheet.innerHTML = `<div class="px-panel" style="max-width:520px;width:100%;padding:16px">
       <div class="px-title" style="font-size:1.4em">🐛 回報問題</div>
       <p class="px-text mt-1 text-sm">遊戲哪裡怪怪的？畫面、按鍵、題目、魔物……都可以告訴我們，幫忙抓蟲的人會得到「除蟲員」稱號和字元！</p>
@@ -607,8 +648,9 @@ export function initNewWorld(C) {
 
   async function openTesterBook() {
     await claimBugs();
+    introOnce('book');
     const sheet = document.createElement('div');
-    sheet.className = 'fixed inset-0 overflow-y-auto'; sheet.style.zIndex = 94; sheet.style.background = 'rgba(9,8,18,.94)';
+    sheet.className = 'nw-sheet fixed inset-0 overflow-y-auto'; sheet.style.zIndex = 94; sheet.style.background = 'rgba(9,8,18,.94)';
     const done = TESTER_MISSIONS.filter(m => NW.tm[m.id]).length;
     sheet.innerHTML = `<div class="max-w-2xl mx-auto p-3"><div class="px-panel" style="padding:14px">
       <div class="flex items-center justify-between gap-2"><div class="px-title" style="font-size:1.5em">📓 測試員手冊</div><button class="px-btn" data-close>關閉</button></div>
@@ -635,8 +677,9 @@ export function initNewWorld(C) {
 
   const giftHash = async raw => sha256Hex('gift:' + cleanCode(raw));
   function openGiftInput() {
+    introOnce('gift');
     const sheet = document.createElement('div');
-    sheet.className = 'fixed inset-0 z-[90] grid place-items-center p-3'; sheet.style.zIndex = 90; sheet.style.background = 'rgba(9,8,18,.9)';
+    sheet.className = 'nw-sheet fixed inset-0 z-[90] grid place-items-center p-3'; sheet.style.zIndex = 90; sheet.style.background = 'rgba(9,8,18,.9)';
     sheet.innerHTML = `<div class="px-panel" style="max-width:420px;width:100%;padding:18px">
       <div class="px-title" style="font-size:1.4em">🎁 兌換序號</div>
       <p class="px-text mt-1 text-sm">輸入老師給你的序號，就能領禮物。輸入的字會藏起來。</p>
@@ -672,6 +715,7 @@ export function initNewWorld(C) {
   const titleLine = () => NW.title ? `${PX.badge(tierOf(NW.titleParts.length), 2)} <b>${escHtml(NW.title)}</b>` : `${PX.badge(1, 2)} <span style="color:#aab0d8">還沒有稱號・點我拚一個</span>`;
 
   function openTitleEditor(after) {
+    introOnce('title');
     const ed = document.createElement('div');
     ed.id = 'nw-title'; ed.className = 'fixed inset-0 z-[88] grid place-items-center p-4'; ed.style.background = 'rgba(9,8,18,.88)';
     let parts = NW.titleParts.filter(id => NW.words.includes(id));
@@ -711,7 +755,7 @@ export function initNewWorld(C) {
     closeBag();
     const TABS = [['equip', '⚔', '裝備背包'], ['items', '🧪', '道具'], ['mats', '📦', '材料'], ['bp', '📜', '圖紙'], ['quest', '🧭', '任務'], ['dex', '📖', '圖鑑']];
     const sheet = document.createElement('div');
-    sheet.id = 'nw-bag'; sheet.className = 'fixed inset-0 z-[75] overflow-y-auto'; sheet.style.background = 'rgba(9,8,18,.9)';
+    sheet.id = 'nw-bag'; sheet.className = 'nw-sheet fixed inset-0 z-[75] overflow-y-auto'; sheet.style.background = 'rgba(9,8,18,.9)';
     sheet.innerHTML = `<style>
       .bp-slot{width:64px;height:64px;display:grid;place-items:center;position:relative;background:#0e0b16;border:3px solid #3a3070;box-shadow:inset 0 0 0 2px #1a1530}
       .bp-slot.on{border-color:#e8b64c}
@@ -767,6 +811,7 @@ export function initNewWorld(C) {
     document.body.appendChild(sheet);
     renderCard();
     render(tab || 'equip');
+    introOnce('bag');
   }
   addEventListener('keydown', e => {
     const k = e.key.toLowerCase();
@@ -861,7 +906,7 @@ export function initNewWorld(C) {
     return new Promise(done => {
       const m = MONSTERS[res.mk];
       const sheet = document.createElement('div');
-      sheet.id = 'nw-fb'; sheet.className = 'fixed inset-0 z-[96] grid place-items-center p-3'; sheet.style.zIndex = 96; sheet.style.background = 'rgba(9,8,18,.92)';
+      sheet.id = 'nw-fb'; sheet.className = 'nw-sheet fixed inset-0 z-[96] grid place-items-center p-3'; sheet.style.zIndex = 96; sheet.style.background = 'rgba(9,8,18,.92)';
       sheet.innerHTML = `<div class="px-panel" style="max-width:520px;width:100%;padding:16px;max-height:94vh;overflow-y:auto">
         <div class="px-title" style="font-size:1.4em">🧪 測試回饋</div>
         <p class="px-text mt-2">你剛打完「<b>${escHtml(m.name)}</b>」，謝謝你幫忙測試！覺得好打嗎？紅線看得清楚嗎？有什麼想法？<b>可以寫，也可以不寫。</b></p>
@@ -940,7 +985,7 @@ export function initNewWorld(C) {
     const need = hrNeed(sum.hr0 || NW.hr), p0 = (sum.exp0 || 0) / need * 100, p1 = NW.hr >= HR_MAX ? 100 : Math.min(100, NW.hrExp / hrNeed(NW.hr) * 100);
     const sheet = document.createElement('div');
     sheet.id = 'nw-result';
-    sheet.className = 'fixed inset-0 z-[90] overflow-y-auto';
+    sheet.className = 'nw-sheet fixed inset-0 z-[90] overflow-y-auto';
     sheet.style.background = 'rgba(9,8,18,.94)';
     sheet.innerHTML = `<div class="max-w-2xl mx-auto p-4 py-6">
       <div style="text-align:center;margin-bottom:-14px;position:relative;z-index:2"><span class="px-title" style="display:inline-block;padding:6px 36px;font-size:2em;background:#4a2f16 url(${PX.wood().toDataURL()});background-size:144px;border:5px solid #1c1008;box-shadow:inset 0 0 0 3px #8a6a3a;color:${win ? '#ffd98a' : '#e5705f'}">${title}</span></div>

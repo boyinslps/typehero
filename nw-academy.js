@@ -120,6 +120,24 @@ export function openAcademy(env) {
     for (let i = 0; i < steps.length && alive2(); i++) {
       setDots(i);
       const st = steps[i];
+      if (st.fight) {
+        scene.setMax(5);
+        const words = [...WORDS].sort(() => Math.random() - .5).slice(0, 5);
+        ui.say(st.say); keyCaps(st.keys || []);
+        for (let k = 0; k < 5 && alive2(); k++) {
+          if (st.strike && (k === 1 || k === 3)) { const sk = st.strike(k); scene.spawn(sk.kind, sk.opts); }
+          for (;;) {
+            const ok = await scene.typeTask(ui, words[k]);
+            if (!alive2()) return;
+            if (ok) break;
+            ui.say('字不一樣喔，看清楚再打一次。'); await wait(900); ui.say(st.say);
+          }
+          if (k < 4) { ui.say(`打中了！魔物還剩 ${4 - k} 下。${st.say}`); }
+        }
+        if (!alive2()) return;
+        say.classList.add('ac-ok'); ui.say('打倒稻草魔物了！'); await wait(1400); say.classList.remove('ac-ok');
+        continue;
+      }
       if (st.demo) {
         do {
           ui.say(st.say); keyCaps(st.keys || []);
@@ -162,7 +180,9 @@ const STEPS = {
     { say: '換你了！紅線出現後，按「左 Ctrl」或「右 Ctrl」，換到沒有紅色的線。', keys: ['ControlLeft', 'ControlRight'], good: '躲開了！', bad: '被打到了，沒關係，再來一次！',
       task: async ui => { await wait(600); const r = await ui.scene.spawn('single', { lane: ui.scene.lane, W: 3.5 }); return !r.hurt; } },
     { say: '這次兩條線都變紅，只有一條是安全的。站到安全的那一條！', keys: ['ControlLeft', 'ControlRight'], good: '看清楚了，很棒！',
-      task: async ui => { ui.scene.lane = 1; await wait(600); const r = await ui.scene.spawn('pair', { safe: 0, W: 3.5 }); return !r.hurt; } }
+      task: async ui => { ui.scene.lane = 1; await wait(600); const r = await ui.scene.spawn('pair', { safe: 0, W: 3.5 }); return !r.hurt; } },
+    { fight: true, say: '實戰！一邊打字把稻草魔物打倒（要打 5 下），魔物出招時，記得換線躲開。', keys: ['ControlLeft', 'ControlRight'],
+      strike: k => k === 1 ? { kind: 'single', opts: { lane: 1, W: 3.4 } } : { kind: 'pair', opts: { safe: 2, W: 3.4 } } }
   ],
   defend: [
     { say: '看示範：整排都變藍色，沒地方躲！小人按「Alt」舉起盾牌擋住。', keys: ['Alt'],
@@ -172,14 +192,17 @@ const STEPS = {
     { say: '再一次！記得：不是一直按，而是在快打到的時候按。', keys: ['Alt'], good: '時機抓得很準！',
       task: async ui => { await wait(600); const r = await ui.scene.spawn('slam', { W: 2.6 }); return !r.hurt; } },
     { say: '最後一課：只有一條線變紅時，站在紅線上舉盾，只會擋掉一半的傷。所以還是「換線」最安全！（按一下 Alt 看看）', keys: ['Alt'], good: '你知道了：能躲就躲，躲不掉再舉盾。',
-      task: async ui => { await wait(600); ui.scene.lane = 1; const r = await ui.scene.spawn('single', { lane: 1, W: 3.2 }); return r.shielded; } }
+      task: async ui => { await wait(600); ui.scene.lane = 1; const r = await ui.scene.spawn('single', { lane: 1, W: 3.2 }); return r.shielded; } },
+    { fight: true, say: '實戰！一邊打字把稻草魔物打倒（要打 5 下），整排變藍色時，記得按 Alt 舉盾。', keys: ['Alt'],
+      strike: () => ({ kind: 'slam', opts: { W: 3.4 } }) }
   ],
   attack: [
     { say: '看示範：魔物要被打倒，就把畫面上的字打出來。照著注音打，選好字，再按 Enter。',
       demo: async ui => { const s = ui.scene; s.reset(); const w = WORDS[0]; await s.fakeType(w[0], w[1]); } },
     { say: '換你了！照著下面的字，用注音打出來，再按 Enter。', word: 0, good: '打中了！', bad: '字不一樣喔，看清楚再打一次。', task: ui => ui.scene.typeTask(ui, WORDS[1]) },
     { say: '再一個！', good: '打中了！', bad: '字不一樣喔，看清楚再打一次。', task: ui => ui.scene.typeTask(ui, WORDS[2]) },
-    { say: '最後一個！打對的字才有傷害，亂打會被反擊。', good: '打倒稻草魔物了！', bad: '字不一樣喔，看清楚再打一次。', task: ui => ui.scene.typeTask(ui, WORDS[3]) }
+    { say: '最後一個練習！打對的字才有傷害，亂打會被反擊。', good: '很好！', bad: '字不一樣喔，看清楚再打一次。', task: ui => ui.scene.typeTask(ui, WORDS[3]) },
+    { fight: true, say: '實戰！把稻草魔物打倒（要打 5 下），打完一個字就按 Enter。' }
   ]
 };
 
@@ -190,7 +213,7 @@ function makeScene(cv, PX, look, monKey, hostW) {
   cv.width = LW; cv.height = LH; cv.style.width = LW * sc + 'px'; cv.style.height = LH * sc + 'px';
   const g = cv.getContext('2d'); g.imageSmoothingEnabled = false;
   const bg = PX.bg('grass', LW), mon = PX.canvas('monster', monKey, 2, false), hero = PX.hero(look, 1);
-  const S = { t: 0, lane: 1, hx: LANE_C[1] - 2, shieldUntil: 0, strikes: [], flash: [], hitAt: -9, hp: 3, monFlash: -9, say: '' };
+  const S = { t: 0, lane: 1, hx: LANE_C[1] - 2, shieldUntil: 0, strikes: [], flash: [], hitAt: -9, hp: 3, max: 3, monFlash: -9, say: '' };
   const now = () => performance.now() / 1000;
   let raf = 0, alive = true;
   const waiters = [];
@@ -232,7 +255,8 @@ function makeScene(cv, PX, look, monKey, hostW) {
         g.strokeStyle = 'rgba(159,216,255,.8)'; g.lineWidth = 1; g.beginPath(); g.arc(hx, hy - 16, 18 + Math.sin(T * 12), 0, 7); g.stroke();
       }
     }
-    for (let i = 0; i < 3; i++) { g.fillStyle = i < S.hp ? '#d8402a' : '#2a1c1c'; g.fillRect(50 + i * 20, 4, 18, 4); }
+    const sw = Math.floor(56 / S.max) * 2 - 2;
+    for (let i = 0; i < S.max; i++) { g.fillStyle = i < S.hp ? '#d8402a' : '#2a1c1c'; g.fillRect(80 - S.max * (sw + 2) / 2 + i * (sw + 2), 4, sw, 4); }
   }
   const loop = () => { if (!alive) return; const T = now(); update(T); draw(T); raf = requestAnimationFrame(loop); };
   raf = requestAnimationFrame(loop);
@@ -253,7 +277,9 @@ function makeScene(cv, PX, look, monKey, hostW) {
     get lane() { return S.lane; }, set lane(v) { S.lane = v; },
     get danger() { const T = now(); return waiters.flatMap(gp => gp.strikes.filter(st => !st.done && T >= st.warn)).map(st => ({ lane: st.lane, slam: !!st.slam, left: st.hit - T })); },
     press,
-    reset() { S.hp = 3; S.shieldUntil = 0; },
+    reset() { S.max = 3; S.hp = 3; S.shieldUntil = 0; },
+    setMax(n) { S.max = n; S.hp = n; },
+    get hp() { return S.hp; },
     stop() { alive = false; cancelAnimationFrame(raf); removeEventListener('keydown', kd); },
     spawn(kind, o = {}) {
       return new Promise(resolve => {

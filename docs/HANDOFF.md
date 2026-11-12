@@ -35,6 +35,12 @@
 - 武器進度靠 `NW.used`、`NW.wwin`（`finishHunt` 累加）。之後新增武器要在 `WORDS` 補 3 個詞條。
 - 舊世界顯示：`index.html` 的 `nwTitleChip`／`paintWho`，資料來自 `mg_scores.nwTitle`／`nwTitleN`。
 
+### 新手導覽與標點挑戰（v3.12.0）
+- 介紹：`newworld.js` 的 `INTROS` + `introOnce(key)`，看過記在 `NW.intro[key]`；本機測試可用 `window.__NW_NOINTRO__` 跳過。新增建築或功能就在 `INTROS` 加一筆。
+- 第一個任務 `1-0a`（`soft`）在 `nw-data.js`；`goalOf()` 回傳 `{text, building, match}`，村莊地板箭頭 `guideBuilding` 用 `building`。
+- 畫面蓋著時村莊不吃按鍵：`nw-village.js` 的 `overlayOpen()`，新做的全螢幕畫面要加進它的選擇器（或帶 `nw-sheet` class）。
+- 標點挑戰在 `index.html`：`PUNCT_LESSONS`（Shift／Ctrl 兩組）、`PUNCT_STAGES`、`PUNCT_SENTENCES`、`PT_MON_HITS`。老師勾選發放時才給號碼，沒有改。
+
 ### 教學大樓與導覽（v3.11.0）
 - 教學課在 `nw-academy.js`：`LESSONS`（選單）、`STEPS`（每步 `demo` 示範或 `task` 讓學生做；`task` 回 true 過關、false 重來）、`makeScene()`（小場景，不會受傷）。新增教學＝加一組 `STEPS` 與 `LESSONS` 一列，`newworld.js` 的 `lessonDone()` 負責獎勵。
 - 導覽 `tour(steps)`：每步 `{text, target(), done()}`。用在換裝備教學（`weaponTour()`）。

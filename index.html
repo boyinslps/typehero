@@ -354,6 +354,22 @@ body{
 /* 稿紙格：標點單獨放大會看不出是什麼（「。」就是一個圓圈），
    套進一個十字虛線的格子裡，位置與佔一格的概念一起教。 */
 #pt-hint{font-size:22px}
+#pt-stage{background-image:radial-gradient(2px 2px at 20px 30px,#ffd98a,transparent),radial-gradient(2px 2px at 140px 90px,#c9a6ff,transparent),radial-gradient(1.5px 1.5px at 80px 160px,#fff,transparent),radial-gradient(1.5px 1.5px at 180px 20px,#8fd0ea,transparent);background-size:200px 200px;animation:ptStars 14s linear infinite}
+@keyframes ptStars{to{background-position:200px 200px}}
+.pt-ticket{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:4px}
+.pt-ticket .st{padding:1px 10px;border:2px dashed var(--line2);border-radius:6px;font-size:12px;font-weight:900;color:var(--dim2)}
+.pt-ticket .st.on{border:2px solid var(--gold);background:var(--gold);color:#1a1409}
+.pt-ticket .st.pop{animation:ptlPop .5s ease-out}
+.pt-ticket .tk{font-size:12px;font-weight:800;color:var(--gold)}
+.pt-orn{position:absolute;width:12px;height:12px;background:var(--gold);transform:rotate(45deg);box-shadow:0 0 8px rgba(232,182,76,.7);animation:ptOrn 1.6s ease-in-out infinite}
+@keyframes ptOrn{50%{transform:rotate(45deg) scale(.6);opacity:.6}}
+#pt-cell.pt-spark{animation:ptSpark .5s ease-out}
+@keyframes ptSpark{0%{box-shadow:0 0 0 0 rgba(255,210,74,.9)}100%{box-shadow:0 0 0 26px rgba(255,210,74,0)}}
+.pt-fx{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:89}
+.pt-fx i{position:absolute;font-style:normal;animation:ptFly 1.3s ease-out forwards}
+@keyframes ptFly{0%{opacity:1;transform:translate(0,0) scale(.5)}100%{opacity:0;transform:translate(var(--dx),var(--dy)) rotate(var(--r)) scale(1.2)}}
+.pt-banner{position:fixed;left:50%;top:38%;transform:translate(-50%,-50%);z-index:95;pointer-events:none;font-size:46px;font-weight:900;color:#ffd24a;text-shadow:0 4px 0 #6b4a12,0 0 30px rgba(255,210,74,.6);white-space:nowrap;animation:ptBan 1.5s ease-out forwards}
+@keyframes ptBan{0%{opacity:0;transform:translate(-50%,-30%) scale(.4)}25%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}70%{opacity:1}100%{opacity:0;transform:translate(-50%,-70%) scale(1)}}
 .pt-prac{display:flex;gap:28px;align-items:center;justify-content:center;flex-wrap:wrap;width:100%}
 .pt-left{display:flex;flex-direction:column;align-items:center;gap:8px}
 .pt-right{width:min(460px,100%)}
@@ -1264,6 +1280,7 @@ select option{background:var(--panel2);color:var(--ink)}
     <div>
       <h2 class="text-2xl font-black">標點符號練習</h2>
       <p id="pt-sub" class="text-sm" style="color:var(--dim)">照著畫面打出那個標點，下方鍵盤會告訴你按哪一顆</p>
+      <div id="pt-ticket" class="pt-ticket"></div>
     </div>
     <div class="flex items-center gap-4">
       <div class="text-right leading-none">
@@ -1281,7 +1298,7 @@ select option{background:var(--panel2);color:var(--ink)}
   <div id="pt-stage" class="panel flex-1 p-4">
     <div id="pt-prac" class="pt-prac">
       <div class="pt-left">
-        <div id="pt-cell"><div id="pt-mark"></div></div>
+        <div id="pt-cell"><i class="pt-orn" style="left:-6px;top:-6px"></i><i class="pt-orn" style="right:-6px;top:-6px"></i><i class="pt-orn" style="left:-6px;bottom:-6px"></i><i class="pt-orn" style="right:-6px;bottom:-6px"></i><div id="pt-mark"></div></div>
         <div id="pt-name" class="text-3xl font-black"></div>
         <p id="pt-use" class="text-base text-center" style="color:var(--dim)"></p>
         <div id="pt-hint" class="text-base" style="color:var(--gold)"></div>
@@ -1295,7 +1312,7 @@ select option{background:var(--panel2);color:var(--ink)}
       <div id="ptm-cv"></div>
       <div class="ptm-hp"><i id="ptm-hp-i"></i></div>
       <div id="ptm-text"></div>
-      <div class="text-sm" style="color:var(--dim)">把這句話連<b>標點符號</b>一起打出來，打中 8 次就打倒牠！</div>
+      <div class="text-sm text-center" style="color:var(--dim);max-width:560px">怪物會出一句短句。字用<b>注音</b>打，遇到<b>標點符號</b>，就用剛學的 <b>Shift</b>、<b>Ctrl</b> 鍵打出來，<b>字和標點混在一起</b>，打完按 Enter。打中 5 次就打倒牠！</div>
     </div>
     <div id="pt-feedback" class="text-xl font-black text-center" style="min-height:30px"></div>
   </div>
@@ -2693,8 +2710,20 @@ function initNw() {
    版本紀錄：首頁右下角那顆 v2.0.0 按鈕點開看到的內容。
    跟 CHANGELOG.md 是同一份資料，改一邊也要記得改另一邊。
    ══════════════════════════════════════════════════════════════ */
-const APP_VERSION = '3.11.0';
+const APP_VERSION = '3.12.0';
 const VERSION_LOG = [
+  { v:'3.12.0', date:'2026-11-12', title:'標點符號挑戰改版、新手導覽',
+    added: [
+      '標點符號挑戰縮短了：Shift 的 ！ @ ~ ？ 一次看完教學（不用跟著打），練 3 個；Ctrl 的 ，。、「」 一次看完，再練 3 個',
+      '最後是打怪挑戰：打 5 句，字和標點混在一起打。每過一關蓋一個章、跳出小特效，全部通過就拿到「新世界門票」',
+      '練習畫面多了星空、角落裝飾和章章列',
+      '新世界：第一次進村會先介紹怎麼走路、任務系統和上面每個按鈕；第一次進每棟房子也會先說明一次',
+      '新世界：第一個任務是「到教學大樓學會三堂課」，地板的箭頭會先帶你去教學大樓',
+      '教學大樓每堂課最後要把稻草魔物打倒（打 5 下）'
+    ],
+    fixed: [
+      '在教學大樓裡按 Enter，不會再又彈出一個畫面'
+    ] },
   { v:'3.11.0', date:'2026-11-11', title:'新世界：教學大樓、測試員手冊、序號禮物',
     added: [
       '村莊多了「教學大樓」：閃避、防禦、打字攻擊三堂課，每一堂都是先看示範，再自己一步一步做；沒做對會一直等你，做對才換下一步。學會一堂送 200 字元',
@@ -5526,13 +5555,13 @@ function replayTutorial() {
    這是實際輸入法的行為，不是我們自己編的——寫錯的話學生照著按會打不出來。
    ══════════════════════════════════════════════════════════════ */
 const PUNCT_LESSONS = [
+  { ch: '！', name: '驚嘆號', key: '1',  mod: 'Shift', use: '很興奮、很驚訝、大聲喊的時候' },
+  { ch: '@',  name: '小老鼠', key: '2',  mod: 'Shift', use: '寫電子郵件的時候：abc@mail.com' },
+  { ch: '~',  name: '波浪號', key: '`',  mod: 'Shift', use: '拉長聲音、「大約」的時候：好棒~　5~10 個' },
+  { ch: '？', name: '問號',   key: '/',  mod: 'Shift', use: '問別人事情的時候' },
   { ch: '，', name: '逗號',   key: ',',  mod: 'Ctrl',  use: '句子還沒講完，中間喘一口氣的地方' },
   { ch: '。', name: '句號',   key: '.',  mod: 'Ctrl',  use: '一句話講完了' },
   { ch: '、', name: '頓號',   key: '\\', mod: 'Ctrl',  use: '並列的東西中間：蘋果、香蕉、芭樂' },
-  { ch: '？', name: '問號',   key: '/',  mod: 'Shift', use: '問別人事情的時候' },
-  { ch: '！', name: '驚嘆號', key: '1',  mod: 'Shift', use: '很興奮、很驚訝、大聲喊的時候' },
-  { ch: '：', name: '冒號',   key: ';',  mod: 'Shift', use: '後面要列出東西或引出說的話' },
-  { ch: '；', name: '分號',   key: ';',  mod: 'Ctrl',  use: '兩句有關係的話中間，比逗號重、比句號輕' },
   { ch: '「', name: '上引號', key: '[',  mod: 'Ctrl',  use: '別人說的話從這裡開始', pick: ['【', '「', '『', '〔'] },
   { ch: '」', name: '下引號', key: ']',  mod: 'Ctrl',  use: '別人說的話到這裡結束', pick: ['】', '」', '』', '〕'] }
 ];
@@ -5541,7 +5570,7 @@ const punctKeyLabel = p => `${p.mod} + ${p.key}`;
 /* 完整鍵盤，排法跟普通難度的注音鍵盤一樣，另外補上標點會用到的
    [ ] \\ 三顆（注音鍵盤沒有那幾顆）。有標點的鍵會在上面標出來。 */
 const PUNCT_KEYBOARD = [
-  [['1','ㄅ'],['2','ㄉ'],['3','ˇ'],['4','ˋ'],['5','ㄓ'],['6','ˊ'],
+  [['`',''],['1','ㄅ'],['2','ㄉ'],['3','ˇ'],['4','ˋ'],['5','ㄓ'],['6','ˊ'],
    ['7','˙'],['8','ㄚ'],['9','ㄞ'],['0','ㄢ'],['-','ㄦ']],
   [['Q','ㄆ'],['W','ㄊ'],['E','ㄍ'],['R','ㄐ'],['T','ㄔ'],['Y','ㄗ'],
    ['U','ㄧ'],['I','ㄛ'],['O','ㄟ'],['P','ㄣ'],['[',''],[']','']],
@@ -5552,17 +5581,18 @@ const PUNCT_KEYBOARD = [
 ];
 
 const PUNCT_STAGES = [
-  { name: 'Shift ＋ 一顆鍵（不用選字）', chs: ['！', '？', '：'] },
-  { name: 'Ctrl ＋ 一顆鍵（不用選字）', chs: ['，', '。', '、', '；'] },
-  { name: '上下引號：Ctrl ＋ 鍵，還要選字', chs: ['「', '」'], together: true }
+  { name: 'Shift 加一顆鍵', chs: ['！', '@', '~', '？'], practice: 3 },
+  { name: 'Ctrl 加一顆鍵', chs: ['，', '。', '、', '「', '」'], practice: 3 }
 ];
 const PUNCT_BY_CH = Object.fromEntries(PUNCT_LESSONS.map(p => [p.ch, p]));
-const PUNCT_SENTENCES = ['你好嗎？', '太好了！', '蘋果、香蕉', '我來了。', '他說：「好」', '吃飯，睡覺。', '天晴；風大。', '哇！好大！', '你是誰？', '我喜歡：貓', '小明說：「嗨！」', '紅、黃、藍', '快跑！快跑！', '下雨了，快回家。'];
-const PT_MON_HITS = 8;
+const PUNCT_SENTENCES = ['你好嗎？', '太好了！', '蘋果、香蕉', '我來了。', '他說「好」', '吃飯，睡覺。', '哇！好大！', '你是誰？', '紅、黃、藍', '快跑！快跑！', '小明說「嗨！」', '好，走吧。', '好棒~', '哈哈~好玩！', '下雨了，快回家。'];
+const PT_MON_HITS = 5;
 const PT = { stage: 0, queue: [], idx: 0, streak: 0, wrong: 0, active: false, lesson: false, phase: 'practice', teach: [], mon: null, mini: null, miniCh: '', demo: null, items: [] };
 
 /* 標點用向量畫，不靠字型：不同字型把「：」「、」放的位置差很多（有的偏左下），臺灣的全形標點是置中的 */
 const PUNCT_SVG = {
+  '@': '<circle cx="50" cy="50" r="22" stroke-width="7" fill="none"/><circle cx="50" cy="50" r="8" stroke-width="6" fill="none"/><path d="M58 42 L58 58 Q58 64 66 62 Q74 60 72 46" stroke-width="6" fill="none"/>',
+  '~': '<path d="M22 54 Q36 30 50 50 T78 46" stroke-width="9" fill="none"/>',
   '，': '<circle cx="52" cy="50" r="8"/><path d="M54 56 Q56 70 43 78" stroke-width="7" fill="none"/>',
   '。': '<circle cx="50" cy="50" r="11" stroke-width="7" fill="none"/>',
   '、': '<path d="M43 36 L58 62" stroke-width="9" fill="none"/>',
@@ -5596,7 +5626,7 @@ function makeDemo(host, items, onCycle) {
     const caps = q.pick
       ? [`看看「${q.ch}」怎麼打…`, `① 先按住 ${q.mod} 不要放`, `② 再按「${q.key}」，輸入框先出現「${q.pick[0]}」（還沒選好）`, `③ 看選字框，用 ↓ 方向鍵（或按前面的數字）選到「${q.ch}」`, `④ 按 Enter，輸入框變成「${q.ch}」了！`]
       : [`看看「${q.ch}」怎麼打…`, `① 先按住 ${q.mod} 不要放`, `② 再按一下「${q.key}」這顆鍵`, `③ 輸入框出現「${q.ch}」了！`];
-    caps.forEach((c, n) => steps.push({ q, n, cap: c, last: n === caps.length - 1, ms: n === 0 ? 600 : n === caps.length - 1 ? 2000 : 1400 }));
+    caps.forEach((c, n) => steps.push({ q, n, cap: c, last: n === caps.length - 1, ms: n === 0 ? 400 : n === caps.length - 1 ? 1500 : 1000 }));
   });
   const show = (st, i) => {
     const { q, n } = st;
@@ -5613,7 +5643,7 @@ function makeDemo(host, items, onCycle) {
   const run = () => {
     let t = 0;
     steps.forEach((st, i) => { timers.push(setTimeout(() => { if (!stopped) show(st, i); }, t)); t += st.ms; });
-    timers.push(setTimeout(() => { if (stopped) return; cycles++; if (cycles === 1 && onCycle) onCycle(); run(); }, t + 600));
+    timers.push(setTimeout(() => { if (stopped) return; cycles++; if (cycles === 1 && onCycle) onCycle(); run(); }, t + 400));
   };
   run();
   return { stop() { stopped = true; timers.forEach(clearTimeout); timers = []; } };
@@ -5622,11 +5652,11 @@ function makeDemo(host, items, onCycle) {
 function openPtLesson(items) {
   PT.lesson = true; PT.items = items;
   $('pt-input').disabled = true;
-  const both = items.length > 1;
-  setTxt('ptl-badge', `第 ${PT.stage + 1} 關・新符號`);
-  $('ptl-marks').innerHTML = items.map(q => `<div class="ptl-mark">${punctSvg(q.ch, 44)}</div>`).join('');
-  setTxt('ptl-name', both ? '上下引號' : items[0].name);
-  setTxt('ptl-use', both ? '一個開頭、一個結尾，兩個要成對' : items[0].use);
+  const st = PUNCT_STAGES[PT.stage], one = items.length === 1;
+  setTxt('ptl-badge', `第 ${PT.stage + 1} 關・一次看完`);
+  $('ptl-marks').innerHTML = items.map(q => `<div class="ptl-mark">${punctSvg(q.ch, 40)}</div>`).join('');
+  setTxt('ptl-name', one ? items[0].name : st.name);
+  setTxt('ptl-use', one ? items[0].use : `${items.length} 個符號，每個演一次。不用跟著打，看完再練習。`);
   $('ptl-done').disabled = true;
   show('pt-lesson', true);
   const play = () => { if (PT.demo) PT.demo.stop(); PT.demo = makeDemo($('ptl-demo'), items, () => { $('ptl-done').disabled = false; }); };
@@ -5635,7 +5665,7 @@ function openPtLesson(items) {
 
 function closePtLesson(learned, advance) {
   if (PT.demo) { PT.demo.stop(); PT.demo = null; }
-  if (learned) PT.items.forEach(q => ptLearn(q.ch));
+  if (learned) { PT.items.forEach(q => ptLearn(q.ch)); ptLearn('#' + PT.stage); }
   show('pt-lesson', false);
   PT.lesson = false;
   $('pt-input').disabled = false;
@@ -5651,11 +5681,10 @@ function ptNextTeach() {
 function startPtStage(si) {
   PT.stage = si;
   const st = PUNCT_STAGES[si], lessons = st.chs.map(c => PUNCT_BY_CH[c]);
-  PT.queue = ptShuffle([...lessons, ...lessons]); PT.idx = 0; PT.phase = 'practice'; PT.miniCh = '';
+  PT.queue = ptShuffle([...lessons]).slice(0, st.practice); PT.idx = 0; PT.phase = 'practice'; PT.miniCh = '';
   show('pt-prac', true); show('pt-mon', false);
-  setTxt('pt-sub', `第 ${si + 1} / ${PUNCT_STAGES.length} 關：${st.name}`);
-  const learned = ptLearned();
-  PT.teach = st.together ? (lessons.some(l => !learned.has(l.ch)) ? [lessons] : []) : lessons.filter(l => !learned.has(l.ch)).map(l => [l]);
+  setTxt('pt-sub', `第 ${si + 1} / ${PUNCT_STAGES.length} 關：${st.name}・先看一遍，再練 ${st.practice} 個`);
+  PT.teach = ptLearned().has('#' + si) ? [] : [lessons];
   ptNextTeach();
 }
 
@@ -5667,6 +5696,7 @@ function startPunctDrill() {
   show('screen-punct', true);
   buildPunctPad();
   $('pt-feedback').textContent = '';
+  ptPaintTicket();
   startPtStage(0);
 }
 
@@ -5719,14 +5749,13 @@ function paintPunctQuestion() {
   if (PT.miniCh !== q.ch) { if (PT.mini) PT.mini.stop(); PT.mini = makeDemo($('pt-mini'), [q]); PT.miniCh = q.ch; }
 }
 
-const PT_HALF = { ',': '，', '.': '。', '?': '？', '!': '！', ':': '：', ';': '；' };
+const PT_HALF = { ',': '，', '.': '。', '?': '？', '!': '！', ':': '：', ';': '；', '~': '～', '@': '＠' };
 const ptNorm = t => [...String(t).replace(/\s+/g, '')].map(c => PT_HALF[c] || c).join('');
 
 function paintMonster() {
   const m = PT.mon;
-  let next;
-  do { next = PUNCT_SENTENCES[Math.floor(Math.random() * PUNCT_SENTENCES.length)]; } while (next === m.cur && PUNCT_SENTENCES.length > 1);
-  m.cur = next;
+  if (!m.list || m.i >= m.list.length) { m.list = ptShuffle([...PUNCT_SENTENCES]); m.i = 0; if (m.list[0] === m.cur) m.list.push(m.list.shift()); }
+  m.cur = m.list[m.i++];
   setTxt('ptm-text', m.cur);
   $('ptm-hp-i').style.width = (m.hp / PT_MON_HITS * 100) + '%';
   setTxt('pt-progress', `${PT_MON_HITS - m.hp} / ${PT_MON_HITS}`);
@@ -5737,9 +5766,9 @@ function paintMonster() {
 function startPtMonster() {
   PT.phase = 'monster';
   if (PT.mini) { PT.mini.stop(); PT.mini = null; }
-  PT.mon = { hp: PT_MON_HITS, cur: '' };
+  PT.mon = { hp: PT_MON_HITS, cur: '', list: null, i: 0 };
   show('pt-prac', false); show('pt-mon', true);
-  setTxt('pt-sub', '最後挑戰：打怪！把短句連標點一起打出來');
+  setTxt('pt-sub', '最後挑戰：打怪！字和標點混在一起打');
   [...$('pt-keys').querySelectorAll('.ptk')].forEach(k => k.classList.remove('lit'));
   $('ptm-cv').replaceChildren(PX.canvas('monster', 'coo', 5, false));
   $('pt-feedback').textContent = '';
@@ -5749,13 +5778,37 @@ function startPtMonster() {
 
 function ptStageDone() {
   if (PT.busy) return;
+  ptStamp(PT.stage); ptBanner(`第 ${PT.stage + 1} 關通過！`);
   if (PT.stage + 1 < PUNCT_STAGES.length) {
     PT.busy = true;
     const fb = $('pt-feedback'); fb.style.color = 'var(--gr)'; fb.textContent = '🎉 過關！下一關…';
     $('pt-input').disabled = true;
-    setTimeout(() => { PT.busy = false; if (!PT.active) return; $('pt-input').disabled = false; fb.textContent = ''; startPtStage(PT.stage + 1); }, 1200);
+    setTimeout(() => { PT.busy = false; if (!PT.active) return; $('pt-input').disabled = false; fb.textContent = ''; startPtStage(PT.stage + 1); }, 1500);
   } else startPtMonster();
 }
+
+/* 特效與裝飾：過關蓋章、星星噴發、標題橫幅 */
+function ptPaintTicket() {
+  const el = $('pt-ticket'); if (!el) return;
+  el.innerHTML = ['Shift', 'Ctrl', '打怪'].map((t, i) => `<span class="st" data-i="${i}">${t}</span>`).join('') +
+    `<span class="tk">${CFG.nwRewardCode ? '🎫 三關全過，領「新世界門票」！' : '三關全過，拿成長點數！'}</span>`;
+}
+function ptBurst(el, n = 22, icons = ['✨', '⭐', '🌟', '💫', '🎉']) {
+  const r = (el || $('pt-stage')).getBoundingClientRect(), box = document.createElement('div'); box.className = 'pt-fx';
+  for (let i = 0; i < n; i++) {
+    const p = document.createElement('i'), a = Math.random() * 6.28, d = 70 + Math.random() * 170;
+    p.textContent = icons[i % icons.length]; p.style.left = (r.left + r.width / 2) + 'px'; p.style.top = (r.top + r.height / 2) + 'px';
+    p.style.setProperty('--dx', Math.cos(a) * d + 'px'); p.style.setProperty('--dy', Math.sin(a) * d - 40 + 'px'); p.style.setProperty('--r', Math.random() * 360 + 'deg'); p.style.fontSize = (14 + Math.random() * 16) + 'px';
+    box.appendChild(p);
+  }
+  document.body.appendChild(box); setTimeout(() => box.remove(), 1400);
+}
+function ptStamp(i) {
+  const el = document.querySelector(`#pt-ticket .st[data-i="${i}"]`);
+  if (el) { el.classList.add('on'); el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); }
+  ptBurst(el, 16);
+}
+function ptBanner(text) { const b = document.createElement('div'); b.className = 'pt-banner'; b.textContent = text; document.body.appendChild(b); setTimeout(() => b.remove(), 1500); }
 
 function submitPunct() {
   if (!PT.active || PT.lesson || PT.busy) return;
@@ -5767,7 +5820,7 @@ function submitPunct() {
     if (ok) {
       PT.streak++; PT.mon.hp--;
       const cv = $('ptm-cv'); cv.classList.remove('hit'); void cv.offsetWidth; cv.classList.add('hit');
-      fb.style.color = 'var(--gr)'; fb.textContent = '✓ 打中了！';
+      fb.style.color = 'var(--gr)'; fb.textContent = '✓ 打中了！'; ptBurst($('ptm-cv'), 8, ['💥', '✨']);
       if (PT.mon.hp <= 0) { $('ptm-hp-i').style.width = '0'; finishPunctDrill(); return; }
       paintMonster();
       setTimeout(() => { if (PT.active) fb.textContent = ''; }, 700);
@@ -5788,6 +5841,7 @@ function submitPunct() {
     PT.streak++; PT.idx++;
     fb.textContent = '✓ 對了！';
     fb.style.color = 'var(--gr)';
+    const cell = $('pt-cell'); cell.classList.remove('pt-spark'); void cell.offsetWidth; cell.classList.add('pt-spark'); ptBurst(cell, 7);
   } else {
     PT.streak = 0; PT.wrong++;
     fb.textContent = q.pick && val === q.pick[0] ? `✗ 那是「${val}」，還要從選字框選「${q.ch}」` : `✗ 那是「${val}」，要打的是「${q.ch}」`;
@@ -5803,7 +5857,7 @@ function submitPunct() {
 /* 只把「同一個標點的半形寫法」當成對，其餘一律算錯 */
 const PUNCT_SAME = {
   '，': [',', '，'], '。': ['.', '。'], '、': ['、', '\\'],
-  '？': ['?', '？'], '！': ['!', '！'], '：': [':', '：'], '；': [';', '；'],
+  '？': ['?', '？'], '！': ['!', '！'], '@': ['@', '＠'], '~': ['~', '～'],
   '「': ['「'], '」': ['」']
 };
 const samePunct = (typed, want) => (PUNCT_SAME[want] || [want]).includes(typed);
@@ -5826,10 +5880,11 @@ async function finishPunctDrill() {
   const total = pts + bonus;
 
   setTxt('ptm-text', perfect ? '全對！打倒牠了！' : '打倒牠了！');
+  ptStamp(2); ptBanner(CFG.nwRewardCode ? '🎫 新世界門票到手！' : '三關全過！'); setTimeout(() => ptBurst(null, 40), 250);
   setTxt('pt-sub', `打錯 ${PT.wrong} 次`);
   const fb = $('pt-feedback');
   fb.style.color = 'var(--gr)';
-  fb.textContent = `成長點數 +${total}` + (bonus ? `（全對再加 ${bonus}）` : '');
+  fb.textContent = `成長點數 +${total}` + (bonus ? `（全對再加 ${bonus}）` : '') + (CFG.nwRewardCode ? '　🎫 新世界門票！' : '');
   setTxt('pt-progress', `${PT_MON_HITS} / ${PT_MON_HITS}`);
 
   /* 寫回點數。訓練場不寫 plays、不寫任何 best*／last*——
