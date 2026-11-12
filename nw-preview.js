@@ -5,7 +5,7 @@ const CATS = [
   { k: 'monster', icon: '👾', name: '魔物名字', ph: '例：火焰雞' },
   { k: 'region', icon: '🗺', name: '想去的地方', ph: '例：糖果王國' },
   { k: 'weapon', icon: '⚔', name: '想用的武器', ph: '例：回力鏢' },
-  { k: 'other', icon: '💡', name: '其他想法', ph: '例：可以養寵物' }
+  { k: 'other', icon: '💡', name: '其他想法', ph: '想加入的玩法，例：轉蛋、造型衣服', hint: '這裡是許願池：寫你想加入的玩法或內容。寫了不一定會做，老師會看大家的票再決定喔！' }
 ];
 const MAXLEN = 12;
 const NOM_MAX = 3;
@@ -187,6 +187,7 @@ export function initNwPreview(C) {
         <input class="nw-in" data-cat="${c.k}" maxlength="${MAXLEN}" placeholder="${c.ph}（最多 ${MAXLEN} 字）" autocomplete="off">
         <button class="nw-add" data-cat="${c.k}">提名</button>
       </div>
+      ${c.hint ? `<div class="nwp-sm" style="padding:2px 4px">💡 ${c.hint}</div>` : ''}
       <div id="nw-list-${c.k}" class="nwp-list"></div>
       <div class="nwp-vfoot">
         <button id="nw-sort" class="nwp-mini">排序：${S.sort === 'votes' ? '票數' : '最新'}</button>
@@ -227,7 +228,7 @@ export function initNwPreview(C) {
           <div class="text-xs dim nwp-ell">${escHtml(n.cls)} ${escHtml(n.seat)}號 ${escHtml(n.name)}</div></div>
         <b style="color:var(--gold);min-width:2.2em;text-align:right">${votes(n)}</b>
         ${me && (S.data.v[n.id] || {})[me] ? `<button class="nw-vote done" data-id="${n.id}" title="點一下收回這一票">✓ 已投票</button>` : `<button class="nw-vote" data-id="${n.id}" ${can ? '' : 'disabled'}>👍 投一票</button>`}
-        ${S.admin ? `<button class="nw-hide nwp-mini" data-id="${n.id}" data-hid="${hidden.has(n.id) ? 1 : 0}">${hidden.has(n.id) ? '恢復' : '隱藏'}</button><button class="nw-del nwp-mini" data-id="${n.id}" style="color:#e5705f">刪除</button>` : ''}
+        ${S.admin ? `<button class="nw-hide nwp-mini" data-id="${n.id}" data-hid="${hidden.has(n.id) ? 1 : 0}">${hidden.has(n.id) ? '恢復' : '隱藏'}</button><select class="nw-move nwp-mini" data-id="${n.id}" title="分錯類的話，可以移到正確的分類"><option value="">移到…</option>${CATS.filter(x => x.k !== n.cat).map(x => `<option value="${x.k}">${x.name}</option>`).join('')}</select><button class="nw-del nwp-mini" data-id="${n.id}" style="color:#e5705f">刪除</button>` : ''}
       </div>`).join('') : '<div class="dim" style="padding:14px 4px">還沒有人提名，你當第一個！</div>';
     setTxt('nwp-vpage', `共 ${list.length} 則・第 ${S.vp + 1}/${pages} 頁`);
   }
@@ -333,6 +334,12 @@ export function initNwPreview(C) {
     const v = Object.assign({}, S.data.v); delete v[id];
     await rewrite({ noms: S.data.noms.filter(x => x.id !== id), hidden: (S.data.hidden || []).filter(x => x !== id), v }, '已刪除');
   }
+  async function moveNom(id, cat) {
+    if (!S.admin || !CATS.some(x => x.k === cat)) return;
+    const n = (S.data.noms || []).find(x => x.id === id); if (!n) return;
+    // 票是依提名 id 記的；移類後每人在新分類可能超過 VOTE_MAX，所以只提醒不自動砍票
+    await rewrite({ noms: S.data.noms.map(x => x.id === id ? Object.assign({}, x, { cat }) : x) }, `已移到「${CATS.find(x => x.k === cat).name}」`);
+  }
   async function clearCat() {
     if (!S.admin) return;
     const c = CATS.find(x => x.k === S.cat);
@@ -398,6 +405,9 @@ export function initNwPreview(C) {
     $('nw-admin-pw').value = ''; S.adminBox = false; show('nw-admin-box', false);
     S.admin = true; render();
   }
+  $('nw-modal').addEventListener('change', e => {
+    const m = e.target.closest('.nw-move'); if (m && m.value) moveNom(m.dataset.id, m.value);
+  });
   $('nw-modal').addEventListener('keydown', e => {
     if (e.isComposing) return;
     const t = e.target;
