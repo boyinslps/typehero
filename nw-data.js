@@ -114,6 +114,7 @@ export const MAX_CHARS = star => (star <= 2 ? 4 : star <= 4 ? 6 : 8);
 export const CHANT_MAX = 6;
 export const FB_COINS = 30;
 export const BUG_COINS = 15;
+export const LESSON_COINS = 200;
 export const BUG_REWARD_MAX = 5;
 export const TESTER_MISSIONS = [
   { id: 'm_dodge', icon: '💨', t: '閃避測試員', how: '打贏咕咕鳥（閃避測試）', test: n => (n.dex.coo || 0) > 0, coins: 20 },
@@ -121,8 +122,8 @@ export const TESTER_MISSIONS = [
   { id: 'm_attack', icon: '⌨', t: '攻擊測試員', how: '打贏跳跳菇（攻擊測試）', test: n => (n.dex.shroom || 0) > 0, coins: 20 },
   { id: 'm_school', icon: '🏫', t: '教學大樓畢業', how: '完成教學大樓的三堂課', test: n => !!(n.tut && n.tut.dodge && n.tut.defend && n.tut.attack), coins: 30 },
   { id: 'm_fb', icon: '📝', t: '評論家', how: '寫 3 份測試回饋', test: n => Object.values(n.fb || {}).filter(v => v === 1).length >= 3, coins: 40 },
-  { id: 'm_bug1', icon: '🐛', t: '除蟲員', how: '回報 1 個問題', test: n => (n.bugs || 0) >= 1, coins: 20 },
-  { id: 'm_bug5', icon: '🐞', t: '蟲蟲剋星', how: '回報 5 個問題', test: n => (n.bugs || 0) >= 5, coins: 60 }
+  { id: 'm_bug1', icon: '🐛', t: '除蟲員', how: '回報 1 個問題（老師確認才算）', test: n => (n.bugs || 0) >= 1, coins: 20 },
+  { id: 'm_bug5', icon: '🐞', t: '蟲蟲剋星', how: '回報 5 個問題（老師確認才算）', test: n => (n.bugs || 0) >= 5, coins: 60 }
 ];
 export function checkMissions(nw) {
   const got = [];
@@ -225,7 +226,7 @@ export const defaultNw = () => ({
   zone: { grass: 0, forest: 0 }, dex: {}, fastest: {},
   quest: { done: [] }, title: '', titleParts: [], words: [], used: {}, wwin: {},
   stat: { dodgeOk: 0, dodgeAll: 0, defOk: 0, defAll: 0, accN: 0, accSum: 0, wins: 0, fails: 0 },
-  flags: 0, fb: {}, gw: [], equip: '', gifts: [], giftedEarly: false, tm: {}, bugs: 0, tut: {}
+  flags: 0, fb: {}, gw: [], equip: '', gifts: [], giftedEarly: false, tm: {}, bugs: 0, bugsSent: 0, tut: {}
 });
 
 export function normalizeNw(d) {
@@ -242,7 +243,7 @@ export function normalizeNw(d) {
   o.titleParts = Array.isArray(d.titleParts) ? d.titleParts : [];
   o.used = d.used || {}; o.wwin = d.wwin || {}; o.fb = d.fb || {};
   o.gw = Array.isArray(d.gw) ? d.gw : []; o.gifts = Array.isArray(d.gifts) ? d.gifts : [];
-  o.tm = d.tm || {}; o.tut = d.tut || {}; o.bugs = d.bugs || 0;
+  o.tm = d.tm || {}; o.tut = d.tut || {}; o.bugs = d.bugs || 0; o.bugsSent = d.bugsSent || 0;
   return o;
 }
 
@@ -267,8 +268,8 @@ export const WORDS = [
   { id: 'mountain', w: '不動如山', g: '成就', how: '防禦成功 30 次', test: n => n.stat.defOk >= 30 },
   { id: 'tester', w: '測試員', g: '成就', how: '打贏三隻測試魔物', test: n => ['coo', 'frog', 'shroom'].every(k => (n.dex[k] || 0) > 0) },
   { id: 'critic', w: '評論家', g: '成就', how: '寫 3 份測試回饋', test: n => Object.values(n.fb || {}).filter(v => v === 1).length >= 3 },
-  { id: 'bughunter', w: '除蟲員', g: '成就', how: '回報 1 個問題', test: n => (n.bugs || 0) >= 1 },
-  { id: 'bugmaster', w: '蟲蟲剋星', g: '成就', how: '回報 5 個問題', test: n => (n.bugs || 0) >= 5 },
+  { id: 'bughunter', w: '除蟲員', g: '成就', how: '回報 1 個問題（老師確認才算）', test: n => (n.bugs || 0) >= 1 },
+  { id: 'bugmaster', w: '蟲蟲剋星', g: '成就', how: '回報 5 個問題（老師確認才算）', test: n => (n.bugs || 0) >= 5 },
   { id: 'grad', w: '畢業生', g: '成就', how: '完成教學大樓的三堂課', test: n => !!(n.tut && n.tut.dodge && n.tut.defend && n.tut.attack) },
   { id: 'exact', w: '一字不差', g: '成就', how: '正確率 100% 打贏 Lv10 以上的魔物', test: n => (n.perfect || 0) > 0 }
 ];

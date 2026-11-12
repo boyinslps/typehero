@@ -154,7 +154,7 @@ async function winHunt(p, rk, mk, star) {
     ln = await p.evaluate(() => window.__acScene.lane);
     for (let i = 0; i < 2 && await p.evaluate(() => window.__acScene.lane) !== safe; i++) { await p.keyboard.press(await p.evaluate(() => window.__acScene.lane) > safe ? 'ControlLeft' : 'ControlRight'); await p.waitForTimeout(80); }
     await p.waitForSelector('#nw-gift', { timeout: 15000 });
-    ok((await p.textContent('#nw-gift')).includes('字元 ×20'), '三步都過：「閃避」學會了，收到 20 字元禮物');
+    ok((await p.textContent('#nw-gift')).includes('字元 ×200'), '三步都過：「閃避」學會了，收到 200 字元禮物');
     await p.click('#nw-gift [data-ok]'); await p.waitForTimeout(500);
     ok(await p.evaluate(() => JSON.parse(localStorage.getItem('mg_nw_五年級3班_5號')).tut.dodge) === 1 && (await p.textContent('#nw-acad')).includes('✓ 學會了'), '教學大樓的選單顯示「✓ 學會了」');
     ok(p.errs.length === 0, '沒有 JS 錯誤 ' + p.errs.join(' | '));
@@ -168,18 +168,30 @@ async function winHunt(p, rk, mk, star) {
     ok((await p.textContent('body')).includes('至少 5 個字'), '回報太短：請多寫幾個字');
     await p.click('[data-c="按鍵／操作"]'); await p.fill('[data-text]', '按左 Ctrl 的時候角色沒有動');
     await p.click('[data-send]'); await p.waitForSelector('#nw-gift', { timeout: 5000 });
-    ok((await p.textContent('#nw-gift')).includes('字元 ×15'), '回報問題：收到 15 字元');
+    ok((await p.textContent('#nw-gift')).includes('回報收到了') && (await p.textContent('#nw-gift')).includes('老師看過'), '回報問題：送出後只說收到了，要老師確認才有獎勵');
+    await p.click('#nw-gift [data-ok]'); await p.waitForTimeout(400);
+    let nw0 = await p.evaluate(() => JSON.parse(localStorage.getItem('mg_nw_五年級3班_5號')));
+    ok(nw0.bugs === 0 && nw0.bugsSent === 1 && nw0.coins === 0 && !nw0.words.includes('bughunter'), '老師還沒確認：沒有字元、沒有除蟲員');
+    const bug = await p.evaluate(() => Object.entries(window.__FS).filter(([, v]) => v && v.type === 'bug'));
+    ok(bug.length === 1 && bug[0][1].status === 'pending' && bug[0][1].cat === '按鍵／操作' && bug[0][1].text.includes('左 Ctrl'), '回報存進 mg_nw_flags（type: bug、待確認），老師看得到');
+    await p.click('[data-act="book"]'); await p.waitForTimeout(500);
+    ok(await p.$('#nw-gift') === null && (await p.textContent('body')).includes('老師確認 0 個'), '老師還沒確認：手冊上寫老師確認 0 個');
+    await p.click('body [data-close]').catch(() => {});
+    await p.evaluate(k => { window.__FS[k].status = 'approved'; }, bug[0][0]);
+    await p.waitForTimeout(100);
+    await p.evaluate(() => { document.querySelectorAll('.fixed.overflow-y-auto').forEach(e => e.remove()); });
+    await p.waitForTimeout(21000);
+    await p.click('[data-act="book"]'); await p.waitForSelector('#nw-gift', { timeout: 6000 });
+    ok((await p.textContent('#nw-gift')).includes('字元 ×15') && (await p.textContent('#nw-gift')).includes('老師確認了'), '老師確認後：學生進手冊就收到 15 字元的禮物');
     await p.click('#nw-gift [data-ok]');
     await p.waitForFunction(() => document.querySelector('#nw-gift') && document.querySelector('#nw-gift').textContent.includes('除蟲員'), null, { timeout: 5000 });
-    ok(true, '第一個回報：解鎖「除蟲員」任務，跳出任務完成的通知');
-    await p.click('#nw-gift [data-ok]'); await p.waitForTimeout(500);
-    const bug = await p.evaluate(() => Object.values(window.__FS).filter(v => v && v.type === 'bug'));
-    ok(bug.length === 1 && bug[0].cat === '按鍵／操作' && bug[0].text.includes('左 Ctrl'), '回報存進 mg_nw_flags（type: bug），老師看得到');
-    await p.click('[data-act="book"]'); await p.waitForTimeout(300);
-    ok((await p.textContent('body')).includes('測試員手冊') && (await p.textContent('body')).includes('✓ 已蓋章') && (await p.textContent('body')).includes('已回報 1 個問題'), '測試員手冊：顯示任務、蓋章與回報數');
+    ok(true, '解鎖「除蟲員」任務，跳出任務完成的通知');
+    await p.click('#nw-gift [data-ok]'); await p.waitForTimeout(600);
+    ok((await p.textContent('body')).includes('測試員手冊') && (await p.textContent('body')).includes('✓ 已蓋章') && (await p.textContent('body')).includes('老師確認 1 個'), '測試員手冊：顯示蓋章與老師確認的數量');
     await p.screenshot({ path: OUT + '/nw4-book.png' });
     const nw = await p.evaluate(() => JSON.parse(localStorage.getItem('mg_nw_五年級3班_5號')));
-    ok(nw.bugs === 1 && nw.words.includes('bughunter') && nw.tm.m_bug1 === 1, '除蟲員詞條與任務蓋章存進存檔');
+    ok(nw.bugs === 1 && nw.words.includes('bughunter') && nw.tm.m_bug1 === 1 && nw.coins >= 35, '除蟲員詞條、任務蓋章與字元存進存檔');
+    ok(await p.evaluate(k => window.__FS[k].claimed, bug[0][0]) === true, '回報標成「已領」，不會重複領');
     ok(p.errs.length === 0, '沒有 JS 錯誤 ' + p.errs.join(' | '));
     await p.close();
   }

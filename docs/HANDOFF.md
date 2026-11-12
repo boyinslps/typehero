@@ -38,6 +38,7 @@
 ### 教學大樓與導覽（v3.11.0）
 - 教學課在 `nw-academy.js`：`LESSONS`（選單）、`STEPS`（每步 `demo` 示範或 `task` 讓學生做；`task` 回 true 過關、false 重來）、`makeScene()`（小場景，不會受傷）。新增教學＝加一組 `STEPS` 與 `LESSONS` 一列，`newworld.js` 的 `lessonDone()` 負責獎勵。
 - 導覽 `tour(steps)`：每步 `{text, target(), done()}`。用在換裝備教學（`weaponTour()`）。
+- 回報問題流程：學生送出（`status:'pending'`）→ 老師在控制台確認（`approved`）→ 學生進村或開手冊時 `claimBugs()` 領獎、標 `claimed`。只有被老師確認的才算進 `NW.bugs`（除蟲員、蟲蟲剋星）。測試回饋（`type:'feedback'`）則是寫了就送字元（每隻魔物一次）。
 - 測試員手冊 `TESTER_MISSIONS`／`checkMissions()`；回報問題 `openBugReport()`；兩者都在 `newworld.js`，資料欄位 `NW.tm`、`NW.bugs`、`NW.tut`。
 - 之後的點子在 `docs/IDEAS-FUTURE.md`。
 

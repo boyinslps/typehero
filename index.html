@@ -2697,9 +2697,9 @@ const APP_VERSION = '3.11.0';
 const VERSION_LOG = [
   { v:'3.11.0', date:'2026-11-11', title:'新世界：教學大樓、測試員手冊、序號禮物',
     added: [
-      '村莊多了「教學大樓」：閃避、防禦、打字攻擊三堂課，每一堂都是先看示範，再自己一步一步做；沒做對會一直等你，做對才換下一步。學會有字元可以拿',
+      '村莊多了「教學大樓」：閃避、防禦、打字攻擊三堂課，每一堂都是先看示範，再自己一步一步做；沒做對會一直等你，做對才換下一步。學會一堂送 200 字元',
       '三隻測試魔物：咕咕鳥（閃避測試）、泡泡蛙（防禦測試）、跳跳菇（攻擊測試）。打贏可以寫回饋（可寫可不寫），寫了送字元（新世界的貨幣）',
-      '「📓 測試員手冊」：完成測試任務就蓋章、拿字元和稱號詞條；「🐛 回報問題」幫忙抓蟲，可以得到「除蟲員」「蟲蟲剋星」',
+      '「📓 測試員手冊」：完成測試任務就蓋章、拿字元和稱號詞條；「🐛 回報問題」幫忙抓蟲，老師確認以後可以得到字元和「除蟲員」「蟲蟲剋星」',
       '提前來測試的同學，登入時大廳會通知有禮物；進村收到「測試者之刃」（黑色粒子的雙刀，比一般雙刀強一點點），還有一步一步的換裝備教學',
       '「🎁 序號」：輸入老師給的序號（輸入時會藏起來）領禮物，領到會跳出收到禮物的通知',
       '村莊地板有黃色箭頭帶路；委託板上，任務要打的魔物會貼「任務目標」'
@@ -7486,22 +7486,34 @@ async function tgDel(h) {
 async function openNwFeedback() {
   const ov = document.createElement('div');
   ov.className = 'fixed inset-0 z-[95] p-4 overflow-y-auto'; ov.style.zIndex = 95; ov.style.background = 'rgba(9,8,18,.95)';
-  ov.innerHTML = '<div class="max-w-3xl mx-auto panel p-4"><div class="flex items-center justify-between mb-3"><h3 class="text-xl font-black">📝 新世界測試回饋</h3><div class="flex gap-2"><button data-copy class="btn btn-ghost text-sm px-3 py-1.5">複製全部</button><button data-x class="btn btn-ghost text-sm px-3 py-1.5">關閉</button></div></div><div data-body>載入中…</div></div>';
+  ov.innerHTML = '<div class="max-w-3xl mx-auto panel p-4"><div class="flex items-center justify-between mb-3 flex-wrap gap-2"><h3 class="text-xl font-black">📝 新世界測試回饋與問題回報</h3><div class="flex gap-2"><button data-copy class="btn btn-ghost text-sm px-3 py-1.5">複製全部</button><button data-x class="btn btn-ghost text-sm px-3 py-1.5">關閉</button></div></div><div class="text-sm mb-2" style="color:var(--dim)" data-sum></div><div data-body>載入中…</div></div>';
   document.body.appendChild(ov);
-  const body = ov.querySelector('[data-body]'); let rows = [];
+  const body = ov.querySelector('[data-body]'), sum = ov.querySelector('[data-sum]'); let rows = [];
+  const label = r => r.type === 'bug' ? `🐛 問題回報・${escHtml(r.cat || '')}` : `📝 回饋・${escHtml(r.mon || '')}　${escHtml(r.rate || '')}`;
+  const stat = r => r.type !== 'bug' ? '' : r.status === 'approved' ? `<span style="color:var(--gr)">✓ 已確認${r.claimed ? '（學生已領）' : '（等學生登入領取）'}</span>` : r.status === 'rejected' ? '<span style="color:#e5705f">✗ 不採用</span>' : '<span style="color:var(--gold)">待確認</span>';
   const draw = () => {
-    body.innerHTML = rows.length ? rows.map(r => `<div class="py-2" style="border-bottom:1px solid var(--line)"><div class="text-xs" style="color:var(--dim)">${escHtml(r.cls)} ${escHtml(String(r.seat))}號 ${escHtml(r.name)}　${escHtml(r.mon || '')}　${escHtml(r.rate || '')}　${new Date(r.t || 0).toLocaleString()}</div><div class="flex gap-2 items-start"><div class="flex-1" style="white-space:pre-wrap">${escHtml(r.text || '（沒有寫字）')}</div><button data-del="${r.id}" class="btn btn-ghost text-xs px-2 py-1">刪除</button></div></div>`).join('') : '<div style="color:var(--dim)">還沒有回饋</div>';
+    const pend = rows.filter(r => r.type === 'bug' && (r.status || 'pending') === 'pending').length;
+    sum.textContent = `共 ${rows.length} 則，其中問題回報待確認 ${pend} 則。「✓ 確認」的回報，學生下次進新世界會收到字元與稱號；亂寫的按「✗ 不採用」就不會有獎勵。`;
+    body.innerHTML = rows.length ? rows.map(r => `<div class="py-2" style="border-bottom:1px solid var(--line)"><div class="text-xs" style="color:var(--dim)">${escHtml(r.cls)} ${escHtml(String(r.seat))}號 ${escHtml(r.name)}　${label(r)}　${new Date(r.t || 0).toLocaleString()}　${stat(r)}</div><div class="flex gap-2 items-start flex-wrap"><div class="flex-1" style="white-space:pre-wrap;min-width:200px">${escHtml(r.text || '（沒有寫字）')}</div>${r.type === 'bug' && (r.status || 'pending') === 'pending' ? `<button data-ok="${r.id}" class="btn btn-gold text-xs px-2 py-1">✓ 確認</button><button data-no="${r.id}" class="btn btn-ghost text-xs px-2 py-1">✗ 不採用</button>` : ''}<button data-del="${r.id}" class="btn btn-ghost text-xs px-2 py-1">刪除</button></div></div>`).join('') : '<div style="color:var(--dim)">還沒有回饋</div>';
   };
   try {
-    const sn = await withTimeout(getDocs(query(collection(db, 'mg_nw_flags'), where('type', '==', 'feedback'))), 8000, '讀取逾時');
-    sn.forEach(d => rows.push({ id: d.id, ...d.data() }));
-    rows.sort((a, b) => (b.t || 0) - (a.t || 0)); draw();
+    for (const type of ['bug', 'feedback']) {
+      const sn = await withTimeout(getDocs(query(collection(db, 'mg_nw_flags'), where('type', '==', type))), 8000, '讀取逾時');
+      sn.forEach(d => rows.push({ id: d.id, ...d.data() }));
+    }
+    rows.sort((a, b) => ((a.type === 'bug' && (a.status || 'pending') === 'pending') ? 0 : 1) - ((b.type === 'bug' && (b.status || 'pending') === 'pending') ? 0 : 1) || (b.t || 0) - (a.t || 0)); draw();
   } catch (e) { body.textContent = '讀取失敗，再試一次'; }
+  const setStatus = async (id, status) => {
+    try { await withTimeout(setDoc(doc(db, 'mg_nw_flags', id), { status }, { merge: true }), 5000, '儲存逾時'); const r = rows.find(x => x.id === id); if (r) r.status = status; draw(); toast(status === 'approved' ? '已確認，學生登入就會收到獎勵' : '已標示不採用'); }
+    catch (err) { toast('操作失敗，再試一次'); }
+  };
   ov.addEventListener('click', async e => {
     if (e.target.closest('[data-x]') || e.target === ov) { ov.remove(); return; }
-    if (e.target.closest('[data-copy]')) { try { await navigator.clipboard.writeText(rows.map(r => `${r.cls} ${r.seat}號 ${r.name}｜${r.mon}｜${r.rate || ''}｜${r.text || ''}`).join('\n')); toast('已複製'); } catch (err) { toast('複製失敗'); } return; }
+    if (e.target.closest('[data-copy]')) { try { await navigator.clipboard.writeText(rows.map(r => `${r.cls} ${r.seat}號 ${r.name}｜${r.type === 'bug' ? '問題回報' : r.mon}｜${r.rate || r.cat || ''}｜${r.text || ''}`).join('\n')); toast('已複製'); } catch (err) { toast('複製失敗'); } return; }
+    const ok = e.target.closest('[data-ok]'); if (ok) { setStatus(ok.dataset.ok, 'approved'); return; }
+    const no = e.target.closest('[data-no]'); if (no) { setStatus(no.dataset.no, 'rejected'); return; }
     const d = e.target.closest('[data-del]');
-    if (d && confirm('刪掉這則回饋？')) { try { await withTimeout(deleteDoc(doc(db, 'mg_nw_flags', d.dataset.del)), 5000, '刪除逾時'); rows = rows.filter(r => r.id !== d.dataset.del); draw(); } catch (err) { toast('刪除失敗'); } }
+    if (d && confirm('刪掉這則？')) { try { await withTimeout(deleteDoc(doc(db, 'mg_nw_flags', d.dataset.del)), 5000, '刪除逾時'); rows = rows.filter(r => r.id !== d.dataset.del); draw(); } catch (err) { toast('刪除失敗'); } }
   });
 }
 

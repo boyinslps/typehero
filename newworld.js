@@ -2,7 +2,7 @@ import { PX } from './pixel.js';
 import {
   LOOK, DEFAULT_LOOK, heroLook, STARTERS, LOCKED_WEAPONS, REGIONS, MAP_POS, ELEM, STATUS, MONSTERS,
   regionLv, MAIN_QUESTS, normalizeNw, currentQuest, zoneOpen, starOpen, addHrExp, hrNeed, huntExp, huntCoins,
-  COLOR_NAME, COLOR_HEX, HR_MAX, VILLAGE, doorTile, buildingOpen, goalOf, TEST_TAGS, FB_COINS, FB_MINLEN, BUG_COINS, BUG_REWARD_MAX, TESTER_MISSIONS, checkMissions, GIFT_WEAPONS, weaponInfo, weaponBase, curWeapon, WORDS, WORD_GROUPS, checkWords, setTitleParts, wordById
+  COLOR_NAME, COLOR_HEX, HR_MAX, VILLAGE, doorTile, buildingOpen, goalOf, TEST_TAGS, FB_COINS, FB_MINLEN, BUG_COINS, BUG_REWARD_MAX, LESSON_COINS, TESTER_MISSIONS, checkMissions, GIFT_WEAPONS, weaponInfo, weaponBase, curWeapon, WORDS, WORD_GROUPS, checkWords, setTitleParts, wordById
 } from './nw-data.js';
 import { injectUi } from './nw-ui.js';
 import { mountVillage } from './nw-village.js';
@@ -284,6 +284,7 @@ export function initNewWorld(C) {
         start: NW.pos || VILLAGE.start, scroller: root, fast: FAST, onEnter: enterBuilding, guide: guideBuilding()
       });
       earlyGift();
+      claimBugs();
     });
   }
 
@@ -536,8 +537,8 @@ export function initNewWorld(C) {
   }
   async function lessonDone(id) {
     if (NW.tut[id]) return;
-    NW.tut[id] = 1; NW.coins += 20; saveNw();
-    await showGift({ icon: '🏫', title: '字元 ×20', note: '學會了新本領！字元是新世界的貨幣，之後可以買東西、打造裝備。' });
+    NW.tut[id] = 1; NW.coins += LESSON_COINS; saveNw();
+    await showGift({ icon: '🏫', title: `字元 ×${LESSON_COINS}`, note: '學會了新本領！字元是新世界的貨幣，之後可以買東西、打造裝備。' });
     await awardMissions();
   }
   async function weaponTour() {
@@ -551,6 +552,27 @@ export function initNewWorld(C) {
     if (ok && !NW.tut.equip) { NW.tut.equip = 1; saveNw(); }
   }
 
+  let claiming = false, claimedAt = 0;
+  async function claimBugs() {
+    if (claiming || !C.online() || Date.now() - claimedAt < 20000) return;
+    claiming = true; claimedAt = Date.now();
+    try {
+      const sn = await C.withTimeout(C.getDocs(C.query(C.collection(C.db, 'mg_nw_flags'), C.where('type', '==', 'bug'), C.where('docId', '==', ME.docId))), 6000, 'bugs');
+      const ready = []; sn.forEach(d => { const x = d.data(); if (x.status === 'approved' && !x.claimed) ready.push({ id: d.id, t: x.t || 0 }); });
+      if (!ready.length) return;
+      ready.sort((p, q) => p.t - q.t);
+      let coins = 0;
+      for (const r of ready) {
+        NW.bugs++; if (NW.bugs <= BUG_REWARD_MAX) coins += BUG_COINS;
+        await C.withTimeout(C.setDoc(C.doc(C.db, 'mg_nw_flags', r.id), { claimed: true }, { merge: true }), 5000, 'bug-claim');
+      }
+      NW.coins += coins;
+      const ws = checkWords(NW); saveNw();
+      await showGift({ icon: '🐛', title: coins ? `字元 ×${coins}` : '謝謝你', note: `老師確認了你的 ${ready.length} 個問題回報，你幫了大忙！${ws.length ? '新的稱號詞條：' + ws.join('、') + '。' : ''}` });
+      await awardMissions();
+    } catch (e) { console.warn('領取回報獎勵失敗', e); } finally { claiming = false; }
+  }
+
   function openBugReport() {
     const sheet = document.createElement('div');
     sheet.className = 'fixed inset-0 grid place-items-center p-3'; sheet.style.zIndex = 96; sheet.style.background = 'rgba(9,8,18,.92)';
@@ -559,7 +581,7 @@ export function initNewWorld(C) {
       <p class="px-text mt-1 text-sm">遊戲哪裡怪怪的？畫面、按鍵、題目、魔物……都可以告訴我們，幫忙抓蟲的人會得到「除蟲員」稱號和字元！</p>
       <div class="flex gap-2 mt-3 flex-wrap" data-cat>${['畫面', '按鍵／操作', '題目', '魔物', '其他'].map(t => `<button class="px-btn" data-c="${t}">${t}</button>`).join('')}</div>
       <textarea data-text maxlength="300" rows="4" placeholder="發生了什麼事？你在做什麼的時候發生的？（至少 5 個字）" class="w-full mt-3 p-3 px-panel in" style="color:#fff"></textarea>
-      <p class="text-xs mt-1" style="color:#ffd98a">前 ${BUG_REWARD_MAX} 次回報，每次送 🪙 ${BUG_COINS} 字元。</p>
+      <p class="text-xs mt-1" style="color:#ffd98a">送出後，要等<b>老師看過、確認</b>，才會有獎勵：前 ${BUG_REWARD_MAX} 個被確認的回報，每個送 🪙 ${BUG_COINS} 字元，並解鎖「除蟲員」。亂寫的不會被確認喔。</p>
       <div data-err class="text-sm mt-1" style="color:#e5705f;min-height:1.2em"></div>
       <div class="flex gap-2 justify-end mt-2"><button class="px-btn" data-close>取消</button><button class="px-btn gold" data-send style="padding:8px 22px">送出</button></div></div>`;
     let cat = '';
@@ -573,21 +595,18 @@ export function initNewWorld(C) {
       if (!C.online()) { err.textContent = '現在連不上網路'; return; }
       if (Date.now() - (openBugReport.last || 0) < 20000) { err.textContent = '剛剛才送過，等一下再送下一個'; return; }
       try {
-        await C.withTimeout(C.setDoc(C.doc(C.db, 'mg_nw_flags', `bug_${ME.docId}_${Date.now()}`), { type: 'bug', cat, text, view, cls: ME.className, seat: ME.seat, name: ME.name, t: Date.now() }), 6000, 'nw-bug');
+        await C.withTimeout(C.setDoc(C.doc(C.db, 'mg_nw_flags', `bug_${ME.docId}_${Date.now()}`), { type: 'bug', status: 'pending', claimed: false, docId: ME.docId, cat, text, view, cls: ME.className, seat: ME.seat, name: ME.name, t: Date.now() }), 6000, 'nw-bug');
       } catch (er) { err.textContent = '送出失敗，再試一次'; return; }
       openBugReport.last = Date.now();
-      NW.bugs++;
-      const gift = NW.bugs <= BUG_REWARD_MAX;
-      if (gift) NW.coins += BUG_COINS;
-      const ws = checkWords(NW); saveNw(); sheet.remove();
-      await showGift({ icon: '🐛', title: gift ? `字元 ×${BUG_COINS}` : '謝謝你的回報', note: `收到了！你已經回報 ${NW.bugs} 個問題。${ws.length ? '新的稱號詞條：' + ws.join('、') + '。' : ''}` });
-      await awardMissions();
+      NW.bugsSent = (NW.bugsSent || 0) + 1; saveNw(); sheet.remove();
+      await showGift({ icon: '🐛', title: '回報收到了！', note: '老師看過、確認以後，獎勵（字元和「除蟲員」）會在你下次進新世界時寄給你。' });
       if (view === 'hub') viewHub();
     });
     document.body.appendChild(sheet);
   }
 
-  function openTesterBook() {
+  async function openTesterBook() {
+    await claimBugs();
     const sheet = document.createElement('div');
     sheet.className = 'fixed inset-0 overflow-y-auto'; sheet.style.zIndex = 94; sheet.style.background = 'rgba(9,8,18,.94)';
     const done = TESTER_MISSIONS.filter(m => NW.tm[m.id]).length;
@@ -595,7 +614,7 @@ export function initNewWorld(C) {
       <div class="flex items-center justify-between gap-2"><div class="px-title" style="font-size:1.5em">📓 測試員手冊</div><button class="px-btn" data-close>關閉</button></div>
       <p class="px-text mt-1 text-sm">新世界還在試玩中，你是第一批冒險者！完成任務、抓到蟲蟲，都會蓋章、得字元和稱號。已完成 <b>${done} / ${TESTER_MISSIONS.length}</b>。</p>
       <div class="flex flex-col gap-2 mt-3">${TESTER_MISSIONS.map(m => `<div class="px-panel in flex items-center gap-3" style="padding:8px 12px;${NW.tm[m.id] ? '' : 'opacity:.75'}"><span style="font-size:28px">${m.icon}</span><span style="flex:1"><b class="px-text">${m.t}</b><br><span class="text-xs" style="color:#aab0d8">${m.how}</span></span><span class="px-chip" style="color:${NW.tm[m.id] ? '#8ec96b' : '#ffd98a'}">${NW.tm[m.id] ? '✓ 已蓋章' : '🪙 ' + m.coins}</span></div>`).join('')}</div>
-      <div class="flex gap-2 justify-end mt-3 flex-wrap"><span class="px-text text-sm" style="align-self:center">已回報 ${NW.bugs} 個問題・寫了 ${Object.values(NW.fb).filter(v => v === 1).length} 份回饋</span><button class="px-btn gold" data-bug>🐛 回報問題</button></div></div></div>`;
+      <div class="flex gap-2 justify-end mt-3 flex-wrap"><span class="px-text text-sm" style="align-self:center">已送出 ${NW.bugsSent || 0} 個問題・老師確認 ${NW.bugs} 個・寫了 ${Object.values(NW.fb).filter(v => v === 1).length} 份回饋</span><button class="px-btn gold" data-bug>🐛 回報問題</button></div></div></div>`;
     sheet.addEventListener('click', e => {
       if (e.target.closest('[data-close]')) sheet.remove();
       else if (e.target.closest('[data-bug]')) { sheet.remove(); openBugReport(); }
