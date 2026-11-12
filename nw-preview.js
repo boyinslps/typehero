@@ -5,7 +5,7 @@ const CATS = [
   { k: 'monster', icon: '👾', name: '魔物名字', ph: '例：火焰雞', max: 8, hint: '只寫魔物的名字' },
   { k: 'region', icon: '🗺', name: '想去的地方', ph: '例：糖果王國', max: 8, hint: '只寫地方的名字' },
   { k: 'weapon', icon: '⚔', name: '想用的武器', ph: '例：回力鏢', max: 8, hint: '只寫武器的名字' },
-  { k: 'other', icon: '💡', name: '其他想法', ph: '寫下你的點子', max: 20, hint: '想法、玩法都放這裡' }
+  { k: 'other', icon: '💡', name: '其他想法', ph: '請寫玩法？想加入的內容？', max: 20, hint: '例：寵物系統、轉蛋、造型衣服…' }
 ];
 const MAXLEN = 20;
 const maxOf = cat => (CATS.find(c => c.k === cat) || {}).max || 12;
