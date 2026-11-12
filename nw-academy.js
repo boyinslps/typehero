@@ -48,7 +48,10 @@ export function tour(steps, o = {}) {
       if (!alive) return;
       const st = steps[i];
       if (!st) { finish(false); return; }
-      if (shown !== i) { shown = i; bar.querySelector('[data-n]').textContent = `${o.title || '教學'}　第 ${i + 1} / ${steps.length} 步`; bar.querySelector('[data-t]').textContent = st.text; }
+      /* 學生太快、或做了別的事，上一步的畫面已經不在了：退回上一步，不要讓提示指著不存在的按鈕 */
+      if (i > 0 && st.back && st.back()) { i--; shown = -1; raf = requestAnimationFrame(frame); return; }
+      const txt = typeof st.text === 'function' ? st.text() : st.text;
+      if (shown !== i || bar.querySelector('[data-t]').textContent !== txt) { shown = i; bar.querySelector('[data-n]').textContent = `${o.title || '教學'}　第 ${i + 1} / ${steps.length} 步`; bar.querySelector('[data-t]').textContent = txt; }
       const el = st.target ? st.target() : null;
       if (el && el.isConnected) {
         const r = el.getBoundingClientRect();

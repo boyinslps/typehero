@@ -2710,8 +2710,16 @@ function initNw() {
    版本紀錄：首頁右下角那顆 v2.0.0 按鈕點開看到的內容。
    跟 CHANGELOG.md 是同一份資料，改一邊也要記得改另一邊。
    ══════════════════════════════════════════════════════════════ */
-const APP_VERSION = '3.12.0';
+const APP_VERSION = '3.12.1';
 const VERSION_LOG = [
+  { v:'3.12.1', date:'2026-11-12', title:'新世界：回報問題說明、抓蟲王、教學導覽修正',
+    added: [
+      '「回報問題」多了寫法說明和好壞例子，分成兩格：① 你做了什麼事、② 出現什麼錯誤狀況，老師才找得到蟲',
+      '抓蟲抓得最多的人，老師可以頒發特別稱號「抓蟲王」'
+    ],
+    fixed: [
+      '換裝備教學：太快點背包、或背包開在「任務」那一頁時，不會再卡住或指著不存在的按鈕，會退回上一步或提示先點「裝備背包」'
+    ] },
   { v:'3.12.0', date:'2026-11-12', title:'標點符號挑戰改版、新手導覽',
     added: [
       '標點符號挑戰縮短了：Shift 的 ！ @ ~ ？ 一次看完教學（不用跟著打），練 3 個；Ctrl 的 ，。、「」 一次看完，再練 3 個',
@@ -7547,12 +7555,17 @@ async function openNwFeedback() {
   const label = r => r.type === 'bug' ? `🐛 問題回報・${escHtml(r.cat || '')}` : `📝 回饋・${escHtml(r.mon || '')}　${escHtml(r.rate || '')}`;
   const stat = r => r.type !== 'bug' ? '' : r.status === 'approved' ? `<span style="color:var(--gr)">✓ 已確認${r.claimed ? '（學生已領）' : '（等學生登入領取）'}</span>` : r.status === 'rejected' ? '<span style="color:#e5705f">✗ 不採用</span>' : '<span style="color:var(--gold)">待確認</span>';
   const draw = () => {
-    const pend = rows.filter(r => r.type === 'bug' && (r.status || 'pending') === 'pending').length;
-    sum.textContent = `共 ${rows.length} 則，其中問題回報待確認 ${pend} 則。「✓ 確認」的回報，學生下次進新世界會收到字元與稱號；亂寫的按「✗ 不採用」就不會有獎勵。`;
-    body.innerHTML = rows.length ? rows.map(r => `<div class="py-2" style="border-bottom:1px solid var(--line)"><div class="text-xs" style="color:var(--dim)">${escHtml(r.cls)} ${escHtml(String(r.seat))}號 ${escHtml(r.name)}　${label(r)}　${new Date(r.t || 0).toLocaleString()}　${stat(r)}</div><div class="flex gap-2 items-start flex-wrap"><div class="flex-1" style="white-space:pre-wrap;min-width:200px">${escHtml(r.text || '（沒有寫字）')}</div>${r.type === 'bug' && (r.status || 'pending') === 'pending' ? `<button data-ok="${r.id}" class="btn btn-gold text-xs px-2 py-1">✓ 確認</button><button data-no="${r.id}" class="btn btn-ghost text-xs px-2 py-1">✗ 不採用</button>` : ''}<button data-del="${r.id}" class="btn btn-ghost text-xs px-2 py-1">刪除</button></div></div>`).join('') : '<div style="color:var(--dim)">還沒有回饋</div>';
+    const list = rows.filter(r => r.type !== 'award');
+    const pend = list.filter(r => r.type === 'bug' && (r.status || 'pending') === 'pending').length;
+    const cnt = {}; list.forEach(r => { if (r.type === 'bug' && r.status === 'approved') (cnt[r.docId] = cnt[r.docId] || { n: 0, who: `${r.cls} ${r.seat}號 ${r.name}` }).n++; });
+    const given = new Set(rows.filter(r => r.type === 'award' && r.award === 'bugking').map(r => r.docId));
+    const rank = Object.entries(cnt).sort((a, b) => b[1].n - a[1].n).slice(0, 5);
+    const rankHtml = rank.length ? `<div class="p-2 mb-2" style="border:1px solid var(--gold);border-radius:8px"><div class="text-sm font-black" style="color:var(--gold)">🐛 抓蟲排行（只算已確認的）</div>${rank.map(([id, c], i) => `<div class="flex items-center gap-2 text-sm py-0.5"><span>${i === 0 ? '👑' : (i + 1) + '.'}</span><span class="flex-1">${escHtml(c.who)}　${c.n} 個</span>${given.has(id) ? '<span style="color:var(--gr)">✓ 已頒發「抓蟲王」</span>' : `<button data-king="${escHtml(id)}" class="btn btn-gold text-xs px-2 py-1">頒發「抓蟲王」</button>`}</div>`).join('')}<div class="text-xs" style="color:var(--dim)">頒發後，學生下次進新世界會收到「抓蟲王」稱號詞條。可以頒給不只一位。</div></div>` : '';
+    sum.textContent = `共 ${list.length} 則，其中問題回報待確認 ${pend} 則。「✓ 確認」的回報，學生下次進新世界會收到字元與稱號；亂寫的按「✗ 不採用」就不會有獎勵。`;
+    body.innerHTML = rankHtml + (list.length ? list.map(r => `<div class="py-2" style="border-bottom:1px solid var(--line)"><div class="text-xs" style="color:var(--dim)">${escHtml(r.cls)} ${escHtml(String(r.seat))}號 ${escHtml(r.name)}　${label(r)}　${new Date(r.t || 0).toLocaleString()}　${stat(r)}</div><div class="flex gap-2 items-start flex-wrap"><div class="flex-1" style="white-space:pre-wrap;min-width:200px">${escHtml(r.text || '（沒有寫字）')}</div>${r.type === 'bug' && (r.status || 'pending') === 'pending' ? `<button data-ok="${r.id}" class="btn btn-gold text-xs px-2 py-1">✓ 確認</button><button data-no="${r.id}" class="btn btn-ghost text-xs px-2 py-1">✗ 不採用</button>` : ''}<button data-del="${r.id}" class="btn btn-ghost text-xs px-2 py-1">刪除</button></div></div>`).join('') : '<div style="color:var(--dim)">還沒有回饋</div>');
   };
   try {
-    for (const type of ['bug', 'feedback']) {
+    for (const type of ['bug', 'feedback', 'award']) {
       const sn = await withTimeout(getDocs(query(collection(db, 'mg_nw_flags'), where('type', '==', type))), 8000, '讀取逾時');
       sn.forEach(d => rows.push({ id: d.id, ...d.data() }));
     }
@@ -7564,7 +7577,17 @@ async function openNwFeedback() {
   };
   ov.addEventListener('click', async e => {
     if (e.target.closest('[data-x]') || e.target === ov) { ov.remove(); return; }
-    if (e.target.closest('[data-copy]')) { try { await navigator.clipboard.writeText(rows.map(r => `${r.cls} ${r.seat}號 ${r.name}｜${r.type === 'bug' ? '問題回報' : r.mon}｜${r.rate || r.cat || ''}｜${r.text || ''}`).join('\n')); toast('已複製'); } catch (err) { toast('複製失敗'); } return; }
+    if (e.target.closest('[data-copy]')) { try { await navigator.clipboard.writeText(rows.filter(r => r.type !== 'award').map(r => `${r.cls} ${r.seat}號 ${r.name}｜${r.type === 'bug' ? '問題回報' : r.mon}｜${r.rate || r.cat || ''}｜${r.text || ''}`).join('\n')); toast('已複製'); } catch (err) { toast('複製失敗'); } return; }
+    const king = e.target.closest('[data-king]');
+    if (king) {
+      const id = king.dataset.king, src = rows.find(r => r.type === 'bug' && r.docId === id);
+      try {
+        const rec = { type: 'award', award: 'bugking', status: 'approved', claimed: false, docId: id, cls: src.cls, seat: src.seat, name: src.name, t: Date.now() };
+        await withTimeout(setDoc(doc(db, 'mg_nw_flags', 'award_bugking_' + id), rec), 5000, '儲存逾時');
+        rows.push({ id: 'award_bugking_' + id, ...rec }); draw(); toast('已頒發，學生下次進新世界就會收到');
+      } catch (err) { toast('操作失敗，再試一次'); }
+      return;
+    }
     const ok = e.target.closest('[data-ok]'); if (ok) { setStatus(ok.dataset.ok, 'approved'); return; }
     const no = e.target.closest('[data-no]'); if (no) { setStatus(no.dataset.no, 'rejected'); return; }
     const d = e.target.closest('[data-del]');

@@ -35,6 +35,10 @@
 - 武器進度靠 `NW.used`、`NW.wwin`（`finishHunt` 累加）。之後新增武器要在 `WORDS` 補 3 個詞條。
 - 舊世界顯示：`index.html` 的 `nwTitleChip`／`paintWho`，資料來自 `mg_scores.nwTitle`／`nwTitleN`。
 
+### 抓蟲王與導覽退回（v3.12.1）
+- 老師在控制台頒發 → `mg_nw_flags/award_bugking_<docId>`（`type:'award'`）→ 學生 `claimBugs()` 順便呼叫 `claimAwards()` 領取，詞條 `bugking`。要加別的特別稱號就沿用 `type:'award'` + `award` 欄位。
+- `tour()` 的步驟可以寫 `back: () => bool`（回 true 就退回上一步），`text` 可以是函式。新導覽請都考慮「學生太快或做了別的事」。
+
 ### 新手導覽與標點挑戰（v3.12.0）
 - 介紹：`newworld.js` 的 `INTROS` + `introOnce(key)`，看過記在 `NW.intro[key]`；本機測試可用 `window.__NW_NOINTRO__` 跳過。新增建築或功能就在 `INTROS` 加一筆。
 - 第一個任務 `1-0a`（`soft`）在 `nw-data.js`；`goalOf()` 回傳 `{text, building, match}`，村莊地板箭頭 `guideBuilding` 用 `building`。

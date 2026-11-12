@@ -585,12 +585,27 @@ export function initNewWorld(C) {
   async function weaponTour() {
     const key = NW.gw[NW.gw.length - 1] || NW.starter;
     const name = (weaponInfo(key) || {}).name || '新武器';
+    const bagOpen = () => !!document.getElementById('nw-bag'), equipped = () => curWeapon(NW) === key;
+    const equipBtn = () => document.querySelector(`#nw-bag [data-equip="${key}"]`);
     const ok = await tour([
-      { text: '先打開背包：按這個「🎒 背包」按鈕（也可以按鍵盤的 B）。', target: () => document.querySelector('[data-act="bagopen"]'), done: () => !!document.getElementById('nw-bag') },
-      { text: `點一下「${name}」，把它換到手上！`, target: () => document.querySelector(`#nw-bag [data-equip="${key}"]`), done: () => curWeapon(NW) === key },
+      { text: '先打開背包：按這個「🎒 背包」按鈕（也可以按鍵盤的 B）。', target: () => document.querySelector('[data-act="bagopen"]'), done: () => bagOpen() || equipped() },
+      /* 背包可能被開在「任務」那一頁，或太快又被關掉，所以要能指到別的地方、也能退回第 1 步 */
+      { text: () => equipBtn() || !bagOpen() ? `點一下「${name}」，把它換到手上！` : '先點上面的「⚔ 裝備背包」那一頁。',
+        target: () => equipBtn() || document.querySelector('#nw-bag [data-bag-tab="equip"]'), done: () => equipped(), back: () => !bagOpen() && !equipped() },
       { text: '換好了！看看左邊的角色，手上換成新武器了。按「關閉」回到村莊。', target: () => document.querySelector('#nw-bag [data-bag-close]'), done: () => !document.getElementById('nw-bag') }
     ], { title: '換裝備教學' });
     if (ok && !NW.tut.equip) { NW.tut.equip = 1; saveNw(); }
+  }
+
+  /* 老師在控制台頒發的特別稱號（抓蟲最多的人）；跟回報獎勵一樣，學生進村才領 */
+  async function claimAwards() {
+    const sn = await C.withTimeout(C.getDocs(C.query(C.collection(C.db, 'mg_nw_flags'), C.where('type', '==', 'award'), C.where('docId', '==', ME.docId))), 6000, 'awards');
+    const got = []; sn.forEach(d => { const x = d.data(); if (x.status === 'approved' && !x.claimed && x.award === 'bugking') got.push(d.id); });
+    if (!got.length) return;
+    for (const id of got) await C.withTimeout(C.setDoc(C.doc(C.db, 'mg_nw_flags', id), { claimed: true }, { merge: true }), 5000, 'award-claim');
+    NW.awards = Object.assign(NW.awards || {}, { bugking: 1 });
+    const ws = checkWords(NW); saveNw();
+    await showGift({ icon: '👑', title: '抓蟲王！', note: `你是抓蟲抓得最多的人，老師頒給你特別稱號「抓蟲王」！${ws.length ? '到背包的稱號裡就能戴上。' : ''}` });
   }
 
   let claiming = false, claimedAt = 0;
@@ -599,6 +614,7 @@ export function initNewWorld(C) {
     claiming = true; claimedAt = Date.now();
     try {
       const sn = await C.withTimeout(C.getDocs(C.query(C.collection(C.db, 'mg_nw_flags'), C.where('type', '==', 'bug'), C.where('docId', '==', ME.docId))), 6000, 'bugs');
+      await claimAwards();
       const ready = []; sn.forEach(d => { const x = d.data(); if (x.status === 'approved' && !x.claimed) ready.push({ id: d.id, t: x.t || 0 }); });
       if (!ready.length) return;
       ready.sort((p, q) => p.t - q.t);
@@ -616,12 +632,18 @@ export function initNewWorld(C) {
 
   function openBugReport() {
     const sheet = document.createElement('div');
-    sheet.className = 'nw-sheet fixed inset-0 grid place-items-center p-3'; sheet.style.zIndex = 96; sheet.style.background = 'rgba(9,8,18,.92)';
-    sheet.innerHTML = `<div class="px-panel" style="max-width:520px;width:100%;padding:16px">
+    sheet.className = 'nw-sheet fixed inset-0 overflow-y-auto p-3'; sheet.style.zIndex = 96; sheet.style.background = 'rgba(9,8,18,.92)';
+    sheet.innerHTML = `<div class="px-panel" style="max-width:520px;width:100%;padding:16px;margin:0 auto">
       <div class="px-title" style="font-size:1.4em">🐛 回報問題</div>
-      <p class="px-text mt-1 text-sm">遊戲哪裡怪怪的？畫面、按鍵、題目、魔物……都可以告訴我們，幫忙抓蟲的人會得到「除蟲員」稱號和字元！</p>
-      <div class="flex gap-2 mt-3 flex-wrap" data-cat>${['畫面', '按鍵／操作', '題目', '魔物', '其他'].map(t => `<button class="px-btn" data-c="${t}">${t}</button>`).join('')}</div>
-      <textarea data-text maxlength="300" rows="4" placeholder="發生了什麼事？你在做什麼的時候發生的？（至少 5 個字）" class="w-full mt-3 p-3 px-panel in" style="color:#fff"></textarea>
+      <p class="px-text mt-1 text-sm">遊戲哪裡怪怪的？幫忙抓蟲的人會得到「除蟲員」稱號和字元，<b>抓得最多的人，老師會頒發特別稱號「👑 抓蟲王」</b>！</p>
+      <div class="px-panel in mt-2" style="padding:8px 10px"><div class="px-text text-sm" style="color:#ffd98a;font-weight:900">怎麼寫，老師才找得到蟲？寫清楚兩件事：</div>
+        <div class="px-text text-sm mt-1">① 你<b>做了什麼事</b>　② <b>出現什麼錯誤狀況</b></div>
+        <div class="text-xs mt-1" style="color:#aab0d8;line-height:1.6">✅ 好的例子<br>做了什麼：我在背包裡很快連點 3 次「裝備背包」<br>錯誤狀況：背包整個黑掉，按什麼都沒有反應<br>❌ 不好的例子：「壞掉了」「很爛」（看不出哪裡壞）</div></div>
+      <div class="flex gap-2 mt-3 flex-wrap" data-cat><span class="px-text text-sm" style="align-self:center">哪一類？</span>${['畫面', '按鍵／操作', '題目', '魔物', '其他'].map(t => `<button class="px-btn" data-c="${t}">${t}</button>`).join('')}</div>
+      <div class="px-text text-sm mt-3" style="font-weight:900">① 我做了什麼事？</div>
+      <textarea data-did maxlength="150" rows="2" placeholder="例：我在背包裡很快連點 3 次「裝備背包」" class="w-full mt-1 p-3 px-panel in" style="color:#fff"></textarea>
+      <div class="px-text text-sm mt-2" style="font-weight:900">② 出現什麼錯誤狀況？</div>
+      <textarea data-what maxlength="150" rows="2" placeholder="例：背包整個黑掉，按什麼都沒有反應" class="w-full mt-1 p-3 px-panel in" style="color:#fff"></textarea>
       <p class="text-xs mt-1" style="color:#ffd98a">送出後，要等<b>老師看過、確認</b>，才會有獎勵：前 ${BUG_REWARD_MAX} 個被確認的回報，每個送 🪙 ${BUG_COINS} 字元，並解鎖「除蟲員」。亂寫的不會被確認喔。</p>
       <div data-err class="text-sm mt-1" style="color:#e5705f;min-height:1.2em"></div>
       <div class="flex gap-2 justify-end mt-2"><button class="px-btn" data-close>取消</button><button class="px-btn gold" data-send style="padding:8px 22px">送出</button></div></div>`;
@@ -631,12 +653,14 @@ export function initNewWorld(C) {
       if (c) { cat = c.dataset.c; sheet.querySelectorAll('[data-c]').forEach(b => b.classList.toggle('gold', b === c)); return; }
       if (e.target === sheet || e.target.closest('[data-close]')) { sheet.remove(); return; }
       if (!e.target.closest('[data-send]')) return;
-      const err = sheet.querySelector('[data-err]'), text = sheet.querySelector('[data-text]').value.trim();
-      if (text.length < 5) { err.textContent = '多寫幾個字吧（至少 5 個字），這樣我們才看得懂'; return; }
+      const err = sheet.querySelector('[data-err]'), did = sheet.querySelector('[data-did]').value.trim(), what = sheet.querySelector('[data-what]').value.trim();
+      if (did.length < 4) { err.textContent = '① 多寫幾個字：你做了什麼事？（至少 4 個字）'; return; }
+      if (what.length < 4) { err.textContent = '② 多寫幾個字：出現了什麼錯誤狀況？（至少 4 個字）'; return; }
+      const text = `【我做了什麼】${did}\n【錯誤狀況】${what}`;
       if (!C.online()) { err.textContent = '現在連不上網路'; return; }
       if (Date.now() - (openBugReport.last || 0) < 20000) { err.textContent = '剛剛才送過，等一下再送下一個'; return; }
       try {
-        await C.withTimeout(C.setDoc(C.doc(C.db, 'mg_nw_flags', `bug_${ME.docId}_${Date.now()}`), { type: 'bug', status: 'pending', claimed: false, docId: ME.docId, cat, text, view, cls: ME.className, seat: ME.seat, name: ME.name, t: Date.now() }), 6000, 'nw-bug');
+        await C.withTimeout(C.setDoc(C.doc(C.db, 'mg_nw_flags', `bug_${ME.docId}_${Date.now()}`), { type: 'bug', status: 'pending', claimed: false, docId: ME.docId, cat, text, did, what, view, cls: ME.className, seat: ME.seat, name: ME.name, t: Date.now() }), 6000, 'nw-bug');
       } catch (er) { err.textContent = '送出失敗，再試一次'; return; }
       openBugReport.last = Date.now();
       NW.bugsSent = (NW.bugsSent || 0) + 1; saveNw(); sheet.remove();
