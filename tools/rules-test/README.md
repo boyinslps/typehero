@@ -1,7 +1,6 @@
 # Firestore 規則測試
 
-用 Firebase 模擬器（要 Java 11 以上）跑 `firestore-rules.txt`（正式版）與
-`firestore-rules-transition.txt`（過渡版）。每一條都是「誰（匿名學生／老師／不是老師的登入帳號／未登入）、
+用 Firebase 模擬器（要 Java 11 以上）跑 `firestore-rules.txt`（正式版，沒有過渡版）。每一條都是「誰（匿名學生／老師／不是老師的登入帳號／未登入）、
 哪份文件、做什麼、該過還是不過」。
 
 ```bash
@@ -60,3 +59,7 @@ npm test         # 起模擬器、跑完自動關
 
 學生端沒有任何地方還在讀 `mg_nw_flags`、`mg_admin_log`、`mg_admins`（`mg_admins` 只有老師登入時讀自己那份）。
 `tools/browser-test/nw5.test.js`、`nw6.test.js` 開著假 Firebase 的簡化規則（`window.__RULES`）跑過整個 A 版流程，確認沒有走到被擋的路。
+
+## 上線步驟
+老師在沒有上課的時段一次做完，三步隔越短越好：① 建老師帳號與 `mg_admins/{UID}` → ② 發布 `firestore-rules.txt` → ③ 同一時間新程式上 main。
+②到③之間舊程式的序號、房間、回報、老師控制台會被擋；這段時間開著舊分頁的學生要按 F5 重新整理。

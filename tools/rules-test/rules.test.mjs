@@ -1,5 +1,5 @@
 /* 規則測試：每一條「誰、哪份文件、做什麼、該過還是不過」。
-   正式規則（firestore-rules.txt）與過渡規則（firestore-rules-transition.txt）各跑一輪。
+   正式規則（firestore-rules.txt）。
    跑法見 README.md。 */
 import { test, describe, before, after, beforeEach } from 'node:test';
 import { readFileSync } from 'node:fs';
@@ -236,34 +236,5 @@ describe('正式規則 firestore-rules.txt', () => {
 
   describe('沒寫到的集合', () => {
     test('預設全擋', () => assertFails(setDoc(doc(d.teacher, 'whatever/x'), { a: 1 })));
-  });
-});
-
-describe('過渡規則 firestore-rules-transition.txt', () => {
-  let te, d;
-  before(async () => { te = await env('firestore-rules-transition.txt', 'demo-transition'); d = who(te); });
-  after(async () => { await te.cleanup(); });
-  beforeEach(async () => {
-    await te.clearFirestore();
-    await seed(te, db => setDoc(doc(db, 'mg_admins/T1'), { ok: true }));
-  });
-
-  for (const col of ['mg_gift_used', 'mg_clock', 'mg_mail', 'mg_events', 'mg_news', 'mg_bugboard', 'mg_admin_log']) {
-    test(`${col}：登入的學生讀寫 → 過`, async () => {
-      await assertSucceeds(setDoc(doc(d.stu, `${col}/z1`), { a: 1 }));
-      await assertSucceeds(getDoc(doc(d.stu, `${col}/z1`)));
-    });
-    test(`${col}：未登入 → 不過`, () => assertFails(getDoc(doc(d.anon, `${col}/z1`))));
-  }
-  test('mg_admins：本人讀自己 → 過', () => assertSucceeds(getDoc(doc(d.teacher, 'mg_admins/T1'))));
-  test('mg_admins：別人讀 → 不過', () => assertFails(getDoc(doc(d.stu, 'mg_admins/T1'))));
-  test('mg_admins：誰都不能寫 → 不過', () => assertFails(setDoc(doc(d.stu, 'mg_admins/stu1'), { ok: true })));
-  test('現行行為不變：mg_config、mg_scores、mg_nw_flags、mg_rooms 學生仍可讀寫', async () => {
-    await assertSucceeds(setDoc(doc(d.stu, 'mg_config/nwroom_x'), { a: 1 }));
-    await assertSucceeds(setDoc(doc(d.stu, 'mg_scores/a_1號'), { a: 1 }));
-    await assertSucceeds(setDoc(doc(d.stu, 'mg_nw_flags/f1'), { type: 'bug', claimed: false }));
-    await assertSucceeds(getDoc(doc(d.stu, 'mg_nw_flags/f1')));
-    await assertSucceeds(setDoc(doc(d.stu, 'mg_rooms/a_1號'), { a: 1 }));
-    await assertSucceeds(deleteDoc(doc(d.stu, 'mg_scores/a_1號')));
   });
 });
