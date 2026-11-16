@@ -1,351 +1,429 @@
 # 規格：教師管理頁、信箱、活動、佈告欄、抓蟲榜、村莊延伸
 
-> 版本：草稿 v1（2026-11-16）　狀態：**設計中，尚未實作**
-> 範圍內的功能全部屬於新世界，**不推 main、不寫進對外訊息**，直到老師同意（見 `CLAUDE.md`）。
+> 版本：**v2（2026-11-16）**　狀態：設計中，第 1 輪專家審查已併入，等第 2 輪審查與老師確認
+> 基準程式：`origin/main` 的 **v3.13.0**（新世界打完標點挑戰就開放、已有 📢 佈告欄按鈕與 `NOTICES`、已有職業除錯師頒發）。
+> 變更紀錄：v1 → v2 見文末 §13。
 
 ---
 
-## 0. 目的與範圍
+## 0. 目的、範圍、不做的事
 
-老師要一個**獨立的管理頁**，能：
-1. 看學生狀況、直接把裝備／字元／道具**寄到學生信箱**。
-2. 開活動（限時加倍、限時討伐、班級競賽、排行挑戰），可以**排程**（設定開始／結束時間）。
-3. 發公告；版本更新跟著 `VERSION_LOG` 自動跳更新公告（不做遠端版本控制，老師直接改程式）。
-4. 看回饋、審核問題回報；問題回報算進**抓蟲榜**（常駐活動，掛在村莊的佈告欄）。
+老師要：
+1. **獨立的教師管理頁**（老師 email 登入）。
+2. **學生狀況**檢視，把裝備、字元、道具**寄到學生信箱**。
+3. **活動**：限時加倍、限時討伐、班級競賽、排行挑戰，可以**排程**。
+4. **更新公告**跟著版本紀錄跳（現有 `NOTICES` 已做到），不做遠端版本控制。
+5. **抓蟲榜**：常駐活動，貼在佈告欄，顯示「班級座號＋暱稱」。
+6. **佈告欄**做成村莊裡的建築；**村莊地圖變大、跟著角色捲動**。
+7. **回饋**留在自己的系統裡，不跟抓蟲榜混在一起。
 
-另外：
-5. 村莊新增**佈告欄**建築，並把地圖改成**比螢幕大、跟著角色捲動的無縫地圖**。
-6. 學生可以取**暱稱**（抓蟲榜顯示「班級・座號・暱稱」）。
-
-**不做的事**：
-- 不做伺服器端排程或驗證（純前端網站）。排程＝學生打開遊戲時，程式自己比對時間。
-- 不做遠端強制更新／遠端切換 `OPEN_STAGE`。
-- 不搬移舊世界教師控制台（`index.html` 的 `#teacher-modal`）的功能；管理頁只放新世界的東西，另放一顆按鈕連過去。
+不做：
+- 伺服器端程式（純前端＋Firestore）。排程＝學生端比對「伺服器時間」（§1.6）。
+- 遠端強制更新、遠端切換 `OPEN_STAGE`。
+- 改舊世界的教師控制台版面（只讓它的寫入改用老師身分，§1.4）。
 
 ---
 
-## 1. 權限（老師選 B：老師用 email 帳號登入）
+## 1. 權限與安全（老師選 B：email 帳號）
 
-### 1.1 老師怎麼被認出來
-- Firebase Authentication 開「電子郵件／密碼」，老師建一個帳號。
-- Firestore 手動建一份 `mg_admins/{老師的 UID}`（內容隨意，例如 `{ ok: true }`）。
-- 規則用 `exists(/databases/$(database)/documents/mg_admins/$(request.auth.uid))` 判斷是不是老師。
-  **這樣 repo 裡不會出現 UID 或 email**（`CLAUDE.md`：個資不進 repo）。
-- `mg_admins` 本身：任何人都不能寫（只能從 Firebase 主控台建）、登入者可讀自己那份（`allow get: if request.auth.uid == uid`）。
+### 1.1 現在就有、這次會被放大的兩個洞
 
-### 1.2 各集合的權限
+| 洞 | 現況 | 這次為什麼變嚴重 | 對策 |
+|---|---|---|---|
+| **冒名**：`doLogin()`（index.html）只要班級＋座號＋任意姓名 | 換姓名也能進同一份存檔 | 有了信箱，可以用同學座號登入領走他的信；可以改同學暱稱掛上全校榜 | §1.5 |
+| **誰都能寫任何 `mg_scores`** | 匿名登入的 uid 對不上「班級_座號」 | 暱稱、活動進度、已領紀錄都在存檔裡 | 重要的資料改放「只有老師能寫」的地方（信件、抓蟲分、隱藏暱稱）；學生存檔裡的東西只當顯示用 |
 
-| 集合／文件 | 讀 | 學生寫 | 老師寫 | 備註 |
+**誠實告知老師**：B 方案擋得住「自己寄信給自己、自己開活動、自己批准回報、改題庫、刪全校存檔」，**擋不住懂技術的學生改自己的字元和裝備**。純前端網站做不到更多。
+
+### 1.2 老師身分
+- Firebase Authentication 開「電子郵件／密碼」，建一個老師帳號。
+- Firestore 手動建 `mg_admins/{老師 UID}`（`{ ok: true }`）。規則：
+  ```
+  function isTeacher() { return request.auth != null
+    && exists(/databases/$(database)/documents/mg_admins/$(request.auth.uid)); }
+  ```
+  repo 裡不會出現 UID 或 email。
+- `mg_admins`：`allow get: if request.auth.uid == uid`；不能寫（只能從主控台建）。
+
+### 1.3 各集合規則
+
+| 集合 | 讀 | 學生 | 老師 | 細節 |
 |---|---|---|---|---|
-| `competition`、`scores`（舊站） | 登入者 | ✓ | ✓ | 不動 |
-| `mg_config/settings` | 登入者 | ✗ | ✓ | 原本就只有老師在改 |
-| `mg_config/gift_codes` | 登入者 | ✗ | ✓ | 使用次數搬到 `mg_gift_used`（§1.3） |
-| `mg_config/nw_vote` | 登入者 | ✓ | ✓ | 學生要提名、投票，**例外開放**這一份 |
-| `mg_config/{其他}` | 登入者 | ✗ | ✓ | `nwroom_*` 搬走（§1.3） |
-| `mg_round`、`mg_bank` | 登入者 | ✗ | ✓ | 開戰、題庫 |
-| `mg_scores/{班級_座號}` | 登入者 | ✓ | ✓ | 學生存檔，**擋不住改自己的數字**（§1.4） |
-| `mg_rooms/**` | 登入者 | ✓ | ✓ | 組隊房間搬到這裡 |
-| `mg_nw_runs` | 登入者 | 只能新增 | ✓ | |
-| `mg_nw_flags` | 登入者 | 只能新增 | ✓ | 回饋、問題回報；**學生不能改 status**（改了就能自己批准自己的回報） |
-| `mg_gift_used/{序號雜湊}` | 登入者 | 只能 `count` 加 1 | ✓ | 序號用掉幾次 |
-| `mg_mail/{自動 ID}` | 登入者 | ✗ | ✓ | 信箱（§3） |
-| `mg_events/{自動 ID}` | 登入者 | ✗ | ✓ | 活動（§4） |
-| `mg_news/{自動 ID}` | 登入者 | ✗ | ✓ | 公告（§5） |
-| `mg_bugboard/{班級_座號}` | 登入者 | ✗ | ✓ | 抓蟲榜加分（§7） |
-| `mg_admins/{uid}` | 本人 | ✗ | ✗ | 只能從主控台建 |
+| `competition`、`scores`（舊站） | 登入者 | 讀寫 | 讀寫 | 不動 |
+| `mg_config/settings`、`gift_codes`、其他 | 登入者 | ✗ | 寫 | |
+| `mg_config/nw_vote` | 登入者 | update | 寫 | 學生只能動 `v`、`noms`：`request.resource.data.diff(resource.data).affectedKeys().hasOnly(['v','noms'])`（現在學生端可以整份覆寫、清空投票） |
+| `mg_round`、`mg_bank` | 登入者 | ✗ | 寫 | |
+| `mg_scores/{id}` | 登入者 | create、update | 全部 | **delete 只有老師**（現在任何人都能刪全校存檔） |
+| `mg_rooms/**` | 登入者 | 讀寫 | 讀寫 | 組隊房間搬來這裡（§1.7） |
+| `mg_nw_runs` | 登入者 | create | 全部 | |
+| `mg_nw_flags` | **只有老師** | create（限制內容） | 全部 | 見下 |
+| `mg_gift_used/{雜湊}_{班級_座號}` | 登入者 | create | 全部 | 一人一份，用 count 查詢算次數（§1.7） |
+| `mg_mail`、`mg_events`、`mg_news` | 登入者 | ✗ | 寫 | |
+| `mg_bugboard/{班級_座號}` | 登入者 | ✗ | 寫 | 抓蟲分、隱藏暱稱、回報結果（§7） |
+| `mg_admin_log` | 只有老師 | ✗ | create | 老師操作紀錄（§2.4） |
+| `mg_admins/{uid}` | 本人 | ✗ | ✗ | |
 
-「只能新增」的寫法：`allow create: if request.auth != null; allow update, delete: if isTeacher();`
+**`mg_nw_flags` 學生 create 的條件**（不然學生能自己新增一筆「已確認、嚴重 3 分」的回報）：
+```
+allow create: if request.auth != null
+  && request.resource.data.type in ['bug', 'feedback']
+  && request.resource.data.get('status', 'pending') == 'pending'
+  && request.resource.data.keys().hasOnly(['type','status','docId','cat','text','did','what','view',
+       'mk','mon','star','rate','cls','seat','name','t'])
+  && request.resource.data.get('text', '').size() <= 400;
+// 回饋送出會用同一個 ID 重試：第一次其實寫進去了只是逾時，第二次變成 update。內容完全一樣就放行。
+allow update: if isTeacher() || request.resource.data == resource.data;
+allow read, delete: if isTeacher();
+```
+- flags 裡有學生真名，所以**只有老師能讀**。學生端不再讀 flags（§6、§7 改走 `mg_bugboard` 與信箱）。
 
-### 1.3 因為權限收緊要一起改的地方
+### 1.4 老師登入不能影響學生機
+- `teacher.html` 用**具名 app**：`initializeApp(cfg, 'admin')`、`getAuth(adminApp)`、`setPersistence(browserSessionPersistence)`（關分頁就登出）。
+  遊戲本體的匿名登入（index.html 的 `signInAnonymously`）**完全不用改**，兩邊的登入狀態分開存。
+- 舊控制台（`#teacher-modal`）的寫入（開戰、題庫、設定、序號、清空成績、回報審核、頒發）改用 admin app 的 `db`：
+  打開舊控制台時若 admin app 沒登入，跳出 email／密碼小視窗登入（同樣 session 持久化）。密碼 `teacher` 那道門保留（只是擋手滑）。
 
-| 現在 | 問題 | 改成 |
-|---|---|---|
-| 組隊房間存 `mg_config/nwroom_班級_座號` | 學生寫不進 `mg_config` | 存 `mg_rooms/{班級_座號}`（規則早就開好），`loadRooms()` 改讀這個集合 |
-| 學生兌換序號時對 `gift_codes` 做 `used: increment(1)` | 學生不能寫 `gift_codes` | 寫 `mg_gift_used/{雜湊}` 的 `count`；教師頁顯示時兩邊合起來。規則限制只能 `count == 舊值 + 1` |
-| 學生領問題回報獎勵時把 flag 標 `claimed: true` | 學生不能改 flag | 已領的 flag ID 記在學生自己的 `NW.bugClaimed`（陣列）；教師頁的「學生已領」改看學生存檔 |
-| `index.html` 一載入就 `signInAnonymously` | 老師在同一台電腦登入 email 後，回到遊戲會被換回匿名 | `onAuthStateChanged` 先等第一次回報；已經有非匿名使用者就**不要**再匿名登入 |
-| 舊控制台用密碼 `teacher` 進入後直接寫 `mg_config`、`mg_round`、`mg_bank` | 匿名身分寫不進去 | 舊控制台照舊，但寫入前若不是老師帳號，提示「請先到教師管理頁登入」並附連結。**不改舊控制台的版面** |
+### 1.5 冒名對策
+- 登入時若雲端存檔的 `name` 跟這次輸入的姓名**不一樣**：
+  - 照舊讓他玩（現行行為不變，避免老師改名單時大家進不去）；
+  - 但**鎖住信箱、改暱稱**，畫面寫「名字跟上次不一樣，信箱先鎖起來；請找老師」；
+  - 寫一筆 `mg_nw_flags`（`type:'feedback'` 不行，另開 `type:'namechg'`，規則的 `type in [...]` 一起加），教師頁「學生」分頁在那位學生旁標 ⚠「換過名字」，老師按「沒問題」＝在 `mg_bugboard/{id}.nameOk = 新名字` 解鎖。
+- 暱稱不開放自由輸入（§8），從源頭消掉「把同學暱稱改成罵人的話」。
+- 老師可立刻隱藏任何人的暱稱：`mg_bugboard/{id}.hideNick = true`（只有老師能寫，所有榜單讀這個）。
 
-### 1.4 一定要讓老師知道的限制
-- 學生存檔（`mg_scores`）還是誰都能寫：懂技術的學生仍能用主控台改**自己**的字元、裝備。
-  B 方案擋住的是：自己發信件給自己、自己開活動、自己批准自己的回報、改題庫、開戰。
-- 信件、活動獎勵都是「學生端讀到之後自己加進存檔」，所以已領紀錄存在學生存檔裡。這是純前端網站做得到的上限。
+### 1.6 時間
+- 學生可以改電腦時間提早拿到排程的信和活動。進村時寫一次 `mg_rooms/_clock_{班級_座號}`（`serverTimestamp()`）再讀回來，算出 `clockSkew`，之後所有排程判斷用 `Date.now() + clockSkew`。讀不到就用本機時間。
+- 活動結束判斷給 **5 分鐘緩衝**：在 `endAt` 前開打、`endAt + 5 分` 前打完的場次照樣算。
 
-### 1.5 老師要做的事（實作完成後，照順序）
-1. Firebase 主控台 → Authentication → 登入方式 → 開啟「電子郵件／密碼」。
-2. Authentication → 使用者 → 新增使用者（老師 email＋密碼）→ 複製 UID。
-3. Firestore → 新增集合 `mg_admins` → 文件 ID 貼 UID → 欄位 `ok`（布林）`true`。
-4. Firestore → 規則 → **先複製舊規則存檔** → 貼上新的 `firestore-rules.txt` → 發布。
-5. 打開 `teacher.html` 用老師帳號登入，看「總覽」有沒有出現資料。
+### 1.7 因為規則收緊要一起改的程式
 
-順序很重要：**第 3 步要在第 4 步之前**，不然發布規則後老師自己也寫不進去。
+| 現在（v3.13.0） | 改成 |
+|---|---|
+| 房間存 `mg_config/nwroom_*`（newworld.js `roomId()`／`loadRooms()`） | `mg_rooms/{班級_座號}`，`loadRooms()` 改讀這個集合 |
+| 序號兌換對 `gift_codes` 做 `used: increment(1)` | 新增一份 `mg_gift_used/{雜湊}_{班級_座號}`（只能 create，同一人第二次 create 會被擋＝不能重複領）；次數上限用 `getCountFromServer(where('h','==',雜湊))` 判斷；教師頁顯示誰領過 |
+| `claimBugs()`／`claimAwards()` 讀 flags 再把 flag 標 `claimed` | 刪掉。老師確認回報／頒發時**直接寄信**（§6），學生只領信 |
+| 學生端讀自己的回報清單（測試員手冊「我的回報」） | 改讀 `mg_bugboard/{我}.reports`（老師確認時寫入：flag ID、狀態、嚴重度、老師回覆） |
+| `mg_scores` 學生可 delete | 舊控制台「清空成績」改用 admin app |
+
+### 1.8 上線順序（**很重要**：規則是全站共用的，main 已經上線）
+
+1. **A 版程式**（新舊規則都能跑）推上 main（要老師同意）：§1.7 全部改完、讀寫都改走新位置；`teacher.html` 上線。
+2. 等一天（舊分頁都關掉、學生都載到 A 版）。
+3. 老師照 §1.9 建帳號、建 `mg_admins`、**發布新規則**。
+4. 舊資料搬移：教師頁「⚙ 設定 → 一次搬移」把「已確認但還沒領」的 bug／award flags 轉成信件（信件 ID 固定 `bug_{flagID}`／`award_{flagID}`，重按不會多寄）。
+
+### 1.9 老師要做的事（照順序）
+1. Firebase 主控台 → Authentication → 登入方式 → 開「電子郵件／密碼」。
+2. 使用者 → 新增使用者 → 複製 UID。
+3. Firestore → 新增集合 `mg_admins` → 文件 ID＝UID → 欄位 `ok`＝`true`。
+4. Firestore → 規則 → **先複製舊規則存檔** → 貼新的 `firestore-rules.txt` → 發布。（第 3 步一定要在第 4 步前面）
+5. 打開 `teacher.html` 登入，看「總覽」有資料。
+
+### 1.10 規則怎麼驗證
+- 假 Firebase（`tools/browser-test/mock/fs.js`）**不跑規則**，`where` 也只支援最外層欄位的 `==`。
+- 實作時用 Firebase 模擬器＋`@firebase/rules-unit-testing` 寫規則測試（`tools/rules-test/`）。如果雲端環境下載不到模擬器，就改成一份 **Rules Playground 檢查清單**（`docs/RULES-CHECKLIST.md`：每一條「誰、對哪份文件、做什麼、應該過／不過」），老師發布前在主控台的 Playground 逐條按。
 
 ---
 
 ## 2. 教師管理頁 `teacher.html`
 
 ### 2.1 基本
-- 獨立檔案 `teacher.html`＋`teacher.js`（ES module），跟 `index.html` 同一個 Firebase 設定。
-- 進入：遊戲內舊控制台加一顆「🛠 新世界管理頁」按鈕；也可以直接開網址。
-- 登入畫面：email、密碼、登入鈕。登入後檢查 `mg_admins/{uid}` 存不存在；不存在就顯示「這個帳號不是老師帳號」並登出。
-- 樣式：沿用 `nw-ui.js` 的 `px-panel`／`px-btn`（`CLAUDE.md` 規定新世界畫面都用這套），但管理頁以**資訊密度**為主：表格、字 15px、不放大圖。
-- 版面：上方標題列（登入身分、登出、回遊戲）＋左側分頁列（手機改上方橫排）＋右側內容。
+- 新檔 `teacher.html`＋`teacher.js`（ES module）。舊控制台加一顆「🛠 新世界管理頁」連過去。
+- 登入：email、密碼。登入後檢查 `mg_admins/{uid}`；不是老師就顯示「這個帳號不是老師帳號」並登出。
+- 樣式：`nw-ui.js` 的 `px-panel`／`px-btn`，但以**資訊密度**為主（表格、15px 字）。
+- 版面：上方標題列（登入身分、登出、回遊戲）＋左側分頁（手機改上方）＋內容。
 
 ### 2.2 分頁
 
 | 分頁 | 內容 |
 |---|---|
-| 📊 總覽 | 今天上線人數、新世界玩家數、進行中／排程中的活動、待審核的問題回報數、未讀回饋數；每一格點了跳到對應分頁 |
+| 📊 總覽 | 今天上線人數、新世界玩家數、進行中／排程中的活動、待審核回報數、未讀回饋數、⚠ 換過名字的人數；**3 個捷徑**：寄信、開活動、審回報 |
 | 👥 學生 | §2.3 |
-| ✉ 寄信 | §3.3 |
+| ✉ 信箱 | §3.3 |
 | 🎪 活動 | §4.4 |
 | 📢 公告 | §5.2 |
-| 🐛 回饋與回報 | §6 |
-| 🏆 抓蟲榜 | §7.4 |
-| ⚙ 設定 | 新世界模式、通關密語、標點挑戰發密語、序號禮物（把舊控制台這幾項搬過來；舊控制台那幾項保留但改成唯讀並提示到這裡改） |
+| 💬 回饋 | §6.1（只有回饋） |
+| 🐛 回報與抓蟲榜 | §6.2＋§7.4 |
+| ⚙ 設定 | 新世界開放方式、通關密語、序號禮物（從舊控制台搬來，舊控制台那幾項改成「到管理頁改」的連結）、一次搬移（§1.8）、操作紀錄 |
 
-### 2.3 學生分頁
-- 資料：讀整個 `mg_scores`（現在榮譽碑已經這樣做；人數多了再改）。
-- 篩選：年級、班級、有沒有玩新世界、關鍵字（姓名／暱稱／座號）。
-- 表格欄位：班級、座號、姓名、暱稱、HR、字元、武器（初心＋禮物）、狩獵場次、勝／敗、最後上線、回報數（已確認／送出）。可以依欄位排序。
-- 點一列開**學生卡**：
-  - 基本：上面那些＋稱號、區域進度（`zone`）、圖鑑（`dex`）、道具、材料、教學進度（`tut`）、任務（`quest.done`）。
-  - 最近 10 場（讀 `mg_nw_runs` 的這位學生）。
-  - 動作：「寄信給他」（開 §3.3，收件人預先填好）、「重設暱稱」（把 `nw.nick` 清空並在 `nw.nickBan` 記一筆，見 §8）。
-  - **不提供直接改存檔**：所有給東西都走信箱，學生才看得到、才有領取的感覺，也留下紀錄。
-- 勾選多位學生 → 「寄信給勾選的人」。
+### 2.3 學生
+- 讀整個 `mg_scores`（**只在教師頁讀**，學生端不讀，§4.3）。
+- 篩選：年級、班級、玩過新世界、關鍵字（姓名／暱稱／座號）、⚠ 換過名字。
+- 表格：班級、座號、姓名、暱稱、HR、字元、武器、狩獵場次、勝／敗、最後上線、回報（已確認／送出）。可排序。
+- 學生卡：上面那些＋稱號、區域進度、圖鑑、道具、材料、教學、任務、已領的信。
+  動作：「寄信給他」「隱藏／恢復暱稱」「名字沒問題（解鎖）」。
+- **不直接改存檔**：給東西一律寄信（學生看得到、有領取的感覺、留紀錄）。
+- 勾選多人 →「寄信給勾選的人」。
+
+### 2.4 操作紀錄 `mg_admin_log`
+- 老師每個寫入動作（寄信、收回、開／改／刪活動、發獎、審回報、加分、隱藏暱稱、改設定）寫一筆 `{ act, target, summary, t }`。
+- 設定分頁可以看最近 100 筆。用途：「我上週到底有沒有寄獎給 504？」。
+
+### 2.5 送出前的防呆
+- 信件、活動、公告送出前都顯示**學生會看到的樣子**＋一行摘要（例「寄給 504 全班 27 人：🗡 測試者之刃 ×1、🪙 300」）。
+- 數量超過平常值（字元 > 1000、回復藥 > 20）要再按一次確認，避免手滑打成 10000。
 
 ---
 
 ## 3. 信箱
 
-### 3.1 資料：`mg_mail/{自動 ID}`
+### 3.1 資料：`mg_mail/{ID}`
 
 ```js
 {
-  to: { kind: 'all' } | { kind: 'class', cls: ['五年級4班'] } | { kind: 'ids', ids: ['五年級4班_5號', ...] },
-  toIds: ['五年級4班_5號', ...],     // 只有 kind:'ids' 時有，給 array-contains 查詢用
-  toCls: ['五年級4班'],               // 只有 kind:'class' 時有
-  title: '謝謝你幫忙抓蟲',            // 20 字內
-  body: '……',                         // 200 字內
-  items: [ { type: 'coins', n: 100 }, { type: 'potion', n: 3 }, { type: 'weapon', key: 'tester' }, { type: 'mat', key: 'slimeGel', n: 5 } ],
-  from: '老師',                        // 顯示用
-  sendAt: 1731700000000,               // 排程：這個時間以後才看得到
-  expireAt: 0 | 1732300000000,         // 0 = 不會過期
-  t: 1731690000000,                    // 建立時間
-  src: 'manual' | 'event:{活動ID}' | 'bug'   // 從哪來的，教師頁篩選用
+  aud: ['all'] | ['cls:五年級4班', 'cls:五年級5班'] | ['id:五年級4班_5號', ...],   // 一個陣列，一次 array-contains-any 查完
+  title: '謝謝你幫忙抓蟲',     // 20 字內
+  body: '……',                  // 200 字內
+  items: [ { type: 'weapon', key: 'tester' }, { type: 'coins', n: 300 }, { type: 'word', key: 'bugking' }, { type: 'exp', n: 50 } ],
+  from: '老師',
+  sendAt, expireAt,            // expireAt 0 = 不過期
+  t, src: 'manual' | 'event:{活動ID}' | 'bug' | 'award'
 }
 ```
-
-- `items.type` 沿用並擴充 `applyReward()`：`coins`、`potion`、`weapon`（`GIFT_WEAPONS` 的 key）、`mat`（材料）、`word`（稱號詞條 ID，只能是 `WORDS` 裡 `g:'活動'` 的詞條）。未知的 type 學生端**跳過不壞**，並在信件上顯示「這個禮物要更新遊戲才能領」。
+- ID：手動寄的用自動 ID；**系統產生的一律固定 ID**（`ev_{活動ID}_{名次或班級}`、`bug_{flagID}`、`award_{flagID}`），重寄只會覆蓋同一封，不會變兩封。
+- 查詢：`where('aud', 'array-contains-any', ['all', 'cls:'+班級, 'id:'+docId])`，再過濾 `sendAt <= 伺服器時間`、未過期。（`array-contains-any` 最多 30 個值，這裡只有 3 個）
+- `items.type`：`weapon`（`GIFT_WEAPONS`）、`coins`、`potion`、`exp`（獵人經驗）、`mat`、`word`（`WORDS` 裡老師可頒的詞條，例如 `bugking`）。未知 type 跳過不壞，信上寫「**請按 F5 重新整理再來領**」，這封不標已領。
+- **第一版的範本獎勵用武器、稱號、獵人經驗**：`OPEN_STAGE = 1` 時商店沒開，字元和回復藥領了暫時用不到（`applyReward()` 的說明文字也這樣寫）。字元可以給，但範本不主推。
 
 ### 3.2 學生端
-- **郵筒**：放在佈告欄旁（§9 地圖），點了或按 Enter 打開信箱；有未領信件時郵筒上方冒 ✉ 與數字。
-  背包也加「信箱」分頁（UI-ART-SPEC §4：新的個人資料加分頁，不另開頁面）。兩者打開同一個視窗。
-- 進村時讀三個查詢並合併：`toIds array-contains 我`、`toCls array-contains 我的班`、`to.kind == 'all'`；過濾 `sendAt <= 現在`、未過期。
-- 已領：`NW.mail = { [信件ID]: 領取時間 }`。領取時把每個 item 跑 `applyReward()`，`showGift()` 依序秀出來，再 `saveNw()`。
-- 「全部領取」按鈕。已領的信留著可以重看，30 天後在列表裡收起來。
-- 離線：顯示「現在連不上網路，信箱打不開」。
+- 入口：佈告欄旁的**郵筒**（可點、站旁邊按 Enter）＋背包的「✉ 信箱」分頁（UI-ART-SPEC §4：個人資料加分頁）。兩個打開同一個視窗。有沒領的信：郵筒冒 ✉ 與數字、上方按鈕列的背包按鈕加小紅點。
+- 已領紀錄 `NW.mail = { [信件ID]: 領取時間 }`（**物件**，合併存檔時不會被整個蓋掉）。
+- 領取流程：
+  1. 先重讀一次自己的雲端存檔（另一個分頁可能已經領過）。
+  2. 已在 `NW.mail` 裡的跳過。
+  3. 每個 item 跑 `applyReward()`，`showGift()` 依序秀。
+  4. 寫 `NW.mail[ID]`，立刻存檔（不等 800ms 的延遲）。
+- 「全部領取」。已領的留著可以重看，30 天後收起來。
+- 離線：「現在連不上網路，信箱打不開」。名字不一樣被鎖時：§1.5 的提示。
 
-### 3.3 教師頁「寄信」
-- 收件人：全部／選班級（多選）／選學生（從學生分頁帶過來或在這裡搜尋）。
-- 禮物：一列一個，選類型＋數量（武器用下拉選 `GIFT_WEAPONS`）。
-- 預約寄送（`sendAt`）、有效期限（預設不過期）。
-- 預覽：照學生看到的樣子顯示信件。
-- 寄出紀錄：列出 `mg_mail`，可篩來源；可以「收回」＝刪除那封信（已經領的人不會被扣回，畫面上說清楚）。
-- 領取狀況：點一封信 → 列出收件人與「已領／未領」（從 `mg_scores` 的 `nw.mail` 判斷）。
+### 3.3 教師頁「信箱」
+- 收件人：全部／班級（多選）／學生（搜尋或從學生分頁帶來）。
+- 禮物：一列一個（類型＋數量；武器、詞條用下拉）。
+- 預約寄送、有效期限（預設不過期）。
+- 預覽與摘要（§2.5）。
+- 寄出紀錄：可篩來源；「收回」＝刪掉那封，**已經領的人不會被扣回**，畫面寫清楚。
+- 領取狀況：點一封 → 收件人「已領／未領」（從 `mg_scores` 的 `nw.mail` 判斷）。
 
 ---
 
 ## 4. 活動
 
-### 4.1 類型
+### 4.1 類型（第一版做 3 種，第二版 1 種）
 
-| type | 名稱（給學生看） | 怎麼算 | 獎勵怎麼發 |
-|---|---|---|---|
-| `boost` | 限時加倍 | 活動期間打贏魔物：字元或獵人經驗 × 倍率（`mul` 1.5／2／3） | 打完當場就多給，不用領 |
-| `hunt` | 限時討伐 | 活動期間打倒指定魔物（`mk`，可指定星級下限 `minStar`）`goal` 隻 | 達標時學生端自己發（同信件的 items），一人一次 |
-| `classwar` | 班級對抗 | 活動期間各班「打倒魔物數」（或指定魔物）加總，比總數或**平均每人**（`by: 'sum'|'avg'`，預設平均，人少的班不吃虧） | 結束後老師在教師頁按「發獎」→ 對名次班級寄信 |
-| `ranking` | 排行挑戰 | 活動期間的個人指標：打倒數、最快討伐秒數（指定魔物）、正確率最高（至少打 N 場） | 結束後老師按「發獎」→ 前 N 名寄信 |
-| `bugboard` | 抓蟲大作戰 | 常駐，見 §7 | 老師另外決定，可用寄信 |
+| type | 給學生看的名字 | 規則 | 獎勵 | 版本 |
+|---|---|---|---|---|
+| `boost` | 限時加倍 | 期間打贏魔物：獵人經驗或字元 × `mul`（1.5／2） | 當場多給 | 第一版 |
+| `hunt` | 限時討伐 | 期間打倒指定魔物（`mk`、`minStar`）`goal` 隻 | 達標自己領（一人一次） | 第一版 |
+| `classwar` | 班級挑戰 | 見 §4.2 | 見 §4.2 | 第一版 |
+| `ranking` | 排行挑戰 | 期間的個人「打倒數」或「進步最多」（跟自己活動前的最佳比） | 結束後老師按發獎 | **第二版**（榮譽碑已有最快／精準排行，先觀察需求） |
+| `bugboard` | 抓蟲大作戰 | §7 | §7 | 常駐，內建 |
 
-`bugboard` 是內建的常駐活動，不存 `mg_events`，固定出現在佈告欄。
+### 4.2 班級挑戰（老師要的「班級競賽、比班級討伐數」＋公平處理）
 
-### 4.2 資料：`mg_events/{自動 ID}`
+研究與審查都指出：兩邊比名次時，輸的那一班信心、表現都會下降；用「平均每人」比，會讓人想排擠打得慢的同學；新世界也不是每個人都進得去。所以班級挑戰是**「全班目標＋同年級排名」**：
 
-```js
-{
-  type: 'hunt', title: '咕咕鳥大量出沒！', desc: '……（60 字內）',
-  startAt, endAt,                // 排程；學生端比對現在時間
-  cls: [] | ['五年級4班', ...],  // 空＝全校
-  // 依 type：
-  mul: 2, what: 'coins' | 'exp',                 // boost
-  mk: 'coo', minStar: 1, goal: 10,               // hunt
-  metric: 'kills', mk: '', by: 'avg',            // classwar
-  metric: 'kills'|'fastest'|'acc', mk, minRuns,  // ranking
-  items: [ ... ],                // hunt 的達標獎勵；classwar／ranking 的預設獎勵（發獎時可改）
-  topN: 3,                       // classwar／ranking 發獎名次
-  awarded: false, t
-}
-```
+- **全班目標（主角）**：每班自己的進度條＝「達標人數 ÷ 全班人數」，達標＝期間打倒 `per` 隻（預設 3）。全班達標率到 `goalPct`（預設 60%）→ **全班每個有參加的人都自動領獎**（學生端判斷，固定鍵 `ev:{ID}`）。不用老師按發獎。
+- **同年級排名（配角）**：同年級各班比「達標率」，佈告欄只列**前 3 名和自己的班**，不列最後一名、不列個人貢獻。前 3 名老師可以在結束後按「加碼獎」寄信（可不做）。
+- 全班人數用 `mg_scores` 裡該班的人數（教師頁可手動覆寫班級人數）。
+- 計算方式（**學生端不讀整個 `mg_scores`**）：
+  - 每位學生自己的進度在 `nw.ev.{ID}.n`。
+  - 班級達標人數：`getCountFromServer(query(mg_scores, where('className','==',班), where('nw.ev.{ID}.n','>=',per)))`。多一個 where 可能要複合索引，**實作時在實機確認**；不行就改成教師頁每 10 分鐘彙總寫進 `mg_events/{ID}.tally`（老師開著管理頁時才更新，佈告欄寫「每 10 分鐘更新」）。
+  - 結果快取 60 秒。
 
 ### 4.3 學生端怎麼算
-- 進村時讀「`endAt` 在 7 天內或之後」的活動，在記憶體裡分「進行中」「快開始」「剛結束」。
-- 每場結束（`finishHunt`）：對每個進行中、班級符合的活動，更新 `NW.ev[活動ID]`：
-  - `hunt`：`n`（符合的擊倒數）、`done`（領過沒）。達標就 `applyReward` 並秀禮物。
-  - `classwar`／`ranking`：`kills`、`fastest`、`accSum`/`runs`，只累計活動期間、而且**這場有效**（`res.valid`）的。
-  - `boost`：直接乘到 `finishHunt` 算出來的字元／經驗上；結果畫面寫「活動加倍 ×2」。
-- 班級總數、排名：**不另外存計數器**（學生可以灌）。佈告欄和教師頁都讀 `mg_scores` 的 `nw.ev[活動ID]` 自己加總。學生端讀全部 `mg_scores` 現在榮譽碑已經這樣做，沿用同一份快取，60 秒內不重讀。
-- 時間以**學生電腦時間**比對，畫面上寫「活動時間以學校電腦為準」。教師頁顯示活動狀態時用老師電腦時間。
+- 進村時讀 `mg_events`：`where('endAt', '>=', 伺服器時間 - 7 天)`，分「進行中」「快開始」「剛結束」，班級不符合的不顯示。
+- 每場結束（`finishHunt`）且 `res.valid`：對每個進行中、班級符合的活動更新 `NW.ev[ID]`：
+  - `hunt`／`classwar`：`n` 加 1（符合魔物與星級時）；`hunt` 達標 → 領獎、記 `NW.ev[ID].done = 1`。
+  - `boost`：直接乘到這場的獵人經驗／字元；結果畫面寫「🎪 活動加倍 ×2」。
+- `classwar` 的全班獎：進村、開佈告欄時檢查；達標且自己 `n >= 1` 且沒領過 → 領。
+- `NW.ev` 裡結束超過 30 天的刪掉，存檔才不會一直變大。
+- 活動被刪掉：學生端找不到就顯示「這個活動取消了」（僅限 `NW.ev` 有紀錄的那個人看到一次）。
 
 ### 4.4 教師頁「活動」
-- 列表：排程中／進行中／已結束，各自一區。
-- 新增：先選類型，再填欄位（只顯示該類型需要的欄位），日期時間用 `datetime-local`。
-- 範本：「週末雙倍字元」「咕咕鳥大量出沒（打 10 隻）」「班級對抗：一週打倒數（平均）」「最快討伐：泡泡蛙」，點了填好預設值再改。
-- 進行中的活動：即時名次（讀 `mg_scores` 加總）、參加人數。
-- 已結束：「發獎」→ 預覽名次與要寄的信 → 確認 → 寄信（`src: 'event:{ID}'`）並把 `awarded: true`。重複按會提示已經發過。
-- 可以提早結束（把 `endAt` 改成現在）或刪除。
+- 列表：排程中／進行中／已結束。
+- 新增：選類型 → 只顯示該類型的欄位 → 預覽 → 送出。日期用 `datetime-local`。
+- **範本**：「週末經驗加倍」「咕咕鳥大量出沒（打 10 隻）」「班級挑戰：每人打 3 隻，全班 60% 達標」。
+- **開始後鎖住** `type`、`mk`、`minStar`、`goal`、`per`、`goalPct`；只能改標題、說明、延長 `endAt`、提早結束。
+- 進行中：參加人數、各班達標率。
+- 已結束：`classwar` 的「加碼獎」與（第二版）`ranking` 的「發獎」流程：
+  1. 先把名次快照寫進 `mg_events/{ID}.result`；
+  2. 依快照寄信（固定 ID `ev_{ID}_{名次}`）；
+  3. 寫 `awarded: true`。中途關掉再按一次，會照同一份快照、同樣的信件 ID 重寄，不會變兩封。
+- 「再開一次」：複製成新活動（錯過的人還有機會）。
+
+### 4.5 給孩子的時間壓力要低
+- 剩餘時間寫「還有 3 天」「今天結束」，**不倒數秒、最後幾小時不閃紅**。
+- 不做「只有這次拿得到」的獎勵；活動獎勵之後可以用「再開一次」或寄信補。
 
 ---
 
-## 5. 公告與更新公告
+## 5. 公告
 
-### 5.1 兩種公告
-1. **老師公告**：`mg_news/{自動 ID}` `{ title, body, pin: bool, publishAt, expireAt, t }`。
-2. **更新公告**：程式內建，來源是 `VERSION_LOG`。每筆加一個選填欄位 `nw: '給新世界玩家看的一句話'`；
-   只有寫了 `nw` 的版本會在新世界跳出。學生進村時，若 `NW.seenVer` 比最新一筆有 `nw` 的版本舊，
-   跳出「村子有新東西了！」視窗，列出 `seenVer` 之後所有有 `nw` 的條目，按「知道了」寫回 `seenVer`。
-   - `nw` 的文字照 `CLAUDE.md`：國小四～六年級看得懂、只寫已經能玩到的。
+### 5.1 兩種
+1. **改版公告**：現有的 `newworld.js` `NOTICES`（程式裡寫，`NW.seenNotice`，跳一次）。**照舊**，寫法照 `docs/ANNOUNCEMENT-GUIDE.md`。
+2. **老師公告**：`mg_news/{ID}` `{ title, body, pin, t }`。第一版只有「置頂」和「刪除」，預約發布與到期放第二版。
+   - 新的老師公告也跳一次（`NW.seenNews` 記最新一則的 `t`）；第一次來的人直接記成已讀。
 
 ### 5.2 教師頁「公告」
-- 新增／編輯／刪除老師公告；置頂；預約發布；到期自動收起。
-- 下方唯讀列出最近 5 筆 `VERSION_LOG` 有 `nw` 的條目，提醒老師學生會看到什麼。
+- 新增、編輯、置頂、刪除；預覽。
+- 下面唯讀列出最近 3 則 `NOTICES`，讓老師知道學生看到什麼。
 
 ---
 
-## 6. 回饋系統（教師頁「回饋與回報」）
+## 6. 回饋與回報
 
-**回饋（`type:'feedback'`）和問題回報（`type:'bug'`）分兩個子分頁**，跟抓蟲榜分開管理（老師要求：回饋獨立在回饋系統內）。
+### 6.1 回饋（獨立，老師要求）
+- 表格：時間、學生、魔物、評價、內容；篩選魔物、評價；標「已讀」。上方：每隻魔物三種評價的數量。
+- 不跟抓蟲榜、回報混在一起。
 
-- 回饋：表格（時間、學生、魔物、評價 😀😐😣、內容）。篩選魔物、評價；可標「已讀」（`read: true`，老師寫）。上方小統計：每隻魔物三種評價各幾個。
-- 問題回報：待審核／已確認／不採用三區。確認時選**嚴重程度**：小（1 分）／中（2 分）／大（3 分），寫入 `status:'approved', sev: 1|2|3`；可寫一句回覆給學生（`reply`，學生在手冊的「我的回報」看得到）。
-- 學生端 `claimBugs()` 改成：已確認且不在 `NW.bugClaimed` 的 → 領字元（照現在的 `BUG_COINS`、`BUG_REWARD_MAX`）→ 把 ID 推進 `NW.bugClaimed`。
+### 6.2 問題回報（審核）
+- 三區：待審核／已確認／不採用。另有「重複」：
+  - **確認**：選嚴重度 小（1 分）／中（2 分）／大（3 分），可寫一句回覆。
+  - **重複**：選「跟哪一則一樣」；第一個回報的人算分，後面的人標「也發現了」、**不加分但會收到感謝信**（固定 ID `bug_{flagID}`，0 字元＋一句謝謝）。
+  - **不採用**：可寫回覆。
+- 按確認時，教師頁一次做三件事（同一個 batch）：
+  1. `mg_nw_flags/{ID}`：`status`、`sev`、`reply`、`dupOf`；
+  2. `mg_bugboard/{學生}`：`score`、`n`、`firstAt`（達到這個分數時，**這則回報的送出時間**）、`reports[]`（flag ID、狀態、嚴重度、回覆、送出時間）；
+  3. `mg_mail/bug_{flagID}`：給學生的獎勵信（照現在的 `BUG_COINS`、`BUG_REWARD_MAX`；超過上限只寄感謝）。
+- 學生的「我的回報」改讀 `mg_bugboard/{我}.reports`；`NW.bugs` 改成從 `mg_bugboard` 的 `n` 同步（詞條、測試員任務照舊用 `NW.bugs`）。
 
 ---
 
 ## 7. 抓蟲榜（常駐活動）
 
 ### 7.1 分數
-- 每位學生的抓蟲分＝已確認回報的 `sev` 加總（舊資料沒有 `sev` 的算 1）＋老師手動加分 `mg_bugboard/{班級_座號}.bonus`。
-- 同分比「最早達到這個分數的時間」（先抓到的排前面）。
-- 只算 `status:'approved'`；不採用的不算。
+- 抓蟲分＝已確認回報的嚴重度加總＋老師手動加分。只存在 `mg_bugboard`（只有老師能寫），學生改自己存檔改不到。
+- 同分比 `firstAt`（**回報送出的時間**，不是老師確認的時間，因為老師常一次批完）。
+- 手動加分：`mg_bugboard/{id}.bonus`＋`notes[]`（分數可負、要寫理由）。**老師說的「504 的 5、12、1 號已經抓過 bug」由老師在教師頁自己加**，座號不進 repo。
 
-### 7.2 老師手動加分（給已經在遊戲外回報過的學生）
-- `mg_bugboard/{班級_座號}`：`{ bonus: 3, notes: [{ n: 1, why: '回報委託板卡住', t }] }`。
-- 這是老師說的「504 的 5、12、1 號已經幫忙抓過 bug」的入口：**老師在教師頁自己加**，座號不寫進 repo。
+### 7.2 抓蟲徽章（讓沒上前 10 的人也有目標）
+- 抓蟲分到 1／3／5／10 分各得一個稱號詞條（`WORDS` 新增 `bug1`、`bug3`、`bug5`、`bug10`，條件看 `NW.bugScore`，從 `mg_bugboard` 同步）。
+- 現有「職業除錯師」（`bugking`）照舊由老師頒發，改成寄信（`type:'word', key:'bugking'`）。
 
-### 7.3 顯示（佈告欄的「抓蟲榜」分頁）
-- 標題：「🐛 抓蟲大作戰」，副標「發現遊戲怪怪的地方，到測試員手冊回報；老師確認後就會上榜！」
-- 列前 10 名＋自己的名次（不在前 10 也顯示）。
-- 每列：名次徽章（1～3 名金銀銅，用 `PX.badge` 風格的像素圖）、`504・5號`、暱稱（沒取暱稱顯示「神秘獵人」）、分數、已確認件數。
-  - 班級顯示成短碼：「五年級4班」→「504」（規則：年級數字＋兩位數班級）。
-  - **不顯示真實姓名**。
-- 前 3 名每月 1 日由老師決定要不要寄獎（教師頁提醒，不自動發）。
+### 7.3 學生看到的榜（佈告欄「🐛 抓蟲榜」分頁）
+- 標題「🐛 抓蟲大作戰」，副標「發現遊戲怪怪的地方，到「回報問題」寫下來；老師確認後就會上榜！」
+- 讀 `mg_bugboard`：`orderBy('score','desc').limit(10)`（單欄位，自動有索引）＋自己那份。
+- 每列：名次徽章（前 3 名金銀銅像素徽章）、`504・5號`、暱稱（沒取或被隱藏顯示「神秘獵人」）、分數、確認件數。
+  - 班級短碼：「五年級4班」→「504」（年級數字＋兩位數班號），`nw-data.js` 的 `clsShort()`。
+  - **不顯示真名**（`mg_bugboard` 也不存真名，只存班級、座號；暱稱從 `mg_scores` 的 `nw.nick` 讀，被 `hideNick` 的不讀）。
+- 自己不在前 10：只寫「再拿 N 分就上榜！」，**不顯示第幾名**。
+- 0 分的人：寫「還沒有回報被確認，去找找看吧！」。
 
-### 7.4 教師頁「抓蟲榜」
-- 跟學生看到的一樣的榜，但多顯示姓名、每個人的回報明細（可連到回饋與回報分頁）。
-- 「手動加分」：選學生、分數（可負）、理由。
-- 「寄獎給前 N 名」：開寄信畫面，收件人預填。
+### 7.4 教師頁
+- 同一個榜＋姓名＋每人的回報明細。
+- 手動加分、隱藏暱稱、頒發職業除錯師（寄信）、「寄獎給前 N 名」（開信箱畫面、收件人預填）。
 
 ---
 
 ## 8. 暱稱
 
-- 存在 `NW.nick`（字串）。背包人物卡的名字下方加「✏ 取暱稱」。
-- 規則：2～8 個字；只能中文、英文、數字；不能全是數字；擋一份簡單的不雅字清單（`nw-data.js` 的 `NICK_BAN`，用 `normText` 比對包含）。
-- 一天最多改 1 次（`NW.nickAt`）。
-- 老師在學生卡按「重設暱稱」：寄一封系統信 `{ items: [{ type: 'nickReset' }] }`，學生端領到時清空 `NW.nick` 並提示「老師請你換一個暱稱」。（老師不能直接寫學生存檔也做得到，而且學生知道發生什麼事。）
-- 暱稱出現的地方：抓蟲榜、活動排名、榮譽碑（之後）。**舊世界不顯示**。
+- **從詞庫組合，不開放自由輸入**（跟稱號 `WORDS` 一樣的做法）：前半（形容詞，例：勇敢的、閃電、迷糊的、安靜的…）＋後半（名詞，例：史萊姆、獵人、咕咕鳥、小樹精…），各 30～40 個，放 `nw-data.js` 的 `NICK_A`、`NICK_B`。組出來像「閃電咕咕鳥」。
+  - 好處：不會有罵人的話，不用做不雅字過濾；被別人冒名改了也只是換成另一個正常的名字。
+  - 詞庫用 GDD §2.3 的白話，不用負面詞（例如不放「笨」「臭」）。
+- 存 `NW.nick = [a索引, b索引]`，顯示時組字；一天最多改 1 次（`NW.nickAt`）。
+- 入口：背包人物卡名字下方「✏ 取暱稱」。
+- 出現在：抓蟲榜、班級挑戰（不顯示個人，所以實際上只有抓蟲榜）、之後的排行。**舊世界不顯示。**
+- 老師隱藏：§1.5。
 
 ---
 
-## 9. 佈告欄與村莊延伸
+## 9. 佈告欄建築與村莊延伸
 
-### 9.1 佈告欄建築
-- `kind: 'notice'`，名稱「佈告欄」，3×3 格；像素造型：兩根木柱撐一塊大木板，上面釘 3～4 張彩色紙（紅＝活動、金＝公告、綠＝抓蟲榜），頂上一小片屋簷。用 `PX.wood`／`PX.paper`／`PX.pin` 的畫法。
-- 有新東西（沒看過的公告、進行中活動有進度、抓蟲榜名次變動）時，木板上方冒一個彈跳的「！」。
-- 放在**中央廣場正北**，一進村就看得到。旁邊放郵筒（`decor` 的 `k: 'mailbox'`，可點）。
-- 打開後是一個 `px-panel` 視窗，三個分頁：
-  - **📢 公告**：置頂的在最上面；老師公告＋更新公告歷史。
-  - **🎪 活動**：進行中（大卡片：標題、說明、剩幾天幾小時、我的進度條、班級對抗的長條圖）、快開始（灰卡片，寫開始時間）、剛結束（顯示名次，提示「老師會寄獎品到信箱」）。
+### 9.1 佈告欄
+- 現在的「📢 佈告欄」按鈕保留（上方按鈕列），**同時**在村莊廣場蓋一座佈告欄建築；兩者打開同一個視窗。
+- 建築 `kind: 'notice'`，3×3 格：兩根木柱撐大木板，釘紅（活動）、金（公告）、綠（抓蟲榜）三張紙，頂上小屋簷。用 `PX.wood`／`PX.paper`／`PX.pin` 的畫法。
+- 有新東西（沒看過的公告、進行中的活動、抓蟲榜有變動）：木板上方彈跳「！」，上方按鈕也加小紅點。
+- 旁邊放郵筒（`decor` `k:'mailbox'`，可點）。
+- 視窗（`nw-sheet`，加進 `overlayOpen()` 的範圍）四個分頁：
+  - **📢 公告**：老師公告（置頂在前）＋改版公告 `NOTICES`。
+  - **🎪 活動**：進行中（大卡片：標題、說明、「還有 3 天」、我的進度條；班級挑戰顯示自己班的達標進度條＋同年級前 3）、快開始（灰卡片）、剛結束（「老師可能會寄獎品到信箱喔」）。
   - **🐛 抓蟲榜**：§7.3。
-- 村長的話加一句：「廣場上的佈告欄會貼活動和公告，記得常常去看！」
+  - 沒有活動時：「現在沒有活動，先去委託板打怪吧！」。
+- 村長台詞加一句：「廣場上的佈告欄會貼活動和公告，記得常常去看！」
+- `INTROS` 加一筆佈告欄的第一次介紹。
 
-### 9.2 無縫延伸地圖
-現在的村莊是 22×15 格塞進一個畫面，加建築就塞不下。改成：
-
-- **地圖變大**：44×30 格（邏輯 704×480 像素），分成幾個區，用小路與橋連起來，**沒有切換畫面**，角色走過去鏡頭就跟過去。
-- **分區**（由南到北）：
+### 9.2 村莊延伸（**要改 UI-ART-SPEC §4「一個畫面看完」這條，老師已同意延伸**）
+- 地圖 **32×22 格**（現在 22×15 的約 2 倍）。不做 4 倍大：學生一節課中位數只打 2 場（GDD §3.1），走路不能吃掉上課時間。
+- 分區：
 
 | 區 | 位置 | 放什麼 |
 |---|---|---|
-| 傳送門廣場 | 正南 | 傳送門（回舊世界）、出生點 |
-| 中央廣場 | 中央 | 噴泉、**佈告欄**、郵筒、村長 |
-| 學習區 | 西 | 教學大樓、委託板（出發狩獵的地方）、練習用稻草人裝飾 |
-| 市集 | 東 | 商店、防具店、鐵匠鋪、倉庫（都還沒開，照舊轉灰＋施工中） |
+| 中央廣場（出生點） | 中央偏南 | 噴泉、**佈告欄**、郵筒、**委託板**、村長——出生點走 3 步內就到委託板與佈告欄 |
+| 傳送門 | 正南 | 回舊世界 |
+| 學習區 | 西 | 教學大樓、練習稻草人裝飾 |
+| 市集 | 東 | 商店、防具店、鐵匠鋪、倉庫（還沒開，轉灰） |
 | 高台 | 北 | 星圖台、榮譽碑、組隊酒館 |
-| 池塘與樹林 | 東南、西北 | 純裝飾，讓地圖不像棋盤 |
+| 池塘、樹林 | 角落 | 裝飾 |
 
 - **鏡頭**：
-  - 畫面大小＝視窗大小；倍率照 UI-ART-SPEC §1 取整數（桌機 3～4、手機 2），**整張地圖不用一次塞進畫面**。
-  - 鏡頭以角色為中心，碰到地圖邊緣就停（clamp），平滑跟隨（每格 lerp 0.18），位置取整數像素避免模糊。
-  - 尊重「減少動態效果」：直接跳到角色位置，不做平滑。
-- **小地圖**：右下角 88×60 的像素小地圖（固定 1 倍），畫各區色塊、建築點、自己（閃爍金點）；點小地圖上的建築＝走過去。
-- **效能**：底圖（地形＋建築）先畫到一張離屏 canvas 一次，之後每格只 `drawImage` 鏡頭範圍＋畫角色、村民、動畫。熱區按鈕放在一層跟著鏡頭 `translate` 的 div 裡（不要每格重建 DOM）。
-- **操作**不變：WASD／方向鍵、點地面走過去（BFS 尋路沿用）、點建築走過去再開、Enter 開門。點的時候要把螢幕座標加上鏡頭位移換成地圖座標。
-- **資料**：`VILLAGE` 改成新的格數與座標；保留 `doorTile()`、`gate`、`blocked` 的用法，讓其他程式不用改。新增 `VILLAGE.zones`（每區名稱與範圍，走進新區時畫面上方淡入區名 1.2 秒，例如「🏛 學習區」）。
-- **引導箭頭**（`guide`）：目標在鏡頭外時，在畫面邊緣顯示指向它的箭頭。
+  - 倍率照 UI-ART-SPEC §1 取整數（桌機 3～4、手機 2）；整張地圖不用塞進一個畫面。
+  - 外層 `overflow:hidden`，裡面整張 stage 用 CSS `transform: translate()` 平移（取整數像素）。這樣 `nw-village.js` 現在用 `getBoundingClientRect` 換算點擊位置的寫法**自動正確**，熱區按鈕不用改。
+  - 以角色為中心，碰到地圖邊緣停住；平滑跟隨（每格 lerp 0.18）；「減少動態效果」時直接跳過去。
+  - 角色、村民、建築依腳的 y 座標排序畫（前後遮擋正確）。
+- **小地圖**：右下角，各區色塊、建築點、自己（閃爍金點）；**點建築直接傳送到門口**（省走路時間）。
+- **存檔位置**：`NW.pos` 加 `NW.posV = 2`；`posV` 不是 2 的舊座標一律回出生點。
+- **資料**：`VILLAGE` 改新的格數與座標；`doorTile()`、`gate`、`blocked`、`overlayOpen()` 的用法不變。
+- **第二版**：區名淡入、畫面邊緣的目標箭頭（現在的地板箭頭先沿用）。
 
 ---
 
-## 10. 實作分工（給 Sonnet 子代理）
+## 10. 其他一起處理的
 
-照順序，每一步都要跑 `tools/browser-test/`，新功能要補測試。
+- **多分頁**：用 `BroadcastChannel('typehero')`，第二個分頁打開新世界時提示「遊戲在別的視窗開著，請關掉一個」，並把這個分頁設成唯讀（不存檔）。
+- **新學年／換班**：身分是「班級_座號」，升年級後信件、抓蟲分會斷。GDD 已承諾「一鍵搬移」，**列為第二版**（教師頁「⚙ 設定 → 學年搬移」：對照表，把 `mg_scores`、`mg_bugboard` 的文件搬到新 ID，信件 `aud` 換新 ID）。
+- **先補回這個分支的三個修正**（main 還沒有）：標點挑戰擋貼上、頓號鍵位改成 `'`、測試魔物回饋送出重試與錯誤代碼。main 的標點挑戰在 v3.12.0 改版過，要對照新程式重做，不是直接搬。
 
-| 步 | 內容 | 主要檔案 | 測試 |
+---
+
+## 11. 實作分工（Sonnet 子代理，照順序，每步跑 `tools/browser-test/`）
+
+| 步 | 內容 | 主要檔案 | 驗收 |
 |---|---|---|---|
-| 1 | 規則與權限：`firestore-rules.txt` 新版；房間搬 `mg_rooms`；序號次數搬 `mg_gift_used`；`bugClaimed`；`index.html` 不覆蓋老師登入；舊控制台寫入前檢查老師身分 | `firestore-rules.txt`、`newworld.js`、`index.html` | 假 Firebase 加 `auth.currentUser.isAnonymous`；房間、序號、領回報獎勵照舊能跑 |
-| 2 | 信箱＋暱稱：資料、`applyReward` 擴充、郵筒與背包分頁 | `newworld.js`、`nw-data.js`、`pixel.js` | 三種收件人都收得到、排程與過期、全部領取、未知 type 不壞、暱稱規則 |
-| 3 | 活動：學生端計算、`boost` 加倍、`hunt` 達標發獎 | `newworld.js`、`nw-data.js` | 時間外不算、班級限制、只算有效場、重複領不到 |
-| 4 | 佈告欄＋抓蟲榜（學生端）＋更新公告 | 新檔 `nw-notice.js`、`pixel.js`、`index.html`（`VERSION_LOG` 加 `nw`） | 三分頁內容、名次與同分、班級短碼、不顯示姓名、更新公告只跳一次 |
-| 5 | 村莊延伸地圖 | `nw-village.js`、`nw-data.js`、`pixel.js` | 每個建築都走得到、鏡頭不出界、點擊座標正確、小地圖、手機寬度 |
-| 6 | 教師管理頁 | 新檔 `teacher.html`、`teacher.js` | 非老師帳號被擋、各分頁讀寫、發獎不重複 |
-| 7 | 文件 | `HANDOFF.md`、`GDD-NEWWORLD.md`、`UI-ART-SPEC.md`、`RELEASE-STAGES.md`、`CHANGELOG.md`、`VERSION_LOG` | — |
+| 0 | 分支換到 `origin/main` 最新；補回三個修正（§10） | `index.html`、`newworld.js` | nw3、nw4 全過 |
+| 1 | **A 版程式**：房間搬 `mg_rooms`、序號 `mg_gift_used`、flags 不再被學生讀寫、`mg_bugboard`、admin app、舊控制台寫入改 admin、冒名鎖、伺服器時差 | `newworld.js`、`index.html`、`nw-preview.js` | 假 Firebase 下房間、序號、回報、投票照舊能跑 |
+| 2 | 新規則＋規則測試（或 Playground 檢查清單） | `firestore-rules.txt`、`tools/rules-test/` 或 `docs/RULES-CHECKLIST.md` | 每條規則有過／不過的案例 |
+| 3 | 信箱＋暱稱 | `newworld.js`、`nw-data.js`、`pixel.js`（郵筒） | 三種收件人、排程、過期、全部領取、未知 type、重複領不到、雙分頁、名字不同被鎖 |
+| 4 | 活動（boost、hunt、classwar） | `newworld.js`、`nw-data.js` | 時間外不算、5 分鐘緩衝、班級限制、只算有效場、開始後欄位鎖住、全班獎只領一次 |
+| 5 | 佈告欄建築＋視窗四分頁＋抓蟲榜＋徽章 | 新檔 `nw-notice.js`、`pixel.js`、`newworld.js` | 名次、同分、班級短碼、不顯示真名、榜外文字 |
+| 6 | 村莊延伸地圖 | `nw-village.js`、`nw-data.js`、`pixel.js` | 每棟建築走得到、鏡頭不出界、點擊座標正確、小地圖傳送、手機寬度、舊座標回出生點 |
+| 7 | 教師管理頁 | 新檔 `teacher.html`、`teacher.js` | 非老師帳號被擋、各分頁讀寫、發獎重按不重複、操作紀錄 |
+| 8 | 文件 | `HANDOFF.md`、`GDD-NEWWORLD.md`、`UI-ART-SPEC.md`（§4 改寫）、`RELEASE-STAGES.md`、`CHANGELOG.md`、`VERSION_LOG`、`NOTICES`（照 `ANNOUNCEMENT-GUIDE.md`）、`DATA.md` | — |
 
-另外修好 `nw4.test.js` 既有的失敗（點擊被村莊 canvas 擋住），步驟 5 改地圖時一起處理。
-
----
-
-## 11. 待老師決定（有預設值，沒回覆就照預設）
-
-1. 抓蟲分數：小 1／中 2／大 3？（預設是）
-2. 班級對抗預設比「平均每人」？（預設是）
-3. 暱稱一天改 1 次？（預設是）
-4. 信件預設不過期？（預設是）
+- 假 Firebase 要擴充：`array-contains-any`、巢狀欄位的 `where`／`orderBy`、`getCountFromServer`、`writeBatch`、具名 app。
+- **推送**：都推到 `claude/gracious-pasteur-773n2t`；上 main 要老師同意；規則發布照 §1.8 的順序。
 
 ---
 
-## 12. 參考做法（2026-11-16 查的資料，與它對規格的影響）
+## 12. 參考做法（2026-11-16 查的資料）
 
-| 來源怎麼說 | 對這份規格的影響 |
+| 來源怎麼說 | 用在哪 |
 |---|---|
-| 營運工具要一開始就規劃；給非工程師用的內容管理層（[Practical Game Design](https://subscription.packtpub.com/book/game-development/9781803245157/14/ch14lvl1sec90/tools-and-setup)）；上線前先比對設定差異（[Metaplay LiveOps Dashboard](https://docs.metaplay.io/liveops-dashboard/introduction-to-the-liveops-dashboard)） | 活動、公告、信件送出前都要有「學生會看到的樣子」預覽與欄位摘要 |
-| GM 動作要留紀錄、定期回顧；常用動作做捷徑、不常用的別堆滿畫面（[Roblox 開發者論壇](https://devforum.roblox.com/t/redefining-the-admin-suite-what-do-we-actually-need-in-2026/4242695)） | 新增**操作紀錄** `mg_admin_log`（誰、何時、做了什麼）；總覽頁放最常用的 3 個捷徑 |
-| 獎勵先放信箱，不直接發；每一筆發放有唯一鍵，領取是「未領→已領」一次性狀態（[bugnet：信箱](https://bugnet.io/blog/how-to-build-a-mailbox-system-for-player-rewards)、[bugnet：防重複](https://bugnet.io/blog/how-to-prevent-duplicate-reward-grants-from-retries)、[Heroic Labs Mailbox](https://heroiclabs.com/docs/hiro/concepts/mailbox/)）；原神、Warframe 都出過重複發獎的事故（[ClutchPoints](https://clutchpoints.com/gaming/genshin-impact-accidentally-gave-out-double-rewards)、[Warframe](https://devtrackers.gg/warframe/p/3ffc01e8-psa-duplicate-twitch-drops-script)） | 活動發獎的信件 ID 固定成 `ev_{活動ID}_{名次或班級}`，重按「發獎」只會覆蓋同一封，不會多一封；學生端已領紀錄以信件 ID 為鍵 |
-| 活動分「限時比排名」與「先達標就拿」兩種（[Heroic Labs Event Leaderboards](https://heroiclabs.com/docs/hiro/concepts/event-leaderboards/llm.md)） | `ranking`／`classwar` 屬前者，`hunt` 屬後者；欄位照這個分 |
-| 兒童遊戲要評估限時活動帶來的「怕錯過」壓力，避免催促；鼓勵休息（[英國 ICO 給遊戲開發者的兒童規範](https://ico.org.uk/about-the-ico/media-centre/news-and-blogs/2023/02/new-guidance-to-industry-issued-for-game-developers-on-protecting-children)） | 剩餘時間用平靜的寫法（「還有 3 天」），**最後幾小時不閃紅、不倒數秒**；錯過的活動之後可以重開（教師頁「再開一次」） |
-| 排行榜對成績較弱的學生可能造成挫折；兩隊對抗時輸的那隊表現、信心都下降（[GaLA 2020](https://trepo.tuni.fi/bitstream/10024/130150/1/GaLA_Conf_2020_paper_leaderboard.pdf)、[ECGBL](https://papers.academic-conferences.org/index.php/ecgbl/article/download/1593/1652/6517)、[INFORMS](https://pubsonline.informs.org/stoken/default+domain/IAC-EDU/full/10.1287/ited.2019.0227)） | 班級對抗加一條**全校合作目標**（大家一起打到 N 隻，人人有獎）；名次只列前 3 和自己的班，不列最後一名；個人排行只列前 10 和自己，另提供「進步最多」指標 |
-| 抓蟲計分看品質不看數量；同一個問題只算第一個回報的人；有里程碑獎勵（[HackerOne](https://docs.hackerone.com/en/articles/9145220-reputation-milestone-swag)、[HackenProof](https://docs.hackenproof.com/bug-bounty/reports-basics/points-guide)、[QuillAudits](https://academy.quillaudits.com/bug-bounty/grading-system)、[arXiv 2009.10158](https://arxiv.org/pdf/2009.10158)） | 審核多一個「重複」狀態：不加分但會收到感謝；分數依嚴重程度；加**抓蟲徽章**（1／3／5／10 分各一個稱號詞條），讓沒上前 10 的人也有目標 |
-| 俯視地圖：鏡頭跟著角色、碰到地圖邊緣就停；用 y 座標決定前後圖層（[Godot 論壇](https://godotengine.org/qa/5544/organization-of-the-world-in-a-zelda-like-game)、[gemini-fantasy 教學](https://jorge-d-robles.github.io/gemini-fantasy/08-part-ii-review.html)） | §9.2 鏡頭照這個做；村民、角色、建築依腳的 y 座標排序畫 |
+| 營運工具要一開始就規劃；給非工程師用的內容管理層（[Practical Game Design](https://subscription.packtpub.com/book/game-development/9781803245157/14/ch14lvl1sec90/tools-and-setup)）；上線前先比對設定（[Metaplay](https://docs.metaplay.io/liveops-dashboard/introduction-to-the-liveops-dashboard)） | §2.5 送出前預覽與摘要 |
+| GM 動作留紀錄、定期回顧；常用動作做捷徑，不要把畫面堆滿（[Roblox 論壇](https://devforum.roblox.com/t/redefining-the-admin-suite-what-do-we-actually-need-in-2026/4242695)） | §2.4 操作紀錄、§2.2 總覽捷徑 |
+| 獎勵放信箱，每筆發放有唯一鍵，領取是一次性狀態（[bugnet](https://bugnet.io/blog/how-to-prevent-duplicate-reward-grants-from-retries)、[Heroic Labs Mailbox](https://heroiclabs.com/docs/hiro/concepts/mailbox/)）；原神、Warframe 都出過重複發獎事故（[ClutchPoints](https://clutchpoints.com/gaming/genshin-impact-accidentally-gave-out-double-rewards)、[Warframe](https://devtrackers.gg/warframe/p/3ffc01e8-psa-duplicate-twitch-drops-script)） | §3.1 固定信件 ID、§4.4 先快照再寄 |
+| 活動分「限時比排名」和「先達標就拿」（[Heroic Labs Event Leaderboards](https://heroiclabs.com/docs/hiro/concepts/event-leaderboards/llm.md)） | §4.1 |
+| 兒童遊戲要評估限時活動的「怕錯過」壓力（[英國 ICO](https://ico.org.uk/about-the-ico/media-centre/news-and-blogs/2023/02/new-guidance-to-industry-issued-for-game-developers-on-protecting-children)） | §4.5 |
+| 排行榜對成績弱的學生可能造成挫折；兩隊對抗時輸的那隊表現、信心都下降（[GaLA 2020](https://trepo.tuni.fi/bitstream/10024/130150/1/GaLA_Conf_2020_paper_leaderboard.pdf)、[ECGBL](https://papers.academic-conferences.org/index.php/ecgbl/article/download/1593/1652/6517)、[INFORMS](https://pubsonline.informs.org/stoken/default+domain/IAC-EDU/full/10.1287/ited.2019.0227)） | §4.2 全班目標為主、只列前 3、§7.3 榜外不顯示名次 |
+| 抓蟲計分看品質不看數量、同一個問題只算第一個、有里程碑（[HackerOne](https://docs.hackerone.com/en/articles/9145220-reputation-milestone-swag)、[HackenProof](https://docs.hackenproof.com/bug-bounty/reports-basics/points-guide)、[QuillAudits](https://academy.quillaudits.com/bug-bounty/grading-system)、[arXiv 2009.10158](https://arxiv.org/pdf/2009.10158)） | §6.2 重複、§7.2 徽章 |
+| 俯視地圖：鏡頭跟著角色、碰到邊緣停住；依 y 座標排前後（[Godot 論壇](https://godotengine.org/qa/5544/organization-of-the-world-in-a-zelda-like-game)、[gemini-fantasy](https://jorge-d-robles.github.io/gemini-fantasy/08-part-ii-review.html)） | §9.2 |
 
-以上會在下一版（審查後）併進各章節正文。
+---
+
+## 13. v1 → v2 改了什麼
+
+- 基準改成 main v3.13.0：佈告欄按鈕、`NOTICES`、職業除錯師已存在，改成延伸它們；刪掉 v1 的「`VERSION_LOG` 加 `nw` 欄位」。
+- 安全（專家審查「必改」8 項全收）：flags 學生只能新增 pending、只有老師能讀；`mg_scores` 刪除只有老師；冒名鎖；上線順序 A 版→規則；物件型已領紀錄＋領前重讀＋雙分頁偵測；學生端不讀整個 `mg_scores`；老師用具名 app＋session 登入；發獎先快照、固定信件 ID。
+- 簡化：收件人合併成 `aud` 陣列；`ranking` 移到第二版；班級對抗改成「全班目標＋同年級前 3」；公告預約／到期、小地圖尋路、區名淡入、邊緣箭頭移到第二版；學生卡「最近 10 場」刪除（沒有程式寫 `mg_nw_runs`）。
+- 暱稱改成詞庫組合；序號改成一人一份；伺服器時差＋5 分鐘緩衝；活動開始後鎖欄位；地圖改 32×22、出生點旁就是委託板與佈告欄、小地圖可傳送。
+- 確認回報直接寄信，取代 `claimBugs()`／`claimAwards()`。
+
+---
+
+## 14. 待老師決定（有預設值，沒回覆就照預設）
+
+1. **排行挑戰**（你提的「排行榜挑戰」）延到第二版，先做全班目標型的班級挑戰？（預設：是）
+2. 班級挑戰的預設：每人打 3 隻算達標、全班 60% 達標就全班有獎？（預設：是）
+3. 抓蟲分：小 1／中 2／大 3、重複不加分但寄感謝？（預設：是）
+4. 暱稱用詞庫組合（不能自己打字）？（預設：是）
+5. 村莊 32×22（約現在 2 倍），小地圖可以點了直接傳送？（預設：是）
+6. 名字跟上次不一樣時，信箱先鎖、要老師在管理頁按「沒問題」才解開？（預設：是）
