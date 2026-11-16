@@ -869,7 +869,7 @@ export function initNewWorld(C) {
         <textarea data-text maxlength="200" rows="4" placeholder="想說什麼都可以寫在這裡（最多 200 字）" class="w-full mt-3 p-3 px-panel in" style="color:#fff;font-size:1.05em"></textarea>
         <p class="text-sm mt-2" style="color:#ffd98a">寫了（至少 ${FB_MINLEN} 個字）就送你 🪙 <b>${FB_COINS} 字元</b>！字元是新世界的<b>貨幣</b>，之後可以在商店買東西、到鐵匠鋪打造裝備。</p>
         <div class="flex gap-2 justify-end mt-3"><button class="px-btn" data-skip>先不要</button><button class="px-btn gold" data-send style="padding:8px 22px">送出</button></div></div>`;
-      let rate = '';
+      let rate = '', sending = false;
       sheet.addEventListener('click', async e => {
         const r = e.target.closest('[data-r]');
         if (r) { rate = r.dataset.r; sheet.querySelectorAll('[data-r]').forEach(b => b.classList.toggle('gold', b === r)); return; }
@@ -878,10 +878,19 @@ export function initNewWorld(C) {
         const text = sheet.querySelector('[data-text]').value.trim();
         if (!text && !rate) { NW.fb[res.mk] = 'skip'; saveNw(); sheet.remove(); done(); return; }
         if (!C.online()) { toast('現在連不上網路，回饋還沒送出，等一下再試試看', 3000); return; }
+        if (sending) return;
+        sending = true;
+        const sendBtn = sheet.querySelector('[data-send]'); sendBtn.disabled = true; sendBtn.textContent = '送出中…';
         const id = `fb_${ME.docId}_${res.mk}_${Date.now()}`;
-        try {
-          await C.withTimeout(C.setDoc(C.doc(C.db, 'mg_nw_flags', id), { type: 'feedback', mk: res.mk, mon: m.name, star: res.star, rate, text, cls: ME.className, seat: ME.seat, name: ME.name, t: Date.now() }), 6000, 'nw-fb');
-        } catch (err) { console.warn('回饋送出失敗', err); toast('送出失敗，再試一次', 2500); return; }
+        /* Firestore 遇到 undefined 欄位會直接拒絕整份文件，所以先過一次 JSON 把它們濾掉；
+           學校網路慢，6 秒常不夠，給 12 秒並自動再試一次 */
+        const body = JSON.parse(JSON.stringify({ type: 'feedback', mk: res.mk, mon: m.name, star: res.star, rate, text, cls: ME.className, seat: ME.seat, name: ME.name, t: Date.now() }));
+        let sentOk = false, lastErr = null;
+        for (let k = 0; k < 2 && !sentOk; k++) {
+          try { await C.withTimeout(C.setDoc(C.doc(C.db, 'mg_nw_flags', id), body), 12000, 'nw-fb'); sentOk = true; } catch (err) { lastErr = err; console.warn('回饋送出失敗', err); }
+        }
+        sending = false; sendBtn.disabled = false; sendBtn.textContent = '送出';
+        if (!sentOk) { toast(`送出失敗（${(lastErr && (lastErr.code || lastErr.message)) || '不明原因'}），再試一次，或按「先不要」`, 4500); return; }
         const gift = text.length >= FB_MINLEN;
         NW.fb[res.mk] = 1;
         if (gift) NW.coins += FB_COINS;

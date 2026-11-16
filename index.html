@@ -370,7 +370,7 @@ body{
 @keyframes ptmHit{25%{transform:translateX(-10px)}75%{transform:translateX(10px)}}
 .ptm-hp{width:min(420px,90%);height:16px;background:#2a1c1c;border:2px solid #6a5ab0}
 .ptm-hp i{display:block;height:100%;width:100%;background:repeating-linear-gradient(90deg,#d8402a 0 8px,transparent 8px 10px);transition:width .3s}
-#ptm-text{font-size:54px;font-weight:900;letter-spacing:.08em;color:var(--gold);text-align:center}
+#ptm-text{user-select:none;-webkit-user-select:none;font-size:54px;font-weight:900;letter-spacing:.08em;color:var(--gold);text-align:center}
 #pt-hint .pt-key{display:inline-block;min-width:2.2em;padding:.1em .6em;border:2px solid var(--gold);border-bottom-width:5px;border-radius:8px;background:var(--panel2);font-size:1.1em;text-align:center}
 .ptl-badge{background:var(--gold);color:#1a1409;font-weight:900;border-radius:99px;padding:2px 12px;font-size:14px}
 .ptl-mark{width:64px;height:64px;display:grid;place-items:center;border:3px solid var(--gold);border-radius:12px;background:var(--panel2);color:var(--gold)}
@@ -2693,8 +2693,14 @@ function initNw() {
    版本紀錄：首頁右下角那顆 v2.0.0 按鈕點開看到的內容。
    跟 CHANGELOG.md 是同一份資料，改一邊也要記得改另一邊。
    ══════════════════════════════════════════════════════════════ */
-const APP_VERSION = '3.11.1';
+const APP_VERSION = '3.11.2';
 const VERSION_LOG = [
+  { v:'3.11.2', date:'2026-11-16', title:'標點挑戰不能貼上、回饋送出更穩',
+    fixed: [
+      '標點符號挑戰的輸入框不能再用貼上、拖進去的方式作答，一定要自己打',
+      '新世界測試魔物的回饋：網路慢時會自動再試一次，失敗時會顯示原因，送出中按鈕不能重複按'
+    ]
+  },
   { v:'3.11.1', date:'2026-11-12', title:'許願池：其他想法的提示改寫',
     fixed: [
       '「其他想法」輸入框改成問「請寫玩法？想加入的內容？」，並舉例寵物系統、轉蛋、造型衣服，避免大家以為已經決定要做'
@@ -7272,6 +7278,12 @@ function wireEvents() {
   $('pt-input').addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); submitPunct(); }
   });
+  /* 這個練習就是要親手打出標點，貼上、拖進去、剪下都擋掉；
+     beforeinput 連輸入法以外的「插入貼上／拖放」也一起攔，右鍵選單的貼上也包含在內 */
+  const ptNoPaste = e => { e.preventDefault(); toast('要自己打喔，不可以用貼上的！'); };
+  ['paste', 'drop'].forEach(t => $('pt-input').addEventListener(t, ptNoPaste));
+  $('pt-input').addEventListener('beforeinput', e => { if (e.inputType === 'insertFromPaste' || e.inputType === 'insertFromDrop' || e.inputType === 'insertFromYank') ptNoPaste(e); });
+  ['copy', 'cut', 'dragstart'].forEach(t => $('ptm-text').addEventListener(t, e => e.preventDefault()));
 
   /* 天賦 */
   $('btn-talent').addEventListener('click', openTalentPanel);
