@@ -121,21 +121,22 @@ allow read, delete: if isTeacher();
 | `NW.bugs` 由 `claimBugs()` 累加 | 從 `mg_bugboard` 同步，**取 `max(本機, 雲端 n)`**，舊玩家件數不會變少、`BUG_REWARD_MAX` 不會算錯 |
 | 存檔只有 `nw` 物件 | 最外層多兩個欄位給查詢用：`nwCls`（班級，有進過新世界才寫）、`nwEvDone`（陣列，§4.2） |
 
-### 1.8 上線順序（**很重要**：規則是全站共用的，main 已經上線）
+### 1.8 上線順序（老師決定：不做過渡版，直接上線最新版）
 
-0. **過渡規則**：老師先發布一份「現在的規則＋新集合（`mg_gift_used`、`mg_clock`、`mg_mail`、`mg_events`、`mg_news`、`mg_bugboard`、`mg_admin_log`、`mg_admins`）開放給登入者」。現在的規則本來就全開，這樣不會更不安全；沒有這一步，A 版在等待期間序號兌換和管理頁都會壞（Firestore 沒寫到的集合預設全擋）。
-1. **A 版程式**推上 main（要老師同意）：§1.7 全部改完、讀寫都改走新位置；`teacher.html` 上線。
-2. 等一天（舊分頁都關掉、學生都載到 A 版）。
-3. 老師照 §1.9 建帳號、建 `mg_admins`、**發布正式規則**。
-4. 舊資料搬移：教師頁「⚙ 設定 → 一次搬移」：
+規則是全站共用的：舊程式在新規則下會壞（房間、序號次數、領回報獎勵），新程式在舊規則下也會壞（新集合預設全擋）。所以**在沒有上課的時段一次做完**，三步隔越短越好：
+1. 老師建帳號與 `mg_admins`（§1.9 第 1～3 步）。
+2. 發布正式規則（§1.9 第 4 步）。
+3. 新程式推上 main（要老師同意）。
+4. 教師頁「⚙ 設定 → 一次搬移」：
    - 用**全部已確認的**回報（包括學生已經領過的）和已頒發的 `bugking` 建 `mg_bugboard` 的分數與 `reports`（舊資料沒有 `sev` 算 1 分）；
    - 只有「已確認但還沒領」的轉成獎勵信（固定 ID `bug_{flagID}`／`award_{flagID}`，重按不會多寄）。
+- 這段時間開著舊分頁的學生要重新整理（下次上課開頭提醒一次即可）。
 
 ### 1.9 老師要做的事（照順序）
 1. Firebase 主控台 → Authentication → 登入方式 → 開「電子郵件／密碼」。
 2. 使用者 → 新增使用者 → 複製 UID。
 3. Firestore → 新增集合 `mg_admins` → 文件 ID＝UID → 欄位 `ok`＝`true`。
-4. Firestore → 規則 → **先複製舊規則存檔** → 貼正式的 `firestore-rules.txt` → 發布。（第 3 步一定要在第 4 步前面；過渡規則 `firestore-rules-transition.txt` 在 §1.8 第 0 步就要先貼）
+4. Firestore → 規則 → **先複製舊規則存檔** → 貼正式的 `firestore-rules.txt` → 發布。（第 3 步一定要在第 4 步前面）
 5. 打開 `teacher.html` 登入，看「總覽」有資料。
 
 ### 1.10 規則怎麼驗證
@@ -423,7 +424,7 @@ allow read, delete: if isTeacher();
 | 步 | 內容 | 主要檔案 | 驗收 |
 |---|---|---|---|
 | 0 | 分支換到 `origin/main` 最新；補回三個修正（§10） | `index.html`、`newworld.js` | nw3、nw4 全過 |
-| 1 | 過渡規則＋正式規則＋規則測試（或 Playground 檢查清單） | `firestore-rules-transition.txt`、`firestore-rules.txt`、`tools/rules-test/` 或 `docs/RULES-CHECKLIST.md` | 每條規則有過／不過的案例；main 現在每一個讀寫在正式規則下都列出來是過還是改走新路 |
+| 1 | 正式規則＋規則測試（或 Playground 檢查清單） | `firestore-rules.txt`、`tools/rules-test/` 或 `docs/RULES-CHECKLIST.md` | 每條規則有過／不過的案例；main 現在每一個讀寫在正式規則下都列出來是過還是改走新路 |
 | 2 | **A 版程式**：§1.7 全部（房間、序號、回報不帶 `claimed`、flags 不再被學生讀、`mg_bugboard`、`NW.bugs` 取 max、`nwCls`／`nwEvDone`、`mg_clock` 時差、admin app、舊控制台寫入改 admin、`openNwFeedback()` 換連結、冒名鎖） | `newworld.js`、`index.html`、`nw-preview.js` | 假 Firebase 下房間、序號、回報、投票照舊能跑 |
 | 3 | 信箱＋暱稱 | `newworld.js`、`nw-data.js`、`pixel.js`（郵筒） | 三種收件人、排程、過期、全部領取、未知 type、重複領不到、雙分頁、名字不同被鎖 |
 | 4 | 活動（boost、hunt、classwar） | `newworld.js`、`nw-data.js` | 時間外不算、5 分鐘緩衝、班級限制、只算有效場、開始後欄位鎖住、全班獎只領一次 |
@@ -455,6 +456,7 @@ allow read, delete: if isTeacher();
 ## 13. 變更紀錄
 
 ### v3.1 → v3.2（老師決定）
+- 不做過渡規則，§1.8 改成沒課時一次上線。
 - 活動排行榜（`ranking`）移回第一版，新增 §4.2b（進步獎、討伐王、最快討伐、神準手）。
 
 ### v3 → v3.1（第 3 輪審查）
@@ -492,4 +494,4 @@ allow read, delete: if isTeacher();
 5. 村莊 32×22（約現在 2 倍），小地圖可以點了直接傳送？（預設：是）
 6. 名字跟上次不一樣時，信箱先鎖、要老師在管理頁按「沒問題」才解開（改回原名自動解開）？（預設：是）
 7. 舊控制台的「新世界測試回饋」整塊改成連到管理頁（審核、抓蟲榜、頒發都到管理頁做）？（預設：是）
-8. 上線要你做 3 次 Firebase 主控台操作：先貼過渡規則 → 隔天建老師帳號與 `mg_admins` → 貼正式規則。可以嗎？（預設：是）
+8. ~~過渡規則~~ → **老師決定：不做過渡版**，沒課時一次做完「建老師帳號與 `mg_admins` → 發布正式規則 → 新程式上 main」。
