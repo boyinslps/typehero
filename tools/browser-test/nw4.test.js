@@ -1,7 +1,7 @@
 /* 測試魔物回饋、任務目標標籤、序號禮物、測試者之刃 */
 const { chromium } = require('playwright'); const fs = require('fs');
 const path = require('path'); const M = path.join(__dirname, 'mock') + '/'; const OUT = process.argv[2] || require('os').tmpdir();
-const css = fs.existsSync(OUT + '/tw.css') ? fs.readFileSync(OUT + '/tw.css', 'utf8') : '';
+const css = require('./tw.js')(OUT);
 let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++; };
 const ID = '五年級3班_5號';
 
@@ -16,7 +16,7 @@ async function open(browser, o = {}) {
       nw: Object.assign({ v: 1, savedAt: 5, look: { style: 1, hair: 2, skin: 1 }, starter: 'dagger', quest: { done: ['1-0', '1-0a'] }, items: { potion: 3 } }, o.nw || {}) }
   };
   if (o.gift) { const h = await sha256Hex('gift:' + cleanCode(o.gift.code)); seed['mg_config/gift_codes'] = { codes: { [h]: Object.assign({ used: 0, label: '測試' }, o.gift.entry) } }; }
-  await p.addInitScript(a => { window.__FS = a.s; localStorage.clear(); localStorage.setItem('mg_nw_fast', '1'); window.__NW_CODE_HASH__ = a.hash; localStorage.setItem('mg_nw_code', a.hash); if (!a.intro) window.__NW_NOINTRO__ = true; if (a.nogift) window.__NW_NOGIFT__ = true; if (a.atk) window.__NW_ATTACKS__ = []; window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas'); }, { s: seed, hash, nogift: !o.early, atk: o.noattack, intro: o.intro });
+  await p.addInitScript(a => { window.__FS = a.s; window.__RULES = true; localStorage.clear(); localStorage.setItem('mg_nw_fast', '1'); window.__NW_CODE_HASH__ = a.hash; localStorage.setItem('mg_nw_code', a.hash); if (!a.intro) window.__NW_NOINTRO__ = true; if (a.nogift) window.__NW_NOGIFT__ = true; if (a.atk) window.__NW_ATTACKS__ = []; window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas'); }, { s: seed, hash, nogift: !o.early, atk: o.noattack, intro: o.intro });
   await p.route('**/*', r => {
     const u = r.request().url();
     if (u.startsWith('http://localhost')) return r.continue();
@@ -124,7 +124,9 @@ async function winHunt(p, rk, mk, star) {
     await p.waitForSelector('#nw-gift', { timeout: 5000 });
     ok((await p.textContent('#nw-gift')).includes('字元 ×50'), '對的序號：跳出「收到禮物」，獎勵是字元 ×50');
     await p.click('#nw-gift [data-ok]'); await p.waitForTimeout(500);
-    ok(await p.evaluate(() => window.__FS['mg_config/gift_codes'] && Object.values(window.__FS['mg_config/gift_codes'].codes)[0].used) === 1, '序號領取次數記一次');
+    const used = await p.evaluate(() => Object.entries(window.__FS).filter(([k]) => k.startsWith('mg_gift_used/')));
+    ok(used.length === 1 && used[0][0].endsWith('_五年級3班_5號') && Object.keys(used[0][1]).sort().join() === 'h,id,t' && used[0][1].id === '五年級3班_5號', '序號領取記成一人一份：mg_gift_used/{雜湊}_{班級_座號}，只有 h、id、t');
+    ok(await p.evaluate(() => !('used' in Object.values(window.__FS['mg_config/gift_codes'].codes)[0]) || Object.values(window.__FS['mg_config/gift_codes'].codes)[0].used === 0), '學生端不再改 gift_codes 的 used');
     await p.click('[data-act="gift"]'); await p.waitForSelector('[data-code]');
     await p.fill('[data-code]', 'ABC-xyz_123'); await p.press('[data-code]', 'Enter'); await p.waitForTimeout(400);
     ok((await p.textContent('body')).includes('已經領過'), '同一個人再領：說已經領過了');
@@ -197,37 +199,23 @@ async function winHunt(p, rk, mk, star) {
     ok(nw0.bugs === 0 && nw0.bugsSent === 1 && nw0.coins === 0 && !nw0.words.includes('bughunter'), '老師還沒確認：沒有字元、沒有除蟲員');
     const bug = await p.evaluate(() => Object.entries(window.__FS).filter(([, v]) => v && v.type === 'bug'));
     ok(bug.length === 1 && bug[0][1].status === 'pending' && bug[0][1].cat === '按鍵／操作' && bug[0][1].text.includes('【我做了什麼】') && bug[0][1].text.includes('【錯誤狀況】') && bug[0][1].did.includes('左 Ctrl') && bug[0][1].what.includes('沒有動'), '回報存進 mg_nw_flags（type: bug、待確認），老師看得到');
+    ok(!('claimed' in bug[0][1]), '送出的回報不帶 claimed（新規則的欄位清單沒有它，帶了會被擋）');
     await p.click('[data-act="book"]'); await p.waitForTimeout(500);
     ok(await p.$('#nw-gift') === null && (await p.textContent('body')).includes('老師確認 0 個'), '老師還沒確認：手冊上寫老師確認 0 個');
     await p.click('body [data-close]').catch(() => {});
-    await p.evaluate(k => { window.__FS[k].status = 'approved'; }, bug[0][0]);
-    await p.waitForTimeout(100);
+    /* 老師在管理頁確認 → 寫 mg_bugboard；學生端只讀這份，不再讀 mg_nw_flags */
+    await p.evaluate(k => { window.__FS['mg_bugboard/五年級3班_5號'] = { n: 1, score: 2, reports: [{ id: k, st: 'approved', sev: 2, reply: '謝謝你！', t: Date.now() }] }; }, bug[0][0]);
     await p.evaluate(() => { document.querySelectorAll('.fixed.overflow-y-auto').forEach(e => e.remove()); });
-    await p.waitForTimeout(21000);
     await p.click('[data-act="book"]'); await p.waitForSelector('#nw-gift', { timeout: 6000 });
-    ok((await p.textContent('#nw-gift')).includes('字元 ×15') && (await p.textContent('#nw-gift')).includes('老師確認了'), '老師確認後：學生進手冊就收到 15 字元的禮物');
-    await p.click('#nw-gift [data-ok]');
-    await p.waitForFunction(() => document.querySelector('#nw-gift') && document.querySelector('#nw-gift').textContent.includes('除蟲員'), null, { timeout: 5000 });
-    ok(true, '解鎖「除蟲員」任務，跳出任務完成的通知');
+    ok((await p.textContent('#nw-gift')).includes('除蟲員'), '老師確認後：學生進手冊，件數同步，解鎖「除蟲員」任務、跳出任務完成通知');
     await p.click('#nw-gift [data-ok]'); await p.waitForTimeout(600);
-    ok((await p.textContent('body')).includes('測試員手冊') && (await p.textContent('body')).includes('✓ 已蓋章') && (await p.textContent('body')).includes('老師確認 1 個'), '測試員手冊：顯示蓋章與老師確認的數量');
+    const bt2 = await p.textContent('body');
+    ok(bt2.includes('測試員手冊') && bt2.includes('✓ 已蓋章') && bt2.includes('老師確認 1 個'), '測試員手冊：顯示蓋章與老師確認的數量');
+    ok(bt2.includes('我的回報') && bt2.includes('老師確認了') && bt2.includes('謝謝你！') && bt2.includes('抓蟲分 2'), '「我的回報」讀 mg_bugboard.reports：狀態、老師的回覆、抓蟲分');
     await p.screenshot({ path: OUT + '/nw4-book.png' });
     const nw = await p.evaluate(() => JSON.parse(localStorage.getItem('mg_nw_五年級3班_5號')));
-    ok(nw.bugs === 1 && nw.words.includes('bughunter') && nw.tm.m_bug1 === 1 && nw.coins >= 35, '除蟲員詞條、任務蓋章與字元存進存檔');
-    ok(await p.evaluate(k => window.__FS[k].claimed, bug[0][0]) === true, '回報標成「已領」，不會重複領');
-    ok(p.errs.length === 0, '沒有 JS 錯誤 ' + p.errs.join(' | '));
-    await p.close();
-  }
-
-  {
-    const p = await open(b, { nw: { hunts: 1 } });
-    await p.evaluate(() => { window.__FS['mg_nw_flags/award_bugking_五年級3班_5號'] = { type: 'award', award: 'bugking', status: 'approved', claimed: false, docId: '五年級3班_5號', t: 1 }; });
-    await p.waitForTimeout(21000);
-    await p.click('[data-act="book"]'); await p.waitForSelector('#nw-gift', { timeout: 6000 });
-    ok((await p.textContent('#nw-gift')).includes('職業除錯師'), '老師頒發「職業除錯師」後：學生進手冊就收到通知');
-    await p.click('#nw-gift [data-ok]'); await p.waitForTimeout(400);
-    const nwk = await p.evaluate(() => JSON.parse(localStorage.getItem('mg_nw_五年級3班_5號')));
-    ok(nwk.words.includes('bugking') && nwk.awards.bugking === 1 && await p.evaluate(() => window.__FS['mg_nw_flags/award_bugking_五年級3班_5號'].claimed) === true, '「職業除錯師」詞條存進存檔，標成已領，不會重複領');
+    ok(nw.bugs === 1 && nw.bugScore === 2 && nw.words.includes('bughunter') && nw.tm.m_bug1 === 1 && nw.coins >= 20, '除蟲員詞條、任務蓋章、抓蟲分存進存檔');
+    ok(!(await p.evaluate(() => (window.__READS || []).some(r => r.path.startsWith('mg_nw_flags')))), '學生端沒有讀過 mg_nw_flags（正式規則只有老師能讀）');
     ok(p.errs.length === 0, '沒有 JS 錯誤 ' + p.errs.join(' | '));
     await p.close();
   }

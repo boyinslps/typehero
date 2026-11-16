@@ -1,6 +1,6 @@
 const { chromium } = require('playwright'); const fs = require('fs');
 const path = require('path'); const M = path.join(__dirname, 'mock') + '/'; const OUT = process.argv[2] || require('os').tmpdir();
-const css = fs.existsSync(OUT + '/tw.css') ? fs.readFileSync(OUT + '/tw.css', 'utf8') : '';
+const css = require('./tw.js')(OUT);
 let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++; };
 const ID = '五年級3班_5號';
 const seedFor = (starter, extra) => ({

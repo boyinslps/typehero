@@ -27,3 +27,36 @@ npm test         # 起模擬器、跑完自動關
 - 學生仍可改自己的 `mg_scores`（字元、裝備）；匿名 uid 對不上「班級_座號」，規則做不到。
 - 學生可以清掉 `nw_vote.v`（投票本來就要能寫），只能保護 `hidden`、`noms` 以外欄位。
 - `mg_gift_used` 學生可以亂造 `{h, id}` 灌高某個序號的使用次數（影響上限）；老師可在管理頁刪除。
+
+## main（v3.13.0）每一個 Firestore 讀寫，在正式規則下的結果
+
+「過」＝學生（匿名登入）原樣照寫也過；「改走新路」＝A 版已經換位置或換身分，舊寫法在正式規則下會被擋。
+
+| 位置（v3.13.0） | 做什麼 | 身分 | 正式規則 | A 版 |
+|---|---|---|---|---|
+| `index.html` 啟動：`mg_config/settings`、`mg_round/current` onSnapshot | 讀 | 學生 | 過 | 不變 |
+| `lookupHistory`、`saveScore`、`pushCloud` 等：`mg_scores/{id}` getDoc／setDoc merge | 讀、create、update | 學生 | 過 | 不變（`pushCloud` 多寫 `nwCls`、`nwEvDone`，規則不看欄位） |
+| 排行榜、`nw-rank.js`、班級數據圖：`getDocs(mg_scores)` | 讀 | 學生／老師 | 過 | 不變 |
+| 結算 `getDocs(query(mg_scores, where roundId))` | 讀 | 學生 | 過 | 不變 |
+| `startRound`／`stopRound`／`resetRound`：`mg_round/current` setDoc | 寫 | 舊：學生身分 | **擋** | 改走 admin app（老師帳號） |
+| `saveConfig`：`mg_config/settings` setDoc | 寫 | 舊：學生身分 | **擋** | 改走 admin app |
+| `tgAdd`／`tgDel`：`mg_config/gift_codes` 寫 | 寫 | 舊：學生身分 | **擋** | 改走 admin app；不再寫 `used` |
+| `tgLoad`：`mg_config/gift_codes` 讀 | 讀 | 老師 | 過 | 「已領幾次」改用 `mg_gift_used` 的 count |
+| `clearScores`：`deleteDoc(mg_scores/*)` | 刪 | 舊：學生身分 | **擋**（delete 只有老師） | 改走 admin app |
+| `openNwFeedback`：`mg_nw_flags` 查詢、改狀態、頒獎、刪除 | 讀、寫、刪 | 舊：學生身分 | **擋**（只有老師） | 整塊移除，換成連到 `teacher.html` 的按鈕（管理頁下一步做） |
+| `newworld.js` `claimBugs`／`claimAwards`：`mg_nw_flags` 查詢、`claimed:true` | 讀、update | 學生 | **擋** | 刪掉；改讀 `mg_bugboard/{我}`（過）。字元獎勵與 `bugking` 等信箱做好再接 |
+| `openBugReport`：`mg_nw_flags/bug_*` create | 寫 | 學生 | 帶 `claimed:false` 會**擋** | 拿掉 `claimed`，過 |
+| `askFeedback`：`mg_nw_flags/fb_*` create（逾時重送同內容） | 寫 | 學生 | 過（重送內容相同放行） | 不變 |
+| 序號兌換：讀 `mg_config/gift_codes` | 讀 | 學生 | 過 | 不變 |
+| 序號兌換：`gift_codes.used = increment(1)` | 寫 | 學生 | **擋** | 改走 `mg_gift_used/{雜湊}_{我}` create（過）＋ count 查詢（過） |
+| 組隊房間：`mg_config/nwroom_*` getDocs／setDoc／deleteDoc | 讀、寫、刪 | 學生 | 寫、刪**擋** | 改走 `mg_rooms/{我}`（讀寫都過） |
+| `nw-preview.js` 提名：`nw_vote` `noms: arrayUnion` | 寫 | 學生 | 過（只動 `noms`） | 不變 |
+| 投票、收回投票：`nw_vote` `v.{id}.{我}` | 寫 | 學生 | 過（只動 `v`） | 不變 |
+| 老師隱藏、刪提名、搬分類、清空投票：`nw_vote` 整份覆寫、`hidden` | 寫 | 舊：學生身分 | **擋** | 改走 admin app |
+| 提名頁 onSnapshot `nw_vote` | 讀 | 學生 | 過 | 不變 |
+| 新增：`mg_clock/{我}` 寫 `t`、讀 | 讀、寫 | 學生 | 過 | A 版新增 |
+| 新增：`mg_bugboard/{我}` 讀 | 讀 | 學生 | 過 | A 版新增 |
+| 新增：`mg_nw_flags/namechg_*` create | 寫 | 學生 | 過 | A 版新增（冒名鎖） |
+
+學生端沒有任何地方還在讀 `mg_nw_flags`、`mg_admin_log`、`mg_admins`（`mg_admins` 只有老師登入時讀自己那份）。
+`tools/browser-test/nw5.test.js`、`nw6.test.js` 開著假 Firebase 的簡化規則（`window.__RULES`）跑過整個 A 版流程，確認沒有走到被擋的路。

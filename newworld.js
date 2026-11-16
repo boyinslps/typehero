@@ -2,7 +2,7 @@ import { PX } from './pixel.js';
 import {
   LOOK, DEFAULT_LOOK, heroLook, STARTERS, LOCKED_WEAPONS, REGIONS, MAP_POS, ELEM, STATUS, MONSTERS,
   regionLv, MAIN_QUESTS, normalizeNw, currentQuest, zoneOpen, starOpen, addHrExp, hrNeed, huntExp, huntCoins,
-  COLOR_NAME, COLOR_HEX, HR_MAX, VILLAGE, doorTile, buildingOpen, goalOf, TEST_TAGS, FB_COINS, FB_MINLEN, BUG_COINS, BUG_REWARD_MAX, LESSON_COINS, TESTER_MISSIONS, checkMissions, GIFT_WEAPONS, weaponInfo, weaponBase, curWeapon, WORDS, WORD_GROUPS, checkWords, setTitleParts, wordById
+  COLOR_NAME, COLOR_HEX, HR_MAX, VILLAGE, doorTile, buildingOpen, goalOf, TEST_TAGS, FB_COINS, FB_MINLEN, BUG_COINS, BUG_REWARD_MAX, LESSON_COINS, TESTER_MISSIONS, checkMissions, GIFT_WEAPONS, weaponInfo, weaponBase, curWeapon, WORDS, WORD_GROUPS, checkWords, setTitleParts, wordById, normName
 } from './nw-data.js';
 import { injectUi } from './nw-ui.js';
 import { mountVillage } from './nw-village.js';
@@ -94,8 +94,75 @@ export function initNewWorld(C) {
     }
     const pick = (cloud && (!local || (cloud.savedAt || 0) >= (local.savedAt || 0))) ? cloud : local;
     NW = normalizeNw(pick);
+    /* 時差、抓蟲榜、換名判斷各讀一份文件，一起等；網路慢時最多等 5 秒，不卡進村 */
+    await Promise.all([syncClock(), syncBoard(true)]);
+    checkName();
     checkWords(NW);
     if (C.setTitle) C.setTitle(NW.title || '', (NW.titleParts || []).length);
+  }
+
+  /* ── 伺服器時間（mg_clock）：學生改電腦時間也領不到還沒到期的東西 ──
+     寫一次 serverTimestamp 再讀回來，用來回時間的中點算時差；讀不到就當 0（用本機時間）。
+     不放在 mg_rooms：loadRooms() 每次打開委託板都會讀整個集合。 */
+  let clockSkew = 0;
+  const now = () => Date.now() + clockSkew;
+  C.now = now;
+  async function syncClock() {
+    if (!C.online()) return;
+    const ref = C.doc(C.db, 'mg_clock', ME.docId);
+    try {
+      const t0 = Date.now();
+      await C.withTimeout(C.setDoc(ref, { t: C.serverTimestamp() }), 5000, 'nw-clock-w');
+      const s = await C.withTimeout(C.getDoc(ref), 5000, 'nw-clock-r');
+      const t1 = Date.now(), ts = s.exists() ? s.data().t : null;
+      clockSkew = (ts && ts.toMillis) ? ts.toMillis() - Math.round((t0 + t1) / 2) : 0;
+    } catch (e) { clockSkew = 0; console.warn('讀伺服器時間失敗，改用本機時間', e); }
+  }
+
+  /* ── 抓蟲榜（mg_bugboard/{我}）：老師確認回報時寫的，學生只讀 ──
+     學生端不再讀 mg_nw_flags（裡面有學生真名，正式規則只有老師能讀）。
+     件數取 max(本機, 雲端)：舊玩家以前領過的件數不會變少，BUG_REWARD_MAX 不會算錯。 */
+  let board = null, boardAt = 0;
+  async function syncBoard(force) {
+    if (!C.online() || (!force && Date.now() - boardAt < 20000)) return false;
+    try {
+      const s = await C.withTimeout(C.getDoc(C.doc(C.db, 'mg_bugboard', ME.docId)), 5000, 'nw-board');
+      board = s.exists() ? s.data() : {}; boardAt = Date.now();
+    } catch (e) { console.warn('讀抓蟲榜失敗', e); return false; }
+    return applyBoard();
+  }
+  function applyBoard() {
+    const n = Math.max(0, +board.n || 0), sc = Math.max(0, +board.score || 0);
+    let ch = false;
+    if (n > NW.bugs) { NW.bugs = n; ch = true; }
+    if (sc !== NW.bugScore) { NW.bugScore = sc; ch = true; }
+    if (ch) { checkWords(NW); saveNw(); }
+    return ch;
+  }
+
+  /* ── 冒名鎖（SPEC §1.5）：只擋隨手亂打名字，打對同學的名字就過了 ──
+     基準不能用 name：登入與每次存檔都會把 name 改成這次打的名字，冒名的人第二次登入就自己解鎖了。
+     基準 = 老師寫的 mg_bugboard.nameOk，沒有就用存檔裡只寫一次的 nw.name0。 */
+  let nameLock = false, nameBase = '';
+  function checkName() {
+    const cur = ME.name || '', ok = board && board.nameOk;
+    if (!NW.name0 && !ok) { NW.name0 = cur; saveNw(); }
+    nameBase = ok || NW.name0 || cur;
+    nameLock = !!cur && normName(cur) !== normName(nameBase);
+    if (nameLock) writeNameFlag(cur, nameBase);
+  }
+  /* ID 帶新名字的雜湊：同一個新名字只有一筆，換成別的名字才會多一筆 */
+  async function writeNameFlag(cur, base) {
+    if (!C.online()) return;
+    const h8 = (await sha256Hex(normName(cur))).slice(0, 8);
+    if (NW.nameFlagged[h8]) return;
+    try {
+      await C.withTimeout(C.setDoc(C.doc(C.db, 'mg_nw_flags', `namechg_${ME.docId}_${h8}`), { type: 'namechg', status: 'pending', docId: ME.docId, cls: ME.className, seat: ME.seat, name: cur, oldName: base, t: Date.now() }), 6000, 'nw-namechg');
+      NW.nameFlagged[h8] = 1; saveNw();
+    } catch (e) {
+      /* 已經有同一筆（內容不同的第二次寫會被規則擋）也算送過了，不要每次進村都再試 */
+      if (e && e.code === 'permission-denied') { NW.nameFlagged[h8] = 1; saveNw(); } else console.warn('寫換名紀錄失敗', e);
+    }
   }
   function saveNw() {
     NW.savedAt = Date.now();
@@ -105,7 +172,7 @@ export function initNewWorld(C) {
   }
   function pushCloud() {
     if (!C.online() || !NW) return;
-    C.withTimeout(C.setDoc(docRef(), { className: ME.className, seat: ME.seat, name: ME.name, nwTitle: NW.title || '', nwTitleN: (NW.titleParts || []).length, nw: NW }, { merge: true }), 6000, 'nw-save')
+    C.withTimeout(C.setDoc(docRef(), { className: ME.className, seat: ME.seat, name: ME.name, nwTitle: NW.title || '', nwTitleN: (NW.titleParts || []).length, nwCls: ME.className, nwEvDone: NW.evDone || [], nw: NW }, { merge: true }), 6000, 'nw-save')
       .catch(e => console.warn('新世界存檔失敗', e));
   }
 
@@ -506,6 +573,7 @@ export function initNewWorld(C) {
     });
   }
 
+  const rewardOk = r => !!r && (r.type === 'weapon' ? !!GIFT_WEAPONS[r.key] : (r.type === 'coins' || r.type === 'potion') && Number.isFinite(+r.n));
   function applyReward(r) {
     if (r.type === 'weapon') {
       const w = GIFT_WEAPONS[r.key]; if (!w) return null;
@@ -589,7 +657,7 @@ export function initNewWorld(C) {
     if (fresh) { NW.seenNotice = NOTICES[0].id; saveNw(); return; }
     await openNotice(true);
   }
-  async function hubStart() { const fresh = !NW.intro.hub; await introOnce('hub'); await noticeOnce(fresh); await earlyGift(); claimBugs(); }
+  async function hubStart() { const fresh = !NW.intro.hub; await introOnce('hub'); await noticeOnce(fresh); await earlyGift(); refreshBoard(); }
 
   async function awardMissions() {
     const ms = checkMissions(NW);
@@ -622,37 +690,13 @@ export function initNewWorld(C) {
     if (ok && !NW.tut.equip) { NW.tut.equip = 1; saveNw(); }
   }
 
-  /* 老師在控制台頒發的特別稱號（抓蟲最多的人）；跟回報獎勵一樣，學生進村才領 */
-  async function claimAwards() {
-    const sn = await C.withTimeout(C.getDocs(C.query(C.collection(C.db, 'mg_nw_flags'), C.where('type', '==', 'award'), C.where('docId', '==', ME.docId))), 6000, 'awards');
-    const got = []; sn.forEach(d => { const x = d.data(); if (x.status === 'approved' && !x.claimed && x.award === 'bugking') got.push(d.id); });
-    if (!got.length) return;
-    for (const id of got) await C.withTimeout(C.setDoc(C.doc(C.db, 'mg_nw_flags', id), { claimed: true }, { merge: true }), 5000, 'award-claim');
-    NW.awards = Object.assign(NW.awards || {}, { bugking: 1 });
-    const ws = checkWords(NW); saveNw();
-    await showGift({ icon: '👑', title: '職業除錯師！', note: `你是抓蟲抓得最多的人，老師頒給你特別稱號「職業除錯師」！${ws.length ? '到背包的稱號裡就能戴上。' : ''}` });
-  }
-
-  let claiming = false, claimedAt = 0;
-  async function claimBugs() {
-    if (claiming || !C.online() || Date.now() - claimedAt < 20000) return;
-    claiming = true; claimedAt = Date.now();
-    try {
-      const sn = await C.withTimeout(C.getDocs(C.query(C.collection(C.db, 'mg_nw_flags'), C.where('type', '==', 'bug'), C.where('docId', '==', ME.docId))), 6000, 'bugs');
-      await claimAwards();
-      const ready = []; sn.forEach(d => { const x = d.data(); if (x.status === 'approved' && !x.claimed) ready.push({ id: d.id, t: x.t || 0 }); });
-      if (!ready.length) return;
-      ready.sort((p, q) => p.t - q.t);
-      let coins = 0;
-      for (const r of ready) {
-        NW.bugs++; if (NW.bugs <= BUG_REWARD_MAX) coins += BUG_COINS;
-        await C.withTimeout(C.setDoc(C.doc(C.db, 'mg_nw_flags', r.id), { claimed: true }, { merge: true }), 5000, 'bug-claim');
-      }
-      NW.coins += coins;
-      const ws = checkWords(NW); saveNw();
-      await showGift({ icon: '🐛', title: coins ? `字元 ×${coins}` : '謝謝你', note: `老師確認了你的 ${ready.length} 個問題回報，你幫了大忙！${ws.length ? '新的稱號詞條：' + ws.join('、') + '。' : ''}` });
-      await awardMissions();
-    } catch (e) { console.warn('領取回報獎勵失敗', e); } finally { claiming = false; }
+  /* TODO（下一步・信箱）：以前 claimBugs() 領「回報被確認」的字元獎勵（前 BUG_REWARD_MAX 件、每件 BUG_COINS），
+     claimAwards() 領老師頒的「職業除錯師」詞條 bugking。這兩個都要讀 mg_nw_flags，正式規則學生讀不到，已拿掉。
+     信箱做好後，老師確認回報／頒發時直接寄信（固定 ID bug_{flagID}／award_{flagID}），學生從信箱領。
+     在那之前：件數、抓蟲分、稱號詞條（除蟲員、蟲蟲剋星）照常同步；字元獎勵與 bugking 先不發。 */
+  async function refreshBoard(force) {
+    await syncBoard(!!force);
+    await awardMissions();   // 進村時已同步過件數，這裡補發「除蟲員」等任務完成通知；沒有新任務就什麼都不做
   }
 
   function openBugReport() {
@@ -685,7 +729,7 @@ export function initNewWorld(C) {
       if (!C.online()) { err.textContent = '現在連不上網路'; return; }
       if (Date.now() - (openBugReport.last || 0) < 20000) { err.textContent = '剛剛才送過，等一下再送下一個'; return; }
       try {
-        await C.withTimeout(C.setDoc(C.doc(C.db, 'mg_nw_flags', `bug_${ME.docId}_${Date.now()}`), { type: 'bug', status: 'pending', claimed: false, docId: ME.docId, cat, text, did, what, view, cls: ME.className, seat: ME.seat, name: ME.name, t: Date.now() }), 6000, 'nw-bug');
+        await C.withTimeout(C.setDoc(C.doc(C.db, 'mg_nw_flags', `bug_${ME.docId}_${Date.now()}`), { type: 'bug', status: 'pending', docId: ME.docId, cat, text, did, what, view, cls: ME.className, seat: ME.seat, name: ME.name, t: Date.now() }), 6000, 'nw-bug');
       } catch (er) { err.textContent = '送出失敗，再試一次'; return; }
       openBugReport.last = Date.now();
       NW.bugsSent = (NW.bugsSent || 0) + 1; saveNw(); sheet.remove();
@@ -695,8 +739,18 @@ export function initNewWorld(C) {
     document.body.appendChild(sheet);
   }
 
+  /* 「我的回報」：讀 mg_bugboard.reports（老師確認時寫入：id、st 狀態、sev 嚴重度、reply 回覆、t 送出時間） */
+  function myReportsHtml() {
+    const rs = (board && Array.isArray(board.reports)) ? board.reports.slice().sort((a, b) => (b.t || 0) - (a.t || 0)).slice(0, 8) : [];
+    const score = NW.bugScore > 0 ? `<span class="px-chip" style="color:#8ec96b">抓蟲分 ${NW.bugScore}</span>` : '';
+    if (!rs.length) return `<div class="px-text text-sm mt-3" style="color:#aab0d8">我的回報：老師還沒有看過你的回報。${score}</div>`;
+    const st = r => r.st === 'approved' ? '<b style="color:#8ec96b">✓ 老師確認了</b>' : r.st === 'rejected' ? '<span style="color:#e5705f">這次沒有採用</span>' : '<span style="color:#ffd98a">老師還沒看</span>';
+    return `<div class="px-text mt-3" style="font-weight:900;color:#ffd98a">我的回報 ${score}</div>
+      <div class="flex flex-col gap-1 mt-1" data-reports>${rs.map(r => `<div class="px-panel in text-sm" style="padding:6px 10px">${r.t ? new Date(r.t).toLocaleDateString('zh-TW') + '　' : ''}${st(r)}${r.sev ? `　嚴重度 ${'★'.repeat(Math.min(3, +r.sev || 0))}` : ''}${r.reply ? `<div style="color:#aab0d8">老師說：${escHtml(String(r.reply).slice(0, 80))}</div>` : ''}</div>`).join('')}</div>`;
+  }
+
   async function openTesterBook() {
-    await claimBugs();
+    await refreshBoard(true);
     introOnce('book');
     const sheet = document.createElement('div');
     sheet.className = 'nw-sheet fixed inset-0 overflow-y-auto'; sheet.style.zIndex = 94; sheet.style.background = 'rgba(9,8,18,.94)';
@@ -705,6 +759,7 @@ export function initNewWorld(C) {
       <div class="flex items-center justify-between gap-2"><div class="px-title" style="font-size:1.5em">📓 測試員手冊</div><button class="px-btn" data-close>關閉</button></div>
       <p class="px-text mt-1 text-sm">新世界還在試玩中，你是第一批冒險者！完成任務、抓到蟲蟲，都會蓋章、得字元和稱號。已完成 <b>${done} / ${TESTER_MISSIONS.length}</b>。</p>
       <div class="flex flex-col gap-2 mt-3">${TESTER_MISSIONS.map(m => `<div class="px-panel in flex items-center gap-3" style="padding:8px 12px;${NW.tm[m.id] ? '' : 'opacity:.75'}"><span style="font-size:28px">${m.icon}</span><span style="flex:1"><b class="px-text">${m.t}</b><br><span class="text-xs" style="color:#aab0d8">${m.how}</span></span><span class="px-chip" style="color:${NW.tm[m.id] ? '#8ec96b' : '#ffd98a'}">${NW.tm[m.id] ? '✓ 已蓋章' : '🪙 ' + m.coins}</span></div>`).join('')}</div>
+      ${myReportsHtml()}
       <div class="flex gap-2 justify-end mt-3 flex-wrap"><span class="px-text text-sm" style="align-self:center">已送出 ${NW.bugsSent || 0} 個問題・老師確認 ${NW.bugs} 個・寫了 ${Object.values(NW.fb).filter(v => v === 1).length} 份回饋</span><button class="px-btn gold" data-bug>🐛 回報問題</button></div></div></div>`;
     sheet.addEventListener('click', e => {
       if (e.target.closest('[data-close]')) sheet.remove();
@@ -746,10 +801,22 @@ export function initNewWorld(C) {
       try { const s = await C.withTimeout(C.getDoc(C.doc(C.db, 'mg_config', 'gift_codes')), 5000, 'gift'); entry = s.exists() ? ((s.data().codes || {})[h] || null) : null; } catch (e) { err.textContent = '讀取失敗，再試一次'; return; }
       if (!entry) { bad++; err.textContent = '序號不對喔'; if (bad >= 5) { lockUntil = Date.now() + 30000; bad = 0; } return; }
       if (NW.gifts.includes(key)) { err.textContent = '這組序號你已經領過了'; return; }
-      if (entry.max && (entry.used || 0) >= entry.max) { err.textContent = '這組序號已經被領完了'; return; }
-      const g = applyReward(entry.reward); if (!g) { err.textContent = '這組序號有問題，請告訴老師'; return; }
+      if (!rewardOk(entry.reward)) { err.textContent = '這組序號有問題，請告訴老師'; return; }
+      /* 領取紀錄一人一份（mg_gift_used/{雜湊}_{我}）：先查自己領過沒、再用 count 數全班領了幾份，
+         不再對 gift_codes 做 increment（學生不能寫 mg_config）。舊版 increment 出來的 used 要一起算。 */
+      const usedRef = C.doc(C.db, 'mg_gift_used', `${h}_${ME.docId}`);
+      try {
+        if ((await C.withTimeout(C.getDoc(usedRef), 5000, 'gift-mine')).exists()) { NW.gifts.push(key); saveNw(); err.textContent = '這組序號你已經領過了'; return; }
+        if (entry.max) {
+          const n = (await C.withTimeout(C.getCountFromServer(C.query(C.collection(C.db, 'mg_gift_used'), C.where('h', '==', h))), 5000, 'gift-count')).data().count;
+          if ((entry.used || 0) + n >= entry.max) { err.textContent = '這組序號已經被領完了'; return; }
+        }
+      } catch (e) { err.textContent = '讀取失敗，再試一次'; return; }
+      /* 先寫紀錄、成功才給獎勵：同一人兩台電腦同時領，第二份會被規則擋下（已存在就不能再 create） */
+      try { await C.withTimeout(C.setDoc(usedRef, { h, id: ME.docId, t: Date.now() }), 5000, 'gift-used'); }
+      catch (e) { err.textContent = (e && e.code === 'permission-denied') ? '這組序號你已經領過了' : '送出失敗，再試一次'; return; }
+      const g = applyReward(entry.reward);
       NW.gifts.push(key); saveNw();
-      C.withTimeout(C.setDoc(C.doc(C.db, 'mg_config', 'gift_codes'), { codes: { [h]: { used: C.increment(1) } } }, { merge: true }), 5000, 'gift-used').catch(() => {});
       sheet.remove(); await showGift(g); viewHub();
       if (entry.reward.type === 'weapon') weaponTour();
     };
@@ -870,13 +937,14 @@ export function initNewWorld(C) {
   });
 
   let boardSel = null;
-  const roomId = () => 'nwroom_' + ME.docId;
-  const roomRef = () => C.doc(C.db, 'mg_config', roomId());
+  /* 房間搬出 mg_config：正式規則 mg_config 只有老師能寫，學生開不了房 */
+  const roomId = () => ME.docId;
+  const roomRef = () => C.doc(C.db, 'mg_rooms', roomId());
 
   async function loadRooms() {
     if (!C.online()) return [];
-    const snap = await C.withTimeout(C.getDocs(C.query(C.collection(C.db, 'mg_config'),
-      C.where(C.documentId(), '>=', 'nwroom_'), C.where(C.documentId(), '<', 'nwroom`'))), 5000, 'nw-rooms');
+    /* 只讀 20 分鐘內的：當機沒關的舊房間不用每次都載進來 */
+    const snap = await C.withTimeout(C.getDocs(C.query(C.collection(C.db, 'mg_rooms'), C.where('t', '>', Date.now() - 20 * 60 * 1000))), 5000, 'nw-rooms');
     const now = Date.now(), out = [];
     snap.forEach(d => {
       const r = d.data();
@@ -1101,5 +1169,5 @@ export function initNewWorld(C) {
   });
 
   const giftPending = () => { if (!gate().early) return false; try { const l = JSON.parse(localStorage.getItem(lkey()) || 'null'); return !(l && (l.giftedEarly || (l.gw || []).includes('testblade'))); } catch (e) { return true; } };
-  return { enter, gate, leave, ticket: showTicket, giftPending, refresh: refreshAccess, openCode: openCodeSheet, get nw() { return NW; }, isOpen: () => !root.classList.contains('hidden') };
+  return { enter, gate, leave, now, nameLocked: () => nameLock, nameBase: () => nameBase, ticket: showTicket, giftPending, refresh: refreshAccess, openCode: openCodeSheet, get nw() { return NW; }, isOpen: () => !root.classList.contains('hidden') };
 }

@@ -74,6 +74,9 @@ export function initNwPreview(C) {
   const { $, show, toast, escHtml, setTxt } = C;
   const S = { i: 0, cat: 'monster', vp: 0, sort: 'votes', admin: false, data: { noms: [], v: {}, hidden: [] }, unsub: null };
   const ref = () => C.doc(C.db, 'mg_config', 'nw_vote');
+  /* 隱藏、刪提名、清空投票是老師的事：正式規則只讓學生動投票 v 與提名 noms，所以要用老師帳號寫 */
+  const adminRef = async () => C.doc(C.adminDb ? await C.adminDb() : C.db, 'mg_config', 'nw_vote');
+  const adminFail = (e, msg) => { console.warn(msg, e); toast(e && e.message === 'admin-cancel' ? '要先用老師帳號登入' : '操作失敗，再試一次'); };
 
   const tag = (t, ok) => `<span class="nwp-tag ${ok ? 'ok' : ''}">${t}</span>`;
   const openTag = o => tag(o ? '第一批開放' : '施工中', o);
@@ -324,8 +327,8 @@ export function initNwPreview(C) {
     catch (e) { delete S.data.v[id][me]; paintList(); console.warn('投票失敗', e); toast('投票失敗，再試一次'); }
   }
   async function rewrite(patch, okMsg) {
-    try { await C.withTimeout(C.setDoc(ref(), Object.assign({ noms: S.data.noms, hidden: S.data.hidden, v: S.data.v, votes: {} }, patch)), 6000, 'nw-rewrite'); toast(okMsg); }
-    catch (e) { console.warn('整理失敗', e); toast('操作失敗，再試一次'); }
+    try { await C.withTimeout(C.setDoc(await adminRef(), Object.assign({ noms: S.data.noms, hidden: S.data.hidden, v: S.data.v, votes: {} }, patch)), 6000, 'nw-rewrite'); toast(okMsg); }
+    catch (e) { adminFail(e, '整理失敗'); }
   }
   async function deleteNom(id) {
     if (!S.admin) return;
@@ -350,14 +353,14 @@ export function initNwPreview(C) {
   async function clearVotes() {
     if (!S.admin || !confirm('確定要清空所有投票嗎？提名會留著，票數全部歸零。')) return;
     try {
-      await C.withTimeout(C.setDoc(ref(), { noms: S.data.noms, hidden: S.data.hidden, v: {}, votes: {} }), 6000, 'nw-clear');
+      await C.withTimeout(C.setDoc(await adminRef(), { noms: S.data.noms, hidden: S.data.hidden, v: {}, votes: {} }), 6000, 'nw-clear');
       toast('已清空所有投票');
-    } catch (e) { console.warn('清空失敗', e); toast('清空失敗，再試一次'); }
+    } catch (e) { adminFail(e, '清空失敗'); }
   }
   async function hide(id, was) {
     if (!S.admin) return;
-    try { await C.withTimeout(C.setDoc(ref(), { hidden: was ? C.arrayRemove(id) : C.arrayUnion(id) }, { merge: true }), 6000, 'nw-hide'); }
-    catch (e) { console.warn('隱藏失敗', e); toast('操作失敗，再試一次'); }
+    try { await C.withTimeout(C.setDoc(await adminRef(), { hidden: was ? C.arrayRemove(id) : C.arrayUnion(id) }, { merge: true }), 6000, 'nw-hide'); }
+    catch (e) { adminFail(e, '隱藏失敗'); }
   }
 
   function open() {

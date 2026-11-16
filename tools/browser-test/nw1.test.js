@@ -1,6 +1,6 @@
 const { chromium } = require('playwright'); const fs = require('fs');
 const path = require('path'); const M = path.join(__dirname, 'mock') + '/'; const OUT = process.argv[2] || require('os').tmpdir();
-const css = fs.existsSync(OUT + '/tw.css') ? fs.readFileSync(OUT + '/tw.css', 'utf8') : '';
+const css = require('./tw.js')(OUT);
 const PASS = 'Test-Pass_9!x';
 let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++; };
 const seed = {
@@ -15,7 +15,7 @@ const seed = {
   const errs = []; p.on('dialog', d => d.accept());
   p.on('pageerror', e => errs.push('pageerror: ' + e.message));
   p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push('console: ' + m.text()); });
-  await p.addInitScript(a => { const s = a.s; window.__NW_CODE_HASH__ = a.hash; window.__NW_NOGIFT__ = true; window.__NW_NOINTRO__ = true; window.__FS = s; localStorage.clear(); localStorage.setItem('mg_nw_fast', '1'); window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas'); }, { s: seed, hash: HASH });
+  await p.addInitScript(a => { const s = a.s; window.__NW_CODE_HASH__ = a.hash; window.__NW_NOGIFT__ = true; window.__NW_NOINTRO__ = true; window.__RULES = true; window.__FS = s; localStorage.clear(); localStorage.setItem('mg_nw_fast', '1'); window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas'); }, { s: seed, hash: HASH });
   await p.route('**/*', r => {
     const u = r.request().url();
     if (u.startsWith('http://localhost')) return r.continue();
@@ -96,8 +96,8 @@ const seed = {
   await p.keyboard.press('Escape'); await p.waitForTimeout(100);
 
   await p.evaluate(() => {
-    window.__FS['mg_config/nwroom_五年級4班_9號'] = { host: '阿華', cls: '五年級4班', mk: 'coo', rk: 'grass', star: 1, state: 'open', members: ['x'], t: Date.now() };
-    window.__FS['mg_config/nwroom_五年級4班_8號'] = { host: '舊房間', cls: '五年級4班', mk: 'wolf', rk: 'forest', star: 2, state: 'open', members: ['y'], t: Date.now() - 3600000 };
+    window.__FS['mg_rooms/五年級4班_9號'] = { host: '阿華', cls: '五年級4班', mk: 'coo', rk: 'grass', star: 1, state: 'open', members: ['x'], t: Date.now() };
+    window.__FS['mg_rooms/五年級4班_8號'] = { host: '舊房間', cls: '五年級4班', mk: 'wolf', rk: 'forest', star: 2, state: 'open', members: ['y'], t: Date.now() - 3600000 };
   });
   await p.click('.vb[data-bld="board"]'); await p.waitForSelector('#nwbd-board');
   ok((await p.$$('.qs-wrap')).length === 4, '看板上有 3 張草原委託單＋1 張還沒開的森林委託');
@@ -114,11 +114,11 @@ const seed = {
   await p.click('[data-tab="quests"]');
   await p.click('.qs[data-q="grass:frog:1"]');
   await p.click('[data-go]'); await p.waitForSelector('[data-view="room"]');
-  const room = await p.evaluate(() => window.__FS['mg_config/nwroom_五年級3班_5號']);
+  const room = await p.evaluate(() => window.__FS['mg_rooms/五年級3班_5號']);
   ok(room && room.mk === 'frog' && room.state === 'open', '按「狩獵」才開房間');
   await p.screenshot({ path: OUT + '/nw1-room.png' });
   await p.click('[data-act="leaveroom"]'); await p.waitForSelector('#nwbd-board'); await p.waitForTimeout(300);
-  ok(!(await p.evaluate(() => window.__FS['mg_config/nwroom_五年級3班_5號'])), '離開房間就把房間收掉');
+  ok(!(await p.evaluate(() => window.__FS['mg_rooms/五年級3班_5號'])), '離開房間就把房間收掉');
   await p.click('[data-act="hub"]'); await p.waitForTimeout(900);
   ok((await p.textContent('#vmap')).includes('Enter：進入「委託板」'), '走到建築旁邊會出現「Enter：進入」的提示');
   await p.waitForTimeout(800);

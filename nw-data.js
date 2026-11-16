@@ -227,7 +227,8 @@ export const defaultNw = () => ({
   zone: { grass: 0, forest: 0 }, dex: {}, fastest: {},
   quest: { done: [] }, title: '', titleParts: [], words: [], used: {}, wwin: {},
   stat: { dodgeOk: 0, dodgeAll: 0, defOk: 0, defAll: 0, accN: 0, accSum: 0, wins: 0, fails: 0 },
-  flags: 0, fb: {}, gw: [], equip: '', gifts: [], giftedEarly: false, tm: {}, bugs: 0, bugsSent: 0, tut: {}, intro: {}, awards: {}, seenNotice: ''
+  flags: 0, fb: {}, gw: [], equip: '', gifts: [], giftedEarly: false, tm: {}, bugs: 0, bugsSent: 0, tut: {}, intro: {}, awards: {}, seenNotice: '',
+  name0: '', bugScore: 0, evDone: [], nameFlagged: {}
 });
 
 export function normalizeNw(d) {
@@ -245,8 +246,17 @@ export function normalizeNw(d) {
   o.used = d.used || {}; o.wwin = d.wwin || {}; o.fb = d.fb || {};
   o.gw = Array.isArray(d.gw) ? d.gw : []; o.gifts = Array.isArray(d.gifts) ? d.gifts : [];
   o.tm = d.tm || {}; o.tut = d.tut || {}; o.bugs = d.bugs || 0; o.bugsSent = d.bugsSent || 0; o.intro = d.intro || {}; o.awards = d.awards || {}; o.seenNotice = d.seenNotice || '';
+  o.name0 = typeof d.name0 === 'string' ? d.name0 : ''; o.bugScore = +d.bugScore || 0;
+  o.evDone = Array.isArray(d.evDone) ? d.evDone : []; o.nameFlagged = d.nameFlagged || {};
   return o;
 }
+
+/* 比對姓名前先統一：去掉空白（含全形空白）、全形英數標點轉半形、英文不分大小寫。
+   這道鎖只擋「隨手亂打名字」，打對同學的名字就過了（docs/SPEC-TEACHER-ADMIN.md §1.5）。 */
+export const normName = s => String(s || '')
+  .replace(/[\uFF01-\uFF5E]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+  .replace(/[\s\u3000\u200b-\u200d\ufeff]/g, '')
+  .toLowerCase();
 
 export const WORD_GROUPS = ['等級', '武器', '成就'];
 const wword = (id, w, wk, n, how) => ({ id, w, g: '武器', how, test: x => n === 0 ? (x.starter === wk || !!(x.used && x.used[wk])) : ((x.wwin && x.wwin[wk]) || 0) >= n });

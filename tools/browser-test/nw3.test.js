@@ -1,7 +1,7 @@
 /* 標點符號挑戰：三關教學（Shift → Ctrl → 上下引號要選字）→ 打怪挑戰 → 老師開了的話拿搶先體驗號碼 */
 const { chromium } = require('playwright'); const fs = require('fs');
 const path = require('path'); const M = path.join(__dirname, 'mock') + '/'; const OUT = process.argv[2] || require('os').tmpdir();
-const css = fs.existsSync(OUT + '/tw.css') ? fs.readFileSync(OUT + '/tw.css', 'utf8') : '';
+const css = require('./tw.js')(OUT);
 const PASS = 'Test-Pass_9!x';
 let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++; };
 

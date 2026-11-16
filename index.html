@@ -1412,6 +1412,26 @@ select option{background:var(--panel2);color:var(--ink)}
 </div>
 
 <!-- ══════════ 教師控制台 ══════════ -->
+<div id="admin-login-modal" class="hidden fixed inset-0 z-[96] flex items-center justify-center p-4"
+     style="background:rgba(9,8,18,.88)">
+  <div class="panel p-6 w-full max-w-sm">
+    <h2 class="text-lg font-black mb-1 flex items-center gap-2"><span class="ico-slot" data-ico="lock" data-ico-size="17"></span>老師帳號登入</h2>
+    <p class="text-xs mb-3" style="color:var(--dim)">開戰、改設定、管理序號、清空成績，要用老師的 email 帳號登入才寫得進去。</p>
+    <input id="al-email" type="email" autocomplete="username" placeholder="email"
+           class="w-full p-3 rounded-lg bg-transparent border mb-2" style="border-color:var(--line)">
+    <input id="al-pw" type="password" autocomplete="current-password" placeholder="密碼"
+           class="w-full p-3 rounded-lg bg-transparent border mb-2" style="border-color:var(--line)">
+    <label class="flex items-center gap-2 text-sm mb-2" style="color:var(--dim)">
+      <input id="al-remember" type="checkbox"> 記住這台電腦（只在老師自己的電腦勾）
+    </label>
+    <div id="al-err" class="text-sm mb-2" style="color:#ff8a9c;min-height:1.3em"></div>
+    <div class="flex gap-2">
+      <button id="al-ok" class="flex-1 py-2 rounded-lg font-bold text-slate-900" style="background:var(--gold)">登入</button>
+      <button id="al-cancel" class="flex-1 py-2 rounded-lg font-bold border" style="border-color:var(--line)">取消</button>
+    </div>
+  </div>
+</div>
+
 <div id="teacher-modal" class="hidden fixed inset-0 z-[90] overflow-y-auto scrolly"
      style="background:rgba(9,8,18,.95)">
   <div class="max-w-5xl mx-auto p-4 py-8">
@@ -1513,7 +1533,7 @@ select option{background:var(--panel2);color:var(--ink)}
           </div>
           <div id="tg-list" class="mt-2"></div>
           <p class="text-xs mt-1" style="color:var(--dim)">序號只存雜湊，新增後就看不到原本的字了，請自己記好（備註可以幫你分辨）。每位同學每組序號只能領一次。</p>
-          <button id="tc-nwfb" class="btn btn-ghost text-sm px-3 py-2 mt-3">📝 查看新世界測試回饋</button>
+          <a id="tc-nwfb" href="teacher.html" target="_blank" rel="noopener" class="btn btn-ghost text-sm px-3 py-2 mt-3 inline-block">🛠 到管理頁看回饋與審核</a>
         </div>
         <div class="md:col-span-2">
           <button id="tc-save-cfg" class="w-full py-3 rounded-xl font-black text-slate-900"
@@ -1682,10 +1702,11 @@ import { initNewWorld } from './newworld.js';
 import { initNwPreview } from './nw-preview.js';
 import { sha256Hex, cleanCode } from './nw-access.js';
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+import { getAuth, signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword, signOut, setPersistence,
+         browserLocalPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
 import { getFirestore, doc, collection, setDoc, getDoc, getDocs, deleteDoc,
          onSnapshot, query, orderBy, where, serverTimestamp,
-         increment, arrayUnion, arrayRemove, deleteField, documentId }
+         increment, arrayUnion, arrayRemove, deleteField, documentId, limit, getCountFromServer }
   from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
 /* ══════════════════════════════════════════════════════════════
@@ -2700,6 +2721,7 @@ function nwWho() {
 function initNw() {
   initNwPreview({
     $, show, toast, escHtml, setTxt, db, doc, onSnapshot, setDoc, arrayUnion, arrayRemove, increment, deleteField, withTimeout,
+    adminDb: ensureAdmin,
     online: () => ONLINE, who: nwWho, adminPw: ADMIN_PASSWORD
   });
 }
@@ -4563,6 +4585,12 @@ const firebaseConfig = {
 const fbApp = initializeApp(firebaseConfig);
 const auth = getAuth(fbApp);
 const db = getFirestore(fbApp);
+
+/* 老師身分用另一個具名 app：學生機的匿名登入完全不動，兩邊的登入狀態分開存。
+   正式規則下，開戰、設定、序號、清空成績都只有老師帳號寫得進去。 */
+const adminApp = initializeApp(firebaseConfig, 'admin');
+const adminAuth = getAuth(adminApp);
+const adminDb = getFirestore(adminApp);
 
 const ADMIN_PASSWORD = 'teacher';
 
@@ -7306,6 +7334,7 @@ let NWG = null;
 function wireEvents() {
   NWG = initNewWorld({
     $, show, toast, escHtml, ME, db, doc, getDoc, setDoc, deleteDoc, collection, getDocs, query, where, documentId, increment, REF, withTimeout, gotoLobby,
+    orderBy, limit, getCountFromServer, serverTimestamp, adminDb: ensureAdmin,
     online: () => ONLINE,
     getHist: () => MY_HIST,
     bestLevel: myBestLevel,
@@ -7317,6 +7346,7 @@ function wireEvents() {
     q: { questionUnits, judge, canon, splitZhuyin, IS_PUNCT,
          pool: name => (BANK[name] && BANK[name].length) ? BANK[name] : (DEFAULT_BANK[name] || []) }
   });
+  if (location.hostname === 'localhost') window.__NWG = NWG;   // 瀏覽器測試用（讀 nameLocked()、now()）
   $('nw-door').addEventListener('click', () => {
     const g = NWG.gate();
     if (g.ok) NWG.enter(); else if (g.closed) NWG.openCode(paintNwButton); else toast(g.why, 3200);
@@ -7431,6 +7461,9 @@ function wireEvents() {
   $('auth-cancel').addEventListener('click', () => show('auth-modal', false));
   $('auth-pw').addEventListener('keydown', e => { if (e.key === 'Enter') tryAuth(); });
   $('auth-ok').addEventListener('click', tryAuth);
+  $('al-ok').addEventListener('click', doAdminLogin);
+  $('al-cancel').addEventListener('click', () => closeAdminLogin(new Error('admin-cancel')));
+  ['al-email', 'al-pw'].forEach(id => $(id).addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) doAdminLogin(); }));
   $('tc-close').addEventListener('click', () => show('teacher-modal', false));
 
   [...document.querySelectorAll('.tc-tab')].forEach(b =>
@@ -7445,7 +7478,6 @@ function wireEvents() {
   $('tc-save-cfg').addEventListener('click', saveConfig);
   $('tg-add').addEventListener('click', tgAdd);
   $('tg-list').addEventListener('click', e => { const d = e.target.closest('[data-del]'); if (d) tgDel(d.dataset.del); });
-  $('tc-nwfb').addEventListener('click', openNwFeedback);
   $('proof-only-poly').addEventListener('click', togglePolyFilter);
   $('proof-export').addEventListener('click', exportProofSheet);
   $('sc-refresh').addEventListener('click', loadScores);
@@ -7475,10 +7507,12 @@ function wireEvents() {
   });
 }
 
-function tryAuth() {
+async function tryAuth() {
   if ($('auth-pw').value !== ADMIN_PASSWORD) { toast('密碼錯誤'); return; }
   $('auth-pw').value = '';
   show('auth-modal', false);
+  /* 先登入再開控制台；取消的話控制台照開，只是按下會寫入的按鈕時會再問一次 */
+  try { await ensureAdmin(); } catch (e) { /* 取消或失敗：下面每個寫入動作會再問 */ }
   show('teacher-modal', true);
   $('tc-duration').value   = CFG.duration;
   $('tc-difficulty').value = CFG.difficulty;
@@ -7524,28 +7558,90 @@ function updateTeacherBanner() {
     : txt;
 }
 
+/* ── 老師登入（admin app）──────────────────────────────
+   老師的寫入都走 adminDb。沒登入時 ensureAdmin() 跳登入小視窗，登入成功才回傳 adminDb；
+   取消就丟 admin-cancel，呼叫的地方用 adminErr() 轉成學生看不到、老師看得懂的提示。 */
+let adminLoginWait = null, adminOkUid = '';
+async function adminSignedIn() {
+  try { if (adminAuth.authStateReady) await adminAuth.authStateReady(); } catch (e) { /* 讀不到就當沒登入 */ }
+  const u = adminAuth.currentUser;
+  return !!(u && !u.isAnonymous);
+}
+function ensureAdmin() {
+  if (adminLoginWait) return adminLoginWait.p;
+  const w = {};
+  w.p = (async () => {
+    if (await adminSignedIn()) return adminDb;
+    $('al-err').textContent = ''; $('al-pw').value = '';
+    show('admin-login-modal', true);
+    $('al-email').focus();
+    return new Promise((resolve, reject) => { w.resolve = resolve; w.reject = reject; });
+  })();
+  adminLoginWait = w;
+  w.p.then(() => { adminLoginWait = null; }, () => { adminLoginWait = null; });
+  return w.p;
+}
+function closeAdminLogin(err) {
+  show('admin-login-modal', false);
+  const w = adminLoginWait;
+  if (w && w.reject && err) w.reject(err);
+  else if (w && w.resolve) w.resolve(adminDb);
+}
+async function doAdminLogin() {
+  const email = $('al-email').value.trim(), pw = $('al-pw').value, err = $('al-err'), btn = $('al-ok');
+  if (!email || !pw) { err.textContent = '請輸入 email 和密碼'; return; }
+  btn.disabled = true; err.textContent = '登入中…';
+  try {
+    /* 沒勾「記住這台電腦」就關分頁登出，避免教室電腦被下一位同學接手 */
+    await setPersistence(adminAuth, $('al-remember').checked ? browserLocalPersistence : browserSessionPersistence);
+    const cred = await signInWithEmailAndPassword(adminAuth, email, pw);
+    const mine = await getDoc(doc(adminDb, 'mg_admins', cred.user.uid));
+    if (!mine.exists()) {
+      await signOut(adminAuth);
+      err.textContent = '這個帳號還不是老師帳號（要先在 Firebase 建 mg_admins）'; return;
+    }
+    adminOkUid = cred.user.uid;
+    $('al-pw').value = '';
+    closeAdminLogin(null);
+  } catch (e) {
+    const c = (e && e.code) || '';
+    err.textContent = /invalid-credential|wrong-password|user-not-found|invalid-email/.test(c) ? 'email 或密碼不對'
+      : /too-many/.test(c) ? '試太多次了，等一下再試'
+      : /network/.test(c) ? '連不上網路'
+      : '登入失敗（' + (c || (e && e.message) || '不明原因') + '）';
+  } finally { btn.disabled = false; }
+}
+function adminErr(e, what) {
+  if (e && e.message === 'admin-cancel') { toast('要先用老師帳號登入，才能' + what); return; }
+  console.error(e);
+  toast(e && e.code === 'permission-denied' ? '這個帳號沒有老師權限，' + what + '失敗' : what + '失敗，請檢查網路');
+}
+
 /* ── 比賽控制 ───────────────────────────────────────── */
 async function startRound() {
   const dur = parseInt($('tc-duration').value) || 180;
   try {
-    await setDoc(REF.round, {
+    const adb = await ensureAdmin();
+    await setDoc(doc(adb, 'mg_round', 'current'), {
       state: 'running', startAtMs: Date.now(), duration: dur,
       roundId: 'R' + Date.now()
     });
     toast('比賽開始！全班同步倒數 ' + dur + ' 秒');
-  } catch (e) { console.error(e); toast('開始失敗，請檢查網路'); }
+  } catch (e) { adminErr(e, '開始比賽'); }
 }
 async function stopRound() {
-  try { await setDoc(REF.round, { state: 'ended', startAtMs: ROUND.startAtMs,
+  try { const adb = await ensureAdmin();
+        await setDoc(doc(adb, 'mg_round', 'current'), { state: 'ended', startAtMs: ROUND.startAtMs,
                                   duration: ROUND.duration, roundId: ROUND.roundId });
         toast('已結束比賽'); }
-  catch (e) { console.error(e); toast('結束失敗'); }
+  catch (e) { adminErr(e, '結束比賽'); }
 }
 async function resetRound() {
-  try { await setDoc(REF.round, { state: 'lobby', startAtMs: 0,
+  try { const adb = await ensureAdmin();
+        await setDoc(doc(adb, 'mg_round', 'current'), { state: 'lobby', startAtMs: 0,
                                   duration: CFG.duration, roundId: '' });
         toast('已回到營地'); }
-  catch (e) { console.error(e); toast('操作失敗'); }
+  catch (e) { adminErr(e, '回到營地'); }
 }
 
 const TG_LABEL = { 'weapon:testblade': '測試者之刃', 'coins:50': '字元 ×50', 'coins:200': '字元 ×200', 'potion:3': '回復藥 ×3' };
@@ -7556,7 +7652,12 @@ async function tgLoad() {
     const sn = await withTimeout(getDoc(doc(db, 'mg_config', 'gift_codes')), 5000, '讀取逾時');
     const codes = sn.exists() ? (sn.data().codes || {}) : {};
     const rows = Object.entries(codes).sort((a, b) => (b[1].t || 0) - (a[1].t || 0));
-    box.innerHTML = rows.length ? rows.map(([h, c]) => `<div class="flex items-center gap-2 text-sm py-1"><span class="flex-1">${escHtml(c.label || '')}　<span style="color:var(--dim)">已領 ${c.used || 0}${c.max ? ' / ' + c.max : ''}</span></span><button data-del="${h}" class="btn btn-ghost text-xs px-2 py-1">刪除</button></div>`).join('')
+    /* 次數改成數 mg_gift_used（一人一份）。舊版 increment 出來的 used 不會再增加，加上去才不會少算 */
+    await Promise.all(rows.map(async ([h, c]) => {
+      try { c.usedN = (c.used || 0) + (await withTimeout(getCountFromServer(query(collection(db, 'mg_gift_used'), where('h', '==', h))), 5000, '讀取逾時')).data().count; }
+      catch (e) { c.usedN = c.used || 0; }
+    }));
+    box.innerHTML = rows.length ? rows.map(([h, c]) => `<div class="flex items-center gap-2 text-sm py-1"><span class="flex-1">${escHtml(c.label || '')}　<span style="color:var(--dim)">已領 ${c.usedN || 0}${c.max ? ' / ' + c.max : ''}</span></span><button data-del="${h}" class="btn btn-ghost text-xs px-2 py-1">刪除</button></div>`).join('')
       : '<div class="text-sm" style="color:var(--dim)">還沒有序號</div>';
   } catch (e) { box.textContent = '讀取失敗'; }
 }
@@ -7568,64 +7669,17 @@ async function tgAdd() {
   const max = Math.max(0, parseInt($('tg-max').value) || 0), note = $('tg-note').value.trim();
   const h = await sha256Hex('gift:' + cleanCode(code));
   try {
-    await withTimeout(setDoc(doc(db, 'mg_config', 'gift_codes'), { codes: { [h]: { reward, max, used: 0, label: TG_LABEL[rv] + (note ? '・' + note : ''), t: Date.now() } } }, { merge: true }), 6000, '儲存逾時');
+    const adb = await ensureAdmin();
+    await withTimeout(setDoc(doc(adb, 'mg_config', 'gift_codes'), { codes: { [h]: { reward, max, label: TG_LABEL[rv] + (note ? '・' + note : ''), t: Date.now() } } }, { merge: true }), 6000, '儲存逾時');
     $('tg-code').value = ''; $('tg-note').value = ''; toast('序號已新增'); tgLoad();
-  } catch (e) { console.warn('新增序號失敗', e); toast('新增失敗，再試一次'); }
+  } catch (e) { adminErr(e, '新增序號'); }
 }
 async function tgDel(h) {
   if (!confirm('確定要刪除這組序號嗎？')) return;
-  try { await withTimeout(setDoc(doc(db, 'mg_config', 'gift_codes'), { codes: { [h]: deleteField() } }, { merge: true }), 6000, '儲存逾時'); tgLoad(); }
-  catch (e) { toast('刪除失敗，再試一次'); }
+  try { const adb = await ensureAdmin();
+        await withTimeout(setDoc(doc(adb, 'mg_config', 'gift_codes'), { codes: { [h]: deleteField() } }, { merge: true }), 6000, '儲存逾時'); tgLoad(); }
+  catch (e) { adminErr(e, '刪除序號'); }
 }
-async function openNwFeedback() {
-  const ov = document.createElement('div');
-  ov.className = 'fixed inset-0 z-[95] p-4 overflow-y-auto'; ov.style.zIndex = 95; ov.style.background = 'rgba(9,8,18,.95)';
-  ov.innerHTML = '<div class="max-w-3xl mx-auto panel p-4"><div class="flex items-center justify-between mb-3 flex-wrap gap-2"><h3 class="text-xl font-black">📝 新世界測試回饋與問題回報</h3><div class="flex gap-2"><button data-copy class="btn btn-ghost text-sm px-3 py-1.5">複製全部</button><button data-x class="btn btn-ghost text-sm px-3 py-1.5">關閉</button></div></div><div class="text-sm mb-2" style="color:var(--dim)" data-sum></div><div data-body>載入中…</div></div>';
-  document.body.appendChild(ov);
-  const body = ov.querySelector('[data-body]'), sum = ov.querySelector('[data-sum]'); let rows = [];
-  const label = r => r.type === 'bug' ? `🐛 問題回報・${escHtml(r.cat || '')}` : `📝 回饋・${escHtml(r.mon || '')}　${escHtml(r.rate || '')}`;
-  const stat = r => r.type !== 'bug' ? '' : r.status === 'approved' ? `<span style="color:var(--gr)">✓ 已確認${r.claimed ? '（學生已領）' : '（等學生登入領取）'}</span>` : r.status === 'rejected' ? '<span style="color:#e5705f">✗ 不採用</span>' : '<span style="color:var(--gold)">待確認</span>';
-  const draw = () => {
-    const list = rows.filter(r => r.type !== 'award');
-    const pend = list.filter(r => r.type === 'bug' && (r.status || 'pending') === 'pending').length;
-    const cnt = {}; list.forEach(r => { if (r.type === 'bug' && r.status === 'approved') (cnt[r.docId] = cnt[r.docId] || { n: 0, who: `${r.cls} ${r.seat}號 ${r.name}` }).n++; });
-    const given = new Set(rows.filter(r => r.type === 'award' && r.award === 'bugking').map(r => r.docId));
-    const rank = Object.entries(cnt).sort((a, b) => b[1].n - a[1].n).slice(0, 5);
-    const rankHtml = rank.length ? `<div class="p-2 mb-2" style="border:1px solid var(--gold);border-radius:8px"><div class="text-sm font-black" style="color:var(--gold)">🐛 抓蟲排行（只算已確認的）</div>${rank.map(([id, c], i) => `<div class="flex items-center gap-2 text-sm py-0.5"><span>${i === 0 ? '👑' : (i + 1) + '.'}</span><span class="flex-1">${escHtml(c.who)}　${c.n} 個</span>${given.has(id) ? '<span style="color:var(--gr)">✓ 已頒發「職業除錯師」</span>' : `<button data-king="${escHtml(id)}" class="btn btn-gold text-xs px-2 py-1">頒發「職業除錯師」</button>`}</div>`).join('')}<div class="text-xs" style="color:var(--dim)">頒發後，學生下次進新世界會收到「職業除錯師」稱號詞條。可以頒給不只一位。</div></div>` : '';
-    sum.textContent = `共 ${list.length} 則，其中問題回報待確認 ${pend} 則。「✓ 確認」的回報，學生下次進新世界會收到字元與稱號；亂寫的按「✗ 不採用」就不會有獎勵。`;
-    body.innerHTML = rankHtml + (list.length ? list.map(r => `<div class="py-2" style="border-bottom:1px solid var(--line)"><div class="text-xs" style="color:var(--dim)">${escHtml(r.cls)} ${escHtml(String(r.seat))}號 ${escHtml(r.name)}　${label(r)}　${new Date(r.t || 0).toLocaleString()}　${stat(r)}</div><div class="flex gap-2 items-start flex-wrap"><div class="flex-1" style="white-space:pre-wrap;min-width:200px">${escHtml(r.text || '（沒有寫字）')}</div>${r.type === 'bug' && (r.status || 'pending') === 'pending' ? `<button data-ok="${r.id}" class="btn btn-gold text-xs px-2 py-1">✓ 確認</button><button data-no="${r.id}" class="btn btn-ghost text-xs px-2 py-1">✗ 不採用</button>` : ''}<button data-del="${r.id}" class="btn btn-ghost text-xs px-2 py-1">刪除</button></div></div>`).join('') : '<div style="color:var(--dim)">還沒有回饋</div>');
-  };
-  try {
-    for (const type of ['bug', 'feedback', 'award']) {
-      const sn = await withTimeout(getDocs(query(collection(db, 'mg_nw_flags'), where('type', '==', type))), 8000, '讀取逾時');
-      sn.forEach(d => rows.push({ id: d.id, ...d.data() }));
-    }
-    rows.sort((a, b) => ((a.type === 'bug' && (a.status || 'pending') === 'pending') ? 0 : 1) - ((b.type === 'bug' && (b.status || 'pending') === 'pending') ? 0 : 1) || (b.t || 0) - (a.t || 0)); draw();
-  } catch (e) { body.textContent = '讀取失敗，再試一次'; }
-  const setStatus = async (id, status) => {
-    try { await withTimeout(setDoc(doc(db, 'mg_nw_flags', id), { status }, { merge: true }), 5000, '儲存逾時'); const r = rows.find(x => x.id === id); if (r) r.status = status; draw(); toast(status === 'approved' ? '已確認，學生登入就會收到獎勵' : '已標示不採用'); }
-    catch (err) { toast('操作失敗，再試一次'); }
-  };
-  ov.addEventListener('click', async e => {
-    if (e.target.closest('[data-x]') || e.target === ov) { ov.remove(); return; }
-    if (e.target.closest('[data-copy]')) { try { await navigator.clipboard.writeText(rows.filter(r => r.type !== 'award').map(r => `${r.cls} ${r.seat}號 ${r.name}｜${r.type === 'bug' ? '問題回報' : r.mon}｜${r.rate || r.cat || ''}｜${r.text || ''}`).join('\n')); toast('已複製'); } catch (err) { toast('複製失敗'); } return; }
-    const king = e.target.closest('[data-king]');
-    if (king) {
-      const id = king.dataset.king, src = rows.find(r => r.type === 'bug' && r.docId === id);
-      try {
-        const rec = { type: 'award', award: 'bugking', status: 'approved', claimed: false, docId: id, cls: src.cls, seat: src.seat, name: src.name, t: Date.now() };
-        await withTimeout(setDoc(doc(db, 'mg_nw_flags', 'award_bugking_' + id), rec), 5000, '儲存逾時');
-        rows.push({ id: 'award_bugking_' + id, ...rec }); draw(); toast('已頒發，學生下次進新世界就會收到');
-      } catch (err) { toast('操作失敗，再試一次'); }
-      return;
-    }
-    const ok = e.target.closest('[data-ok]'); if (ok) { setStatus(ok.dataset.ok, 'approved'); return; }
-    const no = e.target.closest('[data-no]'); if (no) { setStatus(no.dataset.no, 'rejected'); return; }
-    const d = e.target.closest('[data-del]');
-    if (d && confirm('刪掉這則？')) { try { await withTimeout(deleteDoc(doc(db, 'mg_nw_flags', d.dataset.del)), 5000, '刪除逾時'); rows = rows.filter(r => r.id !== d.dataset.del); draw(); } catch (err) { toast('刪除失敗'); } }
-  });
-}
-
 async function saveConfig() {
   const cfg = {
     duration:   parseInt($('tc-duration').value) || 600,
@@ -7639,11 +7693,12 @@ async function saveConfig() {
     balanceVer: BALANCE.ver          // 存進去之後 applyConfig() 就不會再判定成舊版設定
   };
   try {
-    await setDoc(REF.config, cfg, { merge: true });
+    const adb = await ensureAdmin();
+    await setDoc(doc(adb, 'mg_config', 'settings'), cfg, { merge: true });
     toast('設定已同步給全班');
     CFG.legacyConfig = false;
     show('tc-legacy-notice', false);
-  } catch (e) { console.error(e); toast('儲存失敗'); }
+  } catch (e) { adminErr(e, '儲存設定'); }
 }
 
 /* ── 注音校對台 ─────────────────────────────────────── */
@@ -8020,12 +8075,13 @@ async function clearScores() {
   const btn = $('sc-clear');
   btn.disabled = true; btn.textContent = '刪除中…';
   try {
+    const adb = await ensureAdmin();
     const snap = await getDocs(REF.scores);
-    await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
+    await Promise.all(snap.docs.map(d => deleteDoc(doc(adb, 'mg_scores', d.id))));
     scoreCache = [];
     renderScores();
     toast('已清空所有成績');
-  } catch (e) { console.error(e); toast('清空失敗'); }
+  } catch (e) { adminErr(e, '清空成績'); }
   btn.disabled = false; btn.textContent = '清空所有成績紀錄';
 }
 

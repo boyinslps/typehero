@@ -1,14 +1,14 @@
 /* 新世界預告＋提名投票（index.html 的 #nw-modal、nw-preview.js）。用法見 README.md */
 const { chromium } = require('playwright'); const fs = require('fs');
 const path = require('path'); const M = path.join(__dirname, 'mock') + '/'; const OUT = process.argv[2] || require('os').tmpdir();
-const css = fs.existsSync(OUT + '/tw.css') ? fs.readFileSync(OUT + '/tw.css', 'utf8') : '';
+const css = require('./tw.js')(OUT);
 let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++; };
 (async () => {
   const b = await chromium.launch();
   const p = await b.newPage({ viewport: { width: 1366, height: 820 } });
   const errs = []; p.on('dialog', d => d.accept());
   p.on('pageerror', e => errs.push('pageerror: ' + e.message));
-  await p.addInitScript(() => { window.__FS = {}; localStorage.clear(); window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas'); });
+  await p.addInitScript(() => { window.__FS = { 'mg_admins/T1': { ok: true } }; window.__RULES = true; window.__ADMIN_PRESIGNED = { uid: 'T1', email: 'teacher@example.test' }; localStorage.clear(); window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas'); });
   await p.route('**/*', r => {
     const u = r.request().url();
     if (u.startsWith('http://localhost')) return r.continue();
