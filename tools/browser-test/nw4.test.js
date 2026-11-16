@@ -13,10 +13,10 @@ async function open(browser, o = {}) {
   const hash = await sha256Hex('Test-Pass_9!x');
   const seed = {
     ['mg_scores/' + ID]: { className: '五年級3班', seat: 5, name: '小明', bestLevel: 10, bestScore: 20, scoreVer: 2, plays: 9, tutorialDone: true, talentIntroDone: true, tier: 'B', balanceVer: 3,
-      nw: Object.assign({ v: 1, savedAt: 5, look: { style: 1, hair: 2, skin: 1 }, starter: 'dagger', quest: { done: ['1-0'] }, items: { potion: 3 } }, o.nw || {}) }
+      nw: Object.assign({ v: 1, savedAt: 5, look: { style: 1, hair: 2, skin: 1 }, starter: 'dagger', quest: { done: ['1-0', '1-0a'] }, items: { potion: 3 } }, o.nw || {}) }
   };
   if (o.gift) { const h = await sha256Hex('gift:' + cleanCode(o.gift.code)); seed['mg_config/gift_codes'] = { codes: { [h]: Object.assign({ used: 0, label: '測試' }, o.gift.entry) } }; }
-  await p.addInitScript(a => { window.__FS = a.s; localStorage.clear(); localStorage.setItem('mg_nw_fast', '1'); window.__NW_CODE_HASH__ = a.hash; localStorage.setItem('mg_nw_code', a.hash); if (a.nogift) window.__NW_NOGIFT__ = true; if (a.atk) window.__NW_ATTACKS__ = []; window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas'); }, { s: seed, hash, nogift: !o.early, atk: o.noattack });
+  await p.addInitScript(a => { window.__FS = a.s; localStorage.clear(); localStorage.setItem('mg_nw_fast', '1'); window.__NW_CODE_HASH__ = a.hash; localStorage.setItem('mg_nw_code', a.hash); if (!a.intro) window.__NW_NOINTRO__ = true; if (a.nogift) window.__NW_NOGIFT__ = true; if (a.atk) window.__NW_ATTACKS__ = []; window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas'); }, { s: seed, hash, nogift: !o.early, atk: o.noattack, intro: o.intro });
   await p.route('**/*', r => {
     const u = r.request().url();
     if (u.startsWith('http://localhost')) return r.continue();
@@ -68,6 +68,12 @@ async function winHunt(p, rk, mk, star) {
     ok((await p.textContent('#nw-tour')).includes('第 1 / 3 步'), '沒按背包就一直等在第 1 步');
     await p.click('[data-act="bagopen"]'); await p.waitForTimeout(500);
     ok((await p.textContent('#nw-tour')).includes('第 2 / 3 步') && (await p.textContent('#nw-tour')).includes('測試者之刃'), '打開背包後，換成第 2 步：點測試者之刃');
+    await p.click('#nw-bag [data-bag-close]'); await p.waitForTimeout(400);
+    ok((await p.textContent('#nw-tour')).includes('第 1 / 3 步'), '第 2 步時太快把背包關掉：退回第 1 步，不會指著不存在的按鈕');
+    await p.click('[data-act="bagq"]'); await p.waitForTimeout(400);
+    ok((await p.textContent('#nw-tour')).includes('裝備背包') && await p.$('#nw-bag [data-equip="testblade"]') === null, '背包開在「任務」那一頁：提示改成請你先點「裝備背包」那一頁');
+    await p.click('#nw-bag [data-bag-tab="equip"]'); await p.waitForTimeout(400);
+    ok((await p.textContent('#nw-tour')).includes('測試者之刃'), '切到裝備背包以後，回到「點測試者之刃」');
     await p.click('#nw-bag [data-equip="testblade"]'); await p.waitForTimeout(500);
     ok((await p.textContent('#nw-tour')).includes('第 3 / 3 步'), '換上武器後，第 3 步：關閉背包');
     await p.screenshot({ path: OUT + '/nw4-tour.png' });
@@ -131,6 +137,8 @@ async function winHunt(p, rk, mk, star) {
     await p.click('.vb[data-bld="academy"]'); await p.waitForSelector('#nw-acad');
     ok((await p.$$('#nw-acad [data-l]')).length === 4 && (await p.textContent('#nw-acad')).includes('閃避') && (await p.textContent('#nw-acad')).includes('防禦') && (await p.textContent('#nw-acad')).includes('攻擊'), '教學大樓：有攻擊、閃避、防禦、換裝備四堂課');
     ok(await p.isDisabled('#nw-acad [data-l="equip"]'), '還沒拿到新武器：換裝備那堂先鎖著');
+    await p.keyboard.press('Enter'); await p.waitForTimeout(500);
+    ok((await p.$$('#nw-acad')).length === 1, '教學大樓裡按 Enter：不會又彈出一個建築畫面');
     await p.screenshot({ path: OUT + '/nw4-academy.png' });
     await p.click('#nw-acad [data-l="dodge"]'); await p.waitForSelector('#nw-acad [data-go]', { timeout: 15000 });
     ok((await p.textContent('#nw-acad [data-say]')).includes('看示範') && await p.$('#nw-acad [data-again]') !== null, '閃避課：先演示一遍，可以再看一次');
@@ -153,6 +161,16 @@ async function winHunt(p, rk, mk, star) {
     const dd = await danger(); const safe = [0, 1, 2].find(l => !dd.some(x => x.lane === l));
     ln = await p.evaluate(() => window.__acScene.lane);
     for (let i = 0; i < 2 && await p.evaluate(() => window.__acScene.lane) !== safe; i++) { await p.keyboard.press(await p.evaluate(() => window.__acScene.lane) > safe ? 'ControlLeft' : 'ControlRight'); await p.waitForTimeout(80); }
+    await p.waitForSelector('#nw-acad [data-in]', { timeout: 15000 });
+    ok((await p.textContent('#nw-acad [data-say]')).includes('實戰'), '三步練習之後，還要把稻草魔物打倒（實戰）');
+    for (let k = 0; k < 5; k++) {
+      await p.waitForSelector('#nw-acad [data-in]', { timeout: 15000 });
+      const w = await p.textContent('#nw-acad .ac-word');
+      await p.fill('#nw-acad [data-in]', 'x'); await p.press('#nw-acad [data-in]', 'Enter'); await p.waitForTimeout(150);
+      if (k === 0) ok((await p.textContent('#nw-acad [data-say]')).includes('字不一樣'), '打錯字：要再打一次，魔物不會倒');
+      await p.waitForSelector('#nw-acad [data-in]', { timeout: 15000 });
+      await p.fill('#nw-acad [data-in]', w); await p.press('#nw-acad [data-in]', 'Enter'); await p.waitForTimeout(150);
+    }
     await p.waitForSelector('#nw-gift', { timeout: 15000 });
     ok((await p.textContent('#nw-gift')).includes('字元 ×200'), '三步都過：「閃避」學會了，收到 200 字元禮物');
     await p.click('#nw-gift [data-ok]'); await p.waitForTimeout(500);
@@ -163,17 +181,22 @@ async function winHunt(p, rk, mk, star) {
 
   {
     const p = await open(b, { nw: { hunts: 1 } });
-    await p.click('[data-act="bug"]'); await p.waitForSelector('[data-text]');
-    await p.fill('[data-text]', '很'); await p.click('[data-send]'); await p.waitForTimeout(200);
-    ok((await p.textContent('body')).includes('至少 5 個字'), '回報太短：請多寫幾個字');
-    await p.click('[data-c="按鍵／操作"]'); await p.fill('[data-text]', '按左 Ctrl 的時候角色沒有動');
+    await p.click('[data-act="bug"]'); await p.waitForSelector('[data-did]');
+    const bt = await p.textContent('.nw-sheet');
+    ok(bt.includes('做了什麼事') && bt.includes('錯誤狀況') && bt.includes('好的例子') && bt.includes('不好的例子') && bt.includes('職業除錯師'), '回報問題：說明要寫「做了什麼事」和「出現什麼錯誤狀況」，附好壞例子，提到抓最多有特別稱號');
+    await p.screenshot({ path: OUT + '/nw4-bug.png' });
+    await p.fill('[data-did]', '很'); await p.click('[data-send]'); await p.waitForTimeout(200);
+    ok((await p.textContent('body')).includes('你做了什麼事'), '只寫一個字：提醒第 ① 欄要多寫');
+    await p.fill('[data-did]', '我連續按左 Ctrl'); await p.click('[data-send]'); await p.waitForTimeout(200);
+    ok((await p.textContent('body')).includes('出現了什麼錯誤狀況'), '第 ② 欄沒寫：提醒要寫錯誤狀況');
+    await p.click('[data-c="按鍵／操作"]'); await p.fill('[data-did]', '我連續按左 Ctrl 三次'); await p.fill('[data-what]', '角色沒有動，也沒有換線');
     await p.click('[data-send]'); await p.waitForSelector('#nw-gift', { timeout: 5000 });
     ok((await p.textContent('#nw-gift')).includes('回報收到了') && (await p.textContent('#nw-gift')).includes('老師看過'), '回報問題：送出後只說收到了，要老師確認才有獎勵');
     await p.click('#nw-gift [data-ok]'); await p.waitForTimeout(400);
     let nw0 = await p.evaluate(() => JSON.parse(localStorage.getItem('mg_nw_五年級3班_5號')));
     ok(nw0.bugs === 0 && nw0.bugsSent === 1 && nw0.coins === 0 && !nw0.words.includes('bughunter'), '老師還沒確認：沒有字元、沒有除蟲員');
     const bug = await p.evaluate(() => Object.entries(window.__FS).filter(([, v]) => v && v.type === 'bug'));
-    ok(bug.length === 1 && bug[0][1].status === 'pending' && bug[0][1].cat === '按鍵／操作' && bug[0][1].text.includes('左 Ctrl'), '回報存進 mg_nw_flags（type: bug、待確認），老師看得到');
+    ok(bug.length === 1 && bug[0][1].status === 'pending' && bug[0][1].cat === '按鍵／操作' && bug[0][1].text.includes('【我做了什麼】') && bug[0][1].text.includes('【錯誤狀況】') && bug[0][1].did.includes('左 Ctrl') && bug[0][1].what.includes('沒有動'), '回報存進 mg_nw_flags（type: bug、待確認），老師看得到');
     await p.click('[data-act="book"]'); await p.waitForTimeout(500);
     ok(await p.$('#nw-gift') === null && (await p.textContent('body')).includes('老師確認 0 個'), '老師還沒確認：手冊上寫老師確認 0 個');
     await p.click('body [data-close]').catch(() => {});
@@ -192,6 +215,57 @@ async function winHunt(p, rk, mk, star) {
     const nw = await p.evaluate(() => JSON.parse(localStorage.getItem('mg_nw_五年級3班_5號')));
     ok(nw.bugs === 1 && nw.words.includes('bughunter') && nw.tm.m_bug1 === 1 && nw.coins >= 35, '除蟲員詞條、任務蓋章與字元存進存檔');
     ok(await p.evaluate(k => window.__FS[k].claimed, bug[0][0]) === true, '回報標成「已領」，不會重複領');
+    ok(p.errs.length === 0, '沒有 JS 錯誤 ' + p.errs.join(' | '));
+    await p.close();
+  }
+
+  {
+    const p = await open(b, { nw: { hunts: 1 } });
+    await p.evaluate(() => { window.__FS['mg_nw_flags/award_bugking_五年級3班_5號'] = { type: 'award', award: 'bugking', status: 'approved', claimed: false, docId: '五年級3班_5號', t: 1 }; });
+    await p.waitForTimeout(21000);
+    await p.click('[data-act="book"]'); await p.waitForSelector('#nw-gift', { timeout: 6000 });
+    ok((await p.textContent('#nw-gift')).includes('職業除錯師'), '老師頒發「職業除錯師」後：學生進手冊就收到通知');
+    await p.click('#nw-gift [data-ok]'); await p.waitForTimeout(400);
+    const nwk = await p.evaluate(() => JSON.parse(localStorage.getItem('mg_nw_五年級3班_5號')));
+    ok(nwk.words.includes('bugking') && nwk.awards.bugking === 1 && await p.evaluate(() => window.__FS['mg_nw_flags/award_bugking_五年級3班_5號'].claimed) === true, '「職業除錯師」詞條存進存檔，標成已領，不會重複領');
+    ok(p.errs.length === 0, '沒有 JS 錯誤 ' + p.errs.join(' | '));
+    await p.close();
+  }
+
+  {
+    const p = await open(b, { intro: true, lobby: true, nw: { quest: { done: ['1-0'] }, hunts: 0 } });
+    await p.click('#nw-door'); await p.waitForSelector('#nw-intro', { timeout: 6000 });
+    ok((await p.textContent('#nw-intro')).includes('歡迎來到獵人村') && (await p.textContent('#nw-intro')).includes('1 / 3'), '第一次進村：先跳出介紹（第 1 頁：怎麼走路、怎麼進房子）');
+    await p.click('#nw-intro [data-next]');
+    ok((await p.textContent('#nw-intro')).includes('任務系統') && (await p.textContent('#nw-intro')).includes('黃色的箭頭') && (await p.textContent('#nw-intro')).includes('教學大樓'), '第 2 頁：任務系統介紹（金色📌、地板箭頭、第一個任務是教學大樓）');
+    await p.click('#nw-intro [data-next]');
+    ok((await p.textContent('#nw-intro')).includes('測試員手冊') && (await p.textContent('#nw-intro')).includes('回報問題'), '第 3 頁：上面每個按鈕是做什麼的');
+    await p.click('#nw-intro [data-next]'); await p.waitForTimeout(400);
+    ok(await p.$('#nw-intro') === null && (await p.$('#nw-notice')) === null && (await p.textContent('[data-act="bagq"]')).includes('教學大樓'), '第一次來的新人：看完介紹就好，不會再跳改版公告；上面金色任務寫「到教學大樓學會三堂課」');
+    ok(await p.evaluate(() => JSON.parse(localStorage.getItem('mg_nw_五年級3班_5號')).seenNotice) === '2026-11-12', '新人的公告直接記成已讀');
+    await p.click('[data-act="notice"]'); await p.waitForSelector('#nw-notice');
+    ok((await p.textContent('#nw-notice')).includes('佈告欄') && (await p.textContent('#nw-notice')).includes('新世界改版啦') && (await p.textContent('#nw-notice')).includes('標點符號挑戰') && (await p.textContent('#nw-notice')).includes('職業除錯師'), '佈告欄按鈕：可以再看改版內容');
+    await p.click('#nw-notice [data-close]'); await p.waitForTimeout(300);
+    await p.click('.vb[data-bld="academy"]'); await p.waitForSelector('#nw-intro', { timeout: 5000 });
+    ok((await p.textContent('#nw-intro')).includes('教學大樓') && (await p.textContent('#nw-intro')).includes('打 5 下'), '第一次進教學大樓：先介紹這裡能做什麼');
+    await p.click('#nw-intro [data-next]'); await p.waitForSelector('#nw-acad');
+    await p.click('#nw-acad [data-close]'); await p.waitForTimeout(500);
+    await p.click('.vb[data-bld="academy"]'); await p.waitForSelector('#nw-acad', { timeout: 5000 });
+    ok(await p.$('#nw-intro') === null, '第二次進教學大樓：不再介紹');
+    ok(await p.evaluate(() => JSON.parse(localStorage.getItem('mg_nw_五年級3班_5號')).intro.hub) === 1, '看過的介紹記在存檔');
+    ok(p.errs.length === 0, '沒有 JS 錯誤 ' + p.errs.join(' | '));
+    await p.close();
+  }
+
+  {
+    const p = await open(b, { intro: true, lobby: true, nw: { quest: { done: ['1-0'] }, hunts: 3, intro: { hub: 1 } } });
+    await p.click('#nw-door'); await p.waitForSelector('#nw-notice', { timeout: 6000 });
+    ok((await p.textContent('#nw-notice')).includes('新世界改版啦') && (await p.textContent('#nw-notice')).includes('只會跳一次') && (await p.textContent('#nw-notice')).includes('佈告欄'), '老玩家進新世界：跳出改版公告，說明只跳一次、想再看去佈告欄');
+    await p.screenshot({ path: OUT + '/nw4-notice.png' });
+    await p.click('#nw-notice [data-close]'); await p.waitForTimeout(400);
+    await p.click('[data-act="leave"]'); await p.waitForTimeout(600);
+    await p.click('#nw-door'); await p.waitForTimeout(1500);
+    ok(await p.$('#nw-notice') === null && await p.isVisible('#nw-root'), '再進去：不會再跳');
     ok(p.errs.length === 0, '沒有 JS 錯誤 ' + p.errs.join(' | '));
     await p.close();
   }

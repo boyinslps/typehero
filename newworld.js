@@ -129,39 +129,30 @@ export function initNewWorld(C) {
     return true;
   }
 
-  function showTicket(code) {
+  function showTicket() {
     const sheet = document.createElement('div');
-    sheet.id = 'nw-ticket'; sheet.className = 'fixed inset-0 z-[95] grid place-items-center p-4'; sheet.style.background = 'rgba(9,8,18,.9)';
+    sheet.id = 'nw-ticket'; sheet.className = 'nw-sheet fixed inset-0 z-[95] grid place-items-center p-4'; sheet.style.background = 'rgba(9,8,18,.9)';
     sheet.innerHTML = `<div class="px-panel text-center" style="max-width:420px;width:100%;padding:20px">
-      <div class="px-title" style="font-size:1.5em">${PX.badge(3, 4)} 搶先體驗券</div>
-      <p class="px-text mt-2">標點符號挑戰通關！老師送你「新世界」的搶先體驗號碼：</p>
-      <div class="px-panel in mono mt-2" style="padding:12px;font-size:1.4em;letter-spacing:.06em;word-break:break-all;user-select:all" data-code></div>
-      <p class="px-text mt-3" style="font-size:.95em">已經幫你開通了！回到大廳，點「新世界之門」就能進去。</p>
-      <p class="text-xs mt-1" style="color:#aab0d8">這組號碼只給練過的同學，先不要告訴別人喔。</p>
+      <div class="px-title" style="font-size:1.5em">${PX.badge(3, 4)} 🎫 新世界門票</div>
+      <p class="px-text mt-2">標點符號挑戰全部通關！你拿到「新世界門票」了！</p>
+      <p class="px-text mt-3" style="font-size:.95em">新世界已經幫你開通！回到大廳，點「新世界之門」就能進去。</p>
       <div class="mt-4"><button class="px-btn gold" style="padding:8px 28px" data-x>知道了</button></div></div>`;
-    sheet.querySelector('[data-code]').textContent = code;
     sheet.addEventListener('click', e => { if (e.target === sheet || e.target.closest('[data-x]')) sheet.remove(); });
     document.body.appendChild(sheet);
   }
 
-  async function reward(code) {
-    if (access) return false;
-    if (!(await redeem(code))) return false;
-    showTicket(code);
-    return true;
-  }
-
   function gate() {
-    if (access) return { ok: true, early: true };
+    /* 打完標點符號挑戰＝新世界門票；跟輸入通關密語一樣算「搶先體驗」 */
+    if (access || (C.punctDone && C.punctDone())) return { ok: true, early: true };
     const mode = C.nwMode();
-    if (mode === 'off') return { ok: false, closed: true, why: '新世界還沒開放，敬請期待！' };
+    if (mode === 'off') return { ok: false, closed: true, why: '打完「標點符號挑戰」就能進新世界！' };
     if (mode === 'all' || unlocked()) return { ok: true };
     return { ok: false, why: `把打字練到 LV ${C.unlockLevel}（解鎖史詩）才能穿過傳送門！你目前最高 LV ${C.bestLevel()}。` };
   }
 
   function openCodeSheet(after) {
     const sheet = document.createElement('div');
-    sheet.className = 'fixed inset-0 z-[80] grid place-items-center p-4';
+    sheet.className = 'nw-sheet fixed inset-0 z-[80] grid place-items-center p-4';
     sheet.style.background = 'rgba(9,8,18,.88)';
     sheet.innerHTML = `<div class="px-panel p-6 w-full max-w-md">
       <div class="text-xl font-black mb-1">🔑 搶先體驗</div>
@@ -193,11 +184,12 @@ export function initNewWorld(C) {
     for (const q of MAIN_QUESTS) {
       if (NW.quest.done.includes(q.id)) continue;
       if (q.hold && q.hold()) continue;
-      if (!q.test(NW)) break;
+      if (!q.test(NW)) { if (q.soft) continue; break; }
       NW.quest.done.push(q.id);
       const r = q.reward || {};
       if (r.items) for (const k in r.items) NW.items[k] = (NW.items[k] || 0) + r.items[k];
       if (r.hrExp) addHrExp(NW, r.hrExp);
+      if (r.coins) NW.coins += r.coins;
       if (r.bp) r.bp.forEach(b => { if (!NW.bp.includes(b)) NW.bp.push(b); });
       got.push(q);
     }
@@ -246,9 +238,11 @@ export function initNewWorld(C) {
 
   function enterBuilding(b) {
     if (b.id === 'gate') { leave(); return; }
+    /* 點過的按鈕會一直拿著焦點，之後在建築裡按 Enter 會被瀏覽器當成又點了一次 */
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     const d = doorTile(b);
     NW.pos = [d[0], d[1] + 1];
-    if (buildingOpen(b)) { ({ map: viewBoard, rank: openRank, academy: openAcademyUI }[b.act] || (() => {}))(); return; }
+    if (buildingOpen(b)) { const go = { map: viewBoard, rank: openRank, academy: openAcademyUI }[b.act] || (() => {}); introOnce(b.id === 'board' ? 'board' : b.id).then(go); return; }
     openWip(b);
   }
 
@@ -271,6 +265,7 @@ export function initNewWorld(C) {
           </div>
           <button class="px-btn gold" data-act="bagopen">🎒 背包</button>
           <button class="px-btn" data-act="gift">🎁 序號</button>
+          <button class="px-btn" data-act="notice">📢 佈告欄</button>
           <button class="px-btn" data-act="book">📓 測試員手冊</button>
           <button class="px-btn" data-act="bug">🐛 回報問題</button>
           <button class="px-btn" data-act="leave">← 回舊世界</button>
@@ -283,8 +278,7 @@ export function initNewWorld(C) {
         PX, look: myChibi(), open: VILLAGE.buildings.filter(buildingOpen).map(b => b.id),
         start: NW.pos || VILLAGE.start, scroller: root, fast: FAST, onEnter: enterBuilding, guide: guideBuilding()
       });
-      earlyGift();
-      claimBugs();
+      hubStart();
     });
   }
 
@@ -293,7 +287,7 @@ export function initNewWorld(C) {
     const extra = (b.id === 'forge' || b.id === 'storage')
       ? `<p class="text-sm mt-2" style="color:#ffd98a">你已經存了 ${matN} 個材料、${NW.bp.length} 張圖紙，開張那天就能用！</p>` : '';
     const sheet = document.createElement('div');
-    sheet.className = 'fixed inset-0 z-[80] grid place-items-center p-4';
+    sheet.className = 'nw-sheet fixed inset-0 z-[80] grid place-items-center p-4';
     sheet.style.background = 'rgba(9,8,18,.88)';
     sheet.innerHTML = `<div class="px-panel w-full max-w-md text-center">
       <div class="px-img mx-auto mb-3" data-bld style="display:inline-block;background:#0e0b16;padding:8px;border:3px solid #0a0714"></div>
@@ -497,7 +491,7 @@ export function initNewWorld(C) {
   function showGift(g) {
     return new Promise(done => {
       const sheet = document.createElement('div');
-      sheet.id = 'nw-gift'; sheet.className = 'fixed inset-0 z-[97] grid place-items-center p-3'; sheet.style.zIndex = 97; sheet.style.background = 'rgba(9,8,18,.92)';
+      sheet.id = 'nw-gift'; sheet.className = 'nw-sheet fixed inset-0 z-[97] grid place-items-center p-3'; sheet.style.zIndex = 97; sheet.style.background = 'rgba(9,8,18,.92)';
       sheet.innerHTML = `<style>@keyframes giftPop{0%{transform:scale(.4) rotate(-8deg)}60%{transform:scale(1.12) rotate(3deg)}100%{transform:scale(1) rotate(0)}}@keyframes giftBob{50%{transform:translateY(-6px)}}</style>
         <div class="px-panel text-center" style="max-width:420px;width:100%;padding:20px;animation:giftPop .5s ease-out">
           <div class="px-title" style="font-size:1.5em">🎁 收到禮物！</div>
@@ -523,7 +517,79 @@ export function initNewWorld(C) {
     return null;
   }
 
-  const guideBuilding = () => (NW.hunts === 0 && !(NW.tut && NW.tut.attack) && !NW.tutSkip) ? 'academy' : (goalOf(NW) ? goalOf(NW).building : null);
+  const guideBuilding = () => (goalOf(NW) ? goalOf(NW).building : null);
+
+  const INTROS = {
+    hub: [
+      { icon: '🏘', title: '歡迎來到獵人村', text: '這裡是新世界的大廳。用 W A S D 或方向鍵走路，也可以用滑鼠點想去的地方。想進房子：點一下房子，或站在門口按 Enter。灰色的房子還在施工中。' },
+      { icon: '📌', title: '任務系統', text: '上面金色的「📌」就是你現在的任務，做完會有獎勵。地上黃色的箭頭會帶你走到目的地，房子上面彈跳的箭頭就是要去的地方。點「📌」可以看任務怎麼做。現在的第一個任務：到教學大樓學會三堂課！' },
+      { icon: '🧰', title: '上面的按鈕', text: '🎒 背包：看裝備、道具、稱號。📢 佈告欄：新世界改了什麼，都貼在這裡。🎁 序號：輸入老師給的序號領禮物。📓 測試員手冊：新世界還在試玩，完成測試任務有獎勵。🐛 回報問題：發現哪裡怪怪的，告訴我們。' }
+    ],
+    academy: [{ icon: '🏫', title: '教學大樓', text: '這裡有閃避、防禦、打字三堂課。每一堂都是先看示範，再自己一步一步做；沒做對會一直等你，做對才換下一步；最後還要把稻草魔物打倒（打 5 下）。學會一堂送 200 字元！' }],
+    board: [{ icon: '📜', title: '委託板', text: '選一張委託單，右邊的大地圖會亮起魔物住的地方。有紅色「任務目標」標籤的，就是現在任務要打的魔物。按「狩獵」開房間，再按「出發」就開打。★ 越多越難，打贏低星才會開高星。' }],
+    bag: [{ icon: '🎒', title: '背包', text: '左邊是你的角色和 5 個裝備格，點名字下面的稱號可以自己拚稱號。右邊的分頁看裝備、道具、材料、圖紙、任務、圖鑑。拿到新武器，點格子裡的武器就能換上。' }],
+    title: [{ icon: '🏅', title: '自己拚稱號', text: '稱號是用「詞條」拚的：一次選 1～3 個，順序自己決定。灰色的詞條還沒解鎖，會寫怎麼拿。打贏魔物、完成任務、抓蟲都能解鎖新詞條。' }],
+    book: [{ icon: '📓', title: '測試員手冊', text: '新世界還在試玩，你是第一批冒險者！每完成一個任務就蓋一個章，拿字元和稱號詞條。字元是新世界的貨幣，之後可以買東西、打造裝備。' }],
+    gift: [{ icon: '🎁', title: '序號禮物', text: '老師會發序號給你。在這裡輸入（輸入的字會藏起來），就能領禮物，領到會跳出通知。每組序號每個人只能領一次。' }]
+  };
+  function introOnce(key) {
+    return new Promise(res => {
+      const pages = INTROS[key];
+      if (!pages || NW.intro[key] || window.__NW_NOINTRO__) return res();
+      let i = 0;
+      const sheet = document.createElement('div');
+      sheet.id = 'nw-intro'; sheet.className = 'nw-sheet fixed inset-0 grid place-items-center p-3'; sheet.style.zIndex = 99; sheet.style.background = 'rgba(9,8,18,.88)';
+      const draw = () => {
+        const p = pages[i];
+        sheet.innerHTML = `<div class="px-panel text-center" style="max-width:460px;width:100%;padding:20px">
+          <div style="font-size:48px;line-height:1.1">${p.icon}</div>
+          <div class="px-title mt-2" style="font-size:1.5em">${p.title}</div>
+          <p class="px-text mt-3" style="font-size:1.05em;line-height:1.6;text-align:left">${p.text}</p>
+          <div class="flex items-center justify-between mt-4"><span class="px-text text-sm" style="color:#aab0d8">${pages.length > 1 ? `${i + 1} / ${pages.length}` : ''}</span>
+            <button class="px-btn gold" data-next style="padding:8px 26px">${i + 1 < pages.length ? '下一頁 ▶' : '知道了 ✓'}</button></div></div>`;
+      };
+      sheet.addEventListener('click', e => {
+        if (!e.target.closest('[data-next]')) return;
+        if (++i < pages.length) { draw(); return; }
+        NW.intro[key] = 1; saveNw(); sheet.remove(); res();
+      });
+      draw(); document.body.appendChild(sheet);
+    });
+  }
+  /* 改版公告：新的公告才跳一次；第一次來的人剛看完介紹，不用再看「改了什麼」，直接記成已讀 */
+  const NOTICES = [
+    { id: '2026-11-12', date: '11 月 12 日', title: '新世界改版啦！', items: [
+      '🎫 打完「標點符號挑戰」就能進新世界！新練法：符號先看一次，再練 3 個，最後打怪 5 句。',
+      '📌 第一次進村有介紹，任務箭頭會先帶你去「教學大樓」。每棟房子第一次進去也會說明。',
+      '🏫 教學大樓每堂課最後要把稻草魔物打倒（打 5 下）。',
+      '🐛 「回報問題」要寫清楚：做了什麼事、出現什麼錯誤狀況。抓得最多的人，老師會頒發特別稱號「職業除錯師」。',
+      '🎒 修好了：太快點背包，換裝備教學會卡住。'
+    ] }
+  ];
+  function openNotice(auto) {
+    return new Promise(res => {
+      const list = auto ? NOTICES.slice(0, 1) : NOTICES;
+      const sheet = document.createElement('div');
+      sheet.id = 'nw-notice'; sheet.className = 'nw-sheet fixed inset-0 overflow-y-auto p-3'; sheet.style.zIndex = 98; sheet.style.background = 'rgba(9,8,18,.9)';
+      sheet.innerHTML = `<div class="px-panel" style="max-width:520px;width:100%;padding:18px;margin:0 auto">
+        <div class="px-title" style="font-size:1.5em">📢 佈告欄</div>
+        ${list.map(n => `<div class="px-panel in mt-3" style="padding:10px 12px"><div class="px-text" style="color:#ffd98a;font-weight:900;font-size:1.1em">${n.title}　<span class="text-xs" style="color:#aab0d8;font-weight:400">${n.date}</span></div>
+          <ul class="px-text mt-1" style="font-size:.98em;line-height:1.65;list-style:none;padding:0">${n.items.map(t => `<li style="margin-top:4px">${t}</li>`).join('')}</ul></div>`).join('')}
+        <p class="text-xs mt-3" style="color:#aab0d8">${auto ? '這個只會跳一次。想再看，按上面的「📢 佈告欄」。' : '舊的公告也都留在這裡。'}</p>
+        <div class="text-right mt-3"><button class="px-btn gold" data-close style="padding:8px 26px">知道了 ✓</button></div></div>`;
+      sheet.addEventListener('click', e => {
+        if (e.target !== sheet && !e.target.closest('[data-close]')) return;
+        NW.seenNotice = NOTICES[0].id; saveNw(); sheet.remove(); res();
+      });
+      document.body.appendChild(sheet);
+    });
+  }
+  async function noticeOnce(fresh) {
+    if (NW.seenNotice === NOTICES[0].id || window.__NW_NOINTRO__) return;
+    if (fresh) { NW.seenNotice = NOTICES[0].id; saveNw(); return; }
+    await openNotice(true);
+  }
+  async function hubStart() { const fresh = !NW.intro.hub; await introOnce('hub'); await noticeOnce(fresh); await earlyGift(); claimBugs(); }
 
   async function awardMissions() {
     const ms = checkMissions(NW);
@@ -544,12 +610,27 @@ export function initNewWorld(C) {
   async function weaponTour() {
     const key = NW.gw[NW.gw.length - 1] || NW.starter;
     const name = (weaponInfo(key) || {}).name || '新武器';
+    const bagOpen = () => !!document.getElementById('nw-bag'), equipped = () => curWeapon(NW) === key;
+    const equipBtn = () => document.querySelector(`#nw-bag [data-equip="${key}"]`);
     const ok = await tour([
-      { text: '先打開背包：按這個「🎒 背包」按鈕（也可以按鍵盤的 B）。', target: () => document.querySelector('[data-act="bagopen"]'), done: () => !!document.getElementById('nw-bag') },
-      { text: `點一下「${name}」，把它換到手上！`, target: () => document.querySelector(`#nw-bag [data-equip="${key}"]`), done: () => curWeapon(NW) === key },
+      { text: '先打開背包：按這個「🎒 背包」按鈕（也可以按鍵盤的 B）。', target: () => document.querySelector('[data-act="bagopen"]'), done: () => bagOpen() || equipped() },
+      /* 背包可能被開在「任務」那一頁，或太快又被關掉，所以要能指到別的地方、也能退回第 1 步 */
+      { text: () => equipBtn() || !bagOpen() ? `點一下「${name}」，把它換到手上！` : '先點上面的「⚔ 裝備背包」那一頁。',
+        target: () => equipBtn() || document.querySelector('#nw-bag [data-bag-tab="equip"]'), done: () => equipped(), back: () => !bagOpen() && !equipped() },
       { text: '換好了！看看左邊的角色，手上換成新武器了。按「關閉」回到村莊。', target: () => document.querySelector('#nw-bag [data-bag-close]'), done: () => !document.getElementById('nw-bag') }
     ], { title: '換裝備教學' });
     if (ok && !NW.tut.equip) { NW.tut.equip = 1; saveNw(); }
+  }
+
+  /* 老師在控制台頒發的特別稱號（抓蟲最多的人）；跟回報獎勵一樣，學生進村才領 */
+  async function claimAwards() {
+    const sn = await C.withTimeout(C.getDocs(C.query(C.collection(C.db, 'mg_nw_flags'), C.where('type', '==', 'award'), C.where('docId', '==', ME.docId))), 6000, 'awards');
+    const got = []; sn.forEach(d => { const x = d.data(); if (x.status === 'approved' && !x.claimed && x.award === 'bugking') got.push(d.id); });
+    if (!got.length) return;
+    for (const id of got) await C.withTimeout(C.setDoc(C.doc(C.db, 'mg_nw_flags', id), { claimed: true }, { merge: true }), 5000, 'award-claim');
+    NW.awards = Object.assign(NW.awards || {}, { bugking: 1 });
+    const ws = checkWords(NW); saveNw();
+    await showGift({ icon: '👑', title: '職業除錯師！', note: `你是抓蟲抓得最多的人，老師頒給你特別稱號「職業除錯師」！${ws.length ? '到背包的稱號裡就能戴上。' : ''}` });
   }
 
   let claiming = false, claimedAt = 0;
@@ -558,6 +639,7 @@ export function initNewWorld(C) {
     claiming = true; claimedAt = Date.now();
     try {
       const sn = await C.withTimeout(C.getDocs(C.query(C.collection(C.db, 'mg_nw_flags'), C.where('type', '==', 'bug'), C.where('docId', '==', ME.docId))), 6000, 'bugs');
+      await claimAwards();
       const ready = []; sn.forEach(d => { const x = d.data(); if (x.status === 'approved' && !x.claimed) ready.push({ id: d.id, t: x.t || 0 }); });
       if (!ready.length) return;
       ready.sort((p, q) => p.t - q.t);
@@ -575,12 +657,18 @@ export function initNewWorld(C) {
 
   function openBugReport() {
     const sheet = document.createElement('div');
-    sheet.className = 'fixed inset-0 grid place-items-center p-3'; sheet.style.zIndex = 96; sheet.style.background = 'rgba(9,8,18,.92)';
-    sheet.innerHTML = `<div class="px-panel" style="max-width:520px;width:100%;padding:16px">
+    sheet.className = 'nw-sheet fixed inset-0 overflow-y-auto p-3'; sheet.style.zIndex = 96; sheet.style.background = 'rgba(9,8,18,.92)';
+    sheet.innerHTML = `<div class="px-panel" style="max-width:520px;width:100%;padding:16px;margin:0 auto">
       <div class="px-title" style="font-size:1.4em">🐛 回報問題</div>
-      <p class="px-text mt-1 text-sm">遊戲哪裡怪怪的？畫面、按鍵、題目、魔物……都可以告訴我們，幫忙抓蟲的人會得到「除蟲員」稱號和字元！</p>
-      <div class="flex gap-2 mt-3 flex-wrap" data-cat>${['畫面', '按鍵／操作', '題目', '魔物', '其他'].map(t => `<button class="px-btn" data-c="${t}">${t}</button>`).join('')}</div>
-      <textarea data-text maxlength="300" rows="4" placeholder="發生了什麼事？你在做什麼的時候發生的？（至少 5 個字）" class="w-full mt-3 p-3 px-panel in" style="color:#fff"></textarea>
+      <p class="px-text mt-1 text-sm">遊戲哪裡怪怪的？幫忙抓蟲的人會得到「除蟲員」稱號和字元，<b>抓得最多的人，老師會頒發特別稱號「👑 職業除錯師」</b>！</p>
+      <div class="px-panel in mt-2" style="padding:8px 10px"><div class="px-text text-sm" style="color:#ffd98a;font-weight:900">怎麼寫，老師才找得到蟲？寫清楚兩件事：</div>
+        <div class="px-text text-sm mt-1">① 你<b>做了什麼事</b>　② <b>出現什麼錯誤狀況</b></div>
+        <div class="text-xs mt-1" style="color:#aab0d8;line-height:1.6">✅ 好的例子<br>做了什麼：我在背包裡很快連點 3 次「裝備背包」<br>錯誤狀況：背包整個黑掉，按什麼都沒有反應<br>❌ 不好的例子：「壞掉了」「很爛」（看不出哪裡壞）</div></div>
+      <div class="flex gap-2 mt-3 flex-wrap" data-cat><span class="px-text text-sm" style="align-self:center">哪一類？</span>${['畫面', '按鍵／操作', '題目', '魔物', '其他'].map(t => `<button class="px-btn" data-c="${t}">${t}</button>`).join('')}</div>
+      <div class="px-text text-sm mt-3" style="font-weight:900">① 我做了什麼事？</div>
+      <textarea data-did maxlength="150" rows="2" placeholder="例：我在背包裡很快連點 3 次「裝備背包」" class="w-full mt-1 p-3 px-panel in" style="color:#fff"></textarea>
+      <div class="px-text text-sm mt-2" style="font-weight:900">② 出現什麼錯誤狀況？</div>
+      <textarea data-what maxlength="150" rows="2" placeholder="例：背包整個黑掉，按什麼都沒有反應" class="w-full mt-1 p-3 px-panel in" style="color:#fff"></textarea>
       <p class="text-xs mt-1" style="color:#ffd98a">送出後，要等<b>老師看過、確認</b>，才會有獎勵：前 ${BUG_REWARD_MAX} 個被確認的回報，每個送 🪙 ${BUG_COINS} 字元，並解鎖「除蟲員」。亂寫的不會被確認喔。</p>
       <div data-err class="text-sm mt-1" style="color:#e5705f;min-height:1.2em"></div>
       <div class="flex gap-2 justify-end mt-2"><button class="px-btn" data-close>取消</button><button class="px-btn gold" data-send style="padding:8px 22px">送出</button></div></div>`;
@@ -590,12 +678,14 @@ export function initNewWorld(C) {
       if (c) { cat = c.dataset.c; sheet.querySelectorAll('[data-c]').forEach(b => b.classList.toggle('gold', b === c)); return; }
       if (e.target === sheet || e.target.closest('[data-close]')) { sheet.remove(); return; }
       if (!e.target.closest('[data-send]')) return;
-      const err = sheet.querySelector('[data-err]'), text = sheet.querySelector('[data-text]').value.trim();
-      if (text.length < 5) { err.textContent = '多寫幾個字吧（至少 5 個字），這樣我們才看得懂'; return; }
+      const err = sheet.querySelector('[data-err]'), did = sheet.querySelector('[data-did]').value.trim(), what = sheet.querySelector('[data-what]').value.trim();
+      if (did.length < 4) { err.textContent = '① 多寫幾個字：你做了什麼事？（至少 4 個字）'; return; }
+      if (what.length < 4) { err.textContent = '② 多寫幾個字：出現了什麼錯誤狀況？（至少 4 個字）'; return; }
+      const text = `【我做了什麼】${did}\n【錯誤狀況】${what}`;
       if (!C.online()) { err.textContent = '現在連不上網路'; return; }
       if (Date.now() - (openBugReport.last || 0) < 20000) { err.textContent = '剛剛才送過，等一下再送下一個'; return; }
       try {
-        await C.withTimeout(C.setDoc(C.doc(C.db, 'mg_nw_flags', `bug_${ME.docId}_${Date.now()}`), { type: 'bug', status: 'pending', claimed: false, docId: ME.docId, cat, text, view, cls: ME.className, seat: ME.seat, name: ME.name, t: Date.now() }), 6000, 'nw-bug');
+        await C.withTimeout(C.setDoc(C.doc(C.db, 'mg_nw_flags', `bug_${ME.docId}_${Date.now()}`), { type: 'bug', status: 'pending', claimed: false, docId: ME.docId, cat, text, did, what, view, cls: ME.className, seat: ME.seat, name: ME.name, t: Date.now() }), 6000, 'nw-bug');
       } catch (er) { err.textContent = '送出失敗，再試一次'; return; }
       openBugReport.last = Date.now();
       NW.bugsSent = (NW.bugsSent || 0) + 1; saveNw(); sheet.remove();
@@ -607,8 +697,9 @@ export function initNewWorld(C) {
 
   async function openTesterBook() {
     await claimBugs();
+    introOnce('book');
     const sheet = document.createElement('div');
-    sheet.className = 'fixed inset-0 overflow-y-auto'; sheet.style.zIndex = 94; sheet.style.background = 'rgba(9,8,18,.94)';
+    sheet.className = 'nw-sheet fixed inset-0 overflow-y-auto'; sheet.style.zIndex = 94; sheet.style.background = 'rgba(9,8,18,.94)';
     const done = TESTER_MISSIONS.filter(m => NW.tm[m.id]).length;
     sheet.innerHTML = `<div class="max-w-2xl mx-auto p-3"><div class="px-panel" style="padding:14px">
       <div class="flex items-center justify-between gap-2"><div class="px-title" style="font-size:1.5em">📓 測試員手冊</div><button class="px-btn" data-close>關閉</button></div>
@@ -635,8 +726,9 @@ export function initNewWorld(C) {
 
   const giftHash = async raw => sha256Hex('gift:' + cleanCode(raw));
   function openGiftInput() {
+    introOnce('gift');
     const sheet = document.createElement('div');
-    sheet.className = 'fixed inset-0 z-[90] grid place-items-center p-3'; sheet.style.zIndex = 90; sheet.style.background = 'rgba(9,8,18,.9)';
+    sheet.className = 'nw-sheet fixed inset-0 z-[90] grid place-items-center p-3'; sheet.style.zIndex = 90; sheet.style.background = 'rgba(9,8,18,.9)';
     sheet.innerHTML = `<div class="px-panel" style="max-width:420px;width:100%;padding:18px">
       <div class="px-title" style="font-size:1.4em">🎁 兌換序號</div>
       <p class="px-text mt-1 text-sm">輸入老師給你的序號，就能領禮物。輸入的字會藏起來。</p>
@@ -672,6 +764,7 @@ export function initNewWorld(C) {
   const titleLine = () => NW.title ? `${PX.badge(tierOf(NW.titleParts.length), 2)} <b>${escHtml(NW.title)}</b>` : `${PX.badge(1, 2)} <span style="color:#aab0d8">還沒有稱號・點我拚一個</span>`;
 
   function openTitleEditor(after) {
+    introOnce('title');
     const ed = document.createElement('div');
     ed.id = 'nw-title'; ed.className = 'fixed inset-0 z-[88] grid place-items-center p-4'; ed.style.background = 'rgba(9,8,18,.88)';
     let parts = NW.titleParts.filter(id => NW.words.includes(id));
@@ -711,7 +804,7 @@ export function initNewWorld(C) {
     closeBag();
     const TABS = [['equip', '⚔', '裝備背包'], ['items', '🧪', '道具'], ['mats', '📦', '材料'], ['bp', '📜', '圖紙'], ['quest', '🧭', '任務'], ['dex', '📖', '圖鑑']];
     const sheet = document.createElement('div');
-    sheet.id = 'nw-bag'; sheet.className = 'fixed inset-0 z-[75] overflow-y-auto'; sheet.style.background = 'rgba(9,8,18,.9)';
+    sheet.id = 'nw-bag'; sheet.className = 'nw-sheet fixed inset-0 z-[75] overflow-y-auto'; sheet.style.background = 'rgba(9,8,18,.9)';
     sheet.innerHTML = `<style>
       .bp-slot{width:64px;height:64px;display:grid;place-items:center;position:relative;background:#0e0b16;border:3px solid #3a3070;box-shadow:inset 0 0 0 2px #1a1530}
       .bp-slot.on{border-color:#e8b64c}
@@ -767,6 +860,7 @@ export function initNewWorld(C) {
     document.body.appendChild(sheet);
     renderCard();
     render(tab || 'equip');
+    introOnce('bag');
   }
   addEventListener('keydown', e => {
     const k = e.key.toLowerCase();
@@ -861,7 +955,7 @@ export function initNewWorld(C) {
     return new Promise(done => {
       const m = MONSTERS[res.mk];
       const sheet = document.createElement('div');
-      sheet.id = 'nw-fb'; sheet.className = 'fixed inset-0 z-[96] grid place-items-center p-3'; sheet.style.zIndex = 96; sheet.style.background = 'rgba(9,8,18,.92)';
+      sheet.id = 'nw-fb'; sheet.className = 'nw-sheet fixed inset-0 z-[96] grid place-items-center p-3'; sheet.style.zIndex = 96; sheet.style.background = 'rgba(9,8,18,.92)';
       sheet.innerHTML = `<div class="px-panel" style="max-width:520px;width:100%;padding:16px;max-height:94vh;overflow-y:auto">
         <div class="px-title" style="font-size:1.4em">🧪 測試回饋</div>
         <p class="px-text mt-2">你剛打完「<b>${escHtml(m.name)}</b>」，謝謝你幫忙測試！覺得好打嗎？紅線看得清楚嗎？有什麼想法？<b>可以寫，也可以不寫。</b></p>
@@ -949,7 +1043,7 @@ export function initNewWorld(C) {
     const need = hrNeed(sum.hr0 || NW.hr), p0 = (sum.exp0 || 0) / need * 100, p1 = NW.hr >= HR_MAX ? 100 : Math.min(100, NW.hrExp / hrNeed(NW.hr) * 100);
     const sheet = document.createElement('div');
     sheet.id = 'nw-result';
-    sheet.className = 'fixed inset-0 z-[90] overflow-y-auto';
+    sheet.className = 'nw-sheet fixed inset-0 z-[90] overflow-y-auto';
     sheet.style.background = 'rgba(9,8,18,.94)';
     sheet.innerHTML = `<div class="max-w-2xl mx-auto p-4 py-6">
       <div style="text-align:center;margin-bottom:-14px;position:relative;z-index:2"><span class="px-title" style="display:inline-block;padding:6px 36px;font-size:2em;background:#4a2f16 url(${PX.wood().toDataURL()});background-size:144px;border:5px solid #1c1008;box-shadow:inset 0 0 0 3px #8a6a3a;color:${win ? '#ffd98a' : '#e5705f'}">${title}</span></div>
@@ -998,7 +1092,7 @@ export function initNewWorld(C) {
     const a = e.target.closest('[data-act]');
     if (a) {
       const act = a.dataset.act;
-      ({ leave, gift: openGiftInput, book: openTesterBook, bug: openBugReport, hub: viewHub, map: viewBoard, bagopen: () => openBackpack('equip'), bagq: () => openBackpack('quest'),
+      ({ leave, gift: openGiftInput, book: openTesterBook, bug: openBugReport, notice: () => openNotice(false), hub: viewHub, map: viewBoard, bagopen: () => openBackpack('equip'), bagq: () => openBackpack('quest'),
          bag: () => { viewHub(); openBackpack('equip'); }, creator: () => viewCreator(false),
          leaveroom: () => { closeRoom(); viewBoard(); }, startroom: () => launch(cur.q),
          starter: viewStarter, rank: () => openRank() }[act] || (() => {}))();
@@ -1007,5 +1101,5 @@ export function initNewWorld(C) {
   });
 
   const giftPending = () => { if (!gate().early) return false; try { const l = JSON.parse(localStorage.getItem(lkey()) || 'null'); return !(l && (l.giftedEarly || (l.gw || []).includes('testblade'))); } catch (e) { return true; } };
-  return { enter, gate, leave, reward, giftPending, refresh: refreshAccess, openCode: openCodeSheet, get nw() { return NW; }, isOpen: () => !root.classList.contains('hidden') };
+  return { enter, gate, leave, ticket: showTicket, giftPending, refresh: refreshAccess, openCode: openCodeSheet, get nw() { return NW; }, isOpen: () => !root.classList.contains('hidden') };
 }

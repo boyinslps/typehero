@@ -16,7 +16,7 @@ async function open(browser, starter, extra, attacks) {
   p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push('console: ' + m.text()); });
   const { sha256Hex } = await import('../../nw-access.js');
   const hash = await sha256Hex('Test-Pass_9!x');
-  await p.addInitScript(a => { window.__FS = a.s; localStorage.clear(); localStorage.setItem('mg_nw_fast', '1'); window.__NW_CODE_HASH__ = a.hash; window.__NW_NOGIFT__ = true; localStorage.setItem('mg_nw_code', a.hash); window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas'); }, { s: seedFor(starter, extra), hash });
+  await p.addInitScript(a => { window.__FS = a.s; localStorage.clear(); localStorage.setItem('mg_nw_fast', '1'); window.__NW_CODE_HASH__ = a.hash; window.__NW_NOGIFT__ = true; window.__NW_NOINTRO__ = true; localStorage.setItem('mg_nw_code', a.hash); window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas'); }, { s: seedFor(starter, extra), hash });
   await p.addInitScript(a => { if (a) window.__NW_ATTACKS__ = a; }, attacks === 'none' ? [] : ['single', 'pair', 'sweep', 'fake', 'slam']);
   await p.route('**/*', r => {
     const u = r.request().url();

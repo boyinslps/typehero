@@ -86,8 +86,10 @@ export function mountVillage(host, o) {
   }
 
   const keys = new Set();
+  const overlayOpen = () => !!document.querySelector('#nw-acad, #nw-bag, #nw-gift, #nw-fb, #nw-title, #nw-intro, .nw-sheet');
   const onKey = (e, down) => {
     if (/INPUT|TEXTAREA|SELECT/.test((e.target && e.target.tagName) || '')) return;
+    if (down && overlayOpen()) return;
     const k = e.key.toLowerCase();
     if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd'].includes(k)) {
       if (down) keys.add(k); else keys.delete(k);
@@ -150,7 +152,7 @@ export function mountVillage(host, o) {
     const n = P.near;
     if (n.kind === 'npc') talk(n.ref); else onEnter(n.ref);
   };
-  const onEnterKey = e => { if (e.key === 'Enter' && !/INPUT|TEXTAREA|SELECT|BUTTON/.test((e.target && e.target.tagName) || '')) { e.preventDefault(); act(); } };
+  const onEnterKey = e => { if (e.key === 'Enter' && !overlayOpen() && !/INPUT|TEXTAREA|SELECT|BUTTON/.test((e.target && e.target.tagName) || '')) { e.preventDefault(); act(); } };
   addEventListener('keydown', onEnterKey);
 
   function drawGuide() {
