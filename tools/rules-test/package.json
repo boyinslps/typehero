@@ -1,0 +1,13 @@
+{
+  "name": "typehero-rules-test",
+  "private": true,
+  "description": "Firestore 規則測試（Firebase 模擬器）",
+  "scripts": {
+    "test": "firebase emulators:exec --only firestore --project demo-typehero \"node --test rules.test.mjs\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.0",
+    "firebase": "^12.0.0",
+    "firebase-tools": "^15.0.0"
+  }
+}

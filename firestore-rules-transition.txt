@@ -1,0 +1,102 @@
+rules_version = '2';
+
+// ═══════════════════════════════════════════════════════════════
+//  打字勇者 Firestore 規則：過渡版（docs/SPEC-TEACHER-ADMIN.md §1.8 第 0 步）
+//
+//  這份是「發布順序」的第 0 步，先貼這份，不要直接貼 firestore-rules.txt：
+//    0. 先貼這份 firestore-rules-transition.txt（現在的規則＋新集合開放給登入者）
+//    1. A 版程式上線（序號、房間、回報、管理頁都改走新位置）
+//    2. 等一天，讓舊分頁都關掉、學生都載到 A 版
+//    3. 建老師帳號與 mg_admins/{UID}，再貼 firestore-rules.txt（正式版）
+//
+//  為什麼需要它：Firestore 沒寫到的集合預設全擋。沒有這一步，A 版在等待期間
+//  序號兌換、時差、管理頁都會被擋。現在的規則本來就全開，這份沒有比現在更不安全。
+//
+//  貼上位置：Firebase 主控台 → Firestore Database → 規則 → 全部取代 → 發布
+//  專案：school-4c9bf。貼之前先複製舊規則存檔，出事能貼回去。
+//
+//  唯一的新限制：mg_admins 只能讀自己那一份、誰都不能寫（只能從主控台建）。
+// ═══════════════════════════════════════════════════════════════
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── 舊站「班級打字挑戰賽」使用（維持原本行為，不要動）──
+    match /competition/{doc} {
+      allow read, write: if request.auth != null;
+    }
+    match /scores/{doc} {
+      allow read, write: if request.auth != null;
+    }
+
+    // ── 打字勇者：全班共用設定（時間、難度、模式、班級清單）──
+    match /mg_config/{doc} {
+      allow read:  if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // ── 打字勇者：開戰狀態（教師按開始/結束時寫入）──
+    match /mg_round/{doc} {
+      allow read:  if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // ── 打字勇者：題庫（9 池，教師編輯後存回）──
+    match /mg_bank/{doc} {
+      allow read:  if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // ── 打字勇者：成績（文件 ID = 班級_座號，例如「五年級3班_12號」）──
+    match /mg_scores/{doc} {
+      allow read:   if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
+      allow delete: if request.auth != null;
+    }
+
+    // ── 新世界（之後各段會用到的，一次開好，之後不用再貼）──
+    // 組隊房間（第 3a 段）：房間本身與成員
+    match /mg_rooms/{room} {
+      allow read, write: if request.auth != null;
+      match /members/{member} {
+        allow read, write: if request.auth != null;
+      }
+    }
+    // 排行的場次紀錄與可疑紀錄（第 2a 段）；老師審核要能改狀態，所以不是「只能新增」
+    match /mg_nw_runs/{run} {
+      allow read, write: if request.auth != null;
+    }
+    match /mg_nw_flags/{flag} {
+      allow read, write: if request.auth != null;
+    }
+
+    // ── A 版新增的集合（過渡期全開給登入者；正式版才收緊）──
+    match /mg_gift_used/{doc} {
+      allow read, write: if request.auth != null;
+    }
+    match /mg_clock/{doc} {
+      allow read, write: if request.auth != null;
+    }
+    match /mg_mail/{doc} {
+      allow read, write: if request.auth != null;
+    }
+    match /mg_events/{doc} {
+      allow read, write: if request.auth != null;
+    }
+    match /mg_news/{doc} {
+      allow read, write: if request.auth != null;
+    }
+    match /mg_bugboard/{doc} {
+      allow read, write: if request.auth != null;
+    }
+    match /mg_admin_log/{doc} {
+      allow read, write: if request.auth != null;
+    }
+    // 例外：老師名單只能讀自己那份，誰都不能從程式寫入
+    match /mg_admins/{uid} {
+      allow get: if request.auth != null && request.auth.uid == uid;
+      allow list, write: if false;
+    }
+  }
+}
