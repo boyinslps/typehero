@@ -228,7 +228,8 @@ export const defaultNw = () => ({
   quest: { done: [] }, title: '', titleParts: [], words: [], used: {}, wwin: {},
   stat: { dodgeOk: 0, dodgeAll: 0, defOk: 0, defAll: 0, accN: 0, accSum: 0, wins: 0, fails: 0 },
   flags: 0, fb: {}, gw: [], equip: '', gifts: [], giftedEarly: false, tm: {}, bugs: 0, bugsSent: 0, tut: {}, intro: {}, awards: {}, seenNotice: '',
-  name0: '', bugScore: 0, evDone: [], nameFlagged: {}
+  name0: '', bugScore: 0, evDone: [], nameFlagged: {},
+  mail: {}, nick: null, nickAt: 0
 });
 
 export function normalizeNw(d) {
@@ -248,6 +249,10 @@ export function normalizeNw(d) {
   o.tm = d.tm || {}; o.tut = d.tut || {}; o.bugs = d.bugs || 0; o.bugsSent = d.bugsSent || 0; o.intro = d.intro || {}; o.awards = d.awards || {}; o.seenNotice = d.seenNotice || '';
   o.name0 = typeof d.name0 === 'string' ? d.name0 : ''; o.bugScore = +d.bugScore || 0;
   o.evDone = Array.isArray(d.evDone) ? d.evDone : []; o.nameFlagged = d.nameFlagged || {};
+  /* 已領的信是物件不是陣列：兩個分頁各自合併存檔時，不會整份蓋掉對方領過的紀錄 */
+  o.mail = (d.mail && typeof d.mail === 'object' && !Array.isArray(d.mail)) ? d.mail : {};
+  o.nick = (Array.isArray(d.nick) && d.nick.length === 2 && d.nick.every(x => typeof x === 'string')) ? d.nick.slice() : null;
+  o.nickAt = +d.nickAt || 0;
   return o;
 }
 
@@ -257,6 +262,100 @@ export const normName = s => String(s || '')
   .replace(/[\uFF01-\uFF5E]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
   .replace(/[\s\u3000\u200b-\u200d\ufeff]/g, '')
   .toLowerCase();
+
+/* ── 暱稱（SPEC §8）：從詞庫組合，不開放自由輸入 ──
+   存的是詞的 ID 不是索引，之後詞庫調整順序大家的暱稱才不會變。
+   不放能拿來取笑人的詞（笨、臭、迷糊、胖…）；舊世界不顯示。 */
+export const NICK_A = [
+  { id: 'a_brave', w: '勇敢的' },
+  { id: 'a_flash', w: '閃電' },
+  { id: 'a_calm', w: '安靜的' },
+  { id: 'a_starlight', w: '星光' },
+  { id: 'a_happy', w: '快樂的' },
+  { id: 'a_rainbow', w: '彩虹' },
+  { id: 'a_moon', w: '月光' },
+  { id: 'a_smile', w: '微笑的' },
+  { id: 'a_flame', w: '火焰' },
+  { id: 'a_breeze', w: '清風' },
+  { id: 'a_power', w: '大力' },
+  { id: 'a_wise', w: '聰明的' },
+  { id: 'a_gentle', w: '溫柔的' },
+  { id: 'a_gold', w: '黃金' },
+  { id: 'a_cloud', w: '白雲' },
+  { id: 'a_lucky', w: '幸運的' },
+  { id: 'a_ice', w: '冰晶' },
+  { id: 'a_forest', w: '森林' },
+  { id: 'a_fly', w: '飛翔的' },
+  { id: 'a_hot', w: '熱血' },
+  { id: 'a_swift', w: '神速' },
+  { id: 'a_shiny', w: '閃亮的' },
+  { id: 'a_ocean', w: '海洋' },
+  { id: 'a_dawn', w: '晨曦' },
+  { id: 'a_earnest', w: '認真的' },
+  { id: 'a_lively', w: '活力' },
+  { id: 'a_courage', w: '勇氣' },
+  { id: 'a_thunder', w: '雷鳴' },
+  { id: 'a_diligent', w: '努力的' },
+  { id: 'a_light', w: '輕盈的' },
+  { id: 'a_silver', w: '銀色' },
+  { id: 'a_amber', w: '琥珀' },
+  { id: 'a_diamond', w: '鑽石' },
+  { id: 'a_dream', w: '夢想' }
+];
+export const NICK_B = [
+  { id: 'b_slime', w: '史萊姆' },
+  { id: 'b_hunter', w: '獵人' },
+  { id: 'b_coo', w: '咕咕鳥' },
+  { id: 'b_treeling', w: '小樹精' },
+  { id: 'b_frog', w: '泡泡蛙' },
+  { id: 'b_shroom', w: '跳跳菇' },
+  { id: 'b_wolf', w: '炎牙狼' },
+  { id: 'b_dragon', w: '小龍' },
+  { id: 'b_swordsman', w: '劍客' },
+  { id: 'b_archer', w: '弓手' },
+  { id: 'b_mage', w: '法師' },
+  { id: 'b_blade', w: '刀客' },
+  { id: 'b_knight', w: '騎士' },
+  { id: 'b_traveler', w: '旅人' },
+  { id: 'b_bear', w: '小熊' },
+  { id: 'b_fox', w: '小狐狸' },
+  { id: 'b_owl', w: '貓頭鷹' },
+  { id: 'b_dolphin', w: '海豚' },
+  { id: 'b_whale', w: '鯨魚' },
+  { id: 'b_unicorn', w: '獨角獸' },
+  { id: 'b_phoenix', w: '鳳凰' },
+  { id: 'b_rabbit', w: '小兔' },
+  { id: 'b_squirrel', w: '松鼠' },
+  { id: 'b_eagle', w: '老鷹' },
+  { id: 'b_lion', w: '獅子' },
+  { id: 'b_penguin', w: '企鵝' },
+  { id: 'b_panda', w: '熊貓' },
+  { id: 'b_deer', w: '小鹿' },
+  { id: 'b_seal', w: '小海豹' },
+  { id: 'b_butterfly', w: '蝴蝶' },
+  { id: 'b_star', w: '星星' },
+  { id: 'b_comet', w: '彗星' },
+  { id: 'b_elf', w: '精靈' },
+  { id: 'b_guardian', w: '守護者' }
+];
+export const NICK_EMPTY = '神秘獵人';
+export const NICK_COOLDOWN_MS = 24 * 3600 * 1000;
+export const nickWord = (list, id) => list.find(x => x.id === id) || null;
+/* 沒取、或詞庫裡找不到的詞（例如之後被拿掉）都回「神秘獵人」，不會顯示出壞字串 */
+export function nickText(nw) {
+  const n = nw && nw.nick;
+  if (!Array.isArray(n) || n.length !== 2) return NICK_EMPTY;
+  const a = nickWord(NICK_A, n[0]), b = nickWord(NICK_B, n[1]);
+  return a && b ? a.w + b.w : NICK_EMPTY;
+}
+
+/* 班級短碼：五年級4班 → 504（年級數字＋兩位數班號）；解析不了就回原字串，榜單才不會空白 */
+const GRADE_NUM = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
+export function clsShort(cls) {
+  const m = /^([一二三四五六七八九1-9])年級([0-9]{1,2})班$/.exec(normName(cls));
+  if (!m) return cls;
+  return (GRADE_NUM[m[1]] || m[1]) + String(+m[2]).padStart(2, '0');
+}
 
 export const WORD_GROUPS = ['等級', '武器', '成就'];
 const wword = (id, w, wk, n, how) => ({ id, w, g: '武器', how, test: x => n === 0 ? (x.starter === wk || !!(x.used && x.used[wk])) : ((x.wwin && x.wwin[wk]) || 0) >= n });
@@ -336,10 +435,11 @@ export const VILLAGE = {
     { id: 'board', kind: 'board', x: 6, y: 10, name: '委託板', act: 'map', text: '選地方、選魔物，出發狩獵！' },
     { id: 'rank', kind: 'rank', x: 14, y: 10, name: '榮譽碑', act: 'rank', wip: 2, text: '看看誰是最強獵人。' }
   ],
+  /* 郵筒（k:'mailbox'）也寫在 decor：村莊程式用 k 找它，第 6 步重排地圖只要改這裡的 x、y。站的位置是它正下方一格 */
   decor: [
     { k: 'lamp', x: 7, y: 5, b: 1 }, { k: 'lamp', x: 15, y: 5, b: 1 }, { k: 'lamp', x: 7, y: 9, b: 1 }, { k: 'lamp', x: 15, y: 9, b: 1 },
     { k: 'barrel', x: 5, y: 3, b: 1 }, { k: 'barrel', x: 1, y: 4, b: 1 }, { k: 'crate', x: 10, y: 2, b: 1 }, { k: 'crate', x: 11, y: 3, b: 1 },
-    { k: 'bench', x: 9, y: 10 }, { k: 'flowers', x: 12, y: 3 }, { k: 'flowers', x: 4, y: 8 }, { k: 'sign', x: 10, y: 11, b: 1 }, { k: 'hay', x: 20, y: 4, b: 1 }
+    { k: 'bench', x: 9, y: 10 }, { k: 'mailbox', x: 12, y: 9, b: 1 }, { k: 'flowers', x: 12, y: 3 }, { k: 'flowers', x: 4, y: 8 }, { k: 'sign', x: 10, y: 11, b: 1 }, { k: 'hay', x: 20, y: 4, b: 1 }
   ],
   npcs: [
     { id: 'elder', name: '村長', x: 9, y: 8, look: { style: 'short', hair: '#e8e8e8', armor: '#8a4ad8', trim: '#e0c8ff' }, say: ['歡迎來到新世界！左下角的「教學大樓」可以學閃避、防禦和打字，先去學一學吧。', '按 B 或點右上角的背包，可以看你的東西和任務。'] },

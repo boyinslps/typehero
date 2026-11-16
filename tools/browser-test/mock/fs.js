@@ -183,7 +183,11 @@ function runQuery(q) {
 }
 export async function getDocs(q) { ruleCheck(q.db, 'list', q.path + '/x'); return runQuery(q); }
 export async function getCountFromServer(q) { ruleCheck(q.db, 'list', q.path + '/x'); const n = runQuery(q).size; return { data: () => ({ count: n }) }; }
+/* 測離線：呼叫 window.__SNAP_ERROR()，所有已註冊的監聽都收到 unavailable（遊戲會把 ONLINE 設成 false） */
+const SNAP_ERRS = [];
+window.__SNAP_ERROR = () => SNAP_ERRS.forEach(f => f({ code: 'unavailable' }));
 export function onSnapshot(ref, next, err) {
+  if (err) SNAP_ERRS.push(err);
   (LISTEN[ref.path] = LISTEN[ref.path] || []).push(next);
   setTimeout(() => { try { ruleCheck(ref.db, ref.col ? 'list' : 'get', ref.col ? ref.path + '/x' : ref.path); } catch (e) { if (err) err(e); return; } next(ref.col ? runQuery(ref) : snapOf(ref.path)); }, 20);
   return () => { LISTEN[ref.path] = LISTEN[ref.path].filter(f => f !== next); };

@@ -784,6 +784,7 @@ function decorGrid(k) {
   else if (k === 'bench') { rect(s, 1, 14, 16, 3, '#a8763c'); rect(s, 1, 14, 16, 1, '#c8964f'); rect(s, 2, 17, 2, 5, '#5a3a22'); rect(s, 14, 17, 2, 5, '#5a3a22'); rect(s, 1, 10, 16, 2, '#8a5a2b'); }
   else if (k === 'sign') { rect(s, 8, 12, 2, 11, '#5a3a22'); rect(s, 2, 5, 14, 8, '#c8a56a'); rect(s, 2, 5, 14, 1, '#e8c88a'); rect(s, 4, 8, 10, 1, '#7a5a3a'); rect(s, 4, 10, 7, 1, '#7a5a3a'); }
   else if (k === 'flowers') { rect(s, 1, 17, 16, 5, '#6a4a2a'); for (let i = 0; i < 9; i++) { const x = 2 + i * 1.7, c = ['#ff9ec4', '#ffe27a', '#fff', '#ff6a8a'][i % 4]; rect(s, x, 12 + (i % 3) * 2, 2, 2, c); rect(s, x, 14 + (i % 3) * 2, 1, 4, '#3a7d2c'); } }
+  else if (k === 'mailbox') { rect(s, 8, 14, 2, 9, '#5a3a22'); rect(s, 3, 5, 12, 9, '#3a6ac8'); rect(s, 3, 5, 12, 2, '#5a8ae8'); rect(s, 5, 8, 8, 1, '#0a0714'); rect(s, 4, 11, 10, 1, '#2a4a98'); rect(s, 14, 3, 2, 5, '#d83a3a'); rect(s, 14, 3, 4, 2, '#d83a3a'); rect(s, 6, 22, 6, 1, '#3a2a1a'); }
   else if (k === 'hay') { sell(s, 9, 16, 8, 6, '#e8c060'); for (let i = 0; i < 6; i++) line(s, 3 + i * 2, 12, 5 + i * 2, 21, '#c89a30'); }
   outline(s, OL);
   return s;
@@ -831,7 +832,7 @@ function villageCanvas(V, openIds) {
   for (let y = 0; y < V.rows; y++) for (let x = 0; x < V.cols; x++) if (Math.hypot(x * T + 8 - plaza[0], y * T + 8 - plaza[1]) < 18) blocked.add(tk(x, y));
   const keep = new Set(); V.buildings.forEach(b => { for (let j = 3; j <= 4; j++) for (let i = -1; i <= 1; i++) keep.add(tk(b.x + 1 + i, b.y + j)); });
   keep.add(tk(...V.start));
-  (V.decor || []).forEach(d => { const g = blit(decorGrid(d.k), 1, false); s.__d = s.__d || []; s.__d.push([g, d]); if (d.b) blocked.add(tk(d.x, d.y)); keep.add(tk(d.x, d.y)); });
+  (V.decor || []).forEach(d => { const g = blit(decorGrid(d.k), 1, false); s.__d = s.__d || []; s.__d.push([g, d]); if (d.b) blocked.add(tk(d.x, d.y)); keep.add(tk(d.x, d.y)); if (d.k === 'mailbox') keep.add(tk(d.x, d.y + 1)); });
   const trees = [];
   for (let ty = 0; ty < V.rows; ty++) for (let tx = 0; tx < V.cols; tx++) {
     const k = tk(tx, ty);

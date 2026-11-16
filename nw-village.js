@@ -4,7 +4,7 @@ const T = 16;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 export function mountVillage(host, o) {
-  const { PX, look, open, start, onEnter, scroller, fast, guide } = o;
+  const { PX, look, open, start, onEnter, scroller, fast, guide, mailN } = o;
   const V = VILLAGE, W = V.cols * T, H = V.rows * T;
   const availW = host.clientWidth || innerWidth, availH = (scroller ? scroller.clientHeight : innerHeight) - 130;
   const sc = clamp(Math.floor(Math.min(availW / W, (availH + 110) / H)), 2, 5);
@@ -69,6 +69,17 @@ export function mountVillage(host, o) {
     addHot(b.id, b.name, b.x * T, b.y * T, 48, 48, !isOpen, isOpen ? '' : '施工中');
   });
   addHot('gate', '傳送門・回舊世界', gateEl.x, gateEl.y, 40, 56, false, '');
+  /* 郵筒不是建築，只是 decor：座標從 VILLAGE.decor 找，之後重排地圖不用改這裡 */
+  const mb = (V.decor || []).find(d => d.k === 'mailbox');
+  const mailTile = mb ? [mb.x, mb.y + 1] : null;
+  let mailBadge = null, mailShown = -1;
+  if (mb) {
+    const hot = addHot('mail', '郵筒', mb.x * T - 1, mb.y * T - 8, 18, 24, false, '');
+    mailBadge = document.createElement('span');
+    mailBadge.className = 'px-text';
+    mailBadge.style.cssText = `display:none;position:absolute;left:50%;top:${-Math.max(8, 4 * sc) - Math.max(20, 6 * sc)}px;transform:translateX(-50%);white-space:nowrap;pointer-events:none;font-weight:900;font-size:${Math.max(12, 3.5 * sc)}px;padding:0 8px;background:#d83a3a;color:#fff;border:2px solid #0a0714;animation:nwPulse 1.2s ease-in-out infinite`;
+    hot.appendChild(mailBadge);
+  }
 
   const npcs = (V.npcs || []).map(n => ({ ...n, fx: n.x * T + 8, fy: n.y * T + 12, dir: 'down', frame: 0, goal: null, wait: Math.random() * 2, line: 0, talkUntil: 0 }));
   const bubble = document.createElement('div');
@@ -108,6 +119,7 @@ export function mountVillage(host, o) {
     if (hot) {
       const id = hot.dataset.bld;
       if (id === 'gate') { walkTo(V.gate.approach, () => onEnter({ id: 'gate' })); return; }
+      if (id === 'mail') { walkTo(mailTile, () => onEnter({ id: 'mail' })); return; }
       const b = V.buildings.find(x => x.id === id), d = doorTile(b);
       walkTo([d[0], d[1]], () => onEnter(b));
       return;
@@ -137,6 +149,7 @@ export function mountVillage(host, o) {
     const test = (x, y, d, kind, ref, label) => { const dist = Math.hypot(P.fx - x, P.fy - y); if (dist <= REACH && (!best || dist < best.dist)) best = { dist, x, y, kind, ref, label }; };
     V.buildings.forEach(b => { const t = doorTile(b); test(t[0] * T + 8, t[1] * T + 8, 0, 'bld', b, `進入「${b.name}」`); });
     test(V.gate.approach[0] * T + 8, V.gate.approach[1] * T + 14, 0, 'gate', { id: 'gate' }, '回舊世界');
+    if (mailTile) test(mailTile[0] * T + 8, mailTile[1] * T + 8, 0, 'bld', { id: 'mail' }, '打開信箱');
     npcs.forEach(n => test(n.fx, n.fy, 0, 'npc', n, `跟${n.name}說話`));
     return best;
   }
@@ -205,6 +218,7 @@ export function mountVillage(host, o) {
     P.frame = P.moving ? Math.floor(P.t * 7) % 2 : 0;
     const near = nearest();
     showPrompt(near);
+    if (mailBadge && mailN) { const n = mailN(); if (n !== mailShown) { mailShown = n; mailBadge.style.display = n > 0 ? 'block' : 'none'; mailBadge.textContent = `✉ ${n}`; } }
 
     npcs.forEach(n => {
       if (now < n.talkUntil) { n.frame = 0; return; }

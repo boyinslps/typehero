@@ -2,7 +2,7 @@ import { PX } from './pixel.js';
 import {
   LOOK, DEFAULT_LOOK, heroLook, STARTERS, LOCKED_WEAPONS, REGIONS, MAP_POS, ELEM, STATUS, MONSTERS,
   regionLv, MAIN_QUESTS, normalizeNw, currentQuest, zoneOpen, starOpen, addHrExp, hrNeed, huntExp, huntCoins,
-  COLOR_NAME, COLOR_HEX, HR_MAX, VILLAGE, doorTile, buildingOpen, goalOf, TEST_TAGS, FB_COINS, FB_MINLEN, BUG_COINS, BUG_REWARD_MAX, LESSON_COINS, TESTER_MISSIONS, checkMissions, GIFT_WEAPONS, weaponInfo, weaponBase, curWeapon, WORDS, WORD_GROUPS, checkWords, setTitleParts, wordById, normName
+  COLOR_NAME, COLOR_HEX, HR_MAX, VILLAGE, doorTile, buildingOpen, goalOf, TEST_TAGS, FB_COINS, FB_MINLEN, BUG_COINS, BUG_REWARD_MAX, LESSON_COINS, TESTER_MISSIONS, checkMissions, GIFT_WEAPONS, weaponInfo, weaponBase, curWeapon, WORDS, WORD_GROUPS, checkWords, setTitleParts, wordById, normName, NICK_A, NICK_B, NICK_COOLDOWN_MS, nickText, nickWord
 } from './nw-data.js';
 import { injectUi } from './nw-ui.js';
 import { mountVillage } from './nw-village.js';
@@ -68,6 +68,7 @@ const CSS = `
 
 export function initNewWorld(C) {
   const { $, show, toast, escHtml, ME } = C;
+  let mailCount = 0, mailList = [], mailAt = 0, mailBusy = false;
   let NW = null, saveTimer = 0, root = null, view = '', cur = { rk: '', mk: '' };
 
   injectUi();
@@ -94,6 +95,7 @@ export function initNewWorld(C) {
     }
     const pick = (cloud && (!local || (cloud.savedAt || 0) >= (local.savedAt || 0))) ? cloud : local;
     NW = normalizeNw(pick);
+    mailList = []; mailAt = 0; mailCount = 0;
     /* 時差、抓蟲榜、換名判斷各讀一份文件，一起等；網路慢時最多等 5 秒，不卡進村 */
     await Promise.all([syncClock(), syncBoard(true)]);
     checkName();
@@ -170,10 +172,18 @@ export function initNewWorld(C) {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(pushCloud, 800);
   }
+  /* nwNick 是組好的暱稱字串，給榜單用（榜單查詢不讀整份 nw）；被老師隱藏的人照樣存，隱藏由顯示端負責 */
   function pushCloud() {
-    if (!C.online() || !NW) return;
-    C.withTimeout(C.setDoc(docRef(), { className: ME.className, seat: ME.seat, name: ME.name, nwTitle: NW.title || '', nwTitleN: (NW.titleParts || []).length, nwCls: ME.className, nwEvDone: NW.evDone || [], nw: NW }, { merge: true }), 6000, 'nw-save')
+    if (!C.online() || !NW) return Promise.resolve();
+    return C.withTimeout(C.setDoc(docRef(), { className: ME.className, seat: ME.seat, name: ME.name, nwTitle: NW.title || '', nwTitleN: (NW.titleParts || []).length, nwCls: ME.className, nwEvDone: NW.evDone || [], nwNick: NW.nick ? nickText(NW) : '', nw: NW }, { merge: true }), 6000, 'nw-save')
       .catch(e => console.warn('新世界存檔失敗', e));
+  }
+  /* 領信、領獎這種「領了就不能反悔」的事不等 800ms 的延遲：關掉分頁前先寫進雲端，另一個分頁才領不到第二次 */
+  function saveNwNow() {
+    NW.savedAt = Date.now();
+    try { localStorage.setItem(lkey(), JSON.stringify(NW)); } catch (e) { /* 空間滿了就只存雲端 */ }
+    clearTimeout(saveTimer);
+    return pushCloud();
   }
 
   const unlocked = () => C.bestLevel() >= C.unlockLevel;
@@ -305,6 +315,12 @@ export function initNewWorld(C) {
 
   function enterBuilding(b) {
     if (b.id === 'gate') { leave(); return; }
+    if (b.id === 'mail') {
+      if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+      /* 領完信會重畫村莊（更新字元數），先記下站的位置，才不會被送回出生點 */
+      if (village && village.pos) NW.pos = village.pos();
+      openMail(); return;
+    }
     /* 點過的按鈕會一直拿著焦點，之後在建築裡按 Enter 會被瀏覽器當成又點了一次 */
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     const d = doorTile(b);
@@ -330,7 +346,7 @@ export function initNewWorld(C) {
             <div class="flex gap-4 mt-1 text-sm flex-wrap px-text"><span>🪙 ${NW.coins}</span><span>📦 ${matN}</span><span>⭐ ${NW.stars}</span>
               ${q ? `<button class="px-chip" data-act="bagq" style="color:#ffd98a;cursor:pointer">📌 ${escHtml(q.t)}</button>` : ''}</div>
           </div>
-          <button class="px-btn gold" data-act="bagopen">🎒 背包</button>
+          <button class="px-btn gold" data-act="bagopen" style="position:relative">🎒 背包<i data-bagdot style="display:${mailCount > 0 ? 'block' : 'none'};position:absolute;top:-5px;right:-5px;width:14px;height:14px;background:#d83a3a;border:2px solid #0a0714"></i></button>
           <button class="px-btn" data-act="gift">🎁 序號</button>
           <button class="px-btn" data-act="notice">📢 佈告欄</button>
           <button class="px-btn" data-act="book">📓 測試員手冊</button>
@@ -343,7 +359,7 @@ export function initNewWorld(C) {
       el.querySelector('[data-hero]').replaceChildren(PX.chibi(myChibi(), 'down', 0, 3));
       village = mountVillage(el.querySelector('#vmap'), {
         PX, look: myChibi(), open: VILLAGE.buildings.filter(buildingOpen).map(b => b.id),
-        start: NW.pos || VILLAGE.start, scroller: root, fast: FAST, onEnter: enterBuilding, guide: guideBuilding()
+        start: NW.pos || VILLAGE.start, scroller: root, fast: FAST, onEnter: enterBuilding, guide: guideBuilding(), mailN: () => mailCount
       });
       hubStart();
     });
@@ -573,6 +589,12 @@ export function initNewWorld(C) {
     });
   }
 
+  const posN = r => Number.isFinite(+r.n) && +r.n > 0;
+  /* 信裡有這版程式不認得的東西（老師用了新功能、學生還沒重新整理）就整封不領，才不會領一半、之後又領一次 */
+  const itemKnown = r => !!r && ({
+    weapon: () => !!GIFT_WEAPONS[r.key], coins: () => posN(r), potion: () => posN(r), exp: () => posN(r),
+    mat: () => typeof r.key === 'string' && !!r.key && posN(r), word: () => !!wordById(r.key)
+  }[r.type] || (() => false))();
   const rewardOk = r => !!r && (r.type === 'weapon' ? !!GIFT_WEAPONS[r.key] : (r.type === 'coins' || r.type === 'potion') && Number.isFinite(+r.n));
   function applyReward(r) {
     if (r.type === 'weapon') {
@@ -582,6 +604,18 @@ export function initNewWorld(C) {
     }
     if (r.type === 'coins') { NW.coins += r.n; return { icon: '🪙', title: `字元 ×${r.n}`, note: '字元是新世界的貨幣，之後可以買東西、打造裝備。' }; }
     if (r.type === 'potion') { NW.items.potion = (NW.items.potion || 0) + r.n; return { icon: '🧪', title: `回復藥 ×${r.n}`, note: '回復藥要等商店開張才能在戰鬥中使用，先幫你存著。' }; }
+    if (!itemKnown(r)) return null;
+    if (r.type === 'exp') {
+      const ups = addHrExp(NW, +r.n);
+      return { icon: '⭐', title: `獵人經驗 +${r.n}`, note: ups ? `獵人等級升到 ${NW.hr}！` : '經驗滿了，獵人等級就會升級。' };
+    }
+    if (r.type === 'mat') { const [nm] = matName(r.key); NW.mats[r.key] = (NW.mats[r.key] || 0) + +r.n; return { icon: '📦', title: `${nm} ×${r.n}`, note: '材料先幫你存著，鐵匠鋪開張就能用。' }; }
+    if (r.type === 'word') {
+      /* bugking 這類老師頒的詞條看 NW.awards；其他詞條沒有對應的條件，就直接放進已解鎖 */
+      NW.awards[r.key] = 1; checkWords(NW);
+      if (!NW.words.includes(r.key)) NW.words.push(r.key);
+      return { icon: '🏅', title: `稱號詞條「${wordById(r.key).w}」`, note: '到背包點名字下面的稱號，自己拚拚看。' };
+    }
     return null;
   }
 
@@ -591,13 +625,14 @@ export function initNewWorld(C) {
     hub: [
       { icon: '🏘', title: '歡迎來到獵人村', text: '這裡是新世界的大廳。用 W A S D 或方向鍵走路，也可以用滑鼠點想去的地方。想進房子：點一下房子，或站在門口按 Enter。灰色的房子還在施工中。' },
       { icon: '📌', title: '任務系統', text: '上面金色的「📌」就是你現在的任務，做完會有獎勵。地上黃色的箭頭會帶你走到目的地，房子上面彈跳的箭頭就是要去的地方。點「📌」可以看任務怎麼做。現在的第一個任務：到教學大樓學會三堂課！' },
-      { icon: '🧰', title: '上面的按鈕', text: '🎒 背包：看裝備、道具、稱號。📢 佈告欄：新世界改了什麼，都貼在這裡。🎁 序號：輸入老師給的序號領禮物。📓 測試員手冊：新世界還在試玩，完成測試任務有獎勵。🐛 回報問題：發現哪裡怪怪的，告訴我們。' }
+      { icon: '🧰', title: '上面的按鈕', text: '🎒 背包：看裝備、道具、稱號。📢 佈告欄：新世界改了什麼，都貼在這裡。🎁 序號：輸入老師給的序號領禮物。📓 測試員手冊：新世界還在試玩，完成測試任務有獎勵。🐛 回報問題：發現哪裡怪怪的，告訴我們。✉ 老師寄的信放在廣場旁邊的郵筒。' }
     ],
     academy: [{ icon: '🏫', title: '教學大樓', text: '這裡有閃避、防禦、打字三堂課。每一堂都是先看示範，再自己一步一步做；沒做對會一直等你，做對才換下一步；最後還要把稻草魔物打倒（打 5 下）。學會一堂送 200 字元！' }],
     board: [{ icon: '📜', title: '委託板', text: '選一張委託單，右邊的大地圖會亮起魔物住的地方。有紅色「任務目標」標籤的，就是現在任務要打的魔物。按「狩獵」開房間，再按「出發」就開打。★ 越多越難，打贏低星才會開高星。' }],
     bag: [{ icon: '🎒', title: '背包', text: '左邊是你的角色和 5 個裝備格，點名字下面的稱號可以自己拚稱號。右邊的分頁看裝備、道具、材料、圖紙、任務、圖鑑。拿到新武器，點格子裡的武器就能換上。' }],
     title: [{ icon: '🏅', title: '自己拚稱號', text: '稱號是用「詞條」拚的：一次選 1～3 個，順序自己決定。灰色的詞條還沒解鎖，會寫怎麼拿。打贏魔物、完成任務、抓蟲都能解鎖新詞條。' }],
     book: [{ icon: '📓', title: '測試員手冊', text: '新世界還在試玩，你是第一批冒險者！每完成一個任務就蓋一個章，拿字元和稱號詞條。字元是新世界的貨幣，之後可以買東西、打造裝備。' }],
+    mail: [{ icon: '✉', title: '郵筒與信箱', text: '老師寄給你的信和禮物，都會放在信箱裡。村莊廣場旁的藍色郵筒冒出 ✉ 和數字，就是有信還沒領！走到郵筒旁邊按 Enter，或點背包裡的「✉ 信箱」，都能打開。按「領取」就能收下禮物，領過的信會留著，可以再看。' }],
     gift: [{ icon: '🎁', title: '序號禮物', text: '老師會發序號給你。在這裡輸入（輸入的字會藏起來），就能領禮物，領到會跳出通知。每組序號每個人只能領一次。' }]
   };
   function introOnce(key) {
@@ -657,7 +692,7 @@ export function initNewWorld(C) {
     if (fresh) { NW.seenNotice = NOTICES[0].id; saveNw(); return; }
     await openNotice(true);
   }
-  async function hubStart() { const fresh = !NW.intro.hub; await introOnce('hub'); await noticeOnce(fresh); await earlyGift(); refreshBoard(); }
+  async function hubStart() { const fresh = !NW.intro.hub; refreshMail(); await introOnce('hub'); await noticeOnce(fresh); await earlyGift(); refreshBoard(); }
 
   async function awardMissions() {
     const ms = checkMissions(NW);
@@ -690,10 +725,10 @@ export function initNewWorld(C) {
     if (ok && !NW.tut.equip) { NW.tut.equip = 1; saveNw(); }
   }
 
-  /* TODO（下一步・信箱）：以前 claimBugs() 領「回報被確認」的字元獎勵（前 BUG_REWARD_MAX 件、每件 BUG_COINS），
-     claimAwards() 領老師頒的「職業除錯師」詞條 bugking。這兩個都要讀 mg_nw_flags，正式規則學生讀不到，已拿掉。
-     信箱做好後，老師確認回報／頒發時直接寄信（固定 ID bug_{flagID}／award_{flagID}），學生從信箱領。
-     在那之前：件數、抓蟲分、稱號詞條（除蟲員、蟲蟲剋星）照常同步；字元獎勵與 bugking 先不發。 */
+  /* 以前 claimBugs()／claimAwards() 要讀 mg_nw_flags 領「回報被確認」的字元和「職業除錯師」，正式規則學生讀不到，已拿掉。
+     現在由老師（教師頁，第 7 步做）確認回報／頒發時寄信：固定 ID bug_{flagID}／award_{flagID}，信的 src 是 'bug'／'award'，
+     學生從信箱領（字元用 coins、職業除錯師用 word bugking）。教師頁做好之前這兩種獎勵沒人寄，件數、抓蟲分、
+     稱號詞條（除蟲員、蟲蟲剋星）照常從 mg_bugboard 同步。 */
   async function refreshBoard(force) {
     await syncBoard(!!force);
     await awardMissions();   // 進村時已同步過件數，這裡補發「除蟲員」等任務完成通知；沒有新任務就什麼都不做
@@ -867,9 +902,161 @@ export function initNewWorld(C) {
     draw();
   }
 
+
+  /* ── 信箱（SPEC §3）：老師寄的信放 mg_mail，學生只讀；已領紀錄在自己存檔的 NW.mail ── */
+  const MAIL_KEEP_MS = 30 * 24 * 3600 * 1000;
+  const toMs = v => !v ? 0 : typeof v === 'number' ? v : v.toMillis ? v.toMillis() : (v.seconds ? v.seconds * 1000 : 0);
+  const mailItems = m => Array.isArray(m.items) ? m.items : [];
+  const mailBlock = () => nameLock ? 'lock' : !C.online() ? 'offline' : '';
+  /* 已領超過 30 天的收起來；沒領的不管多久都留著（過期由 expireAt 決定） */
+  const mailVisible = () => mailList.filter(m => !NW.mail[m.id] || now() - toMs(NW.mail[m.id]) <= MAIL_KEEP_MS)
+    .sort((a, b) => (NW.mail[a.id] ? 1 : 0) - (NW.mail[b.id] ? 1 : 0) || (b.t || b._sendAt) - (a.t || a._sendAt));
+  const countUnread = () => mailVisible().filter(m => !NW.mail[m.id]).length;
+
+  function paintMailBadge() {
+    document.querySelectorAll('[data-bagdot]').forEach(el => { el.style.display = mailCount > 0 ? 'block' : 'none'; });
+  }
+  /* 查詢只用 array-contains-any 一個條件（全部／我的班／我），時間在這裡用「伺服器時間」過濾，不用建索引 */
+  async function fetchMail(force) {
+    if (mailBlock()) { mailList = []; mailCount = 0; paintMailBadge(); return mailBlock(); }
+    if (!force && mailAt && Date.now() - mailAt < 60000) return '';
+    let snap;
+    try {
+      snap = await C.withTimeout(C.getDocs(C.query(C.collection(C.db, 'mg_mail'), C.where('aud', 'array-contains-any', ['all', 'cls:' + ME.className, 'id:' + ME.docId]))), 6000, 'nw-mail');
+    } catch (e) { console.warn('讀信箱失敗', e); return 'fail'; }
+    const t = now(), list = [];
+    snap.forEach(d => {
+      const m = d.data() || {}, sendAt = toMs(m.sendAt), exp = toMs(m.expireAt);
+      if (sendAt > t || (exp && exp <= t)) return;
+      list.push(Object.assign({}, m, { id: d.id, _sendAt: sendAt }));
+    });
+    mailList = list; mailAt = Date.now(); mailCount = countUnread(); paintMailBadge();
+    return '';
+  }
+  const refreshMail = force => fetchMail(force).catch(() => {});
+
+  const itemLabel = it => !it ? '' : ({
+    weapon: () => `🗡 ${(GIFT_WEAPONS[it.key] || { name: '新武器' }).name}`, coins: () => `🪙 字元 ×${it.n}`, potion: () => `🧪 回復藥 ×${it.n}`,
+    exp: () => `⭐ 獵人經驗 +${it.n}`, mat: () => `📦 ${matName(it.key)[0]} ×${it.n}`, word: () => `🏅 稱號詞條「${(wordById(it.key) || { w: '' }).w}」`
+  }[it.type] || (() => '❓ 新東西'))();
+
+  async function claimMail(ids) {
+    if (mailBusy) return;
+    mailBusy = true;
+    try {
+      /* 另一個分頁可能已經領過：先讀雲端存檔，把它的已領紀錄併進來 */
+      try {
+        const s = await C.withTimeout(C.getDoc(docRef()), 5000, 'nw-mail-read');
+        const cm = s.exists() && s.data().nw && s.data().nw.mail;
+        if (cm && typeof cm === 'object' && !Array.isArray(cm)) for (const k in cm) if (!NW.mail[k]) NW.mail[k] = cm[k];
+      } catch (e) { toast('現在連不上網路，等一下再來領', 3000); return; }
+      const gifts = []; let did = 0, unknown = 0;
+      for (const id of ids) {
+        const m = mailList.find(x => x.id === id);
+        if (!m || NW.mail[id]) continue;
+        const items = mailItems(m);
+        if (!items.every(itemKnown)) { unknown++; continue; }
+        items.forEach(it => { const g = applyReward(it); if (g) gifts.push(g); });
+        if (!items.length) gifts.push({ icon: '✉', title: m.title || '一封信', note: m.body || '' });
+        NW.mail[id] = now(); did++;
+      }
+      const ws = checkWords(NW);
+      if (ws.length) gifts.push({ icon: '🏅', title: '新的稱號詞條', note: ws.join('、') + '。到背包點名字下面的稱號，自己拚拚看。' });
+      if (did) await saveNwNow();
+      mailCount = countUnread(); paintMailBadge();
+      paintMail();
+      for (const g of gifts) await showGift(g);
+      if (unknown) toast('有信裡的東西這個版本還不認得，請按 F5 重新整理再來領', 4200);
+      if (did && view === 'hub') viewHub();
+    } finally { mailBusy = false; }
+  }
+
+  function paintMail() {
+    const sheet = document.getElementById('nw-mail'); if (!sheet) return;
+    const box = sheet.querySelector('[data-mailbox]'), blk = mailBlock();
+    const msg = t => { box.innerHTML = `<div class="px-panel in px-text text-center" data-msg style="padding:18px">${t}</div>`; sheet.querySelector('[data-all]').disabled = true; };
+    if (blk === 'lock') { msg('名字跟上次不一樣，信箱先鎖起來了；請找老師。'); return; }
+    if (blk === 'offline') { msg('現在連不上網路，信箱打不開。'); return; }
+    const list = mailVisible(), un = list.filter(m => !NW.mail[m.id] && mailItems(m).every(itemKnown));
+    const allBtn = sheet.querySelector('[data-all]'); allBtn.disabled = !un.length; allBtn.textContent = un.length ? `全部領取（${un.length}）` : '全部領取';
+    if (!list.length) { box.innerHTML = '<div class="px-panel in px-text text-center" data-msg style="padding:18px">信箱是空的。老師寄信來，郵筒就會冒出 ✉。</div>'; return; }
+    box.innerHTML = list.map(m => {
+      const got = NW.mail[m.id], known = mailItems(m).every(itemKnown), items = mailItems(m);
+      return `<div class="px-panel in" data-mail="${escHtml(m.id)}" style="padding:10px 12px;${got ? 'opacity:.7' : ''}">
+        <div class="flex items-start gap-2"><span style="font-size:26px">${got ? '📭' : '✉'}</span>
+          <div class="flex-1"><b class="px-text" style="color:#ffd98a;font-size:1.05em">${escHtml(m.title || '（沒有標題）')}</b>
+            <div class="text-xs" style="color:#aab0d8">${escHtml(m.from || '老師')}${m._sendAt ? '・' + new Date(m._sendAt).toLocaleDateString('zh-TW') : ''}</div></div>
+          ${got ? '<span class="px-chip" style="color:#8ec96b">✓ 已領</span>'
+            : known ? `<button class="px-btn gold" data-claim="${escHtml(m.id)}">領取</button>` : '<span class="px-chip" style="color:#e5705f">還不能領</span>'}</div>
+        ${m.body ? `<p class="px-text mt-1" style="font-size:.98em;line-height:1.6;white-space:pre-wrap">${escHtml(m.body)}</p>` : ''}
+        ${items.length ? `<div class="flex gap-2 flex-wrap mt-1">${items.map(it => `<span class="px-chip">${escHtml(itemLabel(it))}</span>`).join('')}</div>` : ''}
+        ${!known && !got ? '<p class="text-sm mt-1" style="color:#e5705f">這封信裡有這個版本還不認得的東西，請按 F5 重新整理再來領。</p>' : ''}</div>`;
+    }).join('');
+  }
+
+  async function openMail() {
+    await introOnce('mail');
+    const old = document.getElementById('nw-mail'); if (old) old.remove();
+    const sheet = document.createElement('div');
+    sheet.id = 'nw-mail'; sheet.className = 'nw-sheet fixed inset-0 overflow-y-auto p-3'; sheet.style.zIndex = 92; sheet.style.background = 'rgba(9,8,18,.92)';
+    sheet.innerHTML = `<div class="px-panel" style="max-width:560px;width:100%;padding:16px;margin:0 auto">
+      <div class="flex items-center justify-between gap-2"><div class="px-title" style="font-size:1.5em">✉ 信箱</div>
+        <div class="flex gap-2"><button class="px-btn gold" data-all disabled>全部領取</button><button class="px-btn" data-close>關閉</button></div></div>
+      <div class="flex flex-col gap-2 mt-3" data-mailbox><div class="px-panel in px-text text-center" data-msg style="padding:18px">讀信中…</div></div>
+      <p class="text-xs mt-3" style="color:#aab0d8">領過的信會留著可以再看，30 天後收起來。</p></div>`;
+    sheet.addEventListener('click', e => {
+      if (e.target === sheet || e.target.closest('[data-close]')) { sheet.remove(); return; }
+      const one = e.target.closest('[data-claim]');
+      if (one) { claimMail([one.dataset.claim]); return; }
+      if (e.target.closest('[data-all]')) claimMail(mailVisible().filter(m => !NW.mail[m.id]).map(m => m.id));
+    });
+    document.body.appendChild(sheet);
+    if (mailBlock()) { paintMail(); return; }
+    const r = await fetchMail(true);
+    if (r === 'fail') { const b = sheet.querySelector('[data-mailbox]'); if (b) b.innerHTML = '<div class="px-panel in px-text text-center" data-msg style="padding:18px">信箱讀不到，等一下再試試看。</div>'; return; }
+    paintMail();
+  }
+
+  /* ── 暱稱（SPEC §8）：從詞庫選兩個詞，一天最多改一次 ── */
+  function openNickPicker(after) {
+    if (nameLock) { toast('名字跟上次不一樣，暱稱先鎖起來了；請找老師', 3800); return; }
+    if (NW.nick && now() - NW.nickAt < NICK_COOLDOWN_MS) { toast('暱稱一天只能改一次，明天再來改吧！', 3200); return; }
+    const sel = { a: NW.nick ? NW.nick[0] : '', b: NW.nick ? NW.nick[1] : '' };
+    const ed = document.createElement('div');
+    ed.id = 'nw-nick'; ed.className = 'nw-sheet fixed inset-0 grid place-items-center p-4'; ed.style.zIndex = 93; ed.style.background = 'rgba(9,8,18,.9)';
+    const row = (key, list) => list.map(x => `<button class="nw-chip" data-n="${key}" data-id="${x.id}" aria-pressed="${sel[key] === x.id}">${escHtml(x.w)}</button>`).join('');
+    ed.innerHTML = `<div class="px-panel" style="max-width:560px;width:100%;max-height:92vh;overflow-y:auto;padding:16px">
+      <div class="px-title" style="font-size:1.4em">✏ 取暱稱</div>
+      <p class="text-xs mb-2" style="color:#aab0d8">前面選一個、後面選一個，組成你的暱稱。暱稱會出現在抓蟲榜。<b>一天只能改一次</b>，想好再按「確定」。</p>
+      <div class="px-panel in text-center" style="padding:12px;font-size:1.4em" data-prev></div>
+      <div class="px-text mt-3 mb-1" style="color:#ffd98a">前面</div><div class="flex flex-wrap gap-2">${row('a', NICK_A)}</div>
+      <div class="px-text mt-3 mb-1" style="color:#ffd98a">後面</div><div class="flex flex-wrap gap-2">${row('b', NICK_B)}</div>
+      <div class="flex gap-2 justify-end mt-4"><button class="px-btn" data-rand style="margin-right:auto">🎲 隨機</button><button class="px-btn" data-cancel>取消</button><button class="px-btn gold" data-ok>確定</button></div></div>`;
+    const paint = () => {
+      const a = nickWord(NICK_A, sel.a), b = nickWord(NICK_B, sel.b);
+      ed.querySelector('[data-prev]').innerHTML = a && b ? `<b class="px-title" style="display:inline">${escHtml(a.w + b.w)}</b>` : '<span style="color:#6d6a90">兩邊都選好，就會出現暱稱</span>';
+      ed.querySelector('[data-ok]').disabled = !(a && b);
+      ed.querySelectorAll('[data-n]').forEach(x => x.setAttribute('aria-pressed', sel[x.dataset.n] === x.dataset.id));
+    };
+    ed.addEventListener('click', e => {
+      const c = e.target.closest('[data-n]');
+      if (c) { sel[c.dataset.n] = c.dataset.id; paint(); return; }
+      if (e.target.closest('[data-rand]')) { sel.a = NICK_A[Math.floor(Math.random() * NICK_A.length)].id; sel.b = NICK_B[Math.floor(Math.random() * NICK_B.length)].id; paint(); return; }
+      if (e.target === ed || e.target.closest('[data-cancel]')) { ed.remove(); return; }
+      if (e.target.closest('[data-ok]')) {
+        if (!nickWord(NICK_A, sel.a) || !nickWord(NICK_B, sel.b)) return;
+        NW.nick = [sel.a, sel.b]; NW.nickAt = now(); saveNw(); ed.remove();
+        toast(`你的暱稱是「${nickText(NW)}」`, 2600);
+        if (after) after();
+      }
+    });
+    document.body.appendChild(ed);
+    paint();
+  }
+
   function openBackpack(tab) {
     closeBag();
-    const TABS = [['equip', '⚔', '裝備背包'], ['items', '🧪', '道具'], ['mats', '📦', '材料'], ['bp', '📜', '圖紙'], ['quest', '🧭', '任務'], ['dex', '📖', '圖鑑']];
+    const TABS = [['equip', '⚔', '裝備背包'], ['items', '🧪', '道具'], ['mats', '📦', '材料'], ['bp', '📜', '圖紙'], ['quest', '🧭', '任務'], ['dex', '📖', '圖鑑'], ['mail', '✉', '信箱']];
     const sheet = document.createElement('div');
     sheet.id = 'nw-bag'; sheet.className = 'nw-sheet fixed inset-0 z-[75] overflow-y-auto'; sheet.style.background = 'rgba(9,8,18,.9)';
     sheet.innerHTML = `<style>
@@ -889,7 +1076,7 @@ export function initNewWorld(C) {
       <div class="flex items-center justify-between mb-3"><div class="px-title text-2xl">🎒 背包</div><button class="px-btn" data-bag-close>關閉（B）</button></div>
       <div class="flex gap-3 flex-wrap items-start">
         <div class="px-panel in" style="width:340px;max-width:100%;padding:12px" data-card></div>
-        <div class="flex-1" style="min-width:280px"><div class="flex gap-2 flex-wrap mb-2">${TABS.map(([k, i, n]) => `<button class="px-btn" data-bag-tab="${k}">${i} ${n}</button>`).join('')}</div>
+        <div class="flex-1" style="min-width:280px"><div class="flex gap-2 flex-wrap mb-2">${TABS.map(([k, i, n]) => `<button class="px-btn" data-bag-tab="${k}" style="position:relative">${i} ${n}${k === 'mail' ? `<i data-bagdot style="display:${mailCount > 0 ? 'block' : 'none'};position:absolute;top:-5px;right:-5px;width:14px;height:14px;background:#d83a3a;border:2px solid #0a0714"></i>` : ''}</button>`).join('')}</div>
           <div class="px-panel in" style="min-height:360px" data-body></div></div></div></div></div>`;
     const slot = (k, n) => {
       const w = k === 'weapon' && curWeapon(NW);
@@ -898,6 +1085,7 @@ export function initNewWorld(C) {
     const renderCard = () => {
       const c = sheet.querySelector('[data-card]');
       c.innerHTML = `<div class="text-center px-text" style="font-size:1.25em;font-weight:900">${escHtml(ME.name)}</div>
+        <button class="px-btn mt-1" data-nick-edit style="display:block;width:100%" title="暱稱會顯示在抓蟲榜上">${NW.nick ? `暱稱：${escHtml(nickText(NW))}　✏ 改` : '✏ 取暱稱'}</button>
         <button class="bp-title mt-1" data-title-edit title="點一下編輯稱號">${titleLine()}</button>
         <div class="flex items-center justify-between gap-1 mt-3" style="padding-bottom:20px">
           <div class="flex flex-col gap-6">${slot('helm', '頭盔')}${slot('armor', '盔甲')}${slot('boots', '護腳')}</div>
@@ -917,7 +1105,10 @@ export function initNewWorld(C) {
     };
     sheet.addEventListener('click', e => {
       if (e.target === sheet || e.target.closest('[data-bag-close]')) { closeBag(); return; }
-      const t = e.target.closest('[data-bag-tab]'); if (t) { render(t.dataset.bagTab); return; }
+      const t = e.target.closest('[data-bag-tab]');
+      if (t && t.dataset.bagTab === 'mail') { openMail(); return; }   // 信箱是獨立視窗，跟郵筒打開的是同一個
+      if (t) { render(t.dataset.bagTab); return; }
+      if (e.target.closest('[data-nick-edit]')) { openNickPicker(renderCard); return; }
       if (e.target.closest('[data-title-edit]')) { openTitleEditor(renderCard); return; }
       const eq = e.target.closest('[data-equip]');
       if (eq) { NW.equip = eq.dataset.equip === NW.starter ? '' : eq.dataset.equip; saveNw(); renderCard(); render('equip'); return; }
@@ -933,7 +1124,7 @@ export function initNewWorld(C) {
     const k = e.key.toLowerCase();
     if (/INPUT|TEXTAREA|SELECT/.test((e.target && e.target.tagName) || '') || root.classList.contains('hidden') || !NW) return;
     if (k === 'b' && ['hub', 'board', 'room'].includes(view)) { document.getElementById('nw-bag') ? closeBag() : openBackpack('equip'); }
-    if (k === 'escape') { const te = document.getElementById('nw-title'); if (te) te.querySelector('[data-ok]').click(); else closeBag(); }
+    if (k === 'escape') { const ne = document.getElementById('nw-nick') || document.getElementById('nw-mail'); if (ne) { ne.remove(); return; } const te = document.getElementById('nw-title'); if (te) te.querySelector('[data-ok]').click(); else closeBag(); }
   });
 
   let boardSel = null;
