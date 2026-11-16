@@ -2,7 +2,7 @@ import { PX } from './pixel.js';
 import {
   LOOK, DEFAULT_LOOK, heroLook, STARTERS, LOCKED_WEAPONS, REGIONS, MAP_POS, ELEM, STATUS, MONSTERS,
   regionLv, MAIN_QUESTS, normalizeNw, currentQuest, zoneOpen, starOpen, addHrExp, hrNeed, huntExp, huntCoins,
-  COLOR_NAME, COLOR_HEX, HR_MAX, VILLAGE, doorTile, buildingOpen, goalOf, TEST_TAGS, FB_COINS, FB_MINLEN, BUG_COINS, BUG_REWARD_MAX, LESSON_COINS, TESTER_MISSIONS, checkMissions, GIFT_WEAPONS, weaponInfo, weaponBase, curWeapon, WORDS, WORD_GROUPS, checkWords, setTitleParts, wordById, normName, NICK_A, NICK_B, NICK_COOLDOWN_MS, nickText, nickWord
+  COLOR_NAME, COLOR_HEX, HR_MAX, VILLAGE, doorTile, buildingOpen, goalOf, TEST_TAGS, FB_COINS, FB_MINLEN, BUG_COINS, BUG_REWARD_MAX, LESSON_COINS, TESTER_MISSIONS, checkMissions, GIFT_WEAPONS, weaponInfo, weaponBase, curWeapon, WORDS, WORD_GROUPS, checkWords, setTitleParts, wordById, normName, NICK_A, NICK_B, ITEM_DEFS, nickText, nickWord
 } from './nw-data.js';
 import { injectUi } from './nw-ui.js';
 import { mountVillage } from './nw-village.js';
@@ -10,6 +10,7 @@ import { mountBoard } from './nw-board.js';
 import { startBattle } from './nw-battle.js';
 import { openNwRank } from './nw-rank.js';
 import { tour, openAcademy } from './nw-academy.js';
+import { createEvents } from './nw-events.js';
 import { DEFAULT_CODE_HASH, sha256Hex, cleanCode } from './nw-access.js';
 
 const CSS = `
@@ -109,6 +110,24 @@ export function initNewWorld(C) {
   let clockSkew = 0;
   const now = () => Date.now() + clockSkew;
   C.now = now;
+  /* 活動（nw-events.js）。grant：領獎，信裡有這版不認得的東西就整份不領（回 null），跟信箱同一套規矩 */
+  const EV = createEvents(C, {
+    now, me: () => ME, nw: () => NW, save: () => saveNw(), saveNow: () => saveNwNow(), nickText,
+    grant: items => (Array.isArray(items) && items.every(itemKnown)) ? items.map(applyReward).filter(Boolean) : null
+  });
+  /* 進村、開佈告欄時：清舊紀錄、提示被取消的活動、檢查全班獎 */
+  let evChecking = false;
+  async function eventsCheck() {
+    if (evChecking || !NW) return;
+    evChecking = true;
+    try {
+      const gone = EV.sweep();
+      if (gone.length) toast(gone.map(t => `「${t}」這個活動取消了`).join('；'), 4200);
+      const gifts = await EV.claimClassWar();
+      for (const g of gifts) await showGift(g);
+      if (gifts.length && view === 'hub') viewHub();
+    } finally { evChecking = false; }
+  }
   async function syncClock() {
     if (!C.online()) return;
     const ref = C.doc(C.db, 'mg_clock', ME.docId);
@@ -297,11 +316,13 @@ export function initNewWorld(C) {
     if (!g.ok) { toast(g.why, 3600); return; }
     toast('穿過傳送門…', 1200);
     await loadNw();
+    await EV.load(true);
     show('screen-lobby', false); show('btn-verlog', false); show('app-header', false);
     show('nw-root', true);
     if (!NW.look) viewCreator(true);
     else if (!NW.starter) viewStarter();
     else viewHub();
+    eventsCheck();
   }
   function leave() {
     stopAnims();
@@ -545,7 +566,7 @@ export function initNewWorld(C) {
           <p class="text-xs mt-2" style="color:#aab0d8">${swapLeft > 0 ? `前 3 場狩獵可以免費換，還剩 ${swapLeft} 場。` : '前 3 場已經過了，之後要打造新武器才能換。'}${NW.gw.length ? '格子裡的武器，點一下就能換上。' : ''}打造出來的裝備會放在這個背包裡。</p></div>`;
     }
     if (tab === 'items') {
-      const rows = Object.entries(NW.items).filter(([, n]) => n > 0).map(([id, n]) => `<div class="px-panel in flex justify-between"><span>🧪 ${id === 'potion' ? '回復藥' : id}</span><b>×${n}</b></div>`);
+      const rows = Object.entries(NW.items).filter(([, n]) => n > 0).map(([id, n]) => { const d = ITEM_DEFS[id] || { name: id, icon: '📦' }; return `<div class="px-panel in flex justify-between items-center"><span class="flex items-center gap-2">${d.pixel ? `<span data-sprite="item:${d.pixel}:2"></span>` : d.icon} ${escHtml(d.name)}${d.desc && d.pixel ? `<small style="color:#aab0d8">　${escHtml(d.desc)}</small>` : ''}</span><b>×${n}</b></div>`; });
       return `<h3 class="text-lg mb-2">道具</h3>${rows.length ? `<div class="grid gap-2">${rows.join('')}</div>` : '<p class="px-text">還沒有道具。</p>'}
         <p class="text-xs mt-3" style="color:#aab0d8">回復藥要等商店開張才能在戰鬥中使用，先幫你存著。</p>`;
     }
@@ -583,7 +604,7 @@ export function initNewWorld(C) {
           <p class="px-text mt-2" style="font-size:.95em">${escHtml(g.note || '')}</p>
           <div class="mt-4"><button class="px-btn gold" style="padding:8px 30px" data-ok>收下</button></div></div>`;
       const ico = sheet.querySelector('[data-ico]');
-      if (g.weapon) ico.prepend(PX.canvas('weapon', g.weapon, 4, false)); else ico.insertAdjacentHTML('afterbegin', `<span style="font-size:60px;line-height:90px">${g.icon || '🎁'}</span>`);
+      if (g.weapon) ico.prepend(PX.canvas('weapon', g.weapon, 4, false)); else if (g.itemPx) ico.prepend(PX.canvas('item', g.itemPx, 4, false)); else ico.insertAdjacentHTML('afterbegin', `<span style="font-size:60px;line-height:90px">${g.icon || '🎁'}</span>`);
       sheet.addEventListener('click', e => { if (e.target.closest('[data-ok]')) { sheet.remove(); done(); } });
       document.body.appendChild(sheet);
     });
@@ -592,7 +613,7 @@ export function initNewWorld(C) {
   const posN = r => Number.isFinite(+r.n) && +r.n > 0;
   /* 信裡有這版程式不認得的東西（老師用了新功能、學生還沒重新整理）就整封不領，才不會領一半、之後又領一次 */
   const itemKnown = r => !!r && ({
-    weapon: () => !!GIFT_WEAPONS[r.key], coins: () => posN(r), potion: () => posN(r), exp: () => posN(r),
+    weapon: () => !!GIFT_WEAPONS[r.key], coins: () => posN(r), potion: () => posN(r), exp: () => posN(r), item: () => !!ITEM_DEFS[r.key] && typeof r.key === 'string' && posN(r),
     mat: () => typeof r.key === 'string' && !!r.key && posN(r), word: () => !!wordById(r.key)
   }[r.type] || (() => false))();
   const rewardOk = r => !!r && (r.type === 'weapon' ? !!GIFT_WEAPONS[r.key] : (r.type === 'coins' || r.type === 'potion') && Number.isFinite(+r.n));
@@ -608,6 +629,10 @@ export function initNewWorld(C) {
     if (r.type === 'exp') {
       const ups = addHrExp(NW, +r.n);
       return { icon: '⭐', title: `獵人經驗 +${r.n}`, note: ups ? `獵人等級升到 ${NW.hr}！` : '經驗滿了，獵人等級就會升級。' };
+    }
+    if (r.type === 'item') {
+      const d = ITEM_DEFS[r.key]; NW.items[r.key] = (NW.items[r.key] || 0) + +r.n;
+      return d.pixel ? { itemPx: d.pixel, title: `${d.name} ×${r.n}`, note: d.desc } : { icon: d.icon || '📦', title: `${d.name} ×${r.n}`, note: d.desc };
     }
     if (r.type === 'mat') { const [nm] = matName(r.key); NW.mats[r.key] = (NW.mats[r.key] || 0) + +r.n; return { icon: '📦', title: `${nm} ×${r.n}`, note: '材料先幫你存著，鐵匠鋪開張就能用。' }; }
     if (r.type === 'word') {
@@ -670,6 +695,7 @@ export function initNewWorld(C) {
     ] }
   ];
   function openNotice(auto) {
+    if (!auto) EV.load().then(eventsCheck);
     return new Promise(res => {
       const list = auto ? NOTICES.slice(0, 1) : NOTICES;
       const sheet = document.createElement('div');
@@ -687,12 +713,18 @@ export function initNewWorld(C) {
       document.body.appendChild(sheet);
     });
   }
+  /* 進新世界就先取名：沒取過就跳選擇器，不能完全跳過（關掉就幫他存隨機的）。被冒名鎖時不跳。
+     測試機用 __NW_NOINTRO__ 關掉所有第一次的畫面，要測這個再開 __NW_NICKPROMPT__。 */
+  async function nickFirst() {
+    if (NW.nick || nameLock || (window.__NW_NOINTRO__ && !window.__NW_NICKPROMPT__)) return;
+    await new Promise(res => openNickPicker(res, 'first'));
+  }
   async function noticeOnce(fresh) {
     if (NW.seenNotice === NOTICES[0].id || window.__NW_NOINTRO__) return;
     if (fresh) { NW.seenNotice = NOTICES[0].id; saveNw(); return; }
     await openNotice(true);
   }
-  async function hubStart() { const fresh = !NW.intro.hub; refreshMail(); await introOnce('hub'); await noticeOnce(fresh); await earlyGift(); refreshBoard(); }
+  async function hubStart() { const fresh = !NW.intro.hub; refreshMail(); await introOnce('hub'); await nickFirst(); await noticeOnce(fresh); await earlyGift(); refreshBoard(); }
 
   async function awardMissions() {
     const ms = checkMissions(NW);
@@ -937,7 +969,7 @@ export function initNewWorld(C) {
 
   const itemLabel = it => !it ? '' : ({
     weapon: () => `🗡 ${(GIFT_WEAPONS[it.key] || { name: '新武器' }).name}`, coins: () => `🪙 字元 ×${it.n}`, potion: () => `🧪 回復藥 ×${it.n}`,
-    exp: () => `⭐ 獵人經驗 +${it.n}`, mat: () => `📦 ${matName(it.key)[0]} ×${it.n}`, word: () => `🏅 稱號詞條「${(wordById(it.key) || { w: '' }).w}」`
+    exp: () => `⭐ 獵人經驗 +${it.n}`, item: () => `🎴 ${(ITEM_DEFS[it.key] || { name: '道具' }).name} ×${it.n}`, mat: () => `📦 ${matName(it.key)[0]} ×${it.n}`, word: () => `🏅 稱號詞條「${(wordById(it.key) || { w: '' }).w}」`
   }[it.type] || (() => '❓ 新東西'))();
 
   async function claimMail(ids) {
@@ -1018,20 +1050,23 @@ export function initNewWorld(C) {
   }
 
   /* ── 暱稱（SPEC §8）：從詞庫選兩個詞，一天最多改一次 ── */
-  function openNickPicker(after) {
-    if (nameLock) { toast('名字跟上次不一樣，暱稱先鎖起來了；請找老師', 3800); return; }
-    if (NW.nick && now() - NW.nickAt < NICK_COOLDOWN_MS) { toast('暱稱一天只能改一次，明天再來改吧！', 3200); return; }
+  const cards = () => (NW.items.renameCard || 0);
+  function openNickPicker(after, mode) {
+    if (nameLock) { toast('名字跟上次不一樣，暱稱先鎖起來了；請找老師', 3800); if (after) after(); return; }
+    /* 取過了就固定，要換得用改名卡 */
+    const first = mode === 'first' || !NW.nick;
+    if (!first && cards() < 1) { toast('要有改名卡才能換喔（之後商店會賣，也可能是老師的禮物）', 3600); return; }
     const sel = { a: NW.nick ? NW.nick[0] : '', b: NW.nick ? NW.nick[1] : '' };
     const ed = document.createElement('div');
     ed.id = 'nw-nick'; ed.className = 'nw-sheet fixed inset-0 grid place-items-center p-4'; ed.style.zIndex = 93; ed.style.background = 'rgba(9,8,18,.9)';
     const row = (key, list) => list.map(x => `<button class="nw-chip" data-n="${key}" data-id="${x.id}" aria-pressed="${sel[key] === x.id}">${escHtml(x.w)}</button>`).join('');
     ed.innerHTML = `<div class="px-panel" style="max-width:560px;width:100%;max-height:92vh;overflow-y:auto;padding:16px">
-      <div class="px-title" style="font-size:1.4em">✏ 取暱稱</div>
-      <p class="text-xs mb-2" style="color:#aab0d8">前面選一個、後面選一個，組成你的暱稱。暱稱會出現在抓蟲榜。<b>一天只能改一次</b>，想好再按「確定」。</p>
+      <div class="px-title" style="font-size:1.4em">${first ? '✏ 先取個暱稱吧' : '✏ 換暱稱'}</div>
+      <p class="text-xs mb-2" style="color:#aab0d8">前面選一個、後面選一個，組成你的暱稱。暱稱會出現在抓蟲榜。${first ? '<b>取了就固定</b>，想好再按「確定」；之後想換要用「改名卡」。' : '<b>會用掉 1 張改名卡</b>，想好再按「確定」。'}</p>
       <div class="px-panel in text-center" style="padding:12px;font-size:1.4em" data-prev></div>
       <div class="px-text mt-3 mb-1" style="color:#ffd98a">前面</div><div class="flex flex-wrap gap-2">${row('a', NICK_A)}</div>
       <div class="px-text mt-3 mb-1" style="color:#ffd98a">後面</div><div class="flex flex-wrap gap-2">${row('b', NICK_B)}</div>
-      <div class="flex gap-2 justify-end mt-4"><button class="px-btn" data-rand style="margin-right:auto">🎲 隨機</button><button class="px-btn" data-cancel>取消</button><button class="px-btn gold" data-ok>確定</button></div></div>`;
+      <div class="flex gap-2 justify-end mt-4"><button class="px-btn" data-rand style="margin-right:auto">🎲 隨機</button>${first ? '<button class="px-btn" data-skip>先用隨機的</button>' : '<button class="px-btn" data-cancel>取消</button>'}<button class="px-btn gold" data-ok>確定</button></div></div>`;
     const paint = () => {
       const a = nickWord(NICK_A, sel.a), b = nickWord(NICK_B, sel.b);
       ed.querySelector('[data-prev]').innerHTML = a && b ? `<b class="px-title" style="display:inline">${escHtml(a.w + b.w)}</b>` : '<span style="color:#6d6a90">兩邊都選好，就會出現暱稱</span>';
@@ -1042,10 +1077,23 @@ export function initNewWorld(C) {
       const c = e.target.closest('[data-n]');
       if (c) { sel[c.dataset.n] = c.dataset.id; paint(); return; }
       if (e.target.closest('[data-rand]')) { sel.a = NICK_A[Math.floor(Math.random() * NICK_A.length)].id; sel.b = NICK_B[Math.floor(Math.random() * NICK_B.length)].id; paint(); return; }
+      /* 第一次取名不能完全跳過：按「先用隨機的」或點旁邊關掉，都幫他存一個隨機組合 */
+      if (e.target.closest('[data-skip]') || (first && e.target === ed)) {
+        sel.a = NICK_A[Math.floor(Math.random() * NICK_A.length)].id; sel.b = NICK_B[Math.floor(Math.random() * NICK_B.length)].id;
+        NW.nick = [sel.a, sel.b]; saveNwNow(); ed.remove();
+        toast(`先幫你取了「${nickText(NW)}」`, 3000);
+        if (after) after();
+        return;
+      }
       if (e.target === ed || e.target.closest('[data-cancel]')) { ed.remove(); return; }
       if (e.target.closest('[data-ok]')) {
         if (!nickWord(NICK_A, sel.a) || !nickWord(NICK_B, sel.b)) return;
-        NW.nick = [sel.a, sel.b]; NW.nickAt = now(); saveNw(); ed.remove();
+        if (!first) {
+          /* 開著視窗時卡可能已經在別的分頁用掉了 */
+          if (cards() < 1) { ed.remove(); toast('改名卡不夠了', 2600); return; }
+          NW.items.renameCard = cards() - 1;
+        }
+        NW.nick = [sel.a, sel.b]; saveNwNow(); ed.remove();
         toast(`你的暱稱是「${nickText(NW)}」`, 2600);
         if (after) after();
       }
@@ -1085,7 +1133,8 @@ export function initNewWorld(C) {
     const renderCard = () => {
       const c = sheet.querySelector('[data-card]');
       c.innerHTML = `<div class="text-center px-text" style="font-size:1.25em;font-weight:900">${escHtml(ME.name)}</div>
-        <button class="px-btn mt-1" data-nick-edit style="display:block;width:100%" title="暱稱會顯示在抓蟲榜上">${NW.nick ? `暱稱：${escHtml(nickText(NW))}　✏ 改` : '✏ 取暱稱'}</button>
+        <button class="px-btn mt-1" data-nick-edit style="display:block;width:100%;${NW.nick && cards() < 1 ? 'opacity:.5' : ''}" title="暱稱會顯示在抓蟲榜上">${NW.nick ? (cards() > 0 ? `暱稱：${escHtml(nickText(NW))}　用 1 張改名卡換暱稱` : `暱稱：${escHtml(nickText(NW))}`) : '✏ 取暱稱'}</button>
+        ${NW.nick && cards() < 1 ? '<p class="text-xs mt-1" style="color:#8a86b0">要有改名卡才能換喔（之後商店會賣，也可能是老師的禮物）</p>' : ''}
         <button class="bp-title mt-1" data-title-edit title="點一下編輯稱號">${titleLine()}</button>
         <div class="flex items-center justify-between gap-1 mt-3" style="padding-bottom:20px">
           <div class="flex flex-col gap-6">${slot('helm', '頭盔')}${slot('armor', '盔甲')}${slot('boots', '護腳')}</div>
@@ -1193,9 +1242,11 @@ export function initNewWorld(C) {
     stopAnims();
     writeRoom({ state: 'fighting', t: Date.now() }, true);
     show('nw-root', false);
+    const t0 = now();
     startBattle(env(), { rk: q.rk, mk: q.mk, star: q.star }, res => {
       show('nw-root', true);
       closeRoom();
+      res.t0 = t0;
       afterHunt(res);
     });
   }
@@ -1203,6 +1254,7 @@ export function initNewWorld(C) {
   function afterHunt(res) {
     const sum = finishHunt(res);
     showResult(res, sum, async () => {
+      for (const g of sum.evGifts || []) await showGift(g);
       if (sum.quests.length) toast(`任務完成：${sum.quests[0].t}　獎勵：${sum.quests[0].rewardText}`, 3600);
       if (sum.win && TEST_TAGS[res.mk] && !NW.fb[res.mk]) await askFeedback(res);
       await awardMissions();
@@ -1263,6 +1315,11 @@ export function initNewWorld(C) {
     s.dodgeOk += res.dodgeOk; s.dodgeAll += res.dodgeAll; s.defOk += res.defOk; s.defAll += res.defAll;
     const sum = { lv, win: res.result === 'win', exp: 0, coins: 0, drops: [], rare: [], ups: 0, quests: [], star: res.star };
     if (res.valid) {
+      /* 活動要在更新「自己最快」之前算：進步獎拿活動前的紀錄當 base */
+      const fk = res.mk + ':' + res.star, prevBest = NW.fastMk[fk];
+      const evr = EV.onRun(res, prevBest, res.t0, now());
+      sum.boost = evr.boost; sum.evGifts = evr.gifts;
+      if (sum.win && !(res.secs >= prevBest)) NW.fastMk[fk] = Math.round(res.secs * 10) / 10;
       if (sum.win) {
         s.wins++;
         NW.wwin[weaponBase(curWeapon(NW))] = (NW.wwin[weaponBase(curWeapon(NW))] || 0) + 1;
@@ -1273,8 +1330,8 @@ export function initNewWorld(C) {
         if (!NW.fastest[key] || res.secs < NW.fastest[key]) NW.fastest[key] = res.secs;
       } else s.fails++;
       if (res.lvAcc && lv >= 20) { s.accN++; s.accSum += res.accuracy; }
-      sum.exp = huntExp(lv, sum.win);
-      sum.coins = huntCoins(lv, sum.win);
+      sum.exp = Math.round(huntExp(lv, sum.win) * evr.boost.exp);
+      sum.coins = Math.round(huntCoins(lv, sum.win) * evr.boost.coins);
       sum.hr0 = NW.hr; sum.exp0 = NW.hrExp;
       sum.ups = addHrExp(NW, sum.exp);
       NW.coins += sum.coins;
@@ -1322,6 +1379,7 @@ export function initNewWorld(C) {
           </div>
         </div>
         ${res.valid ? '' : `<p class="mt-3 px-panel in" style="color:#e5705f">${escHtml(res.invalidWhy || '這場不算數')}</p>`}
+        ${res.valid && sum.boost && sum.boost.text ? `<div class="px-title mt-3 px-cursor" style="font-size:1.1em">${escHtml(sum.boost.text)}</div>` : ''}
         ${res.valid ? `<div class="label mt-4 mb-2">獲得</div>
           <div class="flex gap-2 flex-wrap">${drops}${rare}</div>
           <div class="flex gap-5 mt-3 px-text" style="font-size:1.1em"><span>🪙 字元 +<b data-n="${sum.coins}">0</b></span><span>⭐ 獵人經驗 +<b data-n="${sum.exp}">0</b></span></div>
@@ -1360,5 +1418,5 @@ export function initNewWorld(C) {
   });
 
   const giftPending = () => { if (!gate().early) return false; try { const l = JSON.parse(localStorage.getItem(lkey()) || 'null'); return !(l && (l.giftedEarly || (l.gw || []).includes('testblade'))); } catch (e) { return true; } };
-  return { enter, gate, leave, now, nameLocked: () => nameLock, nameBase: () => nameBase, ticket: showTicket, giftPending, refresh: refreshAccess, openCode: openCodeSheet, get nw() { return NW; }, isOpen: () => !root.classList.contains('hidden') };
+  return { enter, gate, leave, now, events: EV, eventsCheck, finishHunt, afterHunt, nameLocked: () => nameLock, nameBase: () => nameBase, ticket: showTicket, giftPending, refresh: refreshAccess, openCode: openCodeSheet, get nw() { return NW; }, isOpen: () => !root.classList.contains('hidden') };
 }

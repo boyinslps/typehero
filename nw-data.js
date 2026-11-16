@@ -229,7 +229,7 @@ export const defaultNw = () => ({
   stat: { dodgeOk: 0, dodgeAll: 0, defOk: 0, defAll: 0, accN: 0, accSum: 0, wins: 0, fails: 0 },
   flags: 0, fb: {}, gw: [], equip: '', gifts: [], giftedEarly: false, tm: {}, bugs: 0, bugsSent: 0, tut: {}, intro: {}, awards: {}, seenNotice: '',
   name0: '', bugScore: 0, evDone: [], nameFlagged: {},
-  mail: {}, nick: null, nickAt: 0
+  mail: {}, nick: null, nickAt: 0, ev: {}, fastMk: {}
 });
 
 export function normalizeNw(d) {
@@ -253,6 +253,10 @@ export function normalizeNw(d) {
   o.mail = (d.mail && typeof d.mail === 'object' && !Array.isArray(d.mail)) ? d.mail : {};
   o.nick = (Array.isArray(d.nick) && d.nick.length === 2 && d.nick.every(x => typeof x === 'string')) ? d.nick.slice() : null;
   o.nickAt = +d.nickAt || 0;
+  /* ev＝每個活動的個人進度（SPEC §4.3）；fastMk＝每隻魔物（含星級）自己最快的秒數，給「進步獎」當活動前的紀錄。
+     NW.fastest 的鍵是「區域:星級」，沒有魔物，進步獎用不了 */
+  o.ev = (d.ev && typeof d.ev === 'object' && !Array.isArray(d.ev)) ? d.ev : {};
+  o.fastMk = (d.fastMk && typeof d.fastMk === 'object' && !Array.isArray(d.fastMk)) ? d.fastMk : {};
   return o;
 }
 
@@ -339,7 +343,16 @@ export const NICK_B = [
   { id: 'b_guardian', w: '守護者' }
 ];
 export const NICK_EMPTY = '神秘獵人';
-export const NICK_COOLDOWN_MS = 24 * 3600 * 1000;
+/* 暱稱取了就固定，要換用「改名卡」（SPEC §8 改）。道具定義放這裡，背包、信箱共用 */
+export const ITEM_DEFS = {
+  potion: { name: '回復藥', desc: '要等商店開張才能在戰鬥中使用，先幫你存著。', icon: '🧪' },
+  renameCard: { name: '改名卡', desc: '可以換一次暱稱。', pixel: 'renameCard' }
+};
+/* 商店開張時用（現在 OPEN_STAGE=1，商店還沒開，沒有購買流程；改名卡先由信箱寄） */
+export const SHOP_ITEMS = [{ key: 'renameCard', price: 300 }];
+/* 台灣時間的「第幾天」：活動剩幾天照日曆日算。固定 +8 小時而不用瀏覽器時區，電腦時區設錯也一樣；時間要用 C.now()（伺服器時間）。 */
+export const TW_OFFSET_MS = 8 * 3600 * 1000;
+export const twDay = ms => Math.floor((ms + TW_OFFSET_MS) / 86400000);
 export const nickWord = (list, id) => list.find(x => x.id === id) || null;
 /* 沒取、或詞庫裡找不到的詞（例如之後被拿掉）都回「神秘獵人」，不會顯示出壞字串 */
 export function nickText(nw) {
@@ -472,3 +485,40 @@ export function boardQuests(nw) {
   });
   return out.sort((a, b) => (a.locked ? 1 : 0) - (b.locked ? 1 : 0) || (a.star || 9) - (b.star || 9) || (a.rk > b.rk ? 1 : -1));
 }
+
+/* ── 活動（docs/SPEC-TEACHER-ADMIN.md §4） ──
+   預設值來自 tools/nw-sim/events.mjs（node tools/nw-sim/events.mjs）：
+   咕咕鳥★1 單場勝率平均約 87%；「一週一節課、一節平均打 2 場」兩週的話，打倒 3 隻的人約 58%，
+   平均打 3 場約 76%；打倒 5 隻約 18%／47%；打倒 10 隻幾乎沒人（3%）。
+   所以：班級挑戰 每人 3 隻、全班 50% 達標（原本規格的 60% 在平均 2 場的班會卡住）、兩週；
+   限時討伐的數量範本用 5 隻不用 10 隻。 */
+export const EVENT_DEFAULTS = {
+  days: 14,
+  boost: { mul: 2, what: 'exp' },
+  hunt: { goal: 5, minStar: 1 },
+  classwar: { per: 3, goalPct: 50 },
+  ranking: { minRuns: 3 }
+};
+
+/* 最快討伐的「合理下限」（秒）：最快手速（70 字/分、全對、練熟）在 ★1 的最快秒數 ×0.8，
+   星級越高魔物越硬，所以每個星級都能用。比這還快的分數，教師頁標 ⚠（SPEC §4.2b）。
+   進步獎超過 IMPROVE_SANE_MAX（%）也標 ⚠。 */
+export const FASTEST_FLOOR = { coo: 14, frog: 13, shroom: 12, wolf: 17 };
+export const IMPROVE_SANE_MAX = 60;
+
+/* 教師頁「新增活動」的範本（SPEC §4.4）。days＝從開始算幾天；fields 是 mg_events 文件的其他欄位。
+   不做「週末加倍」：學生在學校上課才玩，週末加倍只對家裡能玩的人有利。 */
+export const EVENT_TEMPLATES = [
+  { id: 'boost_exp', name: '本週電腦課經驗加倍', days: 7,
+    fields: { type: 'boost', title: '本週經驗加倍', desc: '這個星期打贏魔物，獵人經驗變 2 倍！', mul: 2, what: 'exp' } },
+  { id: 'hunt_coo', name: '咕咕鳥大量出沒（打 5 隻）', days: 14,
+    fields: { type: 'hunt', title: '咕咕鳥大量出沒', desc: '草原跑出好多咕咕鳥！打倒 5 隻就有獎勵。', mk: 'coo', minStar: 1, goal: 5, items: [{ type: 'coins', n: 100 }] } },
+  { id: 'classwar', name: '班級挑戰（兩週）', days: 14,
+    fields: { type: 'classwar', title: '全班一起打咕咕鳥', desc: '每個人打倒 3 隻咕咕鳥。全班有一半的人做到，大家都有獎勵！', mk: 'coo', minStar: 1, per: 3, goalPct: 50, items: [{ type: 'coins', n: 100 }] } },
+  { id: 'rank_improve_frog', name: '進步獎：泡泡蛙', days: 14,
+    fields: { type: 'ranking', metric: 'improve', title: '進步獎：泡泡蛙', desc: '比你以前的紀錄快越多越厲害！打泡泡蛙，至少打 2 場。每個人都有機會。', mk: 'frog', minStar: 1 } },
+  { id: 'rank_kills_coo', name: '討伐王：咕咕鳥', days: 14,
+    fields: { type: 'ranking', metric: 'kills', title: '討伐王：咕咕鳥', desc: '看誰打倒最多隻咕咕鳥！', mk: 'coo', minStar: 1 } },
+  { id: 'rank_acc', name: '神準手', days: 14,
+    fields: { type: 'ranking', metric: 'acc', title: '神準手', desc: '打得又穩又準！至少打 3 場，看平均正確率。', minRuns: 3 } }
+];

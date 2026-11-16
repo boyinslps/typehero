@@ -1005,7 +1005,16 @@ function bigMapGrid(L) {
   return s;
 }
 
-const GRIDS = { weapon: W, region: RG, monster: M };
+/* 道具圖示：改名卡＝一張米色小卡片，上面一條名牌線和一顆金星 */
+const IT = {};
+IT.renameCard = () => {
+  const s = mk(20, 20);
+  rect(s, 2, 4, 16, 12, '#f1e3b8'); rect(s, 2, 4, 16, 2, '#e8b64c'); rect(s, 2, 14, 16, 2, '#d9c58f');
+  rect(s, 4, 8, 8, 2, '#6a42e8'); rect(s, 4, 11, 6, 1, '#8f6bff');
+  rect(s, 13, 8, 3, 3, '#ffd24a'); put(s, 14, 7, '#ffd24a'); put(s, 14, 11, '#ffd24a'); put(s, 14, 9, '#fff2a8');
+  return outline(s, '#1a1209');
+};
+const GRIDS = { weapon: W, region: RG, monster: M, item: IT };
 const cache = {};
 function grid(kind, key) {
   const id = kind + ':' + key;

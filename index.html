@@ -7342,6 +7342,7 @@ function wireEvents() {
     nwMode: () => CFG.nwMode || 'off',
     nwCodeHash: () => CFG.nwCodeHash || '',
     punctDone: () => !!(MY_HIST && MY_HIST.punctDone),
+    classNames: () => CFG.classes.slice(),
     setTitle: setNwTitle,
     q: { questionUnits, judge, canon, splitZhuyin, IS_PUNCT,
          pool: name => (BANK[name] && BANK[name].length) ? BANK[name] : (DEFAULT_BANK[name] || []) }

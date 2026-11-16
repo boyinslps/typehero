@@ -221,7 +221,7 @@ async function winHunt(p, rk, mk, star) {
   }
 
   {
-    const p = await open(b, { intro: true, lobby: true, nw: { quest: { done: ['1-0'] }, hunts: 0 } });
+    const p = await open(b, { intro: true, lobby: true, nw: { nick: ['a_brave', 'b_slime'], quest: { done: ['1-0'] }, hunts: 0 } });
     await p.click('#nw-door'); await p.waitForSelector('#nw-intro', { timeout: 6000 });
     ok((await p.textContent('#nw-intro')).includes('歡迎來到獵人村') && (await p.textContent('#nw-intro')).includes('1 / 3'), '第一次進村：先跳出介紹（第 1 頁：怎麼走路、怎麼進房子）');
     await p.click('#nw-intro [data-next]');
@@ -246,7 +246,7 @@ async function winHunt(p, rk, mk, star) {
   }
 
   {
-    const p = await open(b, { intro: true, lobby: true, nw: { quest: { done: ['1-0'] }, hunts: 3, intro: { hub: 1 } } });
+    const p = await open(b, { intro: true, lobby: true, nw: { nick: ['a_brave', 'b_slime'], quest: { done: ['1-0'] }, hunts: 3, intro: { hub: 1 } } });
     await p.click('#nw-door'); await p.waitForSelector('#nw-notice', { timeout: 6000 });
     ok((await p.textContent('#nw-notice')).includes('新世界改版啦') && (await p.textContent('#nw-notice')).includes('只會跳一次') && (await p.textContent('#nw-notice')).includes('佈告欄'), '老玩家進新世界：跳出改版公告，說明只跳一次、想再看去佈告欄');
     await p.screenshot({ path: OUT + '/nw4-notice.png' });
