@@ -247,7 +247,7 @@ export function initNwPreview(C) {
       const availW = (el.clientWidth || 280) - 16, availH = areaH * hf;
       const sc = Math.max(1, Math.min(12, Math.floor(Math.min(availW / w, availH / h))));
       if (kind === 'battle') return mountBattle(el, sc);
-      if (kind === 'village') { const c = make(1); c.style.width = (c.width * Math.max(1, Math.floor(Math.min(availW / c.width, availH / c.height)))) + 'px'; c.style.imageRendering = 'pixelated'; el.replaceChildren(c); return; }
+      if (kind === 'village') { const c = make(1), k = Math.min(availW / c.width, availH / c.height); /* 32×22 的地圖比預覽框大：放不下整數倍時縮小（預覽只是示意，不是遊戲畫面） */ c.style.width = (c.width * (k >= 1 ? Math.floor(k) : k)) + 'px'; c.style.imageRendering = 'pixelated'; el.replaceChildren(c); return; }
       el.replaceChildren(make(sc));
       if (kind === 'monster') el.onclick = () => { const on = el.dataset.angry !== '1'; el.dataset.angry = on ? '1' : '0'; el.replaceChildren(PX.canvas(kind, key, sc, on)); };
     });

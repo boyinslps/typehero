@@ -6,10 +6,21 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 export function mountVillage(host, o) {
   const { PX, look, open, start, onEnter, scroller, fast, guide, mailN, noticeBang } = o;
   const V = VILLAGE, W = V.cols * T, H = V.rows * T;
-  const availW = host.clientWidth || innerWidth, availH = (scroller ? scroller.clientHeight : innerHeight) - 130;
-  const sc = clamp(Math.floor(Math.min(availW / W, (availH + 110) / H)), 2, 5);
+  /* 倍率照 UI-ART-SPEC §1：整數，桌機 3～4、手機 2。地圖比畫面大，所以不再縮到塞進一個畫面，改成容器兩個方向都能捲 */
+  const mobile = innerWidth < 640;
+  const sc = mobile ? 2 : ((host.clientWidth || innerWidth) >= 940 ? 4 : 3);
   host.innerHTML = '';
-  host.style.overflowX = 'auto';
+  if (!document.getElementById('nw-vp-css')) {
+    const st = document.createElement('style'); st.id = 'nw-vp-css';
+    st.textContent = '.nw-vp{scrollbar-width:none;overscroll-behavior:contain}.nw-vp::-webkit-scrollbar{display:none}';
+    document.head.appendChild(st);
+  }
+  host.classList.add('nw-vp');
+  /* 容器要是 position:relative，stage.offsetLeft／offsetTop 才是相對於它，鏡頭才算得準 */
+  host.style.cssText += ';position:relative;overflow:auto';
+  const hostTop = host.getBoundingClientRect().top - (scroller ? scroller.getBoundingClientRect().top : 0);
+  const availH = (scroller ? scroller.clientHeight : innerHeight) - hostTop - 64;
+  host.style.height = Math.max(240, Math.min(availH, H * sc + 8)) + 'px';
   const stage = document.createElement('div');
   stage.style.cssText = `position:relative;width:${W * sc}px;height:${H * sc}px;margin:0 auto;cursor:pointer;border:4px solid #0a0714;box-sizing:content-box;touch-action:manipulation`;
   const cvs = document.createElement('canvas');
@@ -49,7 +60,10 @@ export function mountVillage(host, o) {
   const spr = (lk, d, f) => { const k = JSON.stringify(lk) + d + f; return sprites[k] || (sprites[k] = PX.chibi(lk, d, f, 1)); };
   const gateEl = { x: V.gate.x * T - 4, y: V.gate.y * T - 56 };
 
+  /* 熱區的位置（邏輯像素）：Enter 提示要避開它們，不然會蓋到郵筒、建築名牌 */
+  const hots = [];
   const addHot = (id, name, x, y, w, h, wip, tag) => {
+    hots.push({ x, y, w, h });
     const b = document.createElement('button');
     b.className = 'vb'; b.dataset.bld = id; b.setAttribute('aria-label', name);
     b.style.cssText = `position:absolute;left:${x * sc}px;top:${y * sc}px;width:${w * sc}px;height:${h * sc}px;background:transparent;border:0;cursor:pointer;padding:0`;
@@ -163,12 +177,20 @@ export function mountVillage(host, o) {
     npcs.forEach(n => test(n.fx, n.fy, 0, 'npc', n, `跟${n.name}說話`));
     return best;
   }
+  /* 提示跟著角色，哪個位置不壓到熱區（郵筒、建築、名牌）就放哪裡。郵筒站位上面是郵筒、下面是委託板，只剩旁邊放得下 */
+  let promptText = '';
   function showPrompt(near) {
     if (!near) { prompt.style.display = 'none'; P.near = null; return; }
     P.near = near;
-    prompt.textContent = `Enter：${near.label}`;
+    if (promptText !== near.label) { promptText = near.label; prompt.textContent = `Enter：${near.label}`; }
     prompt.style.display = 'block';
-    prompt.style.left = (near.x * sc) + 'px'; prompt.style.top = Math.max(0, (near.y - 30) * sc) + 'px';
+    const pw = prompt.offsetWidth / sc, ph = prompt.offsetHeight / sc;
+    /* 候選位置：腳下、頭上、右邊、左邊。名牌從熱區上緣往上凸出約 5 格像素，所以熱區上緣多算 5 */
+    const spot = (x, y) => ({ cx: clamp(x, pw / 2 + 1, W - pw / 2 - 1), y: clamp(y, 0, H - ph) });
+    const hit = c => hots.some(h => c.cx - pw / 2 < h.x + h.w && c.cx + pw / 2 > h.x && c.y < h.y + h.h && c.y + ph > h.y - 5);
+    const cand = [spot(P.fx, P.fy + 6), spot(P.fx, P.fy - 19 - ph), spot(P.fx + pw / 2 + 10, P.fy - 12), spot(P.fx - pw / 2 - 10, P.fy - 12)];
+    const { cx, y } = cand.find(c => !hit(c)) || cand[0];
+    prompt.style.left = (cx * sc) + 'px'; prompt.style.top = (y * sc) + 'px';
   }
   const act = () => {
     if (document.getElementById('nw-bag') || !P.near) return;
@@ -205,7 +227,7 @@ export function mountVillage(host, o) {
   const gB = guide ? V.buildings.find(b => b.id === guide) : null;
   let gPath = [], gT = -9;
   let raf = 0, last = performance.now(), alive = true;
-  const speed = fast ? 500 : 5 * T;
+  const speed = fast ? 500 : 6 * T;
   function frame(now) {
     if (!alive || !stage.isConnected) return;
     const dt = Math.min(.1, (now - last) / 1000); last = now; P.t += dt;
@@ -270,23 +292,94 @@ export function mountVillage(host, o) {
     const draws = npcs.map(n => ({ y: n.fy, f: () => { g.fillStyle = 'rgba(0,0,0,.25)'; g.beginPath(); g.ellipse(n.fx, n.fy + 3, 6, 2, 0, 0, 7); g.fill(); g.drawImage(spr(n.look, n.dir, n.frame), Math.round(n.fx - 8), Math.round(n.fy - 17)); } }));
     draws.push({ y: P.fy, f: () => { g.fillStyle = 'rgba(0,0,0,.25)'; g.beginPath(); g.ellipse(P.fx, P.fy + 3, 6, 2, 0, 0, 7); g.fill(); g.drawImage(spr(look, P.dir, P.frame), Math.round(P.fx - 8), Math.round(P.fy - 17)); } });
     draws.sort((a, b) => a.y - b.y).forEach(d => d.f());
-    if (scroller && stage.offsetTop + stage.offsetHeight > scroller.clientHeight) {
-      const target = stage.offsetTop + (P.fy * sc) - scroller.clientHeight / 2;
-      scroller.scrollTop += fast ? (target - scroller.scrollTop) : (target - scroller.scrollTop) * .12;
+    /* 鏡頭只在角色走動（和停下後的 0.9 秒）時跟著；站著不動時讓玩家自己滑動地圖也不會被拉回來。
+       目標超出範圍時瀏覽器會自己夾在邊緣，所以碰到地圖邊緣就停。 */
+    if (P.moving) camHold = .9; else camHold = Math.max(0, camHold - dt);
+    if (camHold > 0) {
+      const [tx, ty] = camTarget(), k = fast ? 1 : .12;
+      host.scrollLeft += (tx - host.scrollLeft) * k;
+      host.scrollTop += (ty - host.scrollTop) * k;
     }
-    if (W * sc > host.clientWidth) {
-      const tx = P.fx * sc - host.clientWidth / 2;
-      host.scrollLeft += fast ? (tx - host.scrollLeft) : (tx - host.scrollLeft) * .12;
-    }
+    mini.draw();
     raf = requestAnimationFrame(frame);
   }
+  const camTarget = () => [stage.offsetLeft + 4 + P.fx * sc - host.clientWidth / 2, stage.offsetTop + 4 + P.fy * sc - host.clientHeight / 2];
+  let camHold = 0;
+  const camJump = () => { const [tx, ty] = camTarget(); host.scrollLeft = tx; host.scrollTop = ty; };
+  /* 傳送：直接站到那棟的門口，停在那裡（不自動打開）。手機沒有 Enter，但名牌就在眼前，點一下就進去 */
+  function teleport(id) {
+    const b = V.buildings.find(x => x.id === id);
+    if (!b) return false;
+    const d = doorTile(b);
+    P.fx = d[0] * T + 8; P.fy = d[1] * T + 12; P.path = []; P.then = null; P.moving = false;
+    bubble.style.display = 'none';
+    camJump();
+    return true;
+  }
+
+  /* ── 小地圖：右下角固定，點建築＝傳送到門口，點空地不做事 ── */
+  function buildMini() {
+    const ms = mobile ? 3 : 5, mw = V.cols * ms, mh = V.rows * ms;
+    const wrap = document.createElement('div');
+    wrap.id = 'nw-minimap-wrap';
+    wrap.style.cssText = 'position:fixed;right:8px;bottom:8px;z-index:30;padding:3px;background:#0a0714;border:2px solid #f0eee8;box-shadow:0 3px 0 #000';
+    const c = document.createElement('canvas');
+    c.id = 'nw-minimap'; c.width = mw; c.height = mh; c.dataset.s = ms;
+    c.setAttribute('aria-label', '小地圖：點建築，會傳送到它的門口');
+    c.style.cssText = `width:${mw}px;height:${mh}px;image-rendering:pixelated;display:block;cursor:pointer;touch-action:manipulation`;
+    wrap.appendChild(c);
+    host.appendChild(wrap);
+    const g2 = c.getContext('2d');
+    const base = document.createElement('canvas'); base.width = mw; base.height = mh;
+    const b2 = base.getContext('2d'), R = (x, y, w, h, col) => { b2.fillStyle = col; b2.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
+    R(0, 0, mw, mh, '#4a9a3a');
+    (V.zones || []).forEach(z => R(z.x0 * ms, z.y0 * ms, (z.x1 - z.x0 + 1) * ms, (z.y1 - z.y0 + 1) * ms, z.col));
+    b2.fillStyle = '#bdb5a4'; b2.beginPath(); b2.arc(V.plaza.x * ms, V.plaza.y * ms, (V.plaza.r || 52) / T * ms, 0, 7); b2.fill();
+    (V.roads || []).forEach(pts => { for (let i = 0; i < pts.length - 1; i++) { const [x0, y0] = pts[i], [x1, y1] = pts[i + 1], n = Math.ceil(Math.hypot(x1 - x0, y1 - y0) * ms); for (let k = 0; k <= n; k++) R((x0 + (x1 - x0) * k / n + .5) * ms - 1, (y0 + (y1 - y0) * k / n + .5) * ms - 1, 2, 2, '#c9a66b'); } });
+    const pd = V.pond, ck = V.creek, cl = V.cliff;
+    if (pd) { b2.fillStyle = '#3ca4d4'; b2.beginPath(); b2.ellipse((pd.x0 + pd.x1 + 1) / 2 * ms, (pd.y0 + pd.y1 + 1) / 2 * ms, (pd.x1 - pd.x0 + 1) / 2 * ms, (pd.y1 - pd.y0 + 1) / 2 * ms, 0, 0, 7); b2.fill(); }
+    if (ck) { R(ck.x0 * ms, ck.y0 * ms, (ck.x1 - ck.x0 + 1) * ms, (ck.y1 - ck.y0 + 1) * ms, '#3ca4d4'); R(ck.x0 * ms - 1, ck.bridge.y0 * ms, (ck.x1 - ck.x0 + 1) * ms + 2, (ck.bridge.y1 - ck.bridge.y0 + 1) * ms, '#a8763c'); }
+    if (cl) { R(0, cl.y * ms, mw, ms, '#6a645a'); R(cl.stairs.x0 * ms, cl.y * ms, (cl.stairs.x1 - cl.stairs.x0 + 1) * ms, ms, '#c4bcab'); }
+    const gt = V.gateBlock; R(gt.x0 * ms, gt.y0 * ms, (gt.x1 - gt.x0 + 1) * ms, (gt.y1 - gt.y0 + 1) * ms, '#7b4dff'); R(gt.x0 * ms + 1, gt.y0 * ms + 1, (gt.x1 - gt.x0 + 1) * ms - 2, 2, '#d9ccff');
+    V.buildings.forEach(b => { R(b.x * ms, b.y * ms, 3 * ms, 3 * ms, '#0a0714'); R(b.x * ms + 1, b.y * ms + 1, 3 * ms - 2, 3 * ms - 2, open.includes(b.id) ? '#e8b64c' : '#6a6f7a'); });
+    const tileAt = e => { const r = c.getBoundingClientRect(); return [(e.clientX - r.left) / ms, (e.clientY - r.top) / ms]; };
+    /* 點的位置落在建築外框加 1 格的範圍內才算點到；兩棟都沾到就選中心比較近的 */
+    const bldAt = e => {
+      const [tx, ty] = tileAt(e);
+      return V.buildings.filter(b => tx >= b.x - 1 && tx <= b.x + 4 && ty >= b.y - 1 && ty <= b.y + 4)
+        .sort((a, b) => Math.hypot(tx - a.x - 1.5, ty - a.y - 1.5) - Math.hypot(tx - b.x - 1.5, ty - b.y - 1.5))[0];
+    };
+    c.addEventListener('click', e => {
+      if (overlayOpen()) return;
+      const b = bldAt(e);
+      if (b) teleport(b.id);
+    });
+    c.addEventListener('mousemove', e => { c.style.cursor = bldAt(e) ? 'pointer' : 'default'; });
+    return {
+      wrap,
+      draw() {
+        g2.drawImage(base, 0, 0);
+        /* 目前畫面照到的範圍 */
+        const vx = (host.scrollLeft - stage.offsetLeft - 4) / sc / T * ms, vy = (host.scrollTop - stage.offsetTop - 4) / sc / T * ms;
+        g2.strokeStyle = 'rgba(240,238,232,.85)'; g2.lineWidth = 1;
+        g2.strokeRect(Math.round(vx) + .5, Math.round(vy) + .5, Math.round(host.clientWidth / sc / T * ms), Math.round(host.clientHeight / sc / T * ms));
+        const mx = Math.floor(P.fx / T * ms), my = Math.floor(P.fy / T * ms);
+        g2.fillStyle = '#0a0714'; g2.fillRect(mx - 2, my - 2, 5, 5);
+        g2.fillStyle = Math.floor(P.t * 3) % 2 ? '#ffd98a' : '#e8b64c'; g2.fillRect(mx - 1, my - 1, 3, 3);
+      },
+      remove() { wrap.remove(); }
+    };
+  }
+  const mini = buildMini();
   raf = requestAnimationFrame(frame);
-  if (scroller && stage.offsetTop + stage.offsetHeight > scroller.clientHeight) scroller.scrollTop = stage.offsetTop + (P.fy * sc) - scroller.clientHeight / 2;
-  if (W * sc > host.clientWidth) host.scrollLeft = P.fx * sc - host.clientWidth / 2;
+  camJump();
 
   return {
-    destroy() { alive = false; cancelAnimationFrame(raf); removeEventListener('keydown', kd); removeEventListener('keyup', ku); removeEventListener('keydown', onEnterKey); },
+    destroy() { alive = false; mini.remove(); cancelAnimationFrame(raf); removeEventListener('keydown', kd); removeEventListener('keyup', ku); removeEventListener('keydown', onEnterKey); },
     pos: () => tileOf(),
-    walkTo
+    walkTo,
+    teleport,
+    /* 給測試與除錯用：地板箭頭現在算出來的路 */
+    guidePath: () => gPath
   };
 }

@@ -339,6 +339,8 @@ export function initNewWorld(C) {
 
   const FAST = location.hostname === 'localhost' && (() => { try { return localStorage.getItem('mg_nw_fast') === '1'; } catch (e) { return false; } })();
   let village = null;
+  /* 村莊地圖版本：2＝32×22 的新地圖。存檔裡 posV 不是 2 的舊座標（舊 22×15 地圖）一律回出生點 */
+  const POS_V = 2;
   const myChibi = () => heroLook(NW.look, curWeapon(NW) || 'staff');
 
   function enterBuilding(b) {
@@ -346,13 +348,13 @@ export function initNewWorld(C) {
     if (b.id === 'mail') {
       if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
       /* 領完信會重畫村莊（更新字元數），先記下站的位置，才不會被送回出生點 */
-      if (village && village.pos) NW.pos = village.pos();
+      if (village && village.pos) { NW.pos = village.pos(); NW.posV = POS_V; }
       openMail(); return;
     }
     /* 點過的按鈕會一直拿著焦點，之後在建築裡按 Enter 會被瀏覽器當成又點了一次 */
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     const d = doorTile(b);
-    NW.pos = [d[0], d[1] + 1];
+    NW.pos = [d[0], d[1] + 1]; NW.posV = POS_V;
     if (buildingOpen(b)) { const go = { map: viewBoard, rank: openRank, academy: openAcademyUI, notice: () => openNotice(false) }[b.act] || (() => {}); introOnce(b.id === 'board' ? 'board' : b.id).then(go); return; }
     openWip(b);
   }
@@ -383,12 +385,13 @@ export function initNewWorld(C) {
         </div>
       </div>
       <div id="vmap"></div>
-      <p class="px-text text-sm mt-3 text-center">電腦：用 WASD 或方向鍵走路，走到建築旁邊按 Enter 進去，也可以直接點建築。按 B 打開背包。手機：點建築或點地面。灰色的建築還在施工中。</p>`, el => {
+      <p class="px-text text-sm mt-3 text-center" style="padding-right:min(190px,30vw)">電腦：用 WASD 或方向鍵走路，走到建築旁邊按 Enter 進去，也可以直接點建築。按 B 打開背包。手機：點建築或點地面。右下角的小地圖，點建築就傳送到它的門口。灰色的建築還在施工中。</p>`, el => {
       el.querySelector('[data-hero]').replaceChildren(PX.chibi(myChibi(), 'down', 0, 3));
       village = mountVillage(el.querySelector('#vmap'), {
         PX, look: myChibi(), open: VILLAGE.buildings.filter(buildingOpen).map(b => b.id),
-        start: NW.pos || VILLAGE.start, scroller: root, fast: FAST, onEnter: enterBuilding, guide: guideBuilding(), mailN: () => mailCount, noticeBang: () => nflags.any
+        start: NW.posV === POS_V && NW.pos ? NW.pos : VILLAGE.start, scroller: root, fast: FAST, onEnter: enterBuilding, guide: guideBuilding(), mailN: () => mailCount, noticeBang: () => nflags.any
       });
+      if (location.hostname === 'localhost') window.__NWV = village;   // 瀏覽器測試用（讀位置、傳送、走路）
       hubStart();
     });
   }

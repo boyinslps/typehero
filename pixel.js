@@ -798,6 +798,7 @@ function decorGrid(k) {
   else if (k === 'sign') { rect(s, 8, 12, 2, 11, '#5a3a22'); rect(s, 2, 5, 14, 8, '#c8a56a'); rect(s, 2, 5, 14, 1, '#e8c88a'); rect(s, 4, 8, 10, 1, '#7a5a3a'); rect(s, 4, 10, 7, 1, '#7a5a3a'); }
   else if (k === 'flowers') { rect(s, 1, 17, 16, 5, '#6a4a2a'); for (let i = 0; i < 9; i++) { const x = 2 + i * 1.7, c = ['#ff9ec4', '#ffe27a', '#fff', '#ff6a8a'][i % 4]; rect(s, x, 12 + (i % 3) * 2, 2, 2, c); rect(s, x, 14 + (i % 3) * 2, 1, 4, '#3a7d2c'); } }
   else if (k === 'mailbox') { rect(s, 8, 14, 2, 9, '#5a3a22'); rect(s, 3, 5, 12, 9, '#3a6ac8'); rect(s, 3, 5, 12, 2, '#5a8ae8'); rect(s, 5, 8, 8, 1, '#0a0714'); rect(s, 4, 11, 10, 1, '#2a4a98'); rect(s, 14, 3, 2, 5, '#d83a3a'); rect(s, 14, 3, 4, 2, '#d83a3a'); rect(s, 6, 22, 6, 1, '#3a2a1a'); }
+  else if (k === 'scarecrow') { rect(s, 8, 8, 2, 15, '#5a3a22'); rect(s, 2, 11, 14, 2, '#7a5226'); rect(s, 5, 12, 8, 7, '#c8964f'); rect(s, 5, 12, 8, 1, '#e8c07a'); rect(s, 6, 13, 6, 1, '#8a5a2b'); disc(s, 9, 6, 3, '#e8c060'); rect(s, 8, 5, 1, 1, '#1a1209'); rect(s, 10, 5, 1, 1, '#1a1209'); rect(s, 5, 2, 8, 2, '#8a4ad8'); rect(s, 7, 0, 4, 2, '#8a4ad8'); line(s, 2, 13, 0, 17, '#e8c060'); line(s, 15, 13, 17, 17, '#e8c060'); }
   else if (k === 'hay') { sell(s, 9, 16, 8, 6, '#e8c060'); for (let i = 0; i < 6; i++) line(s, 3 + i * 2, 12, 5 + i * 2, 21, '#c89a30'); }
   outline(s, OL);
   return s;
@@ -806,31 +807,47 @@ function decorGrid(k) {
 function villageCanvas(V, openIds) {
   const T = 16, W = V.cols * T, H = V.rows * T, R = rng(5);
   const s = mk(W, H), tk = (x, y) => x + ',' + y;
-  const plaza = [V.plaza.x * T, V.plaza.y * T], PR = 52;
+  const plaza = [V.plaza.x * T, V.plaza.y * T], PR = V.plaza.r || 52;
+  const zoneOf = (tx, ty) => (V.zones || []).find(z => tx >= z.x0 && tx <= z.x1 && ty >= z.y0 && ty <= z.y1);
   for (let ty = 0; ty < V.rows; ty++) for (let tx = 0; tx < V.cols; tx++) {
-    rect(s, tx * T, ty * T, T, T, (tx + ty) % 2 ? '#5fae45' : '#68b84c');
-    for (let k = 0; k < 4; k++) put(s, tx * T + Math.floor(R() * 16), ty * T + Math.floor(R() * 16), R() < .5 ? '#4a9a3a' : '#7cc35a');
-    if (R() < .1) { const fx = tx * T + 3 + Math.floor(R() * 10), fy = ty * T + 3 + Math.floor(R() * 10); put(s, fx, fy, ['#fff', '#ff9ec4', '#ffe27a'][Math.floor(R() * 3)]); put(s, fx, fy + 1, '#3a7d2c'); }
+    const z = zoneOf(tx, ty), grass = !z || z.id === 'learn';
+    if (z) rect(s, tx * T, ty * T, T, T, z.floor[(tx + ty) % 2]);
+    else rect(s, tx * T, ty * T, T, T, (tx + ty) % 2 ? '#5fae45' : '#68b84c');
+    for (let k = 0; k < 4; k++) put(s, tx * T + Math.floor(R() * 16), ty * T + Math.floor(R() * 16), grass ? (R() < .5 ? '#4a9a3a' : '#7cc35a') : (R() < .5 ? dk(z.floor[0], .18) : lt(z.floor[1], .15)));
+    if (grass && R() < .1) { const fx = tx * T + 3 + Math.floor(R() * 10), fy = ty * T + 3 + Math.floor(R() * 10); put(s, fx, fy, ['#fff', '#ff9ec4', '#ffe27a'][Math.floor(R() * 3)]); put(s, fx, fy + 1, '#3a7d2c'); }
   }
+  /* 小路：沿著每條折線取點，畫成圓滑的彎路。路徑上與旁邊的格子記下來，樹不長在路上，避免把路堵死 */
   const pathTiles = new Set(), stamp = (x, y, r, c) => { for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (dx * dx + dy * dy <= r * r) put(s, Math.round(x + dx), Math.round(y + dy), c); };
-  const targets = V.buildings.map(b => [(b.x + 1) * T + 8, (b.y + 3) * T + 8]).concat([[V.gate.approach[0] * T + 8, V.gate.approach[1] * T + 8]]);
-  const lines = targets.map((t, i) => {
-    const a = t, b = plaza, mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
-    const off = (i % 2 ? 1 : -1) * (14 + (i * 7) % 18);
-    return [a, [mx - dy / L * off, my + dx / L * off], b];
-  });
-  [[8, '#a88550'], [7, '#c9a66b']].forEach(([r, c]) => lines.forEach(([a, m, b]) => {
-    for (let t = 0; t <= 1; t += .008) {
-      const x = (1 - t) * (1 - t) * a[0] + 2 * (1 - t) * t * m[0] + t * t * b[0], y = (1 - t) * (1 - t) * a[1] + 2 * (1 - t) * t * m[1] + t * t * b[1];
-      stamp(x + (R() - .5) * 1.5, y + (R() - .5) * 1.5, r, c);
-      if (r === 7) pathTiles.add(tk(Math.floor(x / T), Math.floor(y / T)));
+  const samples = [];
+  (V.roads || []).forEach(pts => {
+    const P = pts.map(([x, y]) => [x * T + 8, y * T + 8]);
+    for (let i = 0; i < P.length - 1; i++) {
+      const p0 = P[Math.max(0, i - 1)], p1 = P[i], p2 = P[i + 1], p3 = P[Math.min(P.length - 1, i + 2)];
+      const n = Math.max(2, Math.ceil(Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) / 1.5));
+      const cr = (a, b, c, d, t) => .5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t * t + (-a + 3 * b - 3 * c + d) * t * t * t);
+      for (let k = 0; k <= n; k++) { const t = k / n; samples.push([cr(p0[0], p1[0], p2[0], p3[0], t), cr(p0[1], p1[1], p2[1], p3[1], t)]); }
     }
+  });
+  [[8, '#a88550'], [7, '#c9a66b']].forEach(([r, c]) => samples.forEach(([x, y]) => {
+    stamp(x + (R() - .5) * 1.5, y + (R() - .5) * 1.5, r, c);
+    if (r === 7) for (const dx of [-6, 0, 6]) for (const dy of [-6, 0, 6]) pathTiles.add(tk(Math.floor((x + dx) / T), Math.floor((y + dy) / T)));
   }));
-  for (let i = 0; i < 260; i++) { const [a, m, b] = lines[Math.floor(R() * lines.length)], t = R(); put(s, (1 - t) * (1 - t) * a[0] + 2 * (1 - t) * t * m[0] + t * t * b[0] + (R() - .5) * 10, (1 - t) * (1 - t) * a[1] + 2 * (1 - t) * t * m[1] + t * t * b[1] + (R() - .5) * 10, R() < .5 ? '#dcc088' : '#a88550'); }
+  for (let i = 0; i < samples.length / 3; i++) { const [x, y] = samples[Math.floor(R() * samples.length)]; put(s, x + (R() - .5) * 10, y + (R() - .5) * 10, R() < .5 ? '#dcc088' : '#a88550'); }
   stamp(plaza[0], plaza[1], PR + 2, '#8a8478'); stamp(plaza[0], plaza[1], PR, '#bdb5a4');
   for (let y = -PR; y <= PR; y += 4) for (let x = -PR; x <= PR; x += 4) if (x * x + y * y <= PR * PR - 20) { rect(s, plaza[0] + x, plaza[1] + y, 4, 4, ((x + y) / 4) % 2 ? '#b0a898' : '#c4bcab'); }
   stamp(plaza[0], plaza[1], 15, '#6a645a'); stamp(plaza[0], plaza[1], 13, '#9a9488'); stamp(plaza[0], plaza[1], 10, '#3a8ac8'); stamp(plaza[0], plaza[1], 8, '#4aa8e0');
   rect(s, plaza[0] - 1, plaza[1] - 6, 3, 10, '#bfe8f6'); rect(s, plaza[0] - 2, plaza[1] - 7, 5, 2, '#e8f7ff');
+  /* 高台下緣的石牆與樓梯 */
+  const cl = V.cliff;
+  if (cl) for (let tx = 0; tx < V.cols; tx++) {
+    const x0 = tx * T, y0 = cl.y * T, st = tx >= cl.stairs.x0 && tx <= cl.stairs.x1;
+    if (!st) {
+      rect(s, x0, y0, T, T, '#8a8478'); rect(s, x0, y0, T, 3, '#bdb5a4'); rect(s, x0, y0 + 3, T, 1, '#6a645a');
+      for (let r = 0; r < 3; r++) { const yy = y0 + 4 + r * 4, off = (r + tx) % 2 ? 0 : 8; rect(s, x0, yy + 3, T, 1, '#6a645a'); rect(s, x0 + off, yy, 1, 3, '#6a645a'); rect(s, x0 + off + 8 - (off ? 16 : 0), yy, 1, 3, '#6a645a'); }
+      rect(s, x0, y0 + T - 2, T, 2, '#4a453d');
+    } else for (let r = 0; r < 4; r++) { rect(s, x0, y0 + r * 4, T, 3, r % 2 ? '#a8a091' : '#c4bcab'); rect(s, x0, y0 + r * 4 + 3, T, 1, '#6a645a'); }
+  }
+  if (cl) { rect(s, cl.stairs.x0 * T - 2, cl.y * T, 2, T, '#4a453d'); rect(s, (cl.stairs.x1 + 1) * T, cl.y * T, 2, T, '#4a453d'); }
   const pd = V.pond;
   if (pd) {
     const px0 = pd.x0 * T, py0 = pd.y0 * T, pw = (pd.x1 - pd.x0 + 1) * T, ph = (pd.y1 - pd.y0 + 1) * T;
@@ -838,20 +855,40 @@ function villageCanvas(V, openIds) {
     [[10, 12], [24, 22], [34, 10]].forEach(([x, y]) => { ell(s, px0 + x + 6, py0 + y + 6, 4, 2, '#3f9a45'); put(s, px0 + x + 6, py0 + y + 4, '#ff9ec4'); });
     for (let i = 0; i < 5; i++) { const x = px0 + 4 + i * 9, y = py0 + ph - 5; rect(s, x, y - 7, 1, 8, '#3a7d2c'); rect(s, x + 2, y - 5, 1, 6, '#4a9a3a'); }
   }
+  /* 小溪與小橋：溪是直的但邊緣用沙子與波紋畫出彎彎的感覺 */
+  const ck = V.creek;
+  if (ck) {
+    const cx0 = ck.x0 * T, cy0 = ck.y0 * T, cw = (ck.x1 - ck.x0 + 1) * T, ch = (ck.y1 - ck.y0 + 1) * T;
+    for (let y = 0; y < ch; y++) {
+      const wob = Math.round(Math.sin(y * .22) * 2), l = cx0 - 3 + wob, r = cx0 + cw + 3 + wob;
+      rect(s, l, cy0 + y, r - l, 1, '#e8d29a'); rect(s, l + 3, cy0 + y, r - l - 6, 1, '#3ca4d4');
+      if ((y + ck.x0) % 7 === 0) rect(s, l + 6 + (y * 5) % (r - l - 12), cy0 + y, 4, 1, '#5ab8e6');
+    }
+    const b = ck.bridge, bx = cx0 - 4, by = b.y0 * T, bw = cw + 8, bh = (b.y1 - b.y0 + 1) * T;
+    rect(s, bx, by, bw, bh, '#a8763c');
+    for (let x = 0; x < bw; x += 4) rect(s, bx + x, by, 1, bh, '#7a5226');
+    rect(s, bx, by, bw, 3, '#5a3a22'); rect(s, bx, by + 3, bw, 1, '#c8964f'); rect(s, bx, by + bh - 3, bw, 3, '#5a3a22'); rect(s, bx, by + bh - 4, bw, 1, '#c8964f');
+    [bx, bx + bw - 3].forEach(x => { rect(s, x, by - 2, 3, 6, '#3a2a1a'); rect(s, x, by + bh - 4, 3, 6, '#3a2a1a'); });
+  }
   const blocked = new Set();
   V.buildings.forEach(b => { for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) blocked.add(tk(b.x + i, b.y + j)); });
   const gb = V.gateBlock; for (let y = gb.y0; y <= gb.y1; y++) for (let x = gb.x0; x <= gb.x1; x++) blocked.add(tk(x, y));
   if (pd) for (let y = pd.y0; y <= pd.y1; y++) for (let x = pd.x0; x <= pd.x1; x++) blocked.add(tk(x, y));
+  if (ck) for (let y = ck.y0; y <= ck.y1; y++) for (let x = ck.x0; x <= ck.x1; x++) if (y < ck.bridge.y0 || y > ck.bridge.y1) blocked.add(tk(x, y));
+  if (cl) for (let x = 0; x < V.cols; x++) if (x < cl.stairs.x0 || x > cl.stairs.x1) blocked.add(tk(x, cl.y));
   for (let y = 0; y < V.rows; y++) for (let x = 0; x < V.cols; x++) if (Math.hypot(x * T + 8 - plaza[0], y * T + 8 - plaza[1]) < 18) blocked.add(tk(x, y));
   const keep = new Set(); V.buildings.forEach(b => { for (let j = 3; j <= 4; j++) for (let i = -1; i <= 1; i++) keep.add(tk(b.x + 1 + i, b.y + j)); });
   keep.add(tk(...V.start));
   (V.decor || []).forEach(d => { const g = blit(decorGrid(d.k), 1, false); s.__d = s.__d || []; s.__d.push([g, d]); if (d.b) blocked.add(tk(d.x, d.y)); keep.add(tk(d.x, d.y)); if (d.k === 'mailbox') keep.add(tk(d.x, d.y + 1)); });
-  const trees = [];
+  const trees = [], forestP = (tx, ty) => Math.max(0, ...(V.forests || []).filter(f => tx >= f.x0 && tx <= f.x1 && ty >= f.y0 && ty <= f.y1).map(f => f.p));
   for (let ty = 0; ty < V.rows; ty++) for (let tx = 0; tx < V.cols; tx++) {
-    const k = tk(tx, ty);
+    const k = tk(tx, ty), z = zoneOf(tx, ty);
     if (blocked.has(k) || keep.has(k) || pathTiles.has(k) || pathTiles.has(tk(tx, ty - 1)) || blocked.has(tk(tx, ty + 1)) || blocked.has(tk(tx, ty + 2))) continue;
+    if (z && (z.id === 'plateau' || z.id === 'market' && ty < V.rows - 2)) continue;
+    if (Math.hypot(tx * T + 8 - plaza[0], ty * T + 8 - plaza[1]) < PR + 8) continue;
     const edge = tx === 0 || tx === V.cols - 1 || ty === 0 || ty >= V.rows - 1;
-    if (R() < (edge ? .45 : .07)) trees.push([tx, ty]);
+    const p = Math.max(forestP(tx, ty), edge ? .45 : .06);
+    if (R() < p) trees.push([tx, ty]);
   }
   trees.forEach(([tx, ty]) => blocked.add(tk(tx, ty)));
   V.trees = trees; V.blocked = blocked;

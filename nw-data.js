@@ -213,7 +213,7 @@ export const COLOR_HEX = { gray: '#9aa3ad', green: '#6aa84f', blue: '#3f9be0', p
 
 export const MAIN_QUESTS = [
   { id: '1-0', ch: 1, t: '選擇你的初心武器', hint: '在「裝備與造型」選一把武器', reward: { items: { potion: 3 } }, rewardText: '回復藥 ×3', test: nw => !!nw.starter },
-  { id: '1-0a', ch: 1, soft: true, building: 'academy', t: '到教學大樓學會三堂課', hint: '村莊左下角的教學大樓：閃避、防禦、打字各一堂，跟著黃色箭頭走', rewardText: '字元 ×100', reward: { coins: 100 }, test: nw => !!(nw.tut && nw.tut.dodge && nw.tut.defend && nw.tut.attack) },
+  { id: '1-0a', ch: 1, soft: true, building: 'academy', t: '到教學大樓學會三堂課', hint: '村莊西邊的教學大樓：閃避、防禦、打字各一堂，跟著黃色箭頭走', rewardText: '字元 ×100', reward: { coins: 100 }, test: nw => !!(nw.tut && nw.tut.dodge && nw.tut.defend && nw.tut.attack) },
   { id: '1-1', ch: 1, target: { mk: 'frog', star: 1 }, t: '討伐泡泡蛙（草原 ★1）', hint: '到委託板，選草原的泡泡蛙', rewardText: '獵人經驗 +30', reward: { hrExp: 30 }, test: nw => (nw.dex.frog || 0) > 0 },
   { id: '1-2', ch: 1, target: { mk: 'coo', star: 1 }, t: '討伐咕咕鳥（草原 ★1）', hint: '到委託板，選草原的咕咕鳥', rewardText: '獵人經驗 +30', reward: { hrExp: 30 }, test: nw => (nw.dex.coo || 0) > 0 },
   { id: '1-3', ch: 1, hold: () => !attacksOn(), t: '閃避成功 5 次、防禦成功 5 次', hint: '狩獵時多試試閃避和防禦', rewardText: '稱號詞條「見習」', reward: {}, test: nw => nw.stat.dodgeOk >= 5 && nw.stat.defOk >= 5, prog: nw => `閃避 ${Math.min(5, nw.stat.dodgeOk)}/5　防禦 ${Math.min(5, nw.stat.defOk)}/5` },
@@ -259,6 +259,8 @@ export function normalizeNw(d) {
      NW.fastest 的鍵是「區域:星級」，沒有魔物，進步獎用不了 */
   o.ev = (d.ev && typeof d.ev === 'object' && !Array.isArray(d.ev)) ? d.ev : {};
   o.fastMk = (d.fastMk && typeof d.fastMk === 'object' && !Array.isArray(d.fastMk)) ? d.fastMk : {};
+  /* 村莊座標：posV 不是 2 的是舊地圖（22×15）的座標，在新地圖上可能站在牆裡，一律丟掉回出生點 */
+  if (d.posV !== 2 || !Array.isArray(d.pos) || d.pos.length !== 2 || !d.pos.every(Number.isInteger)) { delete o.pos; delete o.posV; }
   return o;
 }
 
@@ -441,33 +443,62 @@ export const OPEN_STAGE = 1;
 export const openStage = () => (typeof location !== 'undefined' && location.hostname === 'localhost' && window.__NW_STAGE__) || OPEN_STAGE;
 export const buildingOpen = b => !!b.act && (!b.wip || parseFloat(b.wip) <= openStage());
 
+/* 村莊 32×22 格（docs/SPEC-TEACHER-ADMIN.md §9.2）。座標單位都是「格」，一格 16 像素。
+   分區：高台（北）、學習區（西）、中央廣場（中央偏南，出生點）、市集（東，隔著小溪、小橋連過去）、傳送門（正南）。
+   新增建築時要自己檢查：footprint 3×3 不壓到溪、牆、別的建築，門口（x+1, y+3）走得到，名牌不跟別的名牌疊在一起——
+   tools/browser-test/nw10.test.js 會幫忙檢查。 */
 export const VILLAGE = {
-  cols: 22, rows: 15, plaza: { x: 11, y: 7 }, start: [11, 11],
-  gate: { x: 10, y: 15, approach: [11, 11] }, gateBlock: { x0: 10, y0: 12, x1: 12, y1: 14 },
-  pond: { x0: 18, y0: 11, x1: 20, y1: 13 },
-  buildings: [
-    { id: 'forge', kind: 'forge', x: 2, y: 1, name: '鐵匠鋪', wip: 2, text: '用打到的材料，打造、強化自己的武器和裝備！' },
-    { id: 'storage', kind: 'storage', x: 7, y: 0, name: '倉庫', wip: 2, text: '所有材料和圖紙都放在這裡，一目了然。' },
-    { id: 'shop', kind: 'shop', x: 13, y: 1, name: '商店', wip: 3, text: '用字元買回復藥，也可以賣掉用不到的材料。' },
-    { id: 'armor', kind: 'armor', x: 18, y: 0, name: '防具店', wip: 3, text: '頭盔、鎧甲、手套、靴子，穿上就會出現在你身上！' },
-    { id: 'rooms', kind: 'rooms', x: 1, y: 6, name: '組隊酒館', wip: '3a', text: '開房間或加入同學的房間，最多 4 個人一起打大魔物。' },
-    { id: 'star', kind: 'star', x: 18, y: 6, name: '星圖台', wip: 5, text: '升級拿到的星星，可以在這裡點亮，讓閃避和防禦變得更強。' },
-    { id: 'academy', kind: 'academy', x: 2, y: 10, name: '教學大樓', act: 'academy', text: '閃避、防禦、攻擊的教學都在這裡，跟著做一遍就會了！' },
-    { id: 'board', kind: 'board', x: 6, y: 10, name: '委託板', act: 'map', text: '選地方、選魔物，出發狩獵！' },
-    { id: 'rank', kind: 'rank', x: 14, y: 10, name: '榮譽碑', act: 'rank', wip: 2, text: '看看誰是最強獵人。' },
-    /* 佈告欄放在廣場東邊、郵筒（12,9）旁邊的空地：門口 (16,9) 不擋路。第 6 步重排地圖時只要改這個 x、y */
-    { id: 'notice', kind: 'notice', x: 15, y: 6, name: '佈告欄', act: 'notice', text: '活動、老師的公告、抓蟲榜，都貼在這裡。' }
+  cols: 32, rows: 22, plaza: { x: 16, y: 13, r: 56 }, start: [15, 16],
+  gate: { x: 15, y: 22, approach: [15, 18] }, gateBlock: { x0: 15, y0: 19, x1: 16, y1: 21 },
+  pond: { x0: 0, y0: 17, x1: 4, y1: 20 },
+  /* 高台下緣是一排石牆，只有樓梯（stairs）能上去；小溪把市集隔開，只有小橋（bridge）能過 */
+  cliff: { y: 7, stairs: { x0: 15, x1: 17 } },
+  creek: { x0: 22, x1: 23, y0: 8, y1: 21, bridge: { y0: 13, y1: 14 } },
+  /* floor 是地面兩色；col 是小地圖的色塊。小地圖與地面都照這份畫，加新區只要加一列 */
+  zones: [
+    { id: 'plateau', name: '高台', x0: 0, y0: 0, x1: 31, y1: 6, floor: ['#9aa3ad', '#8f98a3'], col: '#9aa3ad' },
+    { id: 'learn', name: '學習區', x0: 0, y0: 8, x1: 9, y1: 21, floor: ['#7ccb5d', '#72c456'], col: '#7ccb5d' },
+    { id: 'market', name: '市集', x0: 24, y0: 8, x1: 31, y1: 21, floor: ['#e0cb94', '#d8c086'], col: '#d8c086' }
   ],
-  /* 郵筒（k:'mailbox'）也寫在 decor：村莊程式用 k 找它，第 6 步重排地圖只要改這裡的 x、y。站的位置是它正下方一格 */
+  /* 樹林：p 是每格長樹的機率。邊緣另外還有隨機的樹，高台、市集、廣場不長樹 */
+  forests: [{ x0: 0, y0: 8, x1: 1, y1: 15, p: .55 }, { x0: 5, y0: 19, x1: 12, y1: 21, p: .5 }, { x0: 24, y0: 20, x1: 31, y1: 21, p: .6 }],
+  /* 小路：每條是一串經過的格（可以有小數），畫成圓滑的彎路。每個門口都要在某條小路上 */
+  roads: [
+    [[4, 15], [6, 17], [9, 16], [12, 16], [15, 16], [18, 16], [20, 17], [21, 15], [22.5, 13.5], [24, 14]],
+    [[6, 5], [10, 6], [16, 6], [21, 6], [26, 5]],
+    [[16, 6], [16, 8], [14.5, 10], [14, 12.5], [14, 16]],
+    [[15, 16], [16, 17], [15, 18]],
+    [[24, 14], [25, 13], [25, 12]], [[24, 14], [27, 14], [28.5, 13.2], [29, 13]],
+    [[27, 14], [27, 19], [29, 19]], [[27, 18], [25, 18]]
+  ],
+  buildings: [
+    { id: 'rooms', kind: 'rooms', x: 5, y: 2, name: '組隊酒館', wip: '3a', text: '開房間或加入同學的房間，最多 4 個人一起打大魔物。' },
+    { id: 'star', kind: 'star', x: 15, y: 2, name: '星圖台', wip: 5, text: '升級拿到的星星，可以在這裡點亮，讓閃避和防禦變得更強。' },
+    { id: 'rank', kind: 'rank', x: 25, y: 2, name: '榮譽碑', act: 'rank', wip: 2, text: '看看誰是最強獵人。' },
+    { id: 'academy', kind: 'academy', x: 3, y: 12, name: '教學大樓', act: 'academy', text: '閃避、防禦、攻擊的教學都在這裡，跟著做一遍就會了！' },
+    { id: 'board', kind: 'board', x: 11, y: 13, name: '委託板', act: 'map', text: '選地方、選魔物，出發狩獵！' },
+    { id: 'notice', kind: 'notice', x: 17, y: 13, name: '佈告欄', act: 'notice', text: '活動、老師的公告、抓蟲榜，都貼在這裡。' },
+    { id: 'shop', kind: 'shop', x: 24, y: 9, name: '商店', wip: 3, text: '用字元買回復藥，也可以賣掉用不到的材料。' },
+    { id: 'armor', kind: 'armor', x: 28, y: 10, name: '防具店', wip: 3, text: '頭盔、鎧甲、手套、靴子，穿上就會出現在你身上！' },
+    { id: 'forge', kind: 'forge', x: 24, y: 15, name: '鐵匠鋪', wip: 2, text: '用打到的材料，打造、強化自己的武器和裝備！' },
+    { id: 'storage', kind: 'storage', x: 28, y: 16, name: '倉庫', wip: 2, text: '所有材料和圖紙都放在這裡，一目了然。' }
+  ],
+  /* 郵筒（k:'mailbox'）也寫在 decor：村莊程式用 k 找它。站的位置是它正下方一格 */
   decor: [
-    { k: 'lamp', x: 7, y: 5, b: 1 }, { k: 'lamp', x: 15, y: 5, b: 1 }, { k: 'lamp', x: 7, y: 9, b: 1 }, { k: 'lamp', x: 15, y: 9, b: 1 },
-    { k: 'barrel', x: 5, y: 3, b: 1 }, { k: 'barrel', x: 1, y: 4, b: 1 }, { k: 'crate', x: 10, y: 2, b: 1 }, { k: 'crate', x: 11, y: 3, b: 1 },
-    { k: 'bench', x: 9, y: 10 }, { k: 'mailbox', x: 12, y: 9, b: 1 }, { k: 'flowers', x: 12, y: 3 }, { k: 'flowers', x: 4, y: 8 }, { k: 'sign', x: 10, y: 11, b: 1 }, { k: 'hay', x: 20, y: 4, b: 1 }
+    { k: 'mailbox', x: 12, y: 11, b: 1 },
+    { k: 'lamp', x: 13, y: 10, b: 1 }, { k: 'lamp', x: 19, y: 10, b: 1 }, { k: 'lamp', x: 11, y: 18, b: 1 }, { k: 'lamp', x: 19, y: 18, b: 1 },
+    { k: 'lamp', x: 11, y: 5, b: 1 }, { k: 'lamp', x: 21, y: 5, b: 1 },
+    { k: 'scarecrow', x: 7, y: 11, b: 1 }, { k: 'scarecrow', x: 8, y: 13, b: 1 }, { k: 'scarecrow', x: 7, y: 15, b: 1 },
+    { k: 'hay', x: 9, y: 19, b: 1 }, { k: 'barrel', x: 1, y: 16, b: 1 },
+    { k: 'crate', x: 9, y: 3, b: 1 }, { k: 'crate', x: 10, y: 3, b: 1 }, { k: 'barrel', x: 22, y: 3, b: 1 },
+    { k: 'crate', x: 27, y: 10, b: 1 }, { k: 'barrel', x: 31, y: 14, b: 1 }, { k: 'hay', x: 26, y: 20, b: 1 }, { k: 'crate', x: 31, y: 17, b: 1 },
+    { k: 'bench', x: 13, y: 17 }, { k: 'sign', x: 13, y: 19, b: 1 },
+    { k: 'flowers', x: 11, y: 9 }, { k: 'flowers', x: 20, y: 9 }, { k: 'flowers', x: 13, y: 8 }, { k: 'flowers', x: 12, y: 5 }
   ],
   npcs: [
-    { id: 'elder', name: '村長', x: 9, y: 8, look: { style: 'short', hair: '#e8e8e8', armor: '#8a4ad8', trim: '#e0c8ff' }, say: ['歡迎來到新世界！左下角的「教學大樓」可以學閃避、防禦和打字，先去學一學吧。', '廣場上的佈告欄會貼活動和公告，記得常常去看！', '按 B 或點右上角的背包，可以看你的東西和任務。'] },
-    { id: 'kid', name: '小朋友', x: 13, y: 8, look: { style: 'pony', hair: '#ff7aa8', armor: '#e0802a', trim: '#ffe2a8' }, say: ['灰色的店還沒開張，再等一等！', '打倒草原的魔物，就能去迷霧森林囉。'] },
-    { id: 'smith', name: '鐵匠', x: 5, y: 5, look: { style: 'spiky', hair: '#5a3a22', armor: '#6a4a3a', trim: '#b8b8b8' }, say: ['鐵匠鋪還在蓋，快好了！打到的材料先幫你存著。'] }
+    { id: 'elder', name: '村長', x: 16, y: 10, look: { style: 'short', hair: '#e8e8e8', armor: '#8a4ad8', trim: '#e0c8ff' }, say: ['歡迎來到新世界！西邊的「教學大樓」可以學閃避、防禦和打字，先去學一學吧。', '廣場上的佈告欄會貼活動和公告，記得常常去看！', '按 B 或點右上角的背包，可以看你的東西和任務。', '右下角的小地圖可以點，點到哪棟房子就傳送過去！'] },
+    { id: 'kid', name: '小朋友', x: 19, y: 12, look: { style: 'pony', hair: '#ff7aa8', armor: '#e0802a', trim: '#ffe2a8' }, say: ['灰色的店還沒開張，再等一等！', '打倒草原的魔物，就能去迷霧森林囉。'] },
+    { id: 'smith', name: '鐵匠', x: 21, y: 11, look: { style: 'spiky', hair: '#5a3a22', armor: '#6a4a3a', trim: '#b8b8b8' }, say: ['鐵匠鋪還在蓋，快好了！打到的材料先幫你存著。', '東邊過了小橋就是市集。'] }
   ]
 };
 
