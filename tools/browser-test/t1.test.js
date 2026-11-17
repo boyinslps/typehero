@@ -179,15 +179,14 @@ const dismissGifts = async p => { for (let i = 0; i < 14; i++) { if (!(await p.$
     ok(await num('warn') === '1', '總覽：⚠ 換過名字 1 人（阿強：現名 ≠ name0）');
     ok(await T.$('[data-go="mail"].px-btn') && await T.$('[data-go="events"].px-btn') && await T.$('[data-go="bugs"].px-btn'), '3 個捷徑：寄信、開活動、審回報');
     await T.click('button.px-btn[data-go="events"]'); await ready(T);
-    ok(await T.$('[data-placeholder]') !== null && (await T.textContent('#nav [aria-current="page"]')).includes('活動'), '「開活動」捷徑連到活動分頁（占位）');
+    ok(await T.$('[data-placeholder]') === null && (await T.textContent('#nav [aria-current="page"]')).includes('活動') && await T.$('[data-form]') !== null, '「開活動」捷徑連到活動分頁（直接開新增表單）');
     await T.click('#nav [data-tab="overview"]'); await ready(T);
     await T.click('button.px-btn[data-go="bugs"]'); await ready(T);
-    ok(await T.$('[data-placeholder]') !== null, '「審回報」捷徑連到回報分頁（占位）');
+    ok(await T.$('[data-placeholder]') === null && (await T.textContent('#nav [aria-current="page"]')).includes('回報') && await T.$('[data-zones]') !== null, '「審回報」捷徑連到回報分頁');
     for (const id of ['overview', 'students', 'mail', 'events', 'news', 'feedback', 'bugs', 'settings']) {
       await tab(T, id);
       ok(await T.$('[data-tab-error]') === null && (await T.$$('#main h2')).length >= 1, `分頁「${id}」讀得到、沒有錯誤`);
     }
-    ok(['events', 'feedback', 'bugs'].length === 3, '活動／回饋／回報 先是占位，給下一步換掉');
   }
 
   /* ── 學生分頁 ── */

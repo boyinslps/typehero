@@ -7,5 +7,5 @@ export {
   MAIN_QUESTS, currentQuest, normalizeNw, curWeapon, weaponInfo,
   BUG_COINS, BUG_REWARD_MAX, NOTICES
 } from '../nw-data.js';
-export { toMs, normalizeEvent, phaseOf, GRACE_MS } from '../nw-events.js';
-export { normalizeNews, sortNews } from '../nw-notice.js';
+export { toMs, normalizeEvent, phaseOf, GRACE_MS, timeText, scoreText, sortDir, saneScore, saneFloor, clsMatch, pctOf, classReached } from '../nw-events.js';
+export { normalizeNews, sortNews, bugCmp } from '../nw-notice.js';

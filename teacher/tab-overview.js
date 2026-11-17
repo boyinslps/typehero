@@ -29,12 +29,12 @@ export default async function mount(el, ctx) {
     <h3>快速開始</h3>
     <div class="row gap">
       <button class="px-btn gold" data-go="mail">✉ 寄信</button>
-      <button class="px-btn gold" data-go="events">🎪 開活動</button>
+      <button class="px-btn gold" data-go="events" data-new="1">🎪 開活動</button>
       <button class="px-btn gold" data-go="bugs">🐛 審回報</button>
     </div>
     <p class="dim" style="margin-top:14px">今天＝台灣時間的今天；「上線」看存檔的最後存檔時間。</p>`;
   el.addEventListener('click', e => {
     const b = e.target.closest('[data-go]'); if (!b) return;
-    ctx.go(b.dataset.go, b.dataset.card === 'warn' ? { warn: true } : b.dataset.card === 'players' ? { played: true } : undefined);
+    ctx.go(b.dataset.go, b.dataset.card === 'warn' ? { warn: true } : b.dataset.card === 'players' ? { played: true } : b.dataset.card === 'unread' ? { unread: true } : b.dataset.new ? { new: true } : undefined);
   });
 }
