@@ -4,7 +4,7 @@
 
 ## 每次發版都要做（缺一不可）
 
-1. `index.html`：改 `APP_VERSION`，在 `VERSION_LOG` 最前面加一筆。學生看得到的變化，照 `docs/ANNOUNCEMENT-GUIDE.md` 寫；有新世界的改動，也在 `newworld.js` 的 `NOTICES` 最前面加一則公告。
+1. `index.html`：改 `APP_VERSION`，在 `VERSION_LOG` 最前面加一筆。學生看得到的變化，照 `docs/ANNOUNCEMENT-GUIDE.md` 寫；有新世界的改動，也在 `nw-data.js` 的 `NOTICES` 最前面加一則公告。
 2. `CHANGELOG.md`：同一版的紀錄（跟 `VERSION_LOG` 同步）。
 3. **電腦教室入口頁的更新訊息**：到 `boyinslps/pcclass` 的 `games/index.html`，改 `TYPEHERO_UPDATES`（右上角循環的小小訊息）。
    - 新訊息放最前面，保持 3～5 則，太舊的刪掉。

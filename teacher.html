@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>打字勇者・教師管理頁</title>
+<!-- 教師管理頁（docs/SPEC-TEACHER-ADMIN.md §2）。入口 teacher/main.js，每個分頁一個檔 teacher/tab-*.js。
+     不用 Tailwind：管理頁沒有要給學生看，少一個 CDN 依賴，雲端測試環境也不用另外編 CSS。 -->
+<style>
+:root{
+  --ink:#f0eee8; --dim:#9a927f; --dim2:#6f6857;
+  --bg:#14110d; --panel:#221d16; --panel2:#2c261d; --line:#453b2c;
+  --gold:#e8b64c; --hp:#c0392b; --gr:#6aa84f; --warn:#e5705f; --blue:#5b9bd5;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Noto Sans TC","Microsoft JhengHei",ui-sans-serif,system-ui,sans-serif;font-size:15px;line-height:1.5}
+body{min-height:100vh;overflow-x:hidden}
+a{color:var(--gold)}
+.hidden{display:none!important}
+h2{margin:0 0 10px;font-size:1.35em;color:#ffd98a}
+h3{margin:18px 0 8px;font-size:1.1em;color:#ffd98a}
+.dim{color:var(--dim)} .warn{color:var(--warn)} .ok{color:var(--gr)}
+.mono{font-family:ui-monospace,Consolas,monospace}
+
+/* 登入 */
+#login{min-height:100vh;display:grid;place-items:center;padding:16px}
+#login .px-panel{width:100%;max-width:380px;padding:20px}
+
+/* 版面：上方標題列、左側分頁（手機改成上方橫排） */
+#app{display:flex;flex-direction:column;min-height:100vh}
+#top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 14px;background:var(--panel);border-bottom:3px solid #0a0714}
+#top .ttl{font-weight:900;font-size:1.15em;color:#ffd98a;margin-right:auto}
+#top .who{color:var(--dim);font-size:.9em;overflow-wrap:anywhere}
+.shell{display:grid;grid-template-columns:176px minmax(0,1fr);flex:1;min-height:0}
+#nav{display:flex;flex-direction:column;gap:4px;padding:10px;background:#1a160f;border-right:2px solid var(--line)}
+#nav button{all:unset;cursor:pointer;padding:9px 12px;border:2px solid transparent;color:var(--ink);white-space:nowrap;display:flex;align-items:center;gap:8px}
+#nav button:hover{background:var(--panel2)}
+#nav button[aria-current="page"]{background:var(--panel2);border-color:var(--gold);color:#ffd98a;font-weight:800}
+#nav .dot{margin-left:auto;background:var(--hp);color:#fff;font-size:.75em;padding:0 6px;border-radius:9px}
+#main{padding:14px;min-width:0}
+@media (max-width:760px){
+  .shell{grid-template-columns:minmax(0,1fr);grid-template-rows:auto 1fr}
+  #nav{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:2px solid var(--line);padding:6px}
+  #nav button{padding:8px 10px}
+  #main{padding:10px}
+}
+
+/* 內容元件 */
+.px-btn{font-size:15px;padding:6px 14px}
+.px-btn.sm{padding:3px 9px;font-size:13px}
+.px-btn.danger{background:#8a2a22}
+.px-panel{padding:12px}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.card{background:var(--panel);border:2px solid var(--line);padding:10px;cursor:pointer;text-align:left;color:var(--ink);font:inherit}
+.card:hover{border-color:var(--gold)}
+.card b{display:block;font-size:1.9em;color:#ffd98a;line-height:1.1}
+.card.alert b{color:var(--warn)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.row.gap{gap:14px}
+.inp,select.inp,textarea.inp{background:#0e0b16;color:var(--ink);border:2px solid var(--line);padding:5px 8px;font:inherit;max-width:100%}
+.inp:focus{outline:none;border-color:var(--gold)}
+textarea.inp{width:100%;resize:vertical}
+label.chk{display:inline-flex;align-items:center;gap:5px;cursor:pointer}
+.tscroll{overflow-x:auto;border:2px solid var(--line);background:var(--panel)}
+table.tbl{border-collapse:collapse;width:100%;font-size:15px}
+.tbl th,.tbl td{padding:5px 9px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap;vertical-align:middle}
+.tbl th{background:var(--panel2);position:sticky;top:0;color:#ffd98a;user-select:none}
+.tbl th[data-sort]{cursor:pointer}
+.tbl tr.clk:hover td{background:#2a2419;cursor:pointer}
+.tbl td.wrap{white-space:normal;min-width:160px}
+.chip{display:inline-block;padding:0 7px;border:2px solid currentColor;font-size:.82em;font-weight:700;white-space:nowrap}
+.kv{display:grid;grid-template-columns:7em minmax(0,1fr);gap:3px 10px}
+.kv>b{color:var(--dim);font-weight:600}
+.note{background:#2a2419;border-left:4px solid var(--gold);padding:7px 10px;margin:8px 0}
+.note.bad{border-color:var(--warn)}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
+@media (max-width:900px){.grid2{grid-template-columns:minmax(0,1fr)}}
+.gift-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:4px 0}
+
+/* 小視窗與提示 */
+#modal-root .mdl{position:fixed;inset:0;z-index:60;background:rgba(9,8,18,.85);display:grid;place-items:center;padding:12px;overflow-y:auto}
+#modal-root .mdl>.px-panel{width:100%;max-width:560px;max-height:92vh;overflow-y:auto}
+#modal-root .mdl.wide>.px-panel{max-width:860px}
+#toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:70;display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none;width:max-content;max-width:94vw}
+#toast div{background:#0a0714;border:2px solid var(--gold);padding:7px 14px;color:var(--ink)}
+#toast div.bad{border-color:var(--warn)}
+</style>
+</head>
+<body>
+
+<div id="login" class="hidden">
+  <div class="px-panel">
+    <h2 style="margin-bottom:4px">🛠 教師管理頁</h2>
+    <p class="dim" style="margin:0 0 10px;font-size:.9em">用老師的 email 帳號登入。學生的遊戲不受影響。</p>
+    <input id="l-email" class="inp" type="email" autocomplete="username" placeholder="email" style="width:100%;margin-bottom:8px">
+    <input id="l-pw" class="inp" type="password" autocomplete="current-password" placeholder="密碼" style="width:100%;margin-bottom:8px">
+    <label class="chk dim" style="margin-bottom:8px"><input id="l-remember" type="checkbox"> 記住這台電腦（只在老師自己的電腦勾）</label>
+    <div id="l-err" class="warn" style="min-height:1.4em;margin-bottom:6px"></div>
+    <button id="l-ok" class="px-btn gold" style="width:100%">登入</button>
+    <p style="margin:12px 0 0;font-size:.9em"><a href="index.html">← 回遊戲</a></p>
+  </div>
+</div>
+
+<div id="app" class="hidden">
+  <div id="top">
+    <span class="ttl">🛠 打字勇者・教師管理頁</span>
+    <span class="who" id="who"></span>
+    <a class="px-btn sm" href="index.html" id="back-game" style="text-decoration:none">回遊戲</a>
+    <button class="px-btn sm" id="logout">登出</button>
+  </div>
+  <div class="shell">
+    <nav id="nav" aria-label="分頁"></nav>
+    <main id="main"></main>
+  </div>
+</div>
+
+<div id="modal-root"></div>
+<div id="toast"></div>
+
+<script type="module" src="teacher/main.js"></script>
+</body>
+</html>

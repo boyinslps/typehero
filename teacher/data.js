@@ -1,0 +1,111 @@
+/* 教師頁共用的資料讀取（有快取）。分頁之間會用到同一份資料（學生、抓蟲榜、回報…），
+   所以集中在這裡讀一次；寫入之後呼叫 invalidate('board') 之類，下次再讀才是新的。
+   快取只活在這個分頁的記憶體，重新整理就沒了。 */
+import { db, collection, doc, getDoc, getDocs, query, orderBy, limit } from './fb.js';
+import { toMs, nickText, normName, normalizeNw, curWeapon, weaponInfo, clsShort } from './nw.js';
+
+const cache = {};
+const TTL = 45 * 1000;
+async function cached(key, force, fn) {
+  const c = cache[key];
+  if (!force && c && Date.now() - c.at < TTL) return c.v;
+  const v = await fn();
+  cache[key] = { at: Date.now(), v };
+  return v;
+}
+export const invalidate = (...keys) => (keys.length ? keys : Object.keys(cache)).forEach(k => delete cache[k]);
+
+import { idParts } from './ids.js';
+export { idParts };
+export const byClsSeat = (a, b) => (clsShort(a.className) < clsShort(b.className) ? -1 : clsShort(a.className) > clsShort(b.className) ? 1 : 0) || (a.seat - b.seat);
+
+/* mg_scores 整份讀進來（只有教師頁會這樣讀，學生端不讀，SPEC §4.3）。
+   每個學生整理成一列：raw＝原始文件，nw＝整理過的新世界存檔（沒玩過新世界就是 null） */
+export function loadScores(force) {
+  return cached('scores', force, async () => {
+    const snap = await getDocs(collection(db, 'mg_scores'));
+    const list = [];
+    snap.forEach(d => {
+      const x = d.data() || {}, p = idParts(d.id);
+      const played = !!(x.nw && typeof x.nw === 'object');
+      const nw = played ? normalizeNw(x.nw) : null;
+      const last = Math.max(toMs(x.lastPlayedAt), played ? (+x.nw.savedAt || 0) : 0);
+      const w = nw ? weaponInfo(curWeapon(nw)) : null;
+      list.push({
+        id: d.id, className: x.className || p.className, seat: +(x.seat !== undefined && x.seat !== '' ? x.seat : p.seat) || 0, name: x.name || '',
+        played, nw, raw: x,
+        nick: played && nw.nick ? nickText(nw) : '', hr: nw ? nw.hr : 0, coins: nw ? nw.coins : 0, weapon: w ? w.name : '',
+        hunts: nw ? (nw.hunts || 0) : 0, wins: nw ? nw.stat.wins : 0, fails: nw ? nw.stat.fails : 0,
+        sent: nw ? (nw.bugsSent || 0) : 0, last, nwCls: x.nwCls || ''
+      });
+    });
+    list.sort(byClsSeat);
+    return list;
+  });
+}
+/* 抓蟲榜／隱藏暱稱／名字沒問題：mg_bugboard/{班級_座號}，回 { id → 文件資料 } */
+export function loadBoard(force) {
+  return cached('board', force, async () => {
+    const snap = await getDocs(collection(db, 'mg_bugboard')), m = {};
+    snap.forEach(d => { m[d.id] = d.data() || {}; });
+    return m;
+  });
+}
+/* 回報、回饋、換名紀錄：只有老師讀得到。回 [{ id, ...欄位 }] */
+export function loadFlags(force) {
+  return cached('flags', force, async () => {
+    const snap = await getDocs(collection(db, 'mg_nw_flags')), list = [];
+    snap.forEach(d => list.push(Object.assign({ id: d.id }, d.data() || {})));
+    return list;
+  });
+}
+export function loadEvents(force) {
+  return cached('events', force, async () => {
+    const snap = await getDocs(collection(db, 'mg_events')), list = [];
+    snap.forEach(d => list.push(Object.assign({ id: d.id }, d.data() || {})));
+    return list;
+  });
+}
+/* 信：新的在前。沒有 t 的舊信（理論上沒有）不會出現，因為 orderBy 會跳過沒欄位的文件 */
+export function loadMails(force) {
+  return cached('mails', force, async () => {
+    const snap = await getDocs(query(collection(db, 'mg_mail'), orderBy('t', 'desc'), limit(300))), list = [];
+    snap.forEach(d => list.push(Object.assign({ id: d.id }, d.data() || {})));
+    return list;
+  });
+}
+export async function loadClassSizes() {
+  const s = await getDoc(doc(db, 'mg_config', 'class_sizes'));
+  const z = s.exists() ? (s.data() || {}).sizes : null;
+  return (z && typeof z === 'object') ? z : {};
+}
+
+/* ── 冒名鎖（SPEC §1.5）：現在的名字跟基準不一樣 ──
+   基準 = 老師寫的 nameOk，沒有就用存檔裡只寫一次的 name0。跟學生端 checkName() 同一個算法。 */
+export const nameBase = (s, board) => (board && board.nameOk) || (s.nw && s.nw.name0) || '';
+export function nameChanged(s, board) {
+  const base = nameBase(s, board);
+  return !!(base && s.name && normName(s.name) !== normName(base));
+}
+
+/* 收件人：aud 陣列 → 學生列。'all' 是全部；'cls:' 是整班；'id:' 是個人（不在 mg_scores 的 id 回報在 unknown） */
+export function audRecipients(aud, scores) {
+  const a = Array.isArray(aud) ? aud : [];
+  if (a.includes('all')) return { list: scores.slice(), unknown: [] };
+  const set = new Map(), unknown = [];
+  a.forEach(x => {
+    if (x.startsWith('cls:')) scores.filter(s => s.className === x.slice(4)).forEach(s => set.set(s.id, s));
+    else if (x.startsWith('id:')) { const s = scores.find(q => q.id === x.slice(3)); if (s) set.set(s.id, s); else unknown.push(x.slice(3)); }
+  });
+  return { list: [...set.values()], unknown };
+}
+/* 收件人寫成給老師看的字，例「504 全班」「全校」「小明 等 3 人」 */
+export function audText(aud, scores) {
+  const a = Array.isArray(aud) ? aud : [];
+  if (a.includes('all')) return '全校';
+  const cls = a.filter(x => x.startsWith('cls:')).map(x => clsShort(x.slice(4)) + ' 全班');
+  const ids = a.filter(x => x.startsWith('id:')).map(x => x.slice(3));
+  const names = ids.map(i => { const s = scores.find(q => q.id === i); return s ? `${clsShort(s.className)}・${s.seat}號${s.name ? ' ' + s.name : ''}` : i; });
+  const idPart = names.length > 2 ? `${names.slice(0, 2).join('、')} 等 ${names.length} 人` : names.join('、');
+  return [...cls, idPart].filter(Boolean).join('、') || '（沒有收件人）';
+}

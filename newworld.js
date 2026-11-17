@@ -2,7 +2,7 @@ import { PX } from './pixel.js';
 import {
   LOOK, DEFAULT_LOOK, heroLook, STARTERS, LOCKED_WEAPONS, REGIONS, MAP_POS, ELEM, STATUS, MONSTERS,
   regionLv, MAIN_QUESTS, normalizeNw, currentQuest, zoneOpen, starOpen, addHrExp, hrNeed, huntExp, huntCoins,
-  COLOR_NAME, COLOR_HEX, HR_MAX, VILLAGE, doorTile, buildingOpen, goalOf, TEST_TAGS, FB_COINS, FB_MINLEN, BUG_COINS, BUG_REWARD_MAX, LESSON_COINS, TESTER_MISSIONS, checkMissions, GIFT_WEAPONS, weaponInfo, weaponBase, curWeapon, WORDS, WORD_GROUPS, checkWords, setTitleParts, wordById, normName, NICK_A, NICK_B, ITEM_DEFS, nickText, nickWord
+  COLOR_NAME, COLOR_HEX, HR_MAX, VILLAGE, doorTile, buildingOpen, goalOf, TEST_TAGS, FB_COINS, FB_MINLEN, BUG_COINS, BUG_REWARD_MAX, LESSON_COINS, TESTER_MISSIONS, checkMissions, GIFT_WEAPONS, weaponInfo, weaponBase, curWeapon, WORDS, WORD_GROUPS, checkWords, setTitleParts, wordById, normName, NICK_A, NICK_B, ITEM_DEFS, nickText, nickWord, NOTICES
 } from './nw-data.js';
 import { injectUi } from './nw-ui.js';
 import { mountVillage } from './nw-village.js';
@@ -696,15 +696,7 @@ export function initNewWorld(C) {
     });
   }
   /* 改版公告：新的公告才跳一次；第一次來的人剛看完介紹，不用再看「改了什麼」，直接記成已讀 */
-  const NOTICES = [
-    { id: '2026-11-12', date: '11 月 12 日', title: '新世界改版啦！', items: [
-      '🎫 打完「標點符號挑戰」就能進新世界！新練法：符號先看一次，再練 3 個，最後打怪 5 句。',
-      '📌 第一次進村有介紹，任務箭頭會先帶你去「教學大樓」。每棟房子第一次進去也會說明。',
-      '🏫 教學大樓每堂課最後要把稻草魔物打倒（打 5 下）。',
-      '🐛 「回報問題」要寫清楚：做了什麼事、出現什麼錯誤狀況。抓得最多的人，老師會頒發特別稱號「職業除錯師」。',
-      '🎒 修好了：太快點背包，換裝備教學會卡住。'
-    ] }
-  ];
+
   /* ── 佈告欄（SPEC §9.1）：建築與上方按鈕打開同一個視窗，三個分頁 📢 公告｜🎪 活動｜🐛 抓蟲榜 ──
      「看過了」分頁各自記：公告 NW.seenNews／seenNotice、活動 NW.seenEv、抓蟲榜 NW.seenBug。
      沒看過的東西讓木板上方彈跳「！」、上方按鈕與分頁加小紅點。 */

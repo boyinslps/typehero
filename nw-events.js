@@ -7,7 +7,7 @@
      title、desc、startAt、endAt（毫秒）、cls（班級陣列，空＝全校）
      boost：mul（倍數）、what（'exp' 獵人經驗｜'coins' 字元）
      hunt：mk、minStar、goal、items（獎勵，格式同信箱的 items）
-     classwar：per、goalPct、mk、minStar、items、clsSize（{班級: 人數}，教師手動覆寫分母）
+     classwar：per、goalPct、mk、minStar、items、clsSize（{班級: 人數}，教師手動覆寫分母；沒填就讀 mg_config/class_sizes.sizes）
      ranking：metric（improve｜kills｜fastest｜acc）、mk、minStar、minRuns
    學生個人進度：NW.ev[ID] = { e, t, n, done, cw, s, base, best, runs, accSum, gone }
      e＝活動結束時間（活動文件被刪了也能判斷何時清掉）、t＝標題（取消提示用）。 */
@@ -265,13 +265,27 @@ export function createEvents(C, h) {
     return out;
   }
 
+  /* 老師在教師頁「設定」填的班級人數（mg_config/class_sizes：{ sizes: {班級: 人數} }），全校共用，
+     不用每個活動各填一次。順序：活動自己的 clsSize > 這份 > 進過新世界的人數（count 查詢）。讀不到就當沒填。 */
+  let sizesCache = { at: 0, v: {} };
+  async function classSizes() {
+    if (sizesCache.at && Date.now() - sizesCache.at < CACHE_MS) return sizesCache.v;
+    try {
+      const s = await C.withTimeout(C.getDoc(C.doc(C.db, 'mg_config', 'class_sizes')), 5000, 'nw-ev-sizes');
+      const z = s.exists() ? (s.data() || {}).sizes : null;
+      sizesCache = { at: Date.now(), v: (z && typeof z === 'object') ? z : {} };
+    } catch (err) { console.warn('讀班級人數失敗', err); }
+    return sizesCache.v;
+  }
+
   /* 班級進度：自己班的達標率＋同年級前 3（不列最後一名、自己不在前 3 就不給名次）。60 秒快取 */
   async function classProgress(e, force) {
     const c = classes[e.id];
     if (!force && c && Date.now() - c.at < CACHE_MS) return c.v;
     const cls = mine().className, grade = gradeOf(cls);
     const count = async cn => (await C.withTimeout(C.getCountFromServer(C.query(C.collection(C.db, 'mg_scores'), C.where('nwEvDone', 'array-contains', e.id + '|' + cn))), 6000, 'nw-ev-n')).data().count;
-    const size = async cn => e.clsSize[cn] > 0 ? +e.clsSize[cn] : (await C.withTimeout(C.getCountFromServer(C.query(C.collection(C.db, 'mg_scores'), C.where('nwCls', '==', cn))), 6000, 'nw-ev-d')).data().count;
+    const cfg = await classSizes();
+    const size = async cn => e.clsSize[cn] > 0 ? +e.clsSize[cn] : cfg[cn] > 0 ? +cfg[cn] : (await C.withTimeout(C.getCountFromServer(C.query(C.collection(C.db, 'mg_scores'), C.where('nwCls', '==', cn))), 6000, 'nw-ev-d')).data().count;
     const names = new Set([cls]);
     const pool = e.cls.length ? e.cls.filter(x => gradeOf(x) === grade) : (C.classNames ? C.classNames() : []).map(x => grade + x);
     pool.forEach(x => names.add(x));
