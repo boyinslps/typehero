@@ -20,7 +20,7 @@ const TYPE_ICON = { boost: '⚡', hunt: '🗡', classwar: '🏫', ranking: '🏆
 const METRIC_NAME = { improve: '進步獎', kills: '討伐王', fastest: '最快討伐', acc: '神準手' };
 const FIELDS = { boost: ['mul', 'what'], hunt: ['mk', 'minStar', 'goal', 'items'], classwar: ['mk', 'minStar', 'per', 'goalPct', 'items'], ranking: ['metric', 'mk', 'minStar', 'minRuns'] };
 /* 開始後鎖住：改了就變成「開始前跟開始後是兩種規則」，已經在打的人不公平（SPEC §4.4） */
-const LOCKED = ['type', 'mk', 'minStar', 'goal', 'per', 'goalPct', 'metric'];
+const LOCKED = ['type', 'mk', 'minStar', 'goal', 'per', 'goalPct', 'metric', 'mul', 'what', 'minRuns', 'cls'];
 const ID_RE = /^[A-Za-z0-9_-]{1,60}$/;
 const mkName = k => (MONSTERS[k] || { name: k }).name;
 const stOf = (s, id) => { const e = s.raw && s.raw.nw && s.raw.nw.ev; return e && typeof e === 'object' ? (e[id] || null) : null; };
@@ -157,7 +157,7 @@ export default async function mount(el, ctx, params) {
     const tpls = EVENT_TEMPLATES.filter(t => t.fields.type === f.type);
     const num = (k, lbl, min, max, unit = '') => `<label>${lbl} <input class="inp" type="number" min="${min}" max="${max}" step="1" data-f="${k}" value="${esc(f[k])}" style="width:80px" ${dis(k)}> ${unit}</label>`;
     el.innerHTML = `<h2>🎪 ${edit ? '修改活動' : '新增活動'}</h2>
-      ${started ? '<div class="note" data-lockednote>活動開始了：<b>類型、魔物、星級、目標、指標都鎖住了</b>（已經在打的人不公平）。只能改標題、說明、<b>延長</b>結束時間；要停就按「提早結束」。</div>' : ''}
+      ${started ? '<div class="note" data-lockednote>活動開始了：<b>類型、魔物、星級、目標、指標、倍數、至少打幾場、對象班級都鎖住了</b>（已經在打的人不公平）。只能改標題、說明、<b>延長</b>結束時間，還有達標獎勵（想加碼可以）；要停就按「提早結束」。</div>' : ''}
       <div class="grid2"><div class="px-panel in" data-form>
         <div><b>活動類型</b><div class="row" data-types style="margin-top:4px">${Object.keys(TYPE_NAME).map(t => `<label class="chk"><input type="radio" name="etype" value="${t}" ${f.type === t ? 'checked' : ''} ${edit ? 'disabled' : ''}> ${TYPE_ICON[t]} ${TYPE_NAME[t]}</label>`).join('')}</div></div>
         ${edit ? '' : `<div style="margin-top:8px"><b>用範本預填</b> <select class="inp" data-tpl><option value="">（不用範本）</option>${tpls.map(t => `<option value="${t.id}" ${f.tpl === t.id ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select></div>`}
@@ -168,10 +168,10 @@ export default async function mount(el, ctx, params) {
         <div class="row gap" style="margin-top:8px"><label>開始 <input class="inp" type="datetime-local" data-f="startAt" value="${esc(f.startAt)}" ${started ? 'disabled' : ''}></label>
           <label>結束 <input class="inp" type="datetime-local" data-f="endAt" value="${esc(f.endAt)}"></label></div>
         ${started ? '<div class="dim" style="font-size:.85em">結束時間只能往後延。</div>' : ''}
-        <div style="margin-top:8px"><b>對象班級</b> <span class="dim">（都不勾＝全校）</span><div class="row" style="margin-top:4px">${classes.map(c => `<label class="chk"><input type="checkbox" data-cls="${esc(c)}" ${f.cls.has(c) ? 'checked' : ''} ${started ? 'disabled' : ''}> ${esc(clsShort(c))}</label>`).join('') || '<span class="dim">還沒有學生存檔，先當全校</span>'}</div></div>
+        <div style="margin-top:8px"><b>對象班級</b> <span class="dim">（都不勾＝全校）</span><div class="row" style="margin-top:4px">${classes.map(c => `<label class="chk"><input type="checkbox" data-cls="${esc(c)}" ${f.cls.has(c) ? 'checked' : ''} ${dis('cls')}> ${esc(clsShort(c))}</label>`).join('') || '<span class="dim">還沒有學生存檔，先當全校</span>'}</div></div>
         <div class="row gap" style="margin-top:8px" data-typefields>
-          ${has('mul') ? `<label>倍數 <select class="inp" data-f="mul">${[1.5, 2, 3].map(v => `<option value="${v}" ${+f.mul === v ? 'selected' : ''}>×${v}</option>`).join('')}</select></label>
-            <label>加倍什麼 <select class="inp" data-f="what"><option value="exp" ${f.what === 'exp' ? 'selected' : ''}>獵人經驗</option><option value="coins" ${f.what === 'coins' ? 'selected' : ''}>字元</option></select></label>` : ''}
+          ${has('mul') ? `<label>倍數 <select class="inp" data-f="mul" ${dis('mul')}>${[1.5, 2, 3].map(v => `<option value="${v}" ${+f.mul === v ? 'selected' : ''}>×${v}</option>`).join('')}</select></label>
+            <label>加倍什麼 <select class="inp" data-f="what" ${dis('what')}><option value="exp" ${f.what === 'exp' ? 'selected' : ''}>獵人經驗</option><option value="coins" ${f.what === 'coins' ? 'selected' : ''}>字元</option></select></label>` : ''}
           ${has('metric') ? `<label>指標 <select class="inp" data-f="metric" ${dis('metric')}>${Object.keys(METRIC_NAME).map(k => `<option value="${k}" ${f.metric === k ? 'selected' : ''}>${METRIC_NAME[k]}</option>`).join('')}</select></label>` : ''}
           ${has('mk') ? `<label>魔物 <select class="inp" data-f="mk" ${dis('mk')}>${monOpts(f.type === 'ranking' && f.metric !== 'improve')}</select></label>` : ''}
           ${has('minStar') ? num('minStar', '最低星級 ★', 1, 5) : ''}
@@ -240,7 +240,7 @@ export default async function mount(el, ctx, params) {
     if (ph !== 'ended') return table;
     const snap = r.result && r.result.rows ? r.result : null;
     return `${table}<h3>發獎</h3><div class="px-panel in" data-award>${r.awarded ? '<div class="note" data-awarded>已經發過獎了。再按一次會照<b>同一份名次快照</b>、用同樣的信件 ID 重寄，不會變兩封。</div>'
-      : snap ? '<div class="note" data-snapnote>已經有名次快照，還沒寄完或沒按確認。再按一次會照同一份快照寄。</div>' : '<p style="margin:0 0 6px">結束後在這裡設定名次獎品、勾掉不發的人（⚠ 預設不勾）、決定要不要送參加獎。</p>'}
+      : snap ? '<div class="note" data-snapnote>已經有名次快照，還沒寄完或沒按確認。再按一次會照同一份快照寄。</div>' : '<p style="margin:0 0 6px">結束後在這裡設定名次獎品、勾掉不發名次獎的人（⚠ 預設不勾，但仍有參加獎）、決定要不要送參加獎。</p>'}
       <div class="row"><button class="px-btn gold" data-award-btn="${esc(ev.id)}">${r.awarded ? '重寄獎品' : snap ? '照快照寄獎品' : '發獎'}</button>${snap && !r.awarded ? `<button class="px-btn" data-resnap="${esc(ev.id)}">作廢快照重做</button>` : ''}</div></div>`;
   }
 
@@ -315,7 +315,7 @@ export default async function mount(el, ctx, params) {
     if (!await previewConfirm(evCard(ev), sum, edit ? '確認儲存' : '確認送出')) return;
     busy = true;
     try {
-      if (started) await updateDoc(doc(db, 'mg_events', id), { title: d.title, desc: d.desc, endAt: d.endAt });
+      if (started) await updateDoc(doc(db, 'mg_events', id), Object.assign({ title: d.title, desc: d.desc, endAt: d.endAt }, d.items ? { items: d.items } : {}));
       else await setDoc(doc(db, 'mg_events', id), Object.assign({}, d, { t: (old && old.t) || Date.now() }, old && old.result ? { result: old.result } : {}));
     } catch (e) { err.textContent = '失敗：' + errText(e); busy = false; return; }
     await log(edit ? '修改活動' : '新增活動', id, sum);
@@ -345,7 +345,7 @@ export default async function mount(el, ctx, params) {
         const ranked = rankRows(ev, rows, x => st.pick.get(x.id));
         return `<div class="tscroll" style="max-height:34vh"><table class="tbl" data-award-table><thead><tr><th>發獎</th><th>名次</th><th>學生</th><th>暱稱</th><th>分數</th><th>有效場次</th><th></th></tr></thead><tbody>${ranked.filter(x => x.s !== null).map(x => `<tr data-arow="${esc(x.id)}"><td><input type="checkbox" data-pick="${esc(x.id)}" ${x.pick ? 'checked' : ''} aria-label="發獎給他"></td><td>${x.rank || '—'}</td><td>${esc(who(x.id))}</td><td>${esc(x.nick || '—')}</td><td>${esc(scoreText(ev, x.s))}</td><td>${x.n}</td><td>${x.warn ? '<span class="chip warn">⚠ 請確認</span>' : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="dim">還沒有人有分數</td></tr>'}</tbody></table></div>`;
       };
-      const html = `<p class="dim" style="margin:0 0 6px">⚠ 的人分數超出合理範圍，預設<b>不發獎</b>（含參加獎）。確認沒問題再勾回來。沒勾的人，名次由後面的人遞補。</p>
+      const html = `<p class="dim" style="margin:0 0 6px">⚠ 的人分數超出合理範圍，預設<b>不拿名次獎</b>（名次由後面的人遞補），但<b>仍然有參加獎</b>（有送參加獎的話）。確認沒問題再勾回來就能拿名次獎。其他人如果你自己取消勾選，連參加獎也不會有。</p>
         <div data-tbl>${tbl()}</div>
         <h3 style="margin-top:12px">名次獎品</h3>
         ${['t1', 't23', 't410'].map(k => `<div style="margin:6px 0"><b>${TIER_NAME[k]}</b><div data-tier="${k}"></div></div>`).join('')}
@@ -370,7 +370,7 @@ export default async function mount(el, ctx, params) {
       if (res !== 'ok') return;
       snap = buildSnapshot(ev, rows, x => st.pick.get(x.id), { t1: st.t1, t23: st.t23, t410: st.t410 }, st.partOn ? st.part : [], Date.now());
     } else {
-      const rowsHtml = snap.rows.slice(0, 15).map(x => `<tr><td>${x.rank || '—'}</td><td>${esc(who(x.id))}</td><td>${esc(scoreText({ metric: snap.metric }, x.s))}</td><td>${x.n}</td><td>${x.warn ? '⚠' : ''}${x.pick ? '' : ' 不發'}</td></tr>`).join('');
+      const rowsHtml = snap.rows.slice(0, 15).map(x => `<tr><td>${x.rank || '—'}</td><td>${esc(who(x.id))}</td><td>${esc(scoreText({ metric: snap.metric }, x.s))}</td><td>${x.n}</td><td>${x.warn ? '⚠' : ''}${x.pick ? '' : ' 沒有名次獎'}</td></tr>`).join('');
       const res = await modal({ title: `照名次快照寄獎品：${ev.title}`, wide: true, buttons: [{ id: 'no', label: '取消' }, { id: 'ok', label: '下一步：預覽', cls: 'gold' }],
         html: `<div class="note" data-snapinfo>名次快照是 ${esc(fmtT(snap.at))} 做的。這次會用同一份快照、同樣的信件 ID 寄，已經寄出的會被同樣內容覆蓋，不會變兩封。</div>
           <div class="tscroll" style="max-height:34vh"><table class="tbl"><thead><tr><th>名次</th><th>學生</th><th>分數</th><th>場次</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table></div>` });

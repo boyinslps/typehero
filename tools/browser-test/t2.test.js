@@ -140,7 +140,10 @@ const saveForm = async p => { await submitForm(p); await waitModal(p); await cli
     const ra = sn.rows.find(r => r.id === 'a'), rb = sn.rows.find(r => r.id === 'b'), re = sn.rows.find(r => r.id === 'e');
     ok(ra.rank === 1 && rb.rank === 1 && ra.pos !== rb.pos && re.rank === 3 && sn.rows.find(r => r.id === 'c').pick === false, '純函式：同分同名次、位置（信件 ID）不重複、被擋的人不佔名次：' + JSON.stringify(sn.rows.map(r => [r.id, r.rank, r.pos])));
     const ms = calc.snapshotMails(E, sn), ids = ms.map(m => m.id);
-    ok(new Set(ids).size === ids.length && ids.includes('ev_R_1') && ids.includes('ev_R_2') && ids.includes('ev_R_p_a') && !ids.includes('ev_R_p_c'), '純函式：信件 ID 全不重複，被擋的人沒有參加獎：' + ids.join());
+    ok(new Set(ids).size === ids.length && ids.includes('ev_R_1') && ids.includes('ev_R_2') && ids.includes('ev_R_p_a') && ids.includes('ev_R_p_c'), '純函式：信件 ID 全不重複，被 ⚠ 擋下的人沒有名次獎但保留參加獎：' + ids.join());
+    const rows2 = rows.concat([{ id: 'f', s: 20, n: 2, warn: false }]);
+    const sn2 = calc.buildSnapshot(E, rows2, r => !r.warn && r.id !== 'f', { t1: [{ type: 'coins', n: 5 }], t23: [], t410: [] }, [{ type: 'coins', n: 1 }], 99);
+    ok(sn2.parts.includes('c') && !sn2.parts.includes('f') && sn2.parts.includes('d'), '純函式：⚠ 的人保留參加獎；老師手動取消勾選的正常分數的人連參加獎也沒有；沒分數但有場次的人有：' + sn2.parts.join());
     ok(JSON.stringify(calc.snapshotMails(E, sn)) === JSON.stringify(ms), '純函式：同一份快照永遠產生一模一樣的信');
     const rs = [{ id: 'a', st: 'approved', sev: 1, t: 10 }, { id: 'b', st: 'approved', sev: 3, t: 50 }, { id: 'c', st: 'approved', sev: 2, t: 30 }, { id: 'd', st: 'dup', t: 99 }];
     const c = bc.boardCalc(rs, 1, []);
@@ -255,6 +258,30 @@ const saveForm = async p => { await submitForm(p); await waitModal(p); await cli
     await T.click('[data-back]');
   }
 
+  /* 開始後：倍數、加倍什麼、至少打幾場、對象班級也鎖住；獎品還能改（老師想加碼） */
+  {
+    const dis = async x => await T.isDisabled(x);
+    await T.click('[data-evtable="active"] [data-open="T_boost-1"]'); await T.click('[data-edit="T_boost-1"]'); await T.waitForSelector('[data-form]');
+    ok(await dis('[data-f="mul"]') && await dis('[data-f="what"]') && !(await dis('[data-f="title"]')), '開始後的 boost：倍數、加倍什麼鎖住，標題還能改');
+    const toList = async () => { for (let i = 0; i < 3 && !(await T.$('[data-evtable="active"]')); i++) { const b = (await T.$('[data-cancel]')) || (await T.$('[data-back]')); if (b) await b.click(); await T.waitForTimeout(150); } };
+    await toList();
+    await newEvent(T, { type: 'ranking', tpl: 'rank_improve_frog', id: 'T_acc', title: '神準手測試', fill: async p => { await p.selectOption('[data-f="metric"]', 'acc'); await p.selectOption('[data-f="mk"]', 'frog'); await p.fill('[data-f="minRuns"]', '4'); } });
+    await saveForm(T);
+    ok((await FS(T, 'mg_events/T_acc')).minRuns === 4, '新增神準手：至少打 4 場');
+    await T.click('[data-edit="T_acc"]'); await T.waitForSelector('[data-form]');
+    ok(await dis('[data-f="minRuns"]') && await dis('[data-f="metric"]') && await dis('[data-f="mk"]'), '開始後的 ranking：至少打幾場、指標、魔物都鎖住');
+    await toList();
+    await T.click('[data-evtable="active"] [data-open="T_cw"]'); await T.click('[data-edit="T_cw"]'); await T.waitForSelector('[data-form]');
+    ok(await dis(`[data-cls="${C3}"]`) && await dis('[data-f="per"]') && await dis('[data-f="goalPct"]'), '開始後的 classwar：對象班級、每人隻數、達標比例鎖住');
+    ok(!(await dis('[data-gadd]')) && !(await dis('[data-gdel="0"]')), '開始後：達標獎勵還能改（可以加碼）');
+    const cwBefore = await FS(T, 'mg_events/T_cw');
+    await T.selectOption('[data-gadd]', 'coins'); await T.fill('[data-gn="1"]', '7');
+    await saveForm(T);
+    const cwAfter = await FS(T, 'mg_events/T_cw');
+    ok(cwAfter.items.length === 2 && cwAfter.items[1].n === 7 && cwAfter.cls.join() === cwBefore.cls.join() && cwAfter.per === cwBefore.per && cwAfter.goalPct === cwBefore.goalPct && cwAfter.startAt === cwBefore.startAt, '開始後加碼獎品存得進去，班級、隻數、比例沒變：' + JSON.stringify(cwAfter.items));
+    await toList();
+  }
+
   /* 進行中：參加人數、各班達標率、前 10 名（含 ⚠） */
   {
     await T.click('[data-evtable="active"] [data-open="CW"]');
@@ -313,7 +340,7 @@ const saveForm = async p => { await submitForm(p); await waitModal(p); await cli
     await T.check('[data-parton]'); await T.selectOption('[data-part] [data-gadd]', 'coins'); await T.fill('[data-part] [data-gn="0"]', '5');
     await clickModal(T, 'ok'); await waitModal(T);
     const pv = await modalText(T);
-    ok(pv.includes('學生會看到這個') && pv.includes('共 9 封信') && pv.includes('參加獎 5 人'), '發獎預覽＋摘要：共 9 封（名次 4＋參加 5）：' + pv.slice(0, 160));
+    ok(pv.includes('學生會看到這個') && pv.includes('共 10 封信') && pv.includes('參加獎 6 人'), '發獎預覽＋摘要：共 10 封（名次 4＋參加 6，⚠ 的人保留參加獎）：' + pv.slice(0, 160));
     await clickModal(T, 'ok'); await T.waitForTimeout(800);
     const evRK = await FS(T, 'mg_events/RK');
     ok(evRK.awarded === true && evRK.result && Array.isArray(evRK.result.rows) && evRK.result.rows.length === 5, '先寫名次快照：mg_events/RK.result 5 筆有分數的、awarded=true');
@@ -321,10 +348,10 @@ const saveForm = async p => { await submitForm(p); await waitModal(p); await cli
     const rr = id => evRK.result.rows.find(r => r.id === id);
     ok(rr(ID11).warn === true && rr(ID11).pick === false && rr(ID5).rank === 1 && rr(ID6).rank === 2 && rr(ID7).rank === 2 && rr(ID12).rank === 4 && rr(ID6).pos !== rr(ID7).pos && rr(ID5).n === 4, '快照：每人分數、有效場次、⚠、同分同名次但位置不同');
     const mk = (await evMails(T, 'ev_RK_')).sort((a, b) => a._id < b._id ? -1 : 1);
-    ok(mk.length === 9 && mk.every(m => m.src === 'event:RK' && m.from === '老師' && m.aud.length === 1), '寄了 9 封，格式正確：' + mk.map(m => m._id).join());
+    ok(mk.length === 10 && mk.every(m => m.src === 'event:RK' && m.from === '老師' && m.aud.length === 1), '寄了 10 封，格式正確：' + mk.map(m => m._id).join());
     const byId = id => mk.find(m => m._id === id);
     ok(byId('ev_RK_1').items[0].n === 50 && byId('ev_RK_1').aud[0] === 'id:' + ID5 && byId('ev_RK_2').items[0].n === 30 && byId('ev_RK_3').items[0].n === 30 && byId('ev_RK_4').items[0].n === 10 && byId('ev_RK_4').aud[0] === 'id:' + ID12, '第 1 名 50、並列第 2 名各 30（兩封不同 ID）、第 4 名 10');
-    ok(mk.filter(m => m._id.startsWith('ev_RK_p_')).length === 5 && !byId('ev_RK_p_' + ID11) && byId('ev_RK_p_' + ID13).items[0].n === 5, '參加獎 5 人（有參加的；被擋下的 ⚠ 學生沒有、只打 1 場沒分數的己同學有）');
+    ok(mk.filter(m => m._id.startsWith('ev_RK_p_')).length === 6 && byId('ev_RK_p_' + ID11).items[0].n === 5 && !byId('ev_RK_' + 5) && byId('ev_RK_p_' + ID13).items[0].n === 5, '參加獎 6 人（有參加的都有：被擋下的 ⚠ 學生保留參加獎但沒有名次獎、只打 1 場沒分數的己同學有）');
     /* 重按：同一份快照、同樣的 ID，不會變兩封 */
     const snapBefore = JSON.stringify(evRK.result), mailsBefore = JSON.stringify(mk);
     await T.click('[data-back]'); await T.click('[data-evtable="ended"] [data-open="RK"]');
@@ -333,14 +360,14 @@ const saveForm = async p => { await submitForm(p); await waitModal(p); await cli
     ok((await modalText(T)).includes('同一份快照'), '重按：顯示「用同一份快照、同樣信件 ID」');
     await clickModal(T, 'ok'); await waitModal(T); await clickModal(T, 'ok'); await T.waitForTimeout(800);
     const mk2 = (await evMails(T, 'ev_RK_')).sort((a, b) => a._id < b._id ? -1 : 1);
-    ok(mk2.length === 9 && JSON.stringify(mk2) === mailsBefore && JSON.stringify((await FS(T, 'mg_events/RK')).result) === snapBefore, '重按發獎：還是 9 封、內容一模一樣、快照沒變');
+    ok(mk2.length === 10 && JSON.stringify(mk2) === mailsBefore && JSON.stringify((await FS(T, 'mg_events/RK')).result) === snapBefore, '重按發獎：還是 10 封、內容一模一樣、快照沒變');
     /* 中途失敗（awarded 沒寫成）再按：照快照補寄 */
     await T.evaluate(() => { const e = window.__FS['mg_events/RK']; e.awarded = false; delete window.__FS['mg_mail/ev_RK_2']; delete window.__FS['mg_mail/ev_RK_p_' + '五年級4班_12號']; });
     await tab(T, 'events'); await T.click('[data-evtable="ended"] [data-open="RK"]');
     ok((await T.textContent('[data-snapnote]')).includes('已經有名次快照'), '快照有了但 awarded 沒寫：畫面提示可以照快照再寄');
     await T.click('[data-award-btn="RK"]'); await waitModal(T); await clickModal(T, 'ok'); await waitModal(T); await clickModal(T, 'ok'); await T.waitForTimeout(800);
     const mk3 = (await evMails(T, 'ev_RK_')).sort((a, b) => a._id < b._id ? -1 : 1);
-    ok(mk3.length === 9 && JSON.stringify(mk3) === mailsBefore && (await FS(T, 'mg_events/RK')).awarded === true, '補寄：缺的 2 封補回來，總數還是 9、都跟原本一模一樣');
+    ok(mk3.length === 10 && JSON.stringify(mk3) === mailsBefore && (await FS(T, 'mg_events/RK')).awarded === true, '補寄：缺的 2 封補回來，總數還是 10、都跟原本一模一樣');
     ok((await logsOf(T)).filter(l => l.act === '活動發獎').length === 3 && (await logsOf(T)).some(l => l.act === '重寄活動獎品'), '操作紀錄：活動發獎、重寄活動獎品');
     await T.click('[data-back]');
   }

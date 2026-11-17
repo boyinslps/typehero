@@ -44,8 +44,9 @@ export function rankRows(ev, rows, pick) {
 export function buildSnapshot(ev, rows, pick, prizes, part, now) {
   const ranked = rankRows(ev, rows, pick);
   const slim = ranked.filter(r => r.s !== null).slice(0, 200).map(r => ({ id: r.id, nick: r.nick, s: r.s, n: r.n, warn: r.warn, pick: r.pick, rank: r.rank, pos: r.pos }));
-  /* 有參加（n>=1）而且沒被老師擋下的人。被擋下的 ⚠ 學生：名次獎、參加獎都沒有 */
-  const blocked = new Set(ranked.filter(r => r.s !== null && !r.pick).map(r => r.id));
+  /* 參加獎：有參加（n>=1）的人都有。被 ⚠ 擋下的人只是不拿名次獎，參加獎還是給（老師 2026-11-17 決定：
+     分數可疑不代表他沒有認真打）。只有老師「自己手動取消勾選」的正常分數的人，才連參加獎一起不給。 */
+  const blocked = new Set(ranked.filter(r => r.s !== null && !r.pick && !r.warn).map(r => r.id));
   const parts = rows.filter(r => r.n >= 1 && !blocked.has(r.id)).map(r => r.id);
   return { at: now, metric: ev.metric, rows: slim, parts: part.length ? parts : [], prizes: { t1: prizes.t1 || [], t23: prizes.t23 || [], t410: prizes.t410 || [] }, part };
 }

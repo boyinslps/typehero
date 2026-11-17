@@ -213,6 +213,11 @@ async function winHunt(p, rk, mk, star) {
     ok(bt2.includes('測試員手冊') && bt2.includes('✓ 已蓋章') && bt2.includes('老師確認 1 個'), '測試員手冊：顯示蓋章與老師確認的數量');
     ok(bt2.includes('我的回報') && bt2.includes('老師確認了') && bt2.includes('謝謝你！') && bt2.includes('抓蟲分 2'), '「我的回報」讀 mg_bugboard.reports：狀態、老師的回覆、抓蟲分');
     await p.screenshot({ path: OUT + '/nw4-book.png' });
+    /* 重複、不採用：溫和的話；不採用有老師的回覆就顯示 */
+    await p.evaluate(() => { document.querySelectorAll('.nw-sheet').forEach(e => e.remove()); const b = window.__FS['mg_bugboard/五年級3班_5號']; b.reports.push({ id: 'x_dup', st: 'dup', sev: 0, reply: '', t: Date.now() - 1000 }, { id: 'x_rej', st: 'rejected', sev: 0, reply: '這是設計成這樣的', t: Date.now() - 2000 }, { id: 'x_rej2', st: 'rejected', sev: 0, reply: '', t: Date.now() - 3000 }); });
+    await p.click('[data-act="book"]'); await p.waitForSelector('[data-reports]', { timeout: 6000 });
+    const rep = await p.textContent('[data-reports]');
+    ok(rep.includes('別人先回報了，謝謝你也發現了！') && rep.includes('這次沒有採用，謝謝你') && rep.includes('老師說：這是設計成這樣的') && !rep.includes('老師還沒看'), '「我的回報」：重複顯示「別人先回報了…」、不採用顯示「這次沒有採用，謝謝你」與老師的回覆：' + rep.replace(/\s+/g, ' ').slice(0, 160));
     const nw = await p.evaluate(() => JSON.parse(localStorage.getItem('mg_nw_五年級3班_5號')));
     ok(nw.bugs === 1 && nw.bugScore === 2 && nw.words.includes('bughunter') && nw.tm.m_bug1 === 1 && nw.coins >= 20, '除蟲員詞條、任務蓋章、抓蟲分存進存檔');
     ok(!(await p.evaluate(() => (window.__READS || []).some(r => r.path.startsWith('mg_nw_flags')))), '學生端沒有讀過 mg_nw_flags（正式規則只有老師能讀）');

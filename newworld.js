@@ -989,7 +989,10 @@ export function initNewWorld(C) {
     const rs = (board && Array.isArray(board.reports)) ? board.reports.slice().sort((a, b) => (b.t || 0) - (a.t || 0)).slice(0, 8) : [];
     const score = NW.bugScore > 0 ? `<span class="px-chip" style="color:#8ec96b">抓蟲分 ${NW.bugScore}</span>` : '';
     if (!rs.length) return `<div class="px-text text-sm mt-3" style="color:#aab0d8">我的回報：老師還沒有看過你的回報。${score}</div>`;
-    const st = r => r.st === 'approved' ? '<b style="color:#8ec96b">✓ 老師確認了</b>' : r.st === 'rejected' ? '<span style="color:#e5705f">這次沒有採用</span>' : '<span style="color:#ffd98a">老師還沒看</span>';
+    /* 重複與不採用都用溫和的話：不讓同學覺得自己做錯了。老師有寫回覆就顯示老師的話 */
+    const st = r => r.st === 'approved' ? '<b style="color:#8ec96b">✓ 老師確認了</b>'
+      : r.st === 'dup' ? '<span style="color:#9ec9ff">別人先回報了，謝謝你也發現了！</span>'
+      : r.st === 'rejected' ? '<span style="color:#e5705f">這次沒有採用，謝謝你</span>' : '<span style="color:#ffd98a">老師還沒看</span>';
     return `<div class="px-text mt-3" style="font-weight:900;color:#ffd98a">我的回報 ${score}</div>
       <div class="flex flex-col gap-1 mt-1" data-reports>${rs.map(r => `<div class="px-panel in text-sm" style="padding:6px 10px">${r.t ? new Date(r.t).toLocaleDateString('zh-TW') + '　' : ''}${st(r)}${r.sev ? `　嚴重度 ${'★'.repeat(Math.min(3, +r.sev || 0))}` : ''}${r.reply ? `<div style="color:#aab0d8">老師說：${escHtml(String(r.reply).slice(0, 80))}</div>` : ''}</div>`).join('')}</div>`;
   }
