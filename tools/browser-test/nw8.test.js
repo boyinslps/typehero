@@ -125,14 +125,14 @@ const others = (evId, scores, o = {}) => scores.map((s, i) => mkScore(o.cls || '
   ok(hits === 1 && st.n === 6, 'classwar：打 6 隻，達到 per＝3 的那一場只回報一次達標');
 
   /* 榜單文字、排名 */
-  const top10 = n => Array.from({ length: n }, (_, i) => ({ id: 'o' + i, cls: '502', seat: i, nick: '甲', s: 95 - i * 5 }));
+  const top10 = n => Array.from({ length: n }, (_, i) => ({ id: 'o' + i, cls: '502', seat: i, nick: '甲', s: 60 - i * 2 }));
   const cb = E.composeBoard(evI, top10(10), { s: 30, base: 30, best: 21, n: 3 }, 'me');
-  ok(!cb.inTop && cb.rows.length === 10 && cb.last === 50 && cb.text === '再快 7 秒就上榜', 'improve 榜外：「再快 7 秒就上榜」（要進步到 51%：30×(1-0.505)＝14.85 秒，還差 6.15 → 7 秒）：' + cb.text);
+  ok(!cb.inTop && cb.rows.length === 10 && cb.last === 42 && cb.text === '再快 4 秒就上榜', 'improve 榜外：「再快 4 秒就上榜」（要進步到 43%：30×(1-0.425)＝17.25 秒，還差 3.75 → 4 秒；分數都在合理範圍 ≤60% 內）：' + cb.text);
   ok(!/第|名/.test(cb.text), '榜外文字不寫第幾名');
   const cb2 = E.composeBoard(evK, top10(10).map((x, i) => Object.assign(x, { s: 10 + i })).reverse(), { s: 2, n: 2 }, 'me');
   ok(cb2.text === '再打 9 隻就上榜', 'kills 榜外：10 名最少 10 隻、我 2 隻 → 「再打 9 隻就上榜」（要比第 10 名多才算）：' + cb2.text);
-  const cb3 = E.composeBoard(evF, top10(10).map((x, i) => Object.assign(x, { s: 12 + i * 0.5 })), { s: 21, best: 21, n: 3 }, 'me');
-  ok(cb3.text === '再快 5 秒就上榜', 'fastest 榜外：第 10 名 16.5 秒、我 21 秒，要快到 16.4 以下，差 4.6 → 「再快 5 秒就上榜」：' + cb3.text);
+  const cb3 = E.composeBoard(evF, top10(10).map((x, i) => Object.assign(x, { s: 13 + i * 0.5 })), { s: 21, best: 21, n: 3 }, 'me');
+  ok(cb3.text === '再快 4 秒就上榜', 'fastest 榜外：第 10 名 17.5 秒、我 21 秒，要快到 17.4 以下，差 3.6 → 「再快 4 秒就上榜」（都不低於泡泡蛙的合理下限 13 秒）：' + cb3.text);
   const accS = [100, 100, 99, 99, 99, 98, 98, 98, 97, 97];
   const cb4 = E.composeBoard(evA, top10(10).map((x, i) => Object.assign(x, { s: accS[i] })), { s: 95, n: 3 }, 'me');
   ok(cb4.text === '再準 3% 就上榜', 'acc 榜外：第 10 名 97%、我 95% → 「再準 3% 就上榜」（要嚴格比第 10 名高）：' + cb4.text);
@@ -312,9 +312,9 @@ const others = (evId, scores, o = {}) => scores.map((s, i) => mkScore(o.cls || '
   /* ── ranking：四種指標、榜單、榜外、隱藏暱稱 ── */
   {
     const seed = seedOf([
-      ...others('imp', [95, 90, 85, 80, 75, 70, 65, 60, 55, 50], { off: 0 }),
+      ...others('imp', [60, 58, 56, 54, 52, 50, 48, 46, 44, 42], { off: 0 }),
       ...others('kil', [19, 18, 17, 16, 15, 14, 13, 12, 11, 10], { off: 20 }),
-      ...others('fas', [12, 12.5, 13, 13.5, 14, 14.5, 15, 15.5, 16, 18], { off: 40 }),
+      ...others('fas', [13, 13.5, 14, 14.5, 15, 15.5, 16, 16.5, 17, 18], { off: 40 }),
       ...others('acc', [100, 100, 99, 99, 99, 98, 98, 98, 97, 97], { off: 60 }),
       ...[[1, 5, '勇敢的史萊姆'], [2, 2, ''], [3, 1, '閃電咕咕鳥'], [4, 3, '安靜的小龍']].map(([i, s, nick]) => mkScore('六年級1班', i, { name: '陳大華' + i, nwNick: nick, nw: { ev: { kil2: { s, n: s } } } }))
     ]);
@@ -339,13 +339,13 @@ const others = (evId, scores, o = {}) => scores.map((s, i) => mkScore(o.cls || '
     ok((await FS(p, 'mg_scores/' + ID)).nw.ev.imp.s === 30, '分數存在 nw.ev.{ID}.s（榜單 orderBy 的欄位）');
     const bd = id => p.evaluate(async id => { const e = window.__NWG.events; const v = await e.eventBoard(e.byId(id), true); return JSON.parse(JSON.stringify(v)); }, id);
     let v = await bd('imp');
-    ok(v.rows.length === 10 && v.rows[0].s === 95 && v.rows[9].s === 50 && !v.inTop && v.text === '再快 7 秒就上榜', '進步獎榜：前 10 名由高到低；我 30% 在榜外 → 「' + v.text + '」');
+    ok(v.rows.length === 10 && v.rows[0].s === 60 && v.rows[9].s === 42 && !v.inTop && v.text === '再快 4 秒就上榜', '進步獎榜：前 10 名由高到低；我 30% 在榜外 → 「' + v.text + '」');
     ok(!v.rows.some(r => r.mine) && !/第\s*\d+\s*名/.test(v.text), '榜外不放自己、不寫第幾名');
     ok(v.rows[0].label === '502・10號・勇敢的獵人', '顯示「班級短碼・座號號・暱稱」：' + v.rows[0].label);
     v = await bd('kil');
     ok(v.rows[0].s === 19 && !v.inTop && v.text === '再打 8 隻就上榜', `討伐王榜外：${v.text}（第 10 名 10 隻、我 3 隻）`);
     v = await bd('fas');
-    ok(v.rows[0].s === 12 && v.rows[9].s === 18 && v.text === '再快 4 秒就上榜', `最快討伐 asc 排序：前 10 由小到大；${v.text}（第 10 名 18 秒、我 21 秒）`);
+    ok(v.rows[0].s === 13 && v.rows[9].s === 18 && v.text === '再快 4 秒就上榜', `最快討伐 asc 排序：前 10 由小到大；${v.text}（第 10 名 18 秒、我 21 秒）`);
     v = await bd('acc');
     ok(v.rows[0].s === 100 && v.text === '再準 3% 就上榜', `神準手榜外：${v.text}（第 10 名 97%、我 95%）`);
     v = await bd('kil2');

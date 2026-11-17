@@ -227,7 +227,7 @@ export const defaultNw = () => ({
   zone: { grass: 0, forest: 0 }, dex: {}, fastest: {},
   quest: { done: [] }, title: '', titleParts: [], words: [], used: {}, wwin: {},
   stat: { dodgeOk: 0, dodgeAll: 0, defOk: 0, defAll: 0, accN: 0, accSum: 0, wins: 0, fails: 0 },
-  flags: 0, fb: {}, gw: [], equip: '', gifts: [], giftedEarly: false, tm: {}, bugs: 0, bugsSent: 0, tut: {}, intro: {}, awards: {}, seenNotice: '',
+  flags: 0, fb: {}, gw: [], equip: '', gifts: [], giftedEarly: false, tm: {}, bugs: 0, bugsSent: 0, tut: {}, intro: {}, awards: {}, seenNotice: '', seenNews: 0, seenEv: {}, seenBug: 0,
   name0: '', bugScore: 0, evDone: [], nameFlagged: {},
   mail: {}, nick: null, nickAt: 0, ev: {}, fastMk: {}
 });
@@ -247,6 +247,8 @@ export function normalizeNw(d) {
   o.used = d.used || {}; o.wwin = d.wwin || {}; o.fb = d.fb || {};
   o.gw = Array.isArray(d.gw) ? d.gw : []; o.gifts = Array.isArray(d.gifts) ? d.gifts : [];
   o.tm = d.tm || {}; o.tut = d.tut || {}; o.bugs = d.bugs || 0; o.bugsSent = d.bugsSent || 0; o.intro = d.intro || {}; o.awards = d.awards || {}; o.seenNotice = d.seenNotice || '';
+  o.seenNews = +d.seenNews || 0; o.seenBug = +d.seenBug || 0;
+  o.seenEv = (d.seenEv && typeof d.seenEv === 'object' && !Array.isArray(d.seenEv)) ? d.seenEv : {};
   o.name0 = typeof d.name0 === 'string' ? d.name0 : ''; o.bugScore = +d.bugScore || 0;
   o.evDone = Array.isArray(d.evDone) ? d.evDone : []; o.nameFlagged = d.nameFlagged || {};
   /* 已領的信是物件不是陣列：兩個分頁各自合併存檔時，不會整份蓋掉對方領過的紀錄 */
@@ -393,6 +395,12 @@ export const WORDS = [
   { id: 'critic', w: '評論家', g: '成就', how: '寫 3 份測試回饋', test: n => Object.values(n.fb || {}).filter(v => v === 1).length >= 3 },
   { id: 'bughunter', w: '除蟲員', g: '成就', how: '回報 1 個問題（老師確認才算）', test: n => (n.bugs || 0) >= 1 },
   { id: 'bugmaster', w: '蟲蟲剋星', g: '成就', how: '回報 5 個問題（老師確認才算）', test: n => (n.bugs || 0) >= 5 },
+  /* 抓蟲分（mg_bugboard，老師確認才有）到 1／3／5／10 分各一個；沒上前 10 名的人也有目標（SPEC §7.2）。
+     名字用「抓蟲」開頭，跟「除蟲員、蟲蟲剋星、職業除錯師」（算件數或老師頒發）分得出來 */
+  { id: 'bug1', w: '抓蟲新手', g: '成就', how: '抓蟲分到 1 分（老師確認回報才有分數）', test: n => (n.bugScore || 0) >= 1 },
+  { id: 'bug3', w: '抓蟲隊長', g: '成就', how: '抓蟲分到 3 分', test: n => (n.bugScore || 0) >= 3 },
+  { id: 'bug5', w: '抓蟲達人', g: '成就', how: '抓蟲分到 5 分', test: n => (n.bugScore || 0) >= 5 },
+  { id: 'bug10', w: '抓蟲大師', g: '成就', how: '抓蟲分到 10 分', test: n => (n.bugScore || 0) >= 10 },
   { id: 'bugking', w: '職業除錯師', g: '成就', how: '抓蟲抓得最多（老師頒發）', test: n => !!(n.awards && n.awards.bugking) },
   { id: 'grad', w: '畢業生', g: '成就', how: '完成教學大樓的三堂課', test: n => !!(n.tut && n.tut.dodge && n.tut.defend && n.tut.attack) },
   { id: 'exact', w: '一字不差', g: '成就', how: '正確率 100% 打贏 Lv10 以上的魔物', test: n => (n.perfect || 0) > 0 }
@@ -446,7 +454,9 @@ export const VILLAGE = {
     { id: 'star', kind: 'star', x: 18, y: 6, name: '星圖台', wip: 5, text: '升級拿到的星星，可以在這裡點亮，讓閃避和防禦變得更強。' },
     { id: 'academy', kind: 'academy', x: 2, y: 10, name: '教學大樓', act: 'academy', text: '閃避、防禦、攻擊的教學都在這裡，跟著做一遍就會了！' },
     { id: 'board', kind: 'board', x: 6, y: 10, name: '委託板', act: 'map', text: '選地方、選魔物，出發狩獵！' },
-    { id: 'rank', kind: 'rank', x: 14, y: 10, name: '榮譽碑', act: 'rank', wip: 2, text: '看看誰是最強獵人。' }
+    { id: 'rank', kind: 'rank', x: 14, y: 10, name: '榮譽碑', act: 'rank', wip: 2, text: '看看誰是最強獵人。' },
+    /* 佈告欄放在廣場東邊、郵筒（12,9）旁邊的空地：門口 (16,9) 不擋路。第 6 步重排地圖時只要改這個 x、y */
+    { id: 'notice', kind: 'notice', x: 15, y: 6, name: '佈告欄', act: 'notice', text: '活動、老師的公告、抓蟲榜，都貼在這裡。' }
   ],
   /* 郵筒（k:'mailbox'）也寫在 decor：村莊程式用 k 找它，第 6 步重排地圖只要改這裡的 x、y。站的位置是它正下方一格 */
   decor: [
@@ -455,7 +465,7 @@ export const VILLAGE = {
     { k: 'bench', x: 9, y: 10 }, { k: 'mailbox', x: 12, y: 9, b: 1 }, { k: 'flowers', x: 12, y: 3 }, { k: 'flowers', x: 4, y: 8 }, { k: 'sign', x: 10, y: 11, b: 1 }, { k: 'hay', x: 20, y: 4, b: 1 }
   ],
   npcs: [
-    { id: 'elder', name: '村長', x: 9, y: 8, look: { style: 'short', hair: '#e8e8e8', armor: '#8a4ad8', trim: '#e0c8ff' }, say: ['歡迎來到新世界！左下角的「教學大樓」可以學閃避、防禦和打字，先去學一學吧。', '按 B 或點右上角的背包，可以看你的東西和任務。'] },
+    { id: 'elder', name: '村長', x: 9, y: 8, look: { style: 'short', hair: '#e8e8e8', armor: '#8a4ad8', trim: '#e0c8ff' }, say: ['歡迎來到新世界！左下角的「教學大樓」可以學閃避、防禦和打字，先去學一學吧。', '廣場上的佈告欄會貼活動和公告，記得常常去看！', '按 B 或點右上角的背包，可以看你的東西和任務。'] },
     { id: 'kid', name: '小朋友', x: 13, y: 8, look: { style: 'pony', hair: '#ff7aa8', armor: '#e0802a', trim: '#ffe2a8' }, say: ['灰色的店還沒開張，再等一等！', '打倒草原的魔物，就能去迷霧森林囉。'] },
     { id: 'smith', name: '鐵匠', x: 5, y: 5, look: { style: 'spiky', hair: '#5a3a22', armor: '#6a4a3a', trim: '#b8b8b8' }, say: ['鐵匠鋪還在蓋，快好了！打到的材料先幫你存著。'] }
   ]

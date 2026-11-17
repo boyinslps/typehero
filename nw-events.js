@@ -11,7 +11,7 @@
      ranking：metric（improve｜kills｜fastest｜acc）、mk、minStar、minRuns
    學生個人進度：NW.ev[ID] = { e, t, n, done, cw, s, base, best, runs, accSum, gone }
      e＝活動結束時間（活動文件被刪了也能判斷何時清掉）、t＝標題（取消提示用）。 */
-import { MONSTERS, EVENT_DEFAULTS, NICK_EMPTY, clsShort, twDay } from './nw-data.js';
+import { MONSTERS, EVENT_DEFAULTS, NICK_EMPTY, FASTEST_FLOOR, IMPROVE_SANE_MAX, clsShort, twDay } from './nw-data.js';
 
 export const GRACE_MS = 5 * 60 * 1000;        // 結束後 5 分鐘內打完的場次照算（SPEC §1.6）
 export const WINDOW_MS = 7 * 86400000;        // 讀活動時多撈「剛結束」7 天
@@ -137,11 +137,25 @@ export function gapText(ev, st, last) {
   return `再快 ${Math.max(1, Math.ceil(st.best - needBest - 1e-9))} 秒就上榜`;
 }
 
+/* 合理範圍：分數是學生端算好存的，改得動；超出範圍的不放上公開的前 10 名（本人自己的進度照常看得到）。
+   進步獎超過 IMPROVE_SANE_MAX %、最快討伐比該魔物的下限還快就是不合理；沒指定魔物的最快討伐用最小的下限。 */
+export const saneFloor = ev => ev.mk && FASTEST_FLOOR[ev.mk] ? FASTEST_FLOOR[ev.mk] : Math.min(...Object.values(FASTEST_FLOOR));
+export function saneScore(ev, s) {
+  if (!Number.isFinite(s)) return false;
+  if (ev.metric === 'improve') return s <= IMPROVE_SANE_MAX;
+  if (ev.metric === 'fastest') return s >= saneFloor(ev);
+  return true;
+}
+
 /* 把雲端前 10 名與自己的本機分數合起來。自己的本機分數可能比雲端新（800ms 後才存），
    所以自己有分數而且夠好，就算在榜上。 */
 export function composeBoard(ev, cloudRows, mine, myId) {
-  const rows = cloudRows.map(r => Object.assign({}, r, { mine: r.id === myId }));
-  const mineHas = mine && Number.isFinite(mine.s);
+  let rows = cloudRows.filter(r => saneScore(ev, r.s)).map(r => Object.assign({}, r, { mine: r.id === myId }));
+  const mineAny = mine && Number.isFinite(mine.s);
+  /* 自己的分數超出範圍：不上公開榜（連雲端那份舊的也拿掉），也不講「差多少就上榜」；畫面自己看得到進度並說明 */
+  const outOfRange = !!(mineAny && !saneScore(ev, mine.s));
+  if (outOfRange) rows = rows.filter(r => !r.mine);
+  const mineHas = mineAny && !outOfRange;
   const idx = rows.findIndex(r => r.mine);
   if (idx >= 0 && mineHas) rows[idx].s = mine.s;
   const lastRow = rows.length >= BOARD_SIZE ? rows[rows.length - 1] : null;
@@ -150,7 +164,7 @@ export function composeBoard(ev, cloudRows, mine, myId) {
   const top = rows.slice(0, BOARD_SIZE);
   const inTop = top.some(r => r.mine);
   const last = top.length >= BOARD_SIZE ? top[top.length - 1].s : null;
-  return { rows: top, inTop, last, text: inTop ? '' : gapText(ev, mine, last) };
+  return { rows: top, inTop, last, outOfRange, text: inTop || outOfRange ? '' : gapText(ev, mine, last) };
 }
 
 /* 全班獎：分子、分母都來自 count 查詢（或老師填的 clsSize）。全班達標率到 goalPct 才算 */
@@ -294,9 +308,11 @@ export function createEvents(C, h) {
     const c = boards[e.id];
     if (!force && c && Date.now() - c.at < CACHE_MS) return c.v;
     const field = `nw.ev.${e.id}.s`;
-    const snap = await C.withTimeout(C.getDocs(C.query(C.collection(C.db, 'mg_scores'), C.orderBy(field, sortDir(e)), C.limit(BOARD_SIZE))), 6000, 'nw-ev-board');
+    /* 範圍條件跟排序同一個欄位，不用建索引；不合理的分數在查詢就排除，才不會佔掉前 10 名的位子 */
+    const range = e.metric === 'improve' ? [C.where(field, '<=', IMPROVE_SANE_MAX)] : e.metric === 'fastest' ? [C.where(field, '>=', saneFloor(e))] : [];
+    const snap = await C.withTimeout(C.getDocs(C.query(C.collection(C.db, 'mg_scores'), ...range, C.orderBy(field, sortDir(e)), C.limit(BOARD_SIZE))), 6000, 'nw-ev-board');
     const raw = [];
-    snap.forEach(d => { const x = d.data() || {}; const st = x.nw && x.nw.ev && x.nw.ev[e.id]; if (st && Number.isFinite(st.s)) raw.push({ id: d.id, className: x.className || '', seat: x.seat, nick: x.nwNick || '', s: st.s }); });
+    snap.forEach(d => { const x = d.data() || {}; const st = x.nw && x.nw.ev && x.nw.ev[e.id]; if (st && saneScore(e, st.s)) raw.push({ id: d.id, className: x.className || '', seat: x.seat, nick: x.nwNick || '', s: st.s }); });
     const hidden = new Set();
     if (raw.length) {
       try {
@@ -313,7 +329,7 @@ export function createEvents(C, h) {
       r.text = scoreText(e, r.s);
       r.label = `${r.cls}・${r.seat}號・${r.nick}`;
     });
-    const v = { ev: e, rows: comp.rows, inTop: comp.inTop, text: comp.text, mine: st ? { s: Number.isFinite(st.s) ? st.s : null, n: st.n || 0 } : { s: null, n: 0 } };
+    const v = { ev: e, rows: comp.rows, inTop: comp.inTop, text: comp.text, outOfRange: comp.outOfRange, mine: st ? { s: Number.isFinite(st.s) ? st.s : null, n: st.n || 0 } : { s: null, n: 0 } };
     boards[e.id] = { at: Date.now(), v };
     return v;
   }

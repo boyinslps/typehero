@@ -705,6 +705,19 @@ function buildingGrid(kind) {
     [[11, 24, '#fff6dc'], [20, 23, '#ffe27a'], [29, 25, '#fbcfe8'], [14, 30, '#d9f2fa'], [26, 30, '#fff6dc']].forEach(([x, y, c]) => { rect(s, x, y, 7, 6, c); put(s, x + 3, y, '#c0392b'); rect(s, x + 1, y + 2, 5, 1, '#7a6a52'); });
     poly(s, [[4, 20], [10, 12], [38, 12], [44, 20]], '#a8421a'); rect(s, 4, 19, 40, 2, '#7a2c10');
     rect(s, 20, 38, 8, 6, '#6d4320');
+  } else if (kind === 'notice') {
+    /* 佈告欄：兩根木柱撐一塊大木板，紅（活動）金（公告）綠（抓蟲榜）三張紙，頂上小屋簷。
+       木板、紙、圖釘的畫法跟 PX.wood／PX.paper／PX.pin 一樣：深淺木紋＋底邊暗線、紙的斑點、圓釘帶高光 */
+    const plank = (x, y, w, h, c) => { rect(s, x, y, w, h, c); rect(s, x, y, w, 1, lt(c, .12)); rect(s, x, y + h - 1, w, 1, '#2a1a0c'); for (let i = 0; i < w; i += 5) put(s, x + i + 1, y + 1 + (i % 3), dk(c, .2)); };
+    plank(9, 22, 4, 24, '#5f4224'); plank(35, 22, 4, 24, '#5f4224');
+    rect(s, 7, 45, 8, 2, '#2a1a0c'); rect(s, 33, 45, 8, 2, '#2a1a0c');
+    rect(s, 4, 16, 40, 24, '#2a1a0c'); plank(5, 17, 38, 22, '#735030'); rect(s, 7, 19, 34, 18, '#8a6a3a');
+    const sheet = (x, y, w, h, c, ink) => { rect(s, x, y, w, h, c); rect(s, x, y, w, 1, lt(c, .3)); rect(s, x, y + h - 1, w, 1, dk(c, .2)); put(s, x + 1, y + 3, dk(c, .1)); for (let ly = y + 4; ly < y + h - 2; ly += 2) rect(s, x + 2, ly, w - 4 - (ly % 3), 1, ink); };
+    sheet(9, 22, 9, 12, '#e0584a', '#7a2018'); sheet(20, 21, 10, 14, '#f6d77a', '#8a6a1a'); sheet(32, 23, 8, 11, '#8ec96b', '#2a5a2a');
+    [[13, 22, '#2a6ad8'], [25, 21, '#d83a3a'], [36, 23, '#e8b64c']].forEach(([x, y, c]) => { rect(s, x - 1, y - 1, 3, 3, dk(c, .3)); put(s, x, y, c); put(s, x - 1, y - 1, lt(c, .5)); });
+    poly(s, [[2, 17], [9, 8], [39, 8], [46, 17]], '#a8421a'); poly(s, [[6, 16], [12, 10], [36, 10], [42, 16]], lt('#a8421a', .16));
+    for (let y = 10; y < 17; y += 3) line(s, 8 + (y - 10) * .8, y, 40 - (y - 10) * .8, y, dk('#a8421a', .22));
+    rect(s, 2, 16, 44, 2, '#7a2c10');
   } else if (kind === 'rank') {
     poly(s, [[14, 44], [16, 14], [32, 14], [34, 44]], stone); poly(s, [[16, 44], [18, 16], [24, 16], [24, 44]], lt(stone, .18));
     poly(s, [[16, 14], [24, 4], [32, 14]], dk(stone, .1)); rect(s, 12, 42, 24, 4, dk(stone, .25));

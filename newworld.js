@@ -11,6 +11,7 @@ import { startBattle } from './nw-battle.js';
 import { openNwRank } from './nw-rank.js';
 import { tour, openAcademy } from './nw-academy.js';
 import { createEvents } from './nw-events.js';
+import { createNotice, newsLatest } from './nw-notice.js';
 import { DEFAULT_CODE_HASH, sha256Hex, cleanCode } from './nw-access.js';
 
 const CSS = `
@@ -144,6 +145,7 @@ export function initNewWorld(C) {
      學生端不再讀 mg_nw_flags（裡面有學生真名，正式規則只有老師能讀）。
      件數取 max(本機, 雲端)：舊玩家以前領過的件數不會變少，BUG_REWARD_MAX 不會算錯。 */
   let board = null, boardAt = 0;
+  const wordNotes = [];
   async function syncBoard(force) {
     if (!C.online() || (!force && Date.now() - boardAt < 20000)) return false;
     try {
@@ -157,7 +159,12 @@ export function initNewWorld(C) {
     let ch = false;
     if (n > NW.bugs) { NW.bugs = n; ch = true; }
     if (sc !== NW.bugScore) { NW.bugScore = sc; ch = true; }
-    if (ch) { checkWords(NW); saveNw(); }
+    if (ch) {
+      /* 抓蟲徽章（bug1～bug10）這時候解鎖；通知等 refreshBoard() 一起跳，不在同步中途蓋畫面 */
+      const ws = checkWords(NW); saveNw();
+      if (ws.length) wordNotes.push(...ws);
+    }
+    noticeRefresh();
     return ch;
   }
 
@@ -346,7 +353,7 @@ export function initNewWorld(C) {
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     const d = doorTile(b);
     NW.pos = [d[0], d[1] + 1];
-    if (buildingOpen(b)) { const go = { map: viewBoard, rank: openRank, academy: openAcademyUI }[b.act] || (() => {}); introOnce(b.id === 'board' ? 'board' : b.id).then(go); return; }
+    if (buildingOpen(b)) { const go = { map: viewBoard, rank: openRank, academy: openAcademyUI, notice: () => openNotice(false) }[b.act] || (() => {}); introOnce(b.id === 'board' ? 'board' : b.id).then(go); return; }
     openWip(b);
   }
 
@@ -369,7 +376,7 @@ export function initNewWorld(C) {
           </div>
           <button class="px-btn gold" data-act="bagopen" style="position:relative">🎒 背包<i data-bagdot style="display:${mailCount > 0 ? 'block' : 'none'};position:absolute;top:-5px;right:-5px;width:14px;height:14px;background:#d83a3a;border:2px solid #0a0714"></i></button>
           <button class="px-btn" data-act="gift">🎁 序號</button>
-          <button class="px-btn" data-act="notice">📢 佈告欄</button>
+          <button class="px-btn" data-act="notice" style="position:relative">📢 佈告欄<i data-noticedot style="display:${nflags.any ? 'block' : 'none'};position:absolute;top:-5px;right:-5px;width:14px;height:14px;background:#d83a3a;border:2px solid #0a0714"></i></button>
           <button class="px-btn" data-act="book">📓 測試員手冊</button>
           <button class="px-btn" data-act="bug">🐛 回報問題</button>
           <button class="px-btn" data-act="leave">← 回舊世界</button>
@@ -380,7 +387,7 @@ export function initNewWorld(C) {
       el.querySelector('[data-hero]').replaceChildren(PX.chibi(myChibi(), 'down', 0, 3));
       village = mountVillage(el.querySelector('#vmap'), {
         PX, look: myChibi(), open: VILLAGE.buildings.filter(buildingOpen).map(b => b.id),
-        start: NW.pos || VILLAGE.start, scroller: root, fast: FAST, onEnter: enterBuilding, guide: guideBuilding(), mailN: () => mailCount
+        start: NW.pos || VILLAGE.start, scroller: root, fast: FAST, onEnter: enterBuilding, guide: guideBuilding(), mailN: () => mailCount, noticeBang: () => nflags.any
       });
       hubStart();
     });
@@ -650,7 +657,7 @@ export function initNewWorld(C) {
     hub: [
       { icon: '🏘', title: '歡迎來到獵人村', text: '這裡是新世界的大廳。用 W A S D 或方向鍵走路，也可以用滑鼠點想去的地方。想進房子：點一下房子，或站在門口按 Enter。灰色的房子還在施工中。' },
       { icon: '📌', title: '任務系統', text: '上面金色的「📌」就是你現在的任務，做完會有獎勵。地上黃色的箭頭會帶你走到目的地，房子上面彈跳的箭頭就是要去的地方。點「📌」可以看任務怎麼做。現在的第一個任務：到教學大樓學會三堂課！' },
-      { icon: '🧰', title: '上面的按鈕', text: '🎒 背包：看裝備、道具、稱號。📢 佈告欄：新世界改了什麼，都貼在這裡。🎁 序號：輸入老師給的序號領禮物。📓 測試員手冊：新世界還在試玩，完成測試任務有獎勵。🐛 回報問題：發現哪裡怪怪的，告訴我們。✉ 老師寄的信放在廣場旁邊的郵筒。' }
+      { icon: '🧰', title: '上面的按鈕', text: '🎒 背包：看裝備、道具、稱號。📢 佈告欄：活動、老師的公告、新世界改了什麼，都貼在這裡（廣場上也有一座佈告欄）。🎁 序號：輸入老師給的序號領禮物。📓 測試員手冊：新世界還在試玩，完成測試任務有獎勵。🐛 回報問題：發現哪裡怪怪的，告訴我們。✉ 老師寄的信放在廣場旁邊的郵筒。' }
     ],
     academy: [{ icon: '🏫', title: '教學大樓', text: '這裡有閃避、防禦、打字三堂課。每一堂都是先看示範，再自己一步一步做；沒做對會一直等你，做對才換下一步；最後還要把稻草魔物打倒（打 5 下）。學會一堂送 200 字元！' }],
     board: [{ icon: '📜', title: '委託板', text: '選一張委託單，右邊的大地圖會亮起魔物住的地方。有紅色「任務目標」標籤的，就是現在任務要打的魔物。按「狩獵」開房間，再按「出發」就開打。★ 越多越難，打贏低星才會開高星。' }],
@@ -658,6 +665,7 @@ export function initNewWorld(C) {
     title: [{ icon: '🏅', title: '自己拚稱號', text: '稱號是用「詞條」拚的：一次選 1～3 個，順序自己決定。灰色的詞條還沒解鎖，會寫怎麼拿。打贏魔物、完成任務、抓蟲都能解鎖新詞條。' }],
     book: [{ icon: '📓', title: '測試員手冊', text: '新世界還在試玩，你是第一批冒險者！每完成一個任務就蓋一個章，拿字元和稱號詞條。字元是新世界的貨幣，之後可以買東西、打造裝備。' }],
     mail: [{ icon: '✉', title: '郵筒與信箱', text: '老師寄給你的信和禮物，都會放在信箱裡。村莊廣場旁的藍色郵筒冒出 ✉ 和數字，就是有信還沒領！走到郵筒旁邊按 Enter，或點背包裡的「✉ 信箱」，都能打開。按「領取」就能收下禮物，領過的信會留著，可以再看。' }],
+    notice: [{ icon: '📢', title: '佈告欄', text: '活動、老師的公告、抓蟲榜，都貼在這裡！有新東西，木板上方會跳出「！」。🎪 活動：看現在有什麼活動、自己做到哪裡。🐛 抓蟲榜：發現遊戲怪怪的地方告訴老師，確認以後就會上榜。' }],
     gift: [{ icon: '🎁', title: '序號禮物', text: '老師會發序號給你。在這裡輸入（輸入的字會藏起來），就能領禮物，領到會跳出通知。每組序號每個人只能領一次。' }]
   };
   function introOnce(key) {
@@ -694,23 +702,186 @@ export function initNewWorld(C) {
       '🎒 修好了：太快點背包，換裝備教學會卡住。'
     ] }
   ];
-  function openNotice(auto) {
-    if (!auto) EV.load().then(eventsCheck);
+  /* ── 佈告欄（SPEC §9.1）：建築與上方按鈕打開同一個視窗，三個分頁 📢 公告｜🎪 活動｜🐛 抓蟲榜 ──
+     「看過了」分頁各自記：公告 NW.seenNews／seenNotice、活動 NW.seenEv、抓蟲榜 NW.seenBug。
+     沒看過的東西讓木板上方彈跳「！」、上方按鈕與分頁加小紅點。 */
+  const NT = createNotice(C, { me: () => ME, nw: () => NW, ownBoard: () => board, nickText });
+  const NOTICE_TAB_KEY = 'mg_nw_ntab';
+  const NTABS = [['news', '📢', '公告'], ['ev', '🎪', '活動'], ['bug', '🐛', '抓蟲榜']];
+  const readTab = () => { try { const t = localStorage.getItem(NOTICE_TAB_KEY); return NTABS.some(x => x[0] === t) ? t : 'news'; } catch (e) { return 'news'; } };
+  const saveTab = t => { try { localStorage.setItem(NOTICE_TAB_KEY, t); } catch (e) { /* 私密視窗等寫不進去就算了，只是下次不記得 */ } };
+  let nflags = { news: false, ev: false, bug: false, any: false };
+  function noticeFlags() {
+    const seenEv = NW.seenEv || {};
+    const f = {
+      news: newsLatest(NT.news()) > (NW.seenNews || 0) || NW.seenNotice !== NOTICES[0].id,
+      ev: EV.groups().active.some(e => !seenEv[e.id]),
+      bug: (NW.bugScore || 0) > (NW.seenBug || 0)
+    };
+    f.any = f.news || f.ev || f.bug;
+    return f;
+  }
+  function noticeRefresh() {
+    if (!NW) return;
+    nflags = noticeFlags();
+    document.querySelectorAll('[data-noticedot]').forEach(el => { el.style.display = nflags.any ? 'block' : 'none'; });
+    document.querySelectorAll('[data-ntabdot]').forEach(el => { el.style.display = nflags[el.dataset.ntabdot] ? 'block' : 'none'; });
+  }
+  function markSeen(tab) {
+    let ch = false;
+    if (tab === 'news') {
+      const m = newsLatest(NT.news());
+      if (m > (NW.seenNews || 0)) { NW.seenNews = m; ch = true; }
+      if (NW.seenNotice !== NOTICES[0].id) { NW.seenNotice = NOTICES[0].id; ch = true; }
+    } else if (tab === 'ev') {
+      const E = NW.seenEv || (NW.seenEv = {}), ids = new Set(EV.list().map(e => e.id));
+      EV.groups().active.forEach(e => { if (!E[e.id]) { E[e.id] = 1; ch = true; } });
+      /* 活動檔早就過期被清掉的 ID 不用再記（讀得到活動時才清，斷線時不動） */
+      if (EV.ok()) Object.keys(E).forEach(id => { if (!ids.has(id)) { delete E[id]; ch = true; } });
+    } else if (tab === 'bug') {
+      if ((NW.bugScore || 0) !== (NW.seenBug || 0)) { NW.seenBug = NW.bugScore || 0; ch = true; }
+    }
+    if (ch) saveNw();
+    noticeRefresh();
+  }
+
+  const nlines = t => escHtml(t).replace(/\n/g, '<br>');
+  const rankCell = r => r <= 3 ? PX.badge(4 - r, 3) : `<b class="px-text" style="display:inline-block;min-width:33px;text-align:center;color:#aab0d8">${r}</b>`;
+  const bar = (pct, cls) => `<div class="px-bar ${cls || 'xp'}"><i style="width:${Math.max(0, Math.min(100, pct))}%"></i></div>`;
+
+  function newsCard(n, isNew) {
+    return `<div class="px-panel in mt-3" data-news="${escHtml(n.id)}" style="padding:10px 12px;${n.pin ? 'border-color:#e8b64c' : ''}">
+      <div class="px-text" style="color:#ffd98a;font-weight:900;font-size:1.1em">${n.pin ? '<span class="px-chip" style="color:#e8b64c">📌 置頂</span> ' : ''}${escHtml(n.title)}${isNew ? ' <span class="px-chip" style="color:#ff8a6a">新</span>' : ''}　<span class="text-xs" style="color:#aab0d8;font-weight:400">${n.t ? new Date(n.t).toLocaleDateString('zh-TW') : ''}</span></div>
+      ${n.body ? `<div class="px-text mt-1" style="font-size:.98em;line-height:1.65">${nlines(n.body)}</div>` : ''}</div>`;
+  }
+  const noticeCard = n => `<div class="px-panel in mt-3" style="padding:10px 12px"><div class="px-text" style="color:#ffd98a;font-weight:900;font-size:1.1em">${n.title}　<span class="text-xs" style="color:#aab0d8;font-weight:400">${n.date}</span></div>
+    <ul class="px-text mt-1" style="font-size:.98em;line-height:1.65;list-style:none;padding:0">${n.items.map(t => `<li style="margin-top:4px">${t}</li>`).join('')}</ul></div>`;
+
+  /* 活動卡片：進行中（大）、快開始（灰）、剛結束。班級進度與榜單要讀雲端，先放空位，讀完再填 */
+  const EV_ICON = { boost: '⚡', hunt: '🗡', classwar: '🏫', ranking: '🏆' };
+  const EV_NAME = { boost: '限時加倍', hunt: '限時討伐', classwar: '班級挑戰', ranking: '活動排行榜' };
+  function activeCard(e) {
+    const p = EV.eventProgress(e), t = EV.timeText(e);
+    let mine = '';
+    if (e.type === 'boost') mine = `<div class="px-text text-sm mt-2" style="color:#8ec96b">${e.what === 'coins' ? '字元' : '獵人經驗'} ×${e.mul}：打贏魔物就會自動加倍。</div>`;
+    else if (e.type === 'hunt') mine = `<div class="mt-2">${bar(p.done ? 100 : p.n / e.goal * 100, p.done ? 'ok' : 'xp')}<div class="px-text text-sm mt-1">${p.text}</div></div>`;
+    else if (e.type === 'classwar') mine = `<div class="mt-2">${bar(p.n / e.per * 100, p.mineReached ? 'ok' : 'xp')}<div class="px-text text-sm mt-1">${p.text}${p.mineReached ? '　✓ 你達標了！' : ''}</div></div><div data-cwx="${escHtml(e.id)}" class="mt-2 px-text text-sm" style="color:#aab0d8">讀全班進度中…</div>`;
+    else if (e.type === 'ranking') mine = `<div class="px-text text-sm mt-2">我的成績：<b style="color:#ffd98a">${escHtml(p.text)}</b></div><div data-rkx="${escHtml(e.id)}" class="mt-2 px-text text-sm" style="color:#aab0d8">讀榜單中…</div>`;
+    return `<div class="px-panel in mt-3" data-evcard="${escHtml(e.id)}" data-evphase="active" style="padding:12px 14px;border-color:#e8b64c">
+      <div class="flex items-center gap-2 flex-wrap"><span style="font-size:24px">${EV_ICON[e.type]}</span><b class="px-text" style="color:#ffd98a;font-size:1.15em;flex:1">${escHtml(e.title)}</b><span class="px-chip" style="color:#8ec96b">${t}</span></div>
+      <div class="px-text text-xs mt-1" style="color:#aab0d8">${EV_NAME[e.type]}</div>
+      ${e.desc ? `<div class="px-text mt-1" style="line-height:1.6">${nlines(e.desc)}</div>` : ''}${mine}</div>`;
+  }
+  const soonCard = e => `<div class="px-panel in mt-2" data-evcard="${escHtml(e.id)}" data-evphase="soon" style="padding:10px 14px;opacity:.6;filter:grayscale(.7)">
+    <div class="flex items-center gap-2 flex-wrap"><span style="font-size:20px">${EV_ICON[e.type]}</span><b class="px-text" style="flex:1">${escHtml(e.title)}</b><span class="px-chip" style="color:#aab0d8">${EV.timeText(e)}</span></div>
+    ${e.desc ? `<div class="px-text text-sm mt-1" style="color:#aab0d8">${nlines(e.desc)}</div>` : ''}</div>`;
+  const endedCard = e => `<div class="px-panel in mt-2" data-evcard="${escHtml(e.id)}" data-evphase="ended" style="padding:10px 14px;opacity:.85">
+    <div class="flex items-center gap-2 flex-wrap"><span style="font-size:20px">${EV_ICON[e.type]}</span><b class="px-text" style="flex:1">${escHtml(e.title)}</b><span class="px-chip" style="color:#aab0d8">已結束</span></div>
+    <div class="px-text text-sm mt-1" style="color:#ffd98a">老師可能會寄獎品到信箱喔</div></div>`;
+
+  const cwHtml = (e, v) => `<div class="px-panel in" style="padding:8px 10px">
+      <div class="px-text text-sm">我們班：${v.count} / ${v.size} 人達標（${v.pct}%）　目標 ${v.goalPct}%</div>
+      <div class="mt-1">${bar(v.pct, v.reached ? 'ok' : 'mp')}</div>
+      <div class="px-text text-sm mt-1" style="color:${v.reached ? '#8ec96b' : '#aab0d8'}">${v.reached ? '🎉 全班達標了！' : `全班有 ${v.goalPct}% 的人達標，大家就有獎勵。一起加油！`}</div>
+      ${v.top.length ? `<div class="px-text text-sm mt-2" style="color:#ffd98a;font-weight:900">同年級前 ${v.top.length} 名</div>${v.top.map((x, i) => `<div class="flex items-center gap-2 px-text text-sm mt-1" style="${x.mine ? 'color:#ffd98a' : ''}">${rankCell(i + 1)}<span style="flex:1">${escHtml(x.cls)} 班${x.mine ? '（我們班）' : ''}</span><b>${x.pct}%</b></div>`).join('')}` : ''}</div>`;
+  const rkHtml = (e, v) => `<div class="px-panel in" style="padding:8px 10px">
+      <div class="px-text text-sm" style="color:#ffd98a;font-weight:900">前 ${v.rows.length || 10} 名</div>
+      ${v.rows.length ? v.rows.map((r, i) => `<div class="flex items-center gap-2 px-text text-sm mt-1" data-rkrow style="${r.mine ? 'color:#ffd98a;background:#2a2358;padding:2px 4px' : 'padding:2px 4px'}">${rankCell(i + 1)}<span style="flex:1">${escHtml(r.label)}${r.mine ? '　← 你' : ''}</span><b>${escHtml(r.text)}</b></div>`).join('') : '<div class="px-text text-sm mt-1" style="color:#aab0d8">還沒有人上榜，你可以當第一個！</div>'}
+      ${v.outOfRange ? '<div class="px-text text-sm mt-2" style="color:#ffd98a">你的成績很特別，老師看過以後才會放上榜單喔。</div>' : v.text ? `<div class="px-text text-sm mt-2" style="color:#ffd98a">${escHtml(v.text)}</div>` : ''}</div>`;
+
+  async function eventsTab(body, alive) {
+    if (!C.online()) { body.innerHTML = '<div class="px-panel in px-text text-center mt-3" style="padding:18px">現在連不上網路，活動讀不到。</div>'; return; }
+    body.innerHTML = '<div class="px-panel in px-text text-center mt-3" data-msg style="padding:18px">讀活動中…</div>';
+    await EV.load();
+    if (!alive()) return;
+    const g = EV.groups();
+    let html = '';
+    if (g.active.length) html += g.active.map(activeCard).join('');
+    if (g.soon.length) html += `<div class="px-text text-sm mt-4" style="color:#aab0d8;font-weight:900">快開始</div>${g.soon.map(soonCard).join('')}`;
+    if (g.ended.length) html += `<div class="px-text text-sm mt-4" style="color:#aab0d8;font-weight:900">剛結束</div>${g.ended.map(endedCard).join('')}`;
+    if (!g.active.length) html = `<div class="px-panel in px-text text-center mt-3" data-noev style="padding:18px">現在沒有活動，先去委託板打怪吧！</div>` + html;
+    body.innerHTML = html;
+    markSeen('ev');
+    g.active.forEach(e => {
+      const fill = async (sel, fn, fail) => {
+        const el = [...body.querySelectorAll(`[${sel}]`)].find(x => x.getAttribute(sel) === e.id);
+        if (!el) return;
+        try { const v = await fn(); if (alive()) el.innerHTML = (e.type === 'classwar' ? cwHtml : rkHtml)(e, v); } catch (er) { console.warn('讀活動資料失敗', er); if (alive()) el.textContent = fail; }
+      };
+      if (e.type === 'classwar') fill('data-cwx', () => EV.classProgress(e), '全班進度現在讀不到，等一下再試試看。');
+      if (e.type === 'ranking') fill('data-rkx', () => EV.eventBoard(e), '榜單現在讀不到，等一下再試試看。');
+    });
+    eventsCheck();
+  }
+
+  async function bugTab(body, alive) {
+    const head = `<div class="px-title mt-3" style="font-size:1.25em">🐛 抓蟲大作戰</div>
+      <p class="px-text text-sm mt-1" style="line-height:1.6">發現遊戲怪怪的地方，到「回報問題」寫下來；老師確認後就會上榜！</p>`;
+    if (!C.online()) { body.innerHTML = head + '<div class="px-panel in px-text text-center mt-3" style="padding:18px">現在連不上網路，榜單讀不到。</div>'; return; }
+    body.innerHTML = head + '<div class="px-panel in px-text text-center mt-3" data-msg style="padding:18px">讀榜單中…</div>';
+    await syncBoard(false);
+    let v;
+    try { v = await NT.loadBugBoard(); } catch (er) { console.warn('讀抓蟲榜失敗', er); if (alive()) body.innerHTML = head + '<div class="px-panel in px-text text-center mt-3" style="padding:18px">榜單現在讀不到，等一下再試試看。</div>'; return; }
+    if (!alive()) return;
+    const rows = v.rows.map(r => `<div class="px-panel in flex items-center gap-2" data-bugrow="${escHtml(r.id)}" style="padding:6px 10px;${r.mine ? 'border-color:#e8b64c;background:#2a2358' : ''}">
+        ${rankCell(r.rank)}
+        <span class="px-text" style="flex:1;min-width:0"><b>${escHtml(r.label)}</b>　<span style="color:#ffd98a">${escHtml(r.nick)}</span>${r.mine ? '　← 你' : ''}</span>
+        <span class="px-text text-right"><b style="color:#8ec96b">${r.score} 分</b><br><span class="text-xs" style="color:#aab0d8">確認 ${r.n} 件</span></span></div>`).join('');
+    const mineLine = v.mine.score > 0 ? `<div class="px-text text-sm mt-3">你的抓蟲分：<b style="color:#8ec96b">${v.mine.score} 分</b>・老師確認 ${v.mine.n} 件</div>` : '';
+    body.innerHTML = head + `<div class="flex flex-col gap-2 mt-3" data-bugrows>${rows || '<div class="px-panel in px-text text-center" data-nobug style="padding:18px">還沒有人上榜，快去找找看吧！</div>'}</div>${mineLine}
+      ${v.text ? `<div class="px-panel in px-text text-center mt-3" data-bugtext style="padding:10px;color:#ffd98a">${escHtml(v.text)}</div>` : ''}
+      <p class="text-xs mt-3" style="color:#aab0d8">抓蟲分到 1、3、5、10 分，各有一個「抓蟲」稱號詞條。</p>`;
+    markSeen('bug');
+  }
+
+  function openNotice(auto, a) {
+    if (!auto) { EV.load().then(eventsCheck); NT.loadNews().then(() => { noticeRefresh(); const s = document.getElementById('nw-notice'); if (s && s._reshow && s._tab === 'news') s._reshow(); }); }
     return new Promise(res => {
-      const list = auto ? NOTICES.slice(0, 1) : NOTICES;
       const sheet = document.createElement('div');
       sheet.id = 'nw-notice'; sheet.className = 'nw-sheet fixed inset-0 overflow-y-auto p-3'; sheet.style.zIndex = 98; sheet.style.background = 'rgba(9,8,18,.9)';
-      sheet.innerHTML = `<div class="px-panel" style="max-width:520px;width:100%;padding:18px;margin:0 auto">
+      const shut = () => { markSeen('news'); sheet.remove(); res(); };
+      if (auto) {
+        /* 自動跳出來：只放「新的」老師公告和最新一則改版公告，只跳一次 */
+        const ns = (a && a.news) || [];
+        sheet.innerHTML = `<div class="px-panel" style="max-width:520px;width:100%;padding:18px;margin:0 auto">
+          <div class="px-title" style="font-size:1.5em">📢 佈告欄</div>
+          ${ns.map(n => newsCard(n, true)).join('')}${!a || a.notice ? noticeCard(NOTICES[0]) : ''}
+          <p class="text-xs mt-3" style="color:#aab0d8">這個只會跳一次。想再看，按上面的「📢 佈告欄」。</p>
+          <div class="text-right mt-3"><button class="px-btn gold" data-close style="padding:8px 26px">知道了 ✓</button></div></div>`;
+        sheet.addEventListener('click', e => { if (e.target === sheet || e.target.closest('[data-close]')) shut(); });
+        document.body.appendChild(sheet);
+        return;
+      }
+      /* 這次打開之前的「已讀」位置：標「新」要用它比，不能用已經更新過的 */
+      const seen0 = { news: NW.seenNews || 0, notice: NW.seenNotice };
+      let tok = 0;
+      sheet.innerHTML = `<div class="px-panel" style="max-width:560px;width:100%;padding:18px;margin:0 auto">
         <div class="px-title" style="font-size:1.5em">📢 佈告欄</div>
-        ${list.map(n => `<div class="px-panel in mt-3" style="padding:10px 12px"><div class="px-text" style="color:#ffd98a;font-weight:900;font-size:1.1em">${n.title}　<span class="text-xs" style="color:#aab0d8;font-weight:400">${n.date}</span></div>
-          <ul class="px-text mt-1" style="font-size:.98em;line-height:1.65;list-style:none;padding:0">${n.items.map(t => `<li style="margin-top:4px">${t}</li>`).join('')}</ul></div>`).join('')}
-        <p class="text-xs mt-3" style="color:#aab0d8">${auto ? '這個只會跳一次。想再看，按上面的「📢 佈告欄」。' : '舊的公告也都留在這裡。'}</p>
+        <div class="flex gap-2 flex-wrap mt-3">${NTABS.map(([k, i, n]) => `<button class="px-btn" data-ntab="${k}" style="position:relative">${i} ${n}<i data-ntabdot="${k}" style="display:${nflags[k] ? 'block' : 'none'};position:absolute;top:-5px;right:-5px;width:14px;height:14px;background:#d83a3a;border:2px solid #0a0714"></i></button>`).join('')}</div>
+        <div data-nbody></div>
         <div class="text-right mt-3"><button class="px-btn gold" data-close style="padding:8px 26px">知道了 ✓</button></div></div>`;
+      const body = sheet.querySelector('[data-nbody]');
+      const showTab = t => {
+        const my = ++tok, alive = () => my === tok && sheet.isConnected;
+        sheet._tab = t; saveTab(t);
+        sheet.querySelectorAll('[data-ntab]').forEach(b => b.classList.toggle('gold', b.dataset.ntab === t));
+        if (t === 'news') {
+          const ns = NT.news();
+          body.innerHTML = `${ns.map(n => newsCard(n, n.t > seen0.news)).join('')}
+            ${ns.length ? '<div class="px-text text-sm mt-4" style="color:#aab0d8;font-weight:900">改版公告</div>' : ''}${NOTICES.map(noticeCard).join('')}
+            <p class="text-xs mt-3" style="color:#aab0d8">舊的公告也都留在這裡。</p>`;
+          markSeen('news');
+        } else if (t === 'ev') eventsTab(body, alive);
+        else bugTab(body, alive);
+      };
+      sheet._reshow = () => showTab('news');
       sheet.addEventListener('click', e => {
-        if (e.target !== sheet && !e.target.closest('[data-close]')) return;
-        NW.seenNotice = NOTICES[0].id; saveNw(); sheet.remove(); res();
+        const tb = e.target.closest('[data-ntab]');
+        if (tb) { showTab(tb.dataset.ntab); return; }
+        if (e.target === sheet || e.target.closest('[data-close]')) { tok++; sheet.remove(); res(); }
       });
       document.body.appendChild(sheet);
+      showTab(readTab());
     });
   }
   /* 進新世界就先取名：沒取過就跳選擇器，不能完全跳過（關掉就幫他存隨機的）。被冒名鎖時不跳。
@@ -719,17 +890,25 @@ export function initNewWorld(C) {
     if (NW.nick || nameLock || (window.__NW_NOINTRO__ && !window.__NW_NICKPROMPT__)) return;
     await new Promise(res => openNickPicker(res, 'first'));
   }
+  /* 進村：先讀老師公告與活動（為了「！」），再決定要不要自動跳出來。
+     自動跳出：新的老師公告（t 比 NW.seenNews 新）、最新的改版公告；第一次來的人什麼都不跳，直接記成已讀。 */
   async function noticeOnce(fresh) {
-    if (NW.seenNotice === NOTICES[0].id || window.__NW_NOINTRO__) return;
-    if (fresh) { NW.seenNotice = NOTICES[0].id; saveNw(); return; }
-    await openNotice(true);
+    await Promise.all([NT.loadNews(), EV.load()]);
+    if (window.__NW_NOINTRO__) { noticeRefresh(); return; }
+    const latest = newsLatest(NT.news());
+    if (fresh) { NW.seenNotice = NOTICES[0].id; NW.seenNews = latest; saveNw(); noticeRefresh(); return; }
+    const news = NT.news().filter(n => n.t > (NW.seenNews || 0)), notice = NW.seenNotice !== NOTICES[0].id;
+    noticeRefresh();
+    if (!news.length && !notice) return;
+    await openNotice(true, { news, notice });
   }
   async function hubStart() { const fresh = !NW.intro.hub; refreshMail(); await introOnce('hub'); await nickFirst(); await noticeOnce(fresh); await earlyGift(); refreshBoard(); }
 
   async function awardMissions() {
     const ms = checkMissions(NW);
     if (!ms.length) return;
-    const ws = checkWords(NW); saveNw();
+    /* 抓蟲分剛解鎖的詞條（wordNotes）併進同一則通知，不要連跳兩個視窗 */
+    const ws = [...new Set([...checkWords(NW), ...wordNotes.splice(0)])]; saveNw();
     for (const m of ms) await showGift({ icon: m.icon, title: `🏅 任務完成：${m.t}`, note: `${m.how}。得到 🪙 ${m.coins} 字元（新世界的貨幣）。${ws.length ? '新的稱號詞條：' + ws.join('、') + '。' : ''}` });
   }
 
@@ -764,6 +943,10 @@ export function initNewWorld(C) {
   async function refreshBoard(force) {
     await syncBoard(!!force);
     await awardMissions();   // 進村時已同步過件數，這裡補發「除蟲員」等任務完成通知；沒有新任務就什麼都不做
+    if (wordNotes.length) {
+      const ws = wordNotes.splice(0);
+      await showGift({ icon: '🏅', title: `新的稱號詞條：${ws.join('、')}`, note: '到背包點名字下面的稱號，自己拚拚看。' });
+    }
   }
 
   function openBugReport() {
@@ -1418,5 +1601,5 @@ export function initNewWorld(C) {
   });
 
   const giftPending = () => { if (!gate().early) return false; try { const l = JSON.parse(localStorage.getItem(lkey()) || 'null'); return !(l && (l.giftedEarly || (l.gw || []).includes('testblade'))); } catch (e) { return true; } };
-  return { enter, gate, leave, now, events: EV, eventsCheck, finishHunt, afterHunt, nameLocked: () => nameLock, nameBase: () => nameBase, ticket: showTicket, giftPending, refresh: refreshAccess, openCode: openCodeSheet, get nw() { return NW; }, isOpen: () => !root.classList.contains('hidden') };
+  return { enter, gate, leave, now, events: EV, notice: NT, noticeFlags: () => nflags, noticeRefresh, eventsCheck, finishHunt, afterHunt, nameLocked: () => nameLock, nameBase: () => nameBase, ticket: showTicket, giftPending, refresh: refreshAccess, openCode: openCodeSheet, get nw() { return NW; }, isOpen: () => !root.classList.contains('hidden') };
 }

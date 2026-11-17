@@ -4,7 +4,7 @@ const T = 16;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 export function mountVillage(host, o) {
-  const { PX, look, open, start, onEnter, scroller, fast, guide, mailN } = o;
+  const { PX, look, open, start, onEnter, scroller, fast, guide, mailN, noticeBang } = o;
   const V = VILLAGE, W = V.cols * T, H = V.rows * T;
   const availW = host.clientWidth || innerWidth, availH = (scroller ? scroller.clientHeight : innerHeight) - 130;
   const sc = clamp(Math.floor(Math.min(availW / W, (availH + 110) / H)), 2, 5);
@@ -64,9 +64,19 @@ export function mountVillage(host, o) {
     stage.appendChild(b);
     return b;
   };
+  let bang = null, bangShown = false;
   V.buildings.forEach(b => {
     const isOpen = open.includes(b.id);
-    addHot(b.id, b.name, b.x * T, b.y * T, 48, 48, !isOpen, isOpen ? '' : '施工中');
+    const hot = addHot(b.id, b.name, b.x * T, b.y * T, 48, 48, !isOpen, isOpen ? '' : '施工中');
+    /* 佈告欄有新東西：木板上方彈跳「！」（data-notice-bang）。位置在屋簷上面，不蓋住建築名字的標籤 */
+    if (b.id === 'notice' && noticeBang) {
+      bang = document.createElement('span');
+      bang.dataset.noticeBang = '1';
+      bang.className = 'px-text';
+      bang.style.cssText = `display:none;position:absolute;left:50%;top:${-Math.max(26, 8 * sc)}px;margin-left:${-Math.max(10, 3 * sc)}px;width:${Math.max(20, 6 * sc)}px;text-align:center;pointer-events:none;font-weight:900;font-size:${Math.max(18, 6 * sc)}px;line-height:1.1;background:#d83a3a;color:#fff;border:2px solid #0a0714`;
+      bang.textContent = '！';
+      hot.appendChild(bang);
+    }
   });
   addHot('gate', '傳送門・回舊世界', gateEl.x, gateEl.y, 40, 56, false, '');
   /* 郵筒不是建築，只是 decor：座標從 VILLAGE.decor 找，之後重排地圖不用改這裡 */
@@ -219,6 +229,12 @@ export function mountVillage(host, o) {
     const near = nearest();
     showPrompt(near);
     if (mailBadge && mailN) { const n = mailN(); if (n !== mailShown) { mailShown = n; mailBadge.style.display = n > 0 ? 'block' : 'none'; mailBadge.textContent = `✉ ${n}`; } }
+
+    if (bang) {
+      const on = !!noticeBang();
+      if (on !== bangShown) { bangShown = on; bang.style.display = on ? 'block' : 'none'; }
+      if (on) bang.style.transform = `translateY(${Math.round(Math.sin(P.t * 5) * -2 * sc)}px)`;
+    }
 
     npcs.forEach(n => {
       if (now < n.talkUntil) { n.frame = 0; return; }
