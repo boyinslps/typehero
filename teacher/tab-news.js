@@ -4,7 +4,7 @@
    所以編輯錯字預設不動 t（不會讓全校再跳一次），要重新通知才勾「當成新公告」。 */
 import { db, doc, setDoc, updateDoc, deleteDoc, collection, getDocs, query, orderBy, limit } from './fb.js';
 import { NOTICES, toMs } from './nw.js';
-import { $, esc, uid, fmtT, log, ask, toast, errText, previewConfirm } from './util.js';
+import { $, esc, uid, fmtT, log, ask, toast, errText, previewConfirm, helpBox } from './util.js';
 
 const nl = s => esc(s).replace(/\n/g, '<br>');
 
@@ -23,6 +23,7 @@ export default async function mount(el) {
     ${n.body ? `<div style="margin-top:4px;line-height:1.65;overflow-wrap:anywhere">${nl(n.body)}</div>` : ''}</div>`;
 
   el.innerHTML = `<h2>📢 公告</h2>
+    ${helpBox(['寫好標題和內容，按「預覽並貼出」，確認學生看到的樣子再貼出。貼出後學生下次進新世界會看到「新」。', '改錯字：按列上的「編輯」。預設不會再跳一次通知；真的要讓大家再看一次，才勾「當成新公告」。', '重要的公告可以「置頂」。不要在公告裡寫學生的名字。'])}
     <div class="grid2"><div class="px-panel in" data-form></div><div class="px-panel in"><b>學生會看到的樣子</b><div data-pv style="margin-top:6px"></div></div></div>
     <h3>已經貼出的公告</h3><div class="tscroll" data-list></div>
     <h3>最近 3 則改版公告（程式裡寫的，唯讀）</h3>
@@ -44,7 +45,7 @@ export default async function mount(el) {
     $('[data-list]', el).innerHTML = `<table class="tbl" data-newstable><thead><tr><th>時間</th><th>標題</th><th></th></tr></thead><tbody>${list.map(n => `<tr data-nid="${esc(n.id)}">
       <td>${esc(fmtT(n.t))}</td><td class="wrap">${n.pin ? '📌 ' : ''}${esc(n.title)}</td>
       <td><button class="px-btn sm" data-edit="${esc(n.id)}">編輯</button> <button class="px-btn sm" data-pinbtn="${esc(n.id)}">${n.pin ? '取消置頂' : '置頂'}</button> <button class="px-btn sm danger" data-del="${esc(n.id)}">刪除</button></td></tr>`).join('')
-      || '<tr><td colspan="3" class="dim">還沒有公告</td></tr>'}</tbody></table>`;
+      || '<tr><td colspan="3" class="dim">還沒有公告。在上面寫一則貼出去，學生就看得到。</td></tr>'}</tbody></table>`;
   }
 
   el.addEventListener('input', e => {

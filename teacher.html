@@ -42,9 +42,28 @@ h3{margin:18px 0 8px;font-size:1.1em;color:#ffd98a}
 #main{padding:14px;min-width:0}
 @media (max-width:760px){
   .shell{grid-template-columns:minmax(0,1fr);grid-template-rows:auto 1fr}
-  #nav{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:2px solid var(--line);padding:6px}
+  /* 分頁列比螢幕寬時，左右邊緣會有一道漸層，提示「還可以滑」 */
+  #nav{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:2px solid var(--line);padding:6px;
+    background:linear-gradient(to right,#1a160f 30%,rgba(26,22,15,0)) left center/28px 100% no-repeat local,
+      linear-gradient(to left,#1a160f 30%,rgba(26,22,15,0)) right center/28px 100% no-repeat local,
+      linear-gradient(to right,rgba(232,182,76,.55),rgba(232,182,76,0)) left center/10px 100% no-repeat scroll,
+      linear-gradient(to left,rgba(232,182,76,.55),rgba(232,182,76,0)) right center/10px 100% no-repeat scroll,#1a160f}
   #nav button{padding:8px 10px}
   #main{padding:10px}
+  /* 頂端列壓成一行：標題縮小、email 截短，「回遊戲／登出」不用掉到第二行 */
+  #top{flex-wrap:nowrap;gap:6px;padding:6px 10px}
+  #top .ttl{font-size:1em;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #top .who{max-width:34vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #top .px-btn{white-space:nowrap}
+  /* 活動、抓蟲榜、寄出紀錄的表格：手機上每一列變成一張小卡，按鈕不會被切在畫面右邊 */
+  .tscroll:has(table.cardy){border:0;background:none;overflow-x:visible}
+  table.cardy,table.cardy tbody{display:block}
+  table.cardy thead{display:none}
+  table.cardy tr{display:block;background:var(--panel);border:2px solid var(--line);margin-bottom:8px;padding:6px 4px}
+  table.cardy td{display:block;white-space:normal;border:0;padding:2px 8px;min-width:0}
+  table.cardy td[data-l]::before{content:attr(data-l) "：";color:var(--dim);font-size:.9em}
+  table.cardy td.acts{display:flex;flex-wrap:wrap;gap:6px;padding-top:6px}
+  table.cardy td[colspan]{display:block}
 }
 
 /* 內容元件 */
@@ -77,6 +96,10 @@ table.tbl{border-collapse:collapse;width:100%;font-size:15px}
 .note.bad{border-color:var(--warn)}
 .grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
 @media (max-width:900px){.grid2{grid-template-columns:minmax(0,1fr)}}
+details.help{background:var(--panel);border:2px solid var(--line);padding:4px 10px;margin:0 0 10px}
+details.help summary{cursor:pointer;color:var(--gold);font-weight:700}
+details.help ul{margin:6px 0 4px;padding-left:1.3em;color:var(--ink)}
+details.help li{margin:2px 0}
 .gift-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:4px 0}
 
 /* 小視窗與提示 */

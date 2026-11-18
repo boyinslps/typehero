@@ -8,7 +8,7 @@ import { db, doc, setDoc, collection, getDocs, query, orderBy, limit, commitAll 
 import { loadScores, loadFlags, loadClassSizes, invalidate } from './data.js';
 import { clsShort } from './nw.js';
 import { planMigration } from './migrate.js';
-import { $, esc, fmtT, log, ask, toast, errText } from './util.js';
+import { $, esc, fmtT, log, ask, toast, errText, helpBox } from './util.js';
 
 export default async function mount(el) {
   const scores = await loadScores(true);
@@ -16,11 +16,12 @@ export default async function mount(el) {
   try { sizes = await loadClassSizes(); } catch (e) { console.warn('讀班級人數失敗', e); }
 
   el.innerHTML = `<h2>⚙ 設定</h2>
-    <h3>一次搬移（舊回報 → 抓蟲榜與信箱）</h3>
+    ${helpBox(['「匯入舊回報」只有新版剛上線的那一天要按一次，把以前確認過的回報算進抓蟲榜。按「先看會做什麼」可以先預覽，不會寫入任何東西。', '「班級人數」是算班級挑戰「全班達標率」用的，沒填就用進過新世界的人數。', '最下面的「操作紀錄」是你在這個管理頁做過的每一件事，寄信、發獎、改公告都會留下一筆。'])}
+    <h3>匯入舊回報（上線時只做一次）</h3>
     <div class="px-panel in" data-mig>
-      <p style="margin:0 0 6px">上線那天按一次。用<b>全部已確認</b>的回報（學生已經領過的也算）建抓蟲榜的分數與「我的回報」，沒有嚴重度的算 1 分；
+      <p style="margin:0 0 6px">上線那天按一次。把以前確認過的回報，匯入抓蟲榜與學生信箱。用<b>全部已確認</b>的回報（學生已經領過的也算）建抓蟲榜的分數與「我的回報」，沒有嚴重度的算 1 分；
         只有「已確認、學生還沒領」的才轉成獎勵信。<b>重按不會多寄、分數不會重複加</b>。</p>
-      <div class="row"><button class="px-btn" data-mig-plan>先看會做什麼</button><button class="px-btn gold" data-mig-run>執行搬移</button></div>
+      <div class="row"><button class="px-btn" data-mig-plan>先看會做什麼</button><button class="px-btn gold" data-mig-run>執行匯入</button></div>
       <div data-mig-out style="margin-top:8px"></div></div>
     <h3>班級人數</h3>
     <div class="px-panel in" data-sizes>
@@ -56,19 +57,19 @@ export default async function mount(el) {
     running = true;
     try {
       const p = await plan();
-      if (!await ask('執行搬移？', `<p>${esc(statText(p.stats))}</p><p class="dim">會更新抓蟲榜的分數（保留隱藏暱稱、名字沒問題、手動加分）。可以重按。</p>`, '執行')) return;
+      if (!await ask('匯入舊回報？', `<p>${esc(statText(p.stats))}</p><p class="dim">會更新抓蟲榜的分數（保留隱藏暱稱、名字沒問題、手動加分）。可以重按。</p>`, '執行')) return;
       migOut.innerHTML = '<span class="dim">寫入中…</span>';
       /* 先算好再整份寫：每個人的分數是從 flags 重算的，不是在舊分數上累加 */
       const ops = [];
       p.boards.forEach(b => ops.push(batch => batch.set(doc(db, 'mg_bugboard', b.id), b.data, { merge: true })));
       p.mails.forEach(m => ops.push(batch => batch.set(doc(db, 'mg_mail', m.id), m.data)));
       await commitAll(ops);
-      await log('一次搬移', 'mg_nw_flags→mg_bugboard／mg_mail', statText(p.stats));
+      await log('匯入舊回報', '舊回報→抓蟲榜與信箱', statText(p.stats));
       invalidate('board', 'mails');
-      migOut.innerHTML = `<div class="note" data-mig-done><b>搬移完成。</b>${esc(statText(p.stats))}</div>`;
-      toast('搬移完成');
+      migOut.innerHTML = `<div class="note" data-mig-done><b>匯入完成。</b>${esc(statText(p.stats))}</div>`;
+      toast('匯入完成');
       paintLog();
-    } catch (e) { migOut.innerHTML = `<div class="note bad">搬移失敗：${esc(errText(e))}（已經寫進去的部分不會重複，可以直接再按一次）</div>`; }
+    } catch (e) { migOut.innerHTML = `<div class="note bad">匯入失敗：${esc(errText(e))}（已經寫進去的部分不會重複，可以直接再按一次）</div>`; }
     finally { running = false; }
   });
 
@@ -99,7 +100,7 @@ export default async function mount(el) {
     try {
       const snap = await getDocs(query(collection(db, 'mg_admin_log'), orderBy('t', 'desc'), limit(100))), rows = [];
       snap.forEach(d => rows.push(d.data() || {}));
-      box.innerHTML = `<table class="tbl" data-logtable><thead><tr><th>時間</th><th>動作</th><th>對象</th><th>內容</th></tr></thead><tbody>${rows.map(r => `<tr><td>${esc(fmtT(r.t))}</td><td>${esc(r.act)}</td><td class="wrap">${esc(r.target)}</td><td class="wrap">${esc(r.summary)}</td></tr>`).join('') || '<tr><td colspan="4" class="dim">還沒有紀錄</td></tr>'}</tbody></table>`;
+      box.innerHTML = `<table class="tbl" data-logtable><thead><tr><th>時間</th><th>動作</th><th>對象</th><th>內容</th></tr></thead><tbody>${rows.map(r => `<tr><td>${esc(fmtT(r.t))}</td><td>${esc(r.act)}</td><td class="wrap">${esc(r.target)}</td><td class="wrap">${esc(r.summary)}</td></tr>`).join('') || '<tr><td colspan="4" class="dim">還沒有紀錄。你在管理頁寄信、發獎、改公告，都會記在這裡。</td></tr>'}</tbody></table>`;
     } catch (e) { box.innerHTML = `<div class="note bad">讀不到操作紀錄：${esc(errText(e))}</div>`; }
   }
   paintLog();

@@ -2,7 +2,7 @@
    所以集中在這裡讀一次；寫入之後呼叫 invalidate('board') 之類，下次再讀才是新的。
    快取只活在這個分頁的記憶體，重新整理就沒了。 */
 import { db, collection, doc, getDoc, getDocs, query, orderBy, limit } from './fb.js';
-import { toMs, nickText, normName, normalizeNw, curWeapon, weaponInfo, clsShort } from './nw.js';
+import { toMs, nickText, normName, normalizeNw, curWeapon, weaponInfo, clsShort, normalizeEvent, phaseOf } from './nw.js';
 
 const cache = {};
 const TTL = 45 * 1000;
@@ -43,11 +43,15 @@ export function loadScores(force) {
     return list;
   });
 }
-/* 抓蟲榜／隱藏暱稱／名字沒問題：mg_bugboard/{班級_座號}，回 { id → 文件資料 } */
+/* 抓蟲榜／隱藏暱稱／名字沒問題：回 { 班級_座號 → 資料 }。
+   公開的 mg_bugboard（學生讀得到：分數、隱藏暱稱、回報狀態）跟老師專用的 mg_bugboard_private
+   （加分理由 notes、老師核可的真名 nameOk）在記憶體裡合成一份給教師頁看；
+   寫入時一定要分開寫，真名與理由不能進 mg_bugboard。 */
 export function loadBoard(force) {
   return cached('board', force, async () => {
-    const snap = await getDocs(collection(db, 'mg_bugboard')), m = {};
-    snap.forEach(d => { m[d.id] = d.data() || {}; });
+    const [pub, priv] = await Promise.all([getDocs(collection(db, 'mg_bugboard')), getDocs(collection(db, 'mg_bugboard_private'))]), m = {};
+    pub.forEach(d => { m[d.id] = d.data() || {}; });
+    priv.forEach(d => { const x = d.data() || {}; m[d.id] = Object.assign(m[d.id] || {}, { notes: Array.isArray(x.notes) ? x.notes : [], nameOk: typeof x.nameOk === 'string' ? x.nameOk : '' }); });
     return m;
   });
 }
@@ -66,6 +70,11 @@ export function loadEvents(force) {
     return list;
   });
 }
+/* 已結束、還沒發獎的排行榜活動（學生端寫了「老師可能會寄獎品到信箱」，這是對孩子的承諾）。
+   回整理過的活動（normalizeEvent），最早結束的在前。總覽、活動分頁用同一個算法，數字才會一樣 */
+export function pendingAwards(events, now = Date.now()) {
+  return events.map(e => normalizeEvent(e.id, e)).filter(ev => ev && ev.type === 'ranking' && phaseOf(ev, now) === 'ended' && !ev.awarded).sort((a, b) => a.endAt - b.endAt);
+}
 /* 信：新的在前。沒有 t 的舊信（理論上沒有）不會出現，因為 orderBy 會跳過沒欄位的文件 */
 export function loadMails(force) {
   return cached('mails', force, async () => {
@@ -80,8 +89,9 @@ export async function loadClassSizes() {
   return (z && typeof z === 'object') ? z : {};
 }
 
-/* ── 冒名鎖（SPEC §1.5）：現在的名字跟基準不一樣 ──
-   基準 = 老師寫的 nameOk，沒有就用存檔裡只寫一次的 name0。跟學生端 checkName() 同一個算法。 */
+/* ── 冒名鎖：現在的名字跟基準不一樣 ──
+   基準 = 老師核可的名字（mg_bugboard_private.nameOk），沒有就用存檔裡只寫一次的 name0。
+   學生端比的是 mg_bugboard.nameOkH（名字的雜湊），看不到真名；老師這邊直接比名字。 */
 export const nameBase = (s, board) => (board && board.nameOk) || (s.nw && s.nw.name0) || '';
 export function nameChanged(s, board) {
   const base = nameBase(s, board);

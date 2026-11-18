@@ -2,14 +2,19 @@
    回報（mg_nw_flags 裡 type == 'bug'）：待審核／已確認／不採用／重複，四區。status 存 'pending'|'approved'|'rejected'|'dup'。
    每次審核都用「同一個 batch」寫：flag 的結果、mg_bugboard 的分數與 reports、獎勵信 bug_{flagID}。三樣一起成功或一起失敗。
    分數永遠從 reports＋bonus 重算（bug-calc.js），不累加，所以重按、撤銷都不會算歪；
-   信是固定 ID：已經存在的不會重寄、也不會被覆蓋。 */
+   信是固定 ID：已經存在的不會重寄、也不會被覆蓋。
+
+   資料放哪裡（學生讀得到 mg_bugboard，所以老師打的字與真名不能放那裡）：
+   - mg_bugboard/{id}：分數、確認件數、firstAt、隱藏暱稱、bonus（只有數字）、reports（id、狀態、嚴重度、送出時間、老師回覆）。
+   - mg_bugboard_private/{id}（只有老師讀得到）：手動加分的理由 notes、老師核可的真名 nameOk。
+   老師回覆 reply 還是放在 reports（學生要在「我的回報」看到），但同時寄一封信給本人當主要管道；輸入處提醒不要寫姓名。 */
 import { db, doc, getDoc, writeBatch, deleteField } from './fb.js';
 import { loadScores, loadBoard, loadFlags, invalidate } from './data.js';
 import { clsShort, toMs, bugCmp, BUG_COINS, BUG_REWARD_MAX } from './nw.js';
-import { boardCalc, approvedCount, bugText, putReport, dropReport, SEV_NAME, clampSev } from './bug-calc.js';
+import { boardCalc, approvedCount, bugText, putReport, dropReport, publicBoard, SEV_NAME, clampSev } from './bug-calc.js';
 import { MAIL_BUG_TITLE, MAIL_AWARD_TITLE } from './migrate.js';
 import { idParts } from './ids.js';
-import { $, esc, fmtT, log, ask, modal, toast, errText, previewMail } from './util.js';
+import { $, esc, fmtT, log, ask, modal, toast, errText, previewMail, matchStudent, helpBox } from './util.js';
 
 const ZONES = [['pending', '待審核'], ['approved', '已確認'], ['rejected', '不採用'], ['dup', '重複']];
 const zoneOf = f => ZONES.some(z => z[0] === (f.status || 'pending')) ? (f.status || 'pending') : 'pending';
@@ -26,6 +31,7 @@ export default async function mount(el, ctx) {
   const refresh = async () => { invalidate('flags', 'board', 'scores', 'mails'); [scores, flags, board] = await Promise.all([loadScores(true), loadFlags(true), loadBoard(true)]); };
 
   el.innerHTML = `<h2>🐛 回報與抓蟲榜</h2>
+    ${helpBox(['學生在遊戲裡回報的問題，會先放在「待審核」。看過內容後按「確認」（要選嚴重度）、「重複」或「不採用」。', '確認的話，學生會收到獎勵信，抓蟲榜的分數也會自動算好。', '沒有在遊戲裡回報、但老師知道他抓過蟲：用「手動加分」，可以一次選好幾位同學。', '回覆那一格，所有同學都可能看得到，所以不要寫名字。'])}
     <h3>問題回報</h3><div class="row" data-zones></div><div data-reports style="margin-top:8px"></div>
     <h3>抓蟲榜</h3><div data-board></div>`;
 
@@ -49,18 +55,20 @@ export default async function mount(el, ctx) {
     $('[data-zones]', el).innerHTML = ZONES.map(([k, n]) => `<button class="px-btn ${zone === k ? 'gold' : ''}" data-zone="${k}">${n}（${list.filter(f => zoneOf(f) === k).length}）</button>`).join('');
     const L = list.filter(f => zoneOf(f) === zone).sort((a, b) => zone === 'pending' ? (a.t || 0) - (b.t || 0) : (b.t || 0) - (a.t || 0));
     $('[data-reports]', el).innerHTML = (zone === 'approved' ? '<p class="dim" style="margin:0 0 6px">撤銷確認：分數會扣回來，但<b>已經寄出的獎勵信不收回</b>（學生領了的字元也不會扣）。</p>' : '')
-      + (L.slice(0, 60).map(reportCard).join('') || `<p class="dim" data-empty>這一區沒有回報</p>`) + (L.length > 60 ? `<p class="dim">只列最近 60 則，共 ${L.length} 則</p>` : '');
+      + (L.slice(0, 60).map(reportCard).join('') || `<p class="dim" data-empty>${zone === 'pending' ? '沒有待審核的回報。學生在遊戲裡按「回報問題」送出後，會出現在這裡。' : '這一區沒有回報。'}</p>`) + (L.length > 60 ? `<p class="dim">只列最近 60 則，共 ${L.length} 則</p>` : '');
   }
 
   /* ── 寫入：flag＋bugboard＋信，同一個 batch ── */
   let busy = false;
   const guard = fn => async (...a) => { if (busy) return; busy = true; try { await fn(...a); } catch (e) { toast('失敗：' + errText(e), true); console.error(e); } finally { busy = false; } };
   const freshBoard = async id => { const s = await getDoc(doc(db, 'mg_bugboard', id)); return s.exists() ? (s.data() || {}) : {}; };
+  const freshPriv = async id => { const s = await getDoc(doc(db, 'mg_bugboard_private', id)); return s.exists() ? (s.data() || {}) : {}; };
   const mailExists = async id => (await getDoc(doc(db, 'mg_mail', id))).exists();
-  const boardPatch = (id, f0, cur, reports, extra) => {
-    const p = idParts(id), c = boardCalc(reports, cur.bonus, cur.notes);
-    return Object.assign({ className: cur.className || (f0 && f0.cls) || p.className, seat: cur.seat !== undefined && cur.seat !== '' ? cur.seat : (f0 && f0.seat !== undefined && f0.seat !== '' ? +f0.seat : p.seat),
-      score: c.score, n: c.n, firstAt: c.firstAt, reports }, extra || {});
+  /* 寫進 mg_bugboard 的資料一律過 publicBoard()；notes 只用來算 firstAt，不會被寫進去 */
+  const boardPatch = (id, f0, cur, reports, extra, notes) => {
+    const p = idParts(id), c = boardCalc(reports, cur.bonus, notes);
+    return publicBoard(Object.assign({ className: cur.className || (f0 && f0.cls) || p.className, seat: cur.seat !== undefined && cur.seat !== '' ? cur.seat : (f0 && f0.seat !== undefined && f0.seat !== '' ? +f0.seat : p.seat),
+      score: c.score, n: c.n, firstAt: c.firstAt, reports }, extra || {}));
   };
   const flagWrite = (b, f, data) => b.set(doc(db, 'mg_nw_flags', f.id), data, { merge: true });
   const mailDoc = (f, title, body, items) => { const now = Date.now(); return { aud: ['id:' + f.docId], title, body: clipS(body, 200), items, from: '老師', sendAt: now, expireAt: 0, t: now, src: 'bug' }; };
@@ -68,15 +76,16 @@ export default async function mount(el, ctx) {
 
   const doConfirm = guard(async id => {
     const f = flags.find(x => x.id === id); if (!f) return;
-    const cur = await freshBoard(f.docId), rs0 = Array.isArray(cur.reports) ? cur.reports : [];
+    const cur = await freshBoard(f.docId), rs0 = Array.isArray(cur.reports) ? cur.reports : [], notes = (await freshPriv(f.docId)).notes;
     const already = rs0.find(r => r && r.id === f.id && r.st === 'approved');
     const before = approvedCount(rs0.filter(r => r.id !== f.id)), coins = before < BUG_REWARD_MAX;
     let box;
-    const r = await modal({ title: `確認這則回報（${flagWho(f)}）`, buttons: [{ id: 'no', label: '取消' }, { id: 'ok', label: '確認並寄獎勵', cls: 'gold' }], onOpen: b => { box = b; },
+    const r = await modal({ title: `確認這則回報（${flagWho(f)}）`, sticky: true, buttons: [{ id: 'no', label: '取消' }, { id: 'ok', label: '確認並寄獎勵', cls: 'gold' }], onOpen: b => { box = b; },
       html: `<div class="kv"><b>做了什麼</b><span>${nl(bugText(f).did)}</span><b>錯誤狀況</b><span>${nl(bugText(f).what)}</span></div>
         ${already ? '<div class="note bad">這則已經確認過、分數算過了。按確認只會補寫回報狀態，分數和信都不會動。</div>' : ''}
         <div style="margin-top:8px"><b>嚴重度</b><div class="row" data-sev>${[1, 2, 3].map(v => `<label class="chk"><input type="radio" name="sev" value="${v}" ${v === clampSev(already ? already.sev : 1) ? 'checked' : ''}> ${SEV_NAME[v]}（${v} 分）</label>`).join('')}</div></div>
-        <div style="margin-top:8px"><b>回覆（可以不寫）</b><input class="inp" data-reply maxlength="60" style="width:100%" placeholder="一句話，例如：謝謝你，這個問題我修好了"></div>
+        <div style="margin-top:8px"><b>回覆（可以不寫）</b><input class="inp" data-reply maxlength="60" style="width:100%" placeholder="一句話，例如：謝謝你，這個問題我修好了">
+          <div class="warn" data-replywarn style="font-size:.9em">回覆所有同學都可能看到，不要寫名字。（另外會寄一封信給他本人。）</div></div>
         <div class="note" data-mailinfo>${already ? '' : coins ? `會寄信：🪙 字元 ×${BUG_COINS}（這位學生的第 ${before + 1} 個，前 ${BUG_REWARD_MAX} 個有字元）` : `會寄感謝信，沒有字元（這位學生已經有 ${before} 個被確認，超過 ${BUG_REWARD_MAX} 個只寄感謝）`}</div>` });
     if (r !== 'ok') return;
     /* 已經算過的回報（兩個分頁同時按、畫面沒更新）：只補寫 flag 的狀態，分數、信都不動，所以重按不會重複加分 */
@@ -84,7 +93,7 @@ export default async function mount(el, ctx) {
     const b = writeBatch(db);
     flagWrite(b, f, { status: 'approved', sev, reply, dupOf: deleteField() });
     if (!already) {
-      b.set(doc(db, 'mg_bugboard', f.docId), boardPatch(f.docId, f, cur, putReport(rs0, { id: f.id, st: 'approved', sev, reply, t: f.t || 0 })), { merge: true });
+      b.set(doc(db, 'mg_bugboard', f.docId), boardPatch(f.docId, f, cur, putReport(rs0, { id: f.id, st: 'approved', sev, reply, t: f.t || 0 }), null, notes), { merge: true });
       if (!(await mailExists('bug_' + f.id))) b.set(doc(db, 'mg_mail', 'bug_' + f.id), mailDoc(f, MAIL_BUG_TITLE,
         (coins ? `老師確認了你回報的問題，幫了大忙！送你 ${BUG_COINS} 字元。` : '老師確認了你回報的問題，幫了大忙，謝謝你！') + replyLine(reply),
         coins ? [{ type: 'coins', n: BUG_COINS }] : []));
@@ -99,16 +108,16 @@ export default async function mount(el, ctx) {
     const others = bugs().filter(x => x.id !== f.id).sort((a, b) => (zoneOf(a) === 'approved' ? 0 : 1) - (zoneOf(b) === 'approved' ? 0 : 1) || (a.t || 0) - (b.t || 0));
     if (!others.length) { toast('沒有其他回報可以比對', true); return; }
     let box;
-    const r = await modal({ title: `標成重複（${flagWho(f)}）`, buttons: [{ id: 'no', label: '取消' }, { id: 'ok', label: '標成重複', cls: 'gold' }], onOpen: b => { box = b; },
+    const r = await modal({ title: `標成重複（${flagWho(f)}）`, sticky: true, buttons: [{ id: 'no', label: '取消' }, { id: 'ok', label: '標成重複', cls: 'gold' }], onOpen: b => { box = b; },
       html: `<div class="kv"><b>這則</b><span>${esc(clipS(bugText(f).did, 40))}／${esc(clipS(bugText(f).what, 40))}</span></div>
         <div style="margin-top:8px"><b>跟哪一則一樣？</b><select class="inp" data-dupof style="width:100%">${others.map(o => `<option value="${esc(o.id)}">${zoneOf(o) === 'approved' ? '✓ ' : ''}${esc(flagWho(o))}：${esc(clipS(bugText(o).did, 24))}</option>`).join('')}</select></div>
         <div class="note">不加分，但會寄一封<b>感謝信</b>（沒有字元）。第一個回報的人才算分。</div>` });
     if (r !== 'ok') return;
-    const dupOf = $('[data-dupof]', box).value, cur = await freshBoard(f.docId), rs0 = Array.isArray(cur.reports) ? cur.reports : [];
-    const entry = { id: f.id, st: 'dup', sev: 0, reply: '', t: f.t || 0, dupOf };
+    const dupOf = $('[data-dupof]', box).value, cur = await freshBoard(f.docId), rs0 = Array.isArray(cur.reports) ? cur.reports : [], notes = (await freshPriv(f.docId)).notes;
+    const entry = { id: f.id, st: 'dup', sev: 0, reply: '', t: f.t || 0 };
     const b = writeBatch(db);
     flagWrite(b, f, { status: 'dup', dupOf, sev: deleteField() });
-    b.set(doc(db, 'mg_bugboard', f.docId), boardPatch(f.docId, f, cur, putReport(rs0, entry)), { merge: true });
+    b.set(doc(db, 'mg_bugboard', f.docId), boardPatch(f.docId, f, cur, putReport(rs0, entry), null, notes), { merge: true });
     if (!(await mailExists('bug_' + f.id))) b.set(doc(db, 'mg_mail', 'bug_' + f.id), mailDoc(f, MAIL_BUG_TITLE, '你發現的問題，已經有同學先回報了。謝謝你也發現它！', []));
     await log('回報標成重複', f.id, `${flagWho(f)}：跟 ${dupOf} 一樣，不加分，寄感謝信`, b);
     await b.commit();
@@ -118,14 +127,17 @@ export default async function mount(el, ctx) {
   const doReject = guard(async id => {
     const f = flags.find(x => x.id === id); if (!f) return;
     let box;
-    const r = await modal({ title: `不採用這則回報（${flagWho(f)}）`, buttons: [{ id: 'no', label: '取消' }, { id: 'ok', label: '不採用', cls: 'danger' }], onOpen: b => { box = b; },
+    const r = await modal({ title: `不採用這則回報（${flagWho(f)}）`, sticky: true, buttons: [{ id: 'no', label: '取消' }, { id: 'ok', label: '不採用', cls: 'danger' }], onOpen: b => { box = b; },
       html: `<div class="kv"><b>做了什麼</b><span>${nl(bugText(f).did)}</span><b>錯誤狀況</b><span>${nl(bugText(f).what)}</span></div>
-        <div style="margin-top:8px"><b>回覆（學生在「我的回報」會看到）</b><input class="inp" data-reply maxlength="60" style="width:100%" placeholder="一句話，例如：這是設計成這樣的"></div>` });
+        <div style="margin-top:8px"><b>回覆（學生在「我的回報」會看到）</b><input class="inp" data-reply maxlength="60" style="width:100%" placeholder="一句話，例如：這是設計成這樣的">
+          <div class="warn" data-replywarn style="font-size:.9em">回覆所有同學都可能看到，不要寫名字。有寫回覆的話，也會寄一封信給他本人。</div></div>` });
     if (r !== 'ok') return;
-    const reply = $('[data-reply]', box).value.trim(), cur = await freshBoard(f.docId), rs0 = Array.isArray(cur.reports) ? cur.reports : [];
+    const reply = $('[data-reply]', box).value.trim(), cur = await freshBoard(f.docId), rs0 = Array.isArray(cur.reports) ? cur.reports : [], notes = (await freshPriv(f.docId)).notes;
     const b = writeBatch(db);
     flagWrite(b, f, { status: 'rejected', reply, sev: deleteField(), dupOf: deleteField() });
-    b.set(doc(db, 'mg_bugboard', f.docId), boardPatch(f.docId, f, cur, putReport(rs0, { id: f.id, st: 'rejected', sev: 0, reply, t: f.t || 0 })), { merge: true });
+    b.set(doc(db, 'mg_bugboard', f.docId), boardPatch(f.docId, f, cur, putReport(rs0, { id: f.id, st: 'rejected', sev: 0, reply, t: f.t || 0 }), null, notes), { merge: true });
+    /* 有寫回覆才寄信（本人的主要管道）。用 bugr_ 而不是 bug_：之後要是改成確認，bug_ 那封獎勵信才寄得出去 */
+    if (reply && !(await mailExists('bugr_' + f.id))) b.set(doc(db, 'mg_mail', 'bugr_' + f.id), mailDoc(f, MAIL_BUG_TITLE, '這次沒有採用，謝謝你回報。' + replyLine(reply), []));
     await log('不採用回報', f.id, `${flagWho(f)}${reply ? '：' + reply : ''}`, b);
     await b.commit();
     await refresh(); paintAll(); toast('已標成不採用');
@@ -136,10 +148,10 @@ export default async function mount(el, ctx) {
     const z = zoneOf(f);
     if (!await ask(z === 'approved' ? '撤銷確認？' : '退回待審核？', `<p>${esc(flagWho(f))} 的這則回報會回到「待審核」，${z === 'approved' ? `分數會重算（扣回 ${clampSev(f.sev)} 分）` : '不影響分數'}。</p>
       ${z === 'approved' || z === 'dup' ? '<p class="warn"><b>已經寄出的信不收回</b>，學生領了的字元也不會扣。之後再確認，不會重寄同一封。</p>' : ''}`, z === 'approved' ? '撤銷確認' : '退回', '先不要', true)) return;
-    const cur = await freshBoard(f.docId), rs0 = Array.isArray(cur.reports) ? cur.reports : [];
+    const cur = await freshBoard(f.docId), rs0 = Array.isArray(cur.reports) ? cur.reports : [], notes = (await freshPriv(f.docId)).notes;
     const b = writeBatch(db);
     flagWrite(b, f, { status: 'pending', sev: deleteField(), reply: deleteField(), dupOf: deleteField() });
-    b.set(doc(db, 'mg_bugboard', f.docId), boardPatch(f.docId, f, cur, dropReport(rs0, f.id)), { merge: true });
+    b.set(doc(db, 'mg_bugboard', f.docId), boardPatch(f.docId, f, cur, dropReport(rs0, f.id), null, notes), { merge: true });
     await log(z === 'approved' ? '撤銷確認回報' : '退回待審核', f.id, `${flagWho(f)}（原本：${z}）；已寄出的信沒有收回`, b);
     await b.commit();
     await refresh(); paintAll(); toast('已退回待審核');
@@ -154,13 +166,13 @@ export default async function mount(el, ctx) {
     $('[data-board]', el).innerHTML = `<p class="dim" style="margin:0 0 6px">跟學生佈告欄看到的同一個榜（前 10 名、0 分不上榜），這裡多顯示姓名和明細。</p>
       <div class="row" style="margin-bottom:8px"><button class="px-btn" data-bonus>＋ 手動加分</button>
         <label>寄獎給前 <input class="inp" type="number" min="1" max="30" value="3" data-topn style="width:64px"> 名</label><button class="px-btn" data-sendtop>去信箱寄獎</button></div>
-      <div class="tscroll"><table class="tbl" data-boardtable><thead><tr><th>名次</th><th>學生</th><th>暱稱</th><th>分數</th><th>確認件數</th><th>加分</th><th></th></tr></thead><tbody>${rows.map(r => {
+      <div class="tscroll"><table class="tbl cardy" data-boardtable><thead><tr><th>名次</th><th>學生</th><th>暱稱</th><th>分數</th><th>確認件數</th><th>加分</th><th></th></tr></thead><tbody>${rows.map(r => {
         const i = pos.indexOf(r), hide = !!r.d.hideNick;
-        return `<tr data-bid="${esc(r.id)}" class="${i >= 10 || i < 0 ? 'off' : ''}"><td>${i >= 0 ? (i < 10 ? i + 1 : `<span class="dim">${i + 1}（榜外）</span>`) : '<span class="dim">—</span>'}</td>
-          <td>${esc(label(r.id))}</td><td>${esc(nick(r.id))}${hide ? ' <span class="chip warn">已隱藏</span>' : ''}</td><td data-score><b>${r.score}</b></td><td>${r.n}</td><td>${+r.d.bonus ? esc(r.d.bonus > 0 ? '+' + r.d.bonus : r.d.bonus) : '—'}</td>
-          <td><button class="px-btn sm" data-detail="${esc(r.id)}">${openId === r.id ? '收起' : '明細'}</button> <button class="px-btn sm" data-bonus-for="${esc(r.id)}">加分</button> <button class="px-btn sm" data-hide="${esc(r.id)}">${hide ? '恢復暱稱' : '隱藏暱稱'}</button> <button class="px-btn sm" data-king="${esc(r.id)}">頒發職業除錯師</button></td></tr>
+        return `<tr data-bid="${esc(r.id)}" class="${i >= 10 || i < 0 ? 'off' : ''}"><td data-l="名次">${i >= 0 ? (i < 10 ? i + 1 : `<span class="dim">${i + 1}（榜外）</span>`) : '<span class="dim">—</span>'}</td>
+          <td data-l="學生">${esc(label(r.id))}</td><td data-l="暱稱">${esc(nick(r.id))}${hide ? ' <span class="chip warn">已隱藏</span>' : ''}</td><td data-score data-l="分數"><b>${r.score}</b></td><td data-l="確認件數">${r.n}</td><td data-l="加分">${+r.d.bonus ? esc(r.d.bonus > 0 ? '+' + r.d.bonus : r.d.bonus) : '—'}</td>
+          <td class="acts"><button class="px-btn sm" data-detail="${esc(r.id)}">${openId === r.id ? '收起' : '明細'}</button> <button class="px-btn sm" data-bonus-for="${esc(r.id)}">加分</button> <button class="px-btn sm" data-hide="${esc(r.id)}">${hide ? '恢復暱稱' : '隱藏暱稱'}</button> <button class="px-btn sm" data-king="${esc(r.id)}">頒發職業除錯師</button></td></tr>
           ${openId === r.id ? `<tr data-detailrow="${esc(r.id)}"><td colspan="7" class="wrap" style="background:#1b1710">${detailHtml(r)}</td></tr>` : ''}`;
-      }).join('') || '<tr><td colspan="7" class="dim">還沒有人上榜</td></tr>'}</tbody></table></div>`;
+      }).join('') || '<tr><td colspan="7" class="dim">還沒有人上榜。學生的回報被你「確認」後，就會出現在這裡；也可以按上面的「手動加分」。</td></tr>'}</tbody></table></div>`;
   }
   function detailHtml(r) {
     const rs = (Array.isArray(r.d.reports) ? r.d.reports : []).slice().sort((a, b) => (b.t || 0) - (a.t || 0)), notes = Array.isArray(r.d.notes) ? r.d.notes : [];
@@ -190,40 +202,63 @@ export default async function mount(el, ctx) {
     await b.commit(); invalidate('mails'); toast('已寄出職業除錯師');
   });
 
+  /* 手動加分：可以一次選好幾位同學，同一個分數與理由。理由只寫進 mg_bugboard_private（跟操作紀錄），
+     學生讀得到的 mg_bugboard 只多一個 bonus 數字。加分時可以順便寄一封感謝信（信裡不放理由）。 */
+  const BONUS_MAX_PEOPLE = 40;
   const doBonus = guard(async pre => {
-    let box, chosen = pre || '';
-    const matches = q => scores.filter(s => !q || `${s.name} ${s.nick} ${s.seat} ${clsShort(s.className)}`.toLowerCase().includes(q.toLowerCase())).slice(0, 40);
-    const optHtml = q => matches(q).map(s => `<option value="${esc(s.id)}" ${s.id === chosen ? 'selected' : ''}>${esc(clsShort(s.className))}・${s.seat}號 ${esc(s.name)}</option>`).join('');
-    const r = await modal({ title: '手動加分', buttons: [{ id: 'no', label: '取消' }, { id: 'ok', label: '加分', cls: 'gold' }],
+    let box, q = '';
+    const chosen = new Set(pre ? [pre] : []);
+    const cands = () => scores.filter(s => matchStudent(s, q)).sort((a, b) => (chosen.has(b.id) ? 1 : 0) - (chosen.has(a.id) ? 1 : 0)).slice(0, 40);
+    const candHtml = () => cands().map(s => `<label class="chk" style="display:flex;padding:2px 0"><input type="checkbox" data-pick="${esc(s.id)}" ${chosen.has(s.id) ? 'checked' : ''}> ${esc(clsShort(s.className))}・${s.seat}號 ${esc(s.name)}</label>`).join('')
+      || '<span class="dim">找不到。可以用姓名，或「503 5」（班級 座號）來找。</span>';
+    const chipHtml = () => [...chosen].map(id => `<span class="chip">${esc(label(id))} <a href="#" data-unpick="${esc(id)}" style="text-decoration:none" aria-label="拿掉">✕</a></span>`).join(' ') || '<span class="dim">還沒選人</span>';
+    const r = await modal({ title: '手動加分', sticky: true, buttons: [{ id: 'no', label: '取消' }, { id: 'ok', label: '加分', cls: 'gold' }],
       onOpen: b => {
         box = b;
-        $('[data-q]', b).addEventListener('input', e => { $('[data-stu]', b).innerHTML = optHtml(e.target.value); });
-        $('[data-stu]', b).addEventListener('change', e => { chosen = e.target.value; });
+        const repaintList = () => { $('[data-cands]', b).innerHTML = candHtml(); };
+        const repaintChips = () => { $('[data-chips]', b).innerHTML = chipHtml(); $('[data-nchosen]', b).textContent = chosen.size; };
+        /* 注音輸入中（還沒按選字）不要搜尋，不然打到一半列表就清空 */
+        const qIn = $('[data-q]', b);
+        qIn.addEventListener('input', e => { if (e.isComposing) return; q = e.target.value; repaintList(); });
+        qIn.addEventListener('compositionend', e => { q = e.target.value; repaintList(); });
+        b.addEventListener('change', e => { const t = e.target.closest('[data-pick]'); if (!t) return; t.checked ? chosen.add(t.dataset.pick) : chosen.delete(t.dataset.pick); repaintChips(); });
+        b.addEventListener('click', e => { const u = e.target.closest('[data-unpick]'); if (!u) return; e.preventDefault(); chosen.delete(u.dataset.unpick); repaintList(); repaintChips(); });
         b.closest('[data-modal]').addEventListener('click', e => {
           if (!e.target.closest('[data-btn="ok"]')) return;
           const msg = errOf(); if (msg) { e.stopPropagation(); e.preventDefault(); $('[data-berr]', b).textContent = msg; }
         }, true);
+        repaintChips();
       },
-      html: `<p class="dim" style="margin:0 0 6px">給「已經在遊戲外抓過蟲」的學生補分，或扣回加錯的分。分數可以是負數，一定要寫理由。</p>
-        <input class="inp" data-q placeholder="搜尋姓名／暱稱／座號" style="width:100%"><select class="inp" data-stu size="6" style="width:100%;margin-top:4px">${optHtml('')}</select>
-        <div class="row" style="margin-top:8px"><label>分數 <input class="inp" type="number" step="1" min="-20" max="20" data-pts style="width:80px" placeholder="例 2 或 -1"></label>
-          <label style="flex:1">理由 <input class="inp" data-why maxlength="60" style="width:100%"></label></div><div class="warn" data-berr style="min-height:1.3em"></div>` });
+      html: `<p class="dim" style="margin:0 0 6px">給「已經在遊戲外抓過蟲」的同學補分，或扣回加錯的分。可以一次選好幾位，大家加一樣的分數。分數可以是負數，一定要寫理由。</p>
+        <input class="inp" data-q placeholder="搜尋：姓名、暱稱，或「503 5」（班級 座號）" style="width:100%">
+        <div data-cands style="max-height:170px;overflow-y:auto;border:2px solid var(--line);padding:4px 8px;margin-top:4px">${candHtml()}</div>
+        <div style="margin-top:6px"><span class="dim">已選 <b data-nchosen>0</b> 人：</span> <span data-chips></span></div>
+        <div class="row" style="margin-top:8px"><label>分數 <input class="inp" type="number" step="1" min="-20" max="20" data-pts style="width:130px" placeholder="例 2 或 -1"></label>
+          <label style="flex:1;min-width:200px">理由 <input class="inp" data-why maxlength="60" style="width:100%" placeholder="只有老師看得到"></label></div>
+        <label class="chk" style="margin-top:6px"><input type="checkbox" data-mail checked> 同時寄一封感謝信給他們（只有加分才寄；信裡不會寫理由）</label>
+        <div class="warn" data-berr style="min-height:1.3em"></div>` });
     function errOf() {
-      const sid = $('[data-stu]', box).value, pts = Number($('[data-pts]', box).value), why = $('[data-why]', box).value.trim();
-      if (!sid) return '請選一位學生';
+      const pts = Number($('[data-pts]', box).value), why = $('[data-why]', box).value.trim();
+      if (!chosen.size) return '請選至少一位同學';
+      if (chosen.size > BONUS_MAX_PEOPLE) return `一次最多 ${BONUS_MAX_PEOPLE} 位`;
       if (!Number.isInteger(pts) || pts === 0 || $('[data-pts]', box).value.trim() === '') return '分數要是不為 0 的整數（可以是負數）';
       if (Math.abs(pts) > 20) return '一次最多加減 20 分';
       if (!why) return '請寫理由';
       return '';
     }
     if (r !== 'ok') return;
-    const id = $('[data-stu]', box).value, pts = Number($('[data-pts]', box).value), why = $('[data-why]', box).value.trim();
-    const cur = await freshBoard(id), s = sOf(id), rs0 = Array.isArray(cur.reports) ? cur.reports : [];
-    const next = Object.assign({}, cur, { bonus: (+cur.bonus || 0) + pts, notes: (Array.isArray(cur.notes) ? cur.notes : []).concat([{ pts, why, t: Date.now() }]) });
+    const ids = [...chosen], pts = Number($('[data-pts]', box).value), why = $('[data-why]', box).value.trim(), t = Date.now(), thanks = $('[data-mail]', box).checked && pts > 0;
+    const curs = await Promise.all(ids.map(async id => [id, await freshBoard(id), await freshPriv(id)]));
     const b = writeBatch(db);
-    b.set(doc(db, 'mg_bugboard', id), boardPatch(id, { cls: s && s.className, seat: s && s.seat }, next, rs0, { bonus: next.bonus, notes: next.notes }), { merge: true });
-    await log('抓蟲手動加分', id, `${label(id)}：${pts > 0 ? '+' : ''}${pts} 分（${why}）`, b);
-    await b.commit(); await refresh(); paintAll(); toast(`已加 ${pts} 分`);
+    for (const [id, cur, priv] of curs) {
+      const s = sOf(id), rs0 = Array.isArray(cur.reports) ? cur.reports : [];
+      const bonus = (+cur.bonus || 0) + pts, notes = (Array.isArray(priv.notes) ? priv.notes : []).concat([{ pts, why, t }]);
+      b.set(doc(db, 'mg_bugboard', id), boardPatch(id, { cls: s && s.className, seat: s && s.seat }, Object.assign({}, cur, { bonus }), rs0, { bonus }, notes), { merge: true });
+      b.set(doc(db, 'mg_bugboard_private', id), { notes }, { merge: true });
+      if (thanks) b.set(doc(db, 'mg_mail', `bonus_${id}_${t}`), { aud: ['id:' + id], title: MAIL_BUG_TITLE, body: `老師幫你補了抓蟲分 +${pts} 分，謝謝你幫忙找問題！`, items: [], from: '老師', sendAt: t, expireAt: 0, t, src: 'bug' });
+      await log('抓蟲手動加分', id, `${label(id)}：${pts > 0 ? '+' : ''}${pts} 分（${why}）${ids.length > 1 ? `；同一批共 ${ids.length} 人` : ''}${thanks ? '；寄了感謝信' : ''}`, b);
+    }
+    await b.commit(); await refresh(); paintAll(); toast(`已幫 ${ids.length} 位同學${pts > 0 ? '加' : '扣'} ${Math.abs(pts)} 分`);
   });
 
   /* ── 事件 ── */

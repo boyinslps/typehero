@@ -4,7 +4,7 @@
 import { db, doc, writeBatch } from './fb.js';
 import { loadFlags, invalidate } from './data.js';
 import { clsShort } from './nw.js';
-import { $, esc, fmtT, log, toast, errText } from './util.js';
+import { $, esc, fmtT, log, toast, errText, helpBox } from './util.js';
 
 const RATES = ['好玩', '普通', '太難'];
 const RATE_ICON = { 好玩: '😀', 普通: '😐', 太難: '😣' };
@@ -16,7 +16,7 @@ export default async function mount(el, ctx, params) {
   const monKey = f => f.mk || f.mon || '';
   const mons = [...new Map(all.map(f => [monKey(f), monName(f)])).entries()].filter(x => x[0]);
 
-  el.innerHTML = `<h2>💬 回饋</h2><p class="dim" style="margin:0 0 8px">學生打完測試魔物寫的感想。跟「回報問題」分開，這裡不用審核，看過就標已讀。</p>
+  el.innerHTML = `<h2>💬 回饋</h2>${helpBox(['上面的表格告訴你每隻魔物好不好玩、會不會太難（笑臉、普通、太難各幾個）。', '下面是學生寫的內容。看過就按「標已讀」，也可以一次把列出來的全部標已讀。', '想只看沒讀過的：勾「只看未讀」。這裡不用審核，也不會加分。'])}<p class="dim" style="margin:0 0 8px">學生打完測試魔物寫的感想。跟「回報問題」分開，這裡不用審核，看過就標已讀。</p>
     <h3>每隻魔物的評價</h3><div class="tscroll" data-stats></div>
     <h3>全部回饋</h3>
     <div class="row" style="margin-bottom:6px"><select class="inp" data-fmk><option value="">全部魔物</option>${mons.map(([k, n]) => `<option value="${esc(k)}">${esc(n)}</option>`).join('')}</select>
@@ -30,7 +30,7 @@ export default async function mount(el, ctx, params) {
     $('[data-stats]', el).innerHTML = `<table class="tbl" data-stattable><thead><tr><th>魔物</th>${RATES.map(r => `<th>${RATE_ICON[r]} ${r}</th>`).join('')}<th>沒選</th><th>合計</th><th>未讀</th></tr></thead><tbody>${mons.map(([k, n]) => {
       const L = all.filter(f => monKey(f) === k);
       return `<tr data-mon="${esc(k)}"><td>${esc(n)}</td>${RATES.map(r => `<td data-r="${r}">${L.filter(f => f.rate === r).length}</td>`).join('')}<td>${L.filter(f => !RATES.includes(f.rate)).length}</td><td>${L.length}</td><td>${L.filter(f => !f.read).length}</td></tr>`;
-    }).join('') || '<tr><td colspan="7" class="dim">還沒有回饋</td></tr>'}</tbody></table>`;
+    }).join('') || '<tr><td colspan="7" class="dim">還沒有回饋。學生打完測試魔物、寫下感想後，會出現在這裡。</td></tr>'}</tbody></table>`;
   }
   function paintList() {
     const list = shown();
@@ -38,7 +38,7 @@ export default async function mount(el, ctx, params) {
     $('[data-list]', el).innerHTML = `<table class="tbl" data-fbtable><thead><tr><th>時間</th><th>學生</th><th>魔物</th><th>評價</th><th>內容</th><th></th></tr></thead><tbody>${list.map(f => `<tr data-fid="${esc(f.id)}" class="${f.read ? '' : 'unread'}">
       <td>${esc(fmtT(f.t))}</td><td>${esc(clsShort(f.cls || ''))}・${esc(f.seat)}號 ${esc(f.name || '')}</td><td>${esc(monName(f))}${f.star ? ` ★${esc(f.star)}` : ''}</td>
       <td>${RATES.includes(f.rate) ? `${RATE_ICON[f.rate]} ${f.rate}` : '<span class="dim">—</span>'}</td><td class="wrap" style="min-width:260px;overflow-wrap:anywhere">${esc(f.text || '') || '<span class="dim">（只選了評價）</span>'}</td>
-      <td>${f.read ? '<span class="chip dim">已讀</span>' : `<button class="px-btn sm" data-read="${esc(f.id)}">標已讀</button>`}</td></tr>`).join('') || '<tr><td colspan="6" class="dim">沒有符合的回饋</td></tr>'}</tbody></table>`;
+      <td>${f.read ? '<span class="chip dim">已讀</span>' : `<button class="px-btn sm" data-read="${esc(f.id)}">標已讀</button>`}</td></tr>`).join('') || '<tr><td colspan="6" class="dim">沒有符合的回饋。放寬上面的篩選，或把「只看未讀」取消看看。</td></tr>'}</tbody></table>`;
   }
   const paint = () => { paintStats(); paintList(); };
 
