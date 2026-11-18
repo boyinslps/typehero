@@ -119,11 +119,13 @@ const dismissGifts = async p => { for (let i = 0; i < 14; i++) { if (!(await p.$
 const openNotice = async (p, t) => { await p.click('[data-act="notice"]'); await p.waitForSelector('#nw-notice'); await p.click(`#nw-notice [data-ntab="${t}"]`); await p.waitForTimeout(900); };
 
 /* ── 活動表單 ── */
+/* 活動代號收在「進階」裡，要先展開才填得進去 */
+const openAdv = p => p.evaluate(() => { const d = document.querySelector('[data-advanced]'); if (d) d.open = true; });
 async function newEvent(p, { type, tpl, id, title, start, end, fill }) {
   await p.click('[data-new]'); await p.waitForSelector('[data-form]');
   if (type && type !== 'boost') await p.check(`input[name="etype"][value="${type}"]`);
   if (tpl) await p.selectOption('[data-tpl]', tpl);
-  if (id) await p.fill('[data-f="id"]', id);
+  if (id) { await openAdv(p); await p.fill('[data-f="id"]', id); }
   if (title) await p.fill('[data-f="title"]', title);
   if (start) await p.fill('[data-f="startAt"]', inp(start));
   if (end) await p.fill('[data-f="endAt"]', inp(end));
@@ -179,9 +181,9 @@ const saveForm = async p => { await submitForm(p); await waitModal(p); await cli
     await newEvent(T, { type: 'boost', id: 'bad id!', title: '壞 ID' });
     await submitForm(T);
     ok((await T.textContent('[data-err]')).includes('英文、數字、底線') && await modalOpen(T) === 0 && !(await keys(T, 'mg_events/')).some(k => k.includes('bad')), '活動 ID 有空白／符號：擋下、不寫入');
-    await T.fill('[data-f="id"]', 'RK'); await submitForm(T);
+    await openAdv(T); await T.fill('[data-f="id"]', 'RK'); await submitForm(T);
     ok((await T.textContent('[data-err]')).includes('已經有了'), '活動 ID 重複：擋下');
-    await T.fill('[data-f="id"]', 'T_boost-1'); await T.fill('[data-f="title"]', '本週經驗加倍');
+    await openAdv(T); await T.fill('[data-f="id"]', 'T_boost-1'); await T.fill('[data-f="title"]', '本週經驗加倍');
     ok((await T.textContent('[data-pv]')).includes('本週經驗加倍') && (await T.textContent('[data-pv]')).includes('變 2 倍'), '右邊即時預覽學生會看到的卡片');
     await submitForm(T); await waitModal(T);
     const mt = await modalText(T);
@@ -357,16 +359,16 @@ const saveForm = async p => { await submitForm(p); await waitModal(p); await cli
     /* 重按：同一份快照、同樣的 ID，不會變兩封 */
     const snapBefore = JSON.stringify(evRK.result), mailsBefore = JSON.stringify(mk);
     await T.click('[data-back]'); await T.click('[data-evtable="ended"] [data-open="RK"]');
-    ok((await T.textContent('[data-awarded]')).includes('同一份名次快照'), '已發過獎的畫面說明重按會照同一份快照');
+    ok((await T.textContent('[data-awarded]')).includes('同一份名次存檔'), '已發過獎的畫面說明重按會照同一份名次存檔');
     await T.click('[data-award-btn="RK"]'); await waitModal(T);
-    ok((await modalText(T)).includes('同一份快照'), '重按：顯示「用同一份快照、同樣信件 ID」');
+    ok((await modalText(T)).includes('同一份存檔'), '重按：顯示「用同一份存檔、同樣信件代號」');
     await clickModal(T, 'ok'); await waitModal(T); await clickModal(T, 'ok'); await T.waitForTimeout(800);
     const mk2 = (await evMails(T, 'ev_RK_')).sort((a, b) => a._id < b._id ? -1 : 1);
     ok(mk2.length === 10 && JSON.stringify(mk2) === mailsBefore && JSON.stringify((await FS(T, 'mg_events/RK')).result) === snapBefore, '重按發獎：還是 10 封、內容一模一樣、快照沒變');
     /* 中途失敗（awarded 沒寫成）再按：照快照補寄 */
     await T.evaluate(() => { const e = window.__FS['mg_events/RK']; e.awarded = false; delete window.__FS['mg_mail/ev_RK_2']; delete window.__FS['mg_mail/ev_RK_p_' + '五年級4班_12號']; });
     await tab(T, 'events'); await T.click('[data-evtable="ended"] [data-open="RK"]');
-    ok((await T.textContent('[data-snapnote]')).includes('已經有名次快照'), '快照有了但 awarded 沒寫：畫面提示可以照快照再寄');
+    ok((await T.textContent('[data-snapnote]')).includes('已經有名次存檔'), '名次存檔有了但 awarded 沒寫：畫面提示可以照存檔再寄');
     await T.click('[data-award-btn="RK"]'); await waitModal(T); await clickModal(T, 'ok'); await waitModal(T); await clickModal(T, 'ok'); await T.waitForTimeout(800);
     const mk3 = (await evMails(T, 'ev_RK_')).sort((a, b) => a._id < b._id ? -1 : 1);
     ok(mk3.length === 10 && JSON.stringify(mk3) === mailsBefore && (await FS(T, 'mg_events/RK')).awarded === true, '補寄：缺的 2 封補回來，總數還是 10、都跟原本一模一樣');
@@ -465,7 +467,7 @@ const saveForm = async p => { await submitForm(p); await waitModal(p); await cli
     ok(opts[0] === 'q3' || opts.slice(0, 3).includes('q3'), '重複：可選「跟哪一則一樣」，已確認的排前面：' + opts.join());
     await T.selectOption('[data-dupof]', 'q3'); await clickModal(T, 'ok'); await T.waitForTimeout(700);
     b5 = await FS(T, 'mg_bugboard/' + ID5); const q4 = await FS(T, 'mg_nw_flags/q4'), m4 = await FS(T, 'mg_mail/bug_q4');
-    ok(q4.status === 'dup' && q4.dupOf === 'q3' && b5.score === 4 && b5.n === 2 && b5.reports.find(r => r.id === 'q4').st === 'dup' && b5.reports.find(r => r.id === 'q4').dupOf === 'q3', '重複 q4：flag.dupOf、不加分（4 分、n 2）、reports 記 st:dup');
+    ok(q4.status === 'dup' && q4.dupOf === 'q3' && b5.score === 4 && b5.n === 2 && b5.reports.find(r => r.id === 'q4').st === 'dup' && !('dupOf' in b5.reports.find(r => r.id === 'q4')), '重複 q4：flag.dupOf、不加分（4 分、n 2）、reports 記 st:dup（reports 只留 id／st／sev／t／reply）');
     ok(m4 && m4.items.length === 0 && m4.aud[0] === 'id:' + ID5 && m4.body.includes('謝謝'), '重複：寄 0 字元的感謝信 bug_q4');
 
     /* 不採用 */
@@ -510,19 +512,22 @@ const saveForm = async p => { await submitForm(p); await waitModal(p); await cli
 
     /* 手動加分：沒理由／零分被擋 */
     await T.click('[data-bonus]'); await waitModal(T);
-    await T.fill('[data-q]', '丁同學'); await T.selectOption('[data-stu]', ID11);
+    await T.fill('[data-q]', '丁同學'); await T.check(`[data-pick="${ID11}"]`);
     await T.fill('[data-pts]', '2'); await clickModal(T, 'ok'); await T.waitForTimeout(150);
     ok((await T.textContent('[data-berr]')).includes('請寫理由') && await modalOpen(T) === 1, '手動加分：沒寫理由 → 擋下，視窗不關');
     await T.fill('[data-why]', '之前就抓到'); await T.fill('[data-pts]', '0'); await clickModal(T, 'ok'); await T.waitForTimeout(150);
     ok((await T.textContent('[data-berr]')).includes('不為 0'), '手動加分：0 分 → 擋下');
     await T.fill('[data-pts]', '2'); await clickModal(T, 'ok'); await T.waitForTimeout(700);
     let b11 = await FS(T, 'mg_bugboard/' + ID11);
-    ok(b11.bonus === 2 && b11.score === 2 && b11.n === 0 && b11.notes.length === 1 && b11.notes[0].pts === 2 && b11.notes[0].why === '之前就抓到' && b11.notes[0].t > 0 && b11.className === C4 && b11.seat === 11, '手動加分 +2（原本沒有 bugboard）：bonus、notes、score 重算：' + JSON.stringify(b11));
+    let p11 = await FS(T, 'mg_bugboard_private/' + ID11);
+    ok(b11.bonus === 2 && b11.score === 2 && b11.n === 0 && !('notes' in b11) && b11.className === C4 && b11.seat === 11, '手動加分 +2（原本沒有 bugboard）：bonus、score 重算，學生讀得到的 mg_bugboard 沒有 notes：' + JSON.stringify(b11));
+    ok(p11.notes.length === 1 && p11.notes[0].pts === 2 && p11.notes[0].why === '之前就抓到' && p11.notes[0].t > 0, '手動加分的理由只存在老師專用的 mg_bugboard_private.notes');
     await T.click(`[data-bonus-for="${ID11}"]`); await waitModal(T);
-    ok(await T.inputValue('[data-stu]') === ID11, '列上的「加分」會預選這位學生');
+    ok(await T.isChecked(`[data-pick="${ID11}"]`), '列上的「加分」會預選這位學生');
     await T.fill('[data-pts]', '-1'); await T.fill('[data-why]', '加多了，扣回'); await clickModal(T, 'ok'); await T.waitForTimeout(700);
     b11 = await FS(T, 'mg_bugboard/' + ID11);
-    ok(b11.bonus === 1 && b11.score === 1 && b11.notes.length === 2 && b11.notes[1].pts === -1, '手動加分 -1（負分）：bonus 1、score 1、notes 兩筆');
+    p11 = await FS(T, 'mg_bugboard_private/' + ID11);
+    ok(b11.bonus === 1 && b11.score === 1 && p11.notes.length === 2 && p11.notes[1].pts === -1, '手動加分 -1（負分）：bonus 1、score 1、notes 兩筆');
     /* 已有確認回報的人加分：分數＝嚴重度＋加分 */
     await T.click(`[data-bonus-for="${ID5}"]`); await waitModal(T); await T.fill('[data-pts]', '2'); await T.fill('[data-why]', '另外抓過'); await clickModal(T, 'ok'); await T.waitForTimeout(700);
     b5 = await FS(T, 'mg_bugboard/' + ID5);

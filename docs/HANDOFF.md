@@ -42,7 +42,7 @@
 ### 暱稱與改名卡
 - 詞庫 `nw-data.js` 的 `NICK_A`／`NICK_B`（存詞 ID `NW.nick=[a,b]`）、`nickText()`；`NW.nickAt`。取了就固定，換要消耗道具 `renameCard`（`ITEM_DEFS`）。商店開張後在 `SHOP_ITEMS` 賣 300 字元，**目前商店沒開，改名卡只能靠老師寄信**。
 - 存檔最外層 `nwNick`（組好的字串）給榜單用。老師可在抓蟲榜隱藏某人暱稱（`mg_bugboard.hideNick`），隱藏由顯示端負責。
-- 冒名鎖：`NW.name0`／`mg_bugboard.nameOk` 當基準；不同就寫 `mg_nw_flags/namechg_{ID}_{雜湊8碼}` 並鎖信箱。
+- 冒名鎖：`NW.name0`／`mg_bugboard.nameOkH`（老師核可名字的雜湊；真名放老師專用的 `mg_bugboard_private.nameOk`）當基準；不同就寫 `mg_nw_flags/namechg_{ID}_{雜湊8碼}` 並鎖信箱。
 
 ### 活動 `nw-events.js`（`mg_events`）
 - 欄位寫在檔頭註解。學生進度 `NW.ev[ID]`；每場結算在 `finishHunt()` → `EV.onRun(res, prevBest, t0, now)`。**進步獎要在更新 `NW.fastMk` 之前算**（拿活動前的紀錄當 base）。
@@ -56,6 +56,7 @@
 - 老師公告 `mg_news`（置頂在前）；改版公告 `NOTICES`（`nw-data.js`，最新一則進村自動跳一次）。
 - 抓蟲榜：`mg_bugboard/{班級_座號}` 只有老師寫。排序 `bugCmp`（分數高在前，同分比 `firstAt` 早的）；第 10 名同分的另外查。學生端 `NW.bugs` 取 max，分數與詞條 `bug1／3／5／10` 由 `mg_bugboard` 同步。榜單不含真名。
 - 回報流程：學生送 `mg_nw_flags`（`type:'bug'`，`status:'pending'`）→ 老師在教師頁確認／重複／不採用 → 同一個 batch 寫 flag 狀態、`mg_bugboard`（含 `reports[]`）、獎勵信 → 學生看「我的回報」（測試員手冊）。**`claimBugs()`／`claimAwards()` 已刪**，職業除錯師與回報獎勵都走信箱。
+- **抓蟲榜的隱私**（教師頁審查 M1，2026-11-18）：`mg_bugboard` 所有登入的人都讀得到，所以老師打的理由與真名放 `mg_bugboard_private`（只有老師讀寫）；寫 `mg_bugboard` 一律過 `teacher/bug-calc.js` 的 `publicBoard()`。老師回覆 `reply` 仍在 `reports[]`，另外寄信給本人（`bug_`／`bugr_` 加回報代號），學生「我的回報」優先用信裡那句。
 
 ### 村莊地圖（32×22 格）
 `nw-data.js` 的 `VILLAGE`（格 16px）：高台（北，y 0～6，石牆 y=7，樓梯 x 15～17）放組隊酒館 (5,2)、星圖台 (15,2)、榮譽碑 (25,2)；學習區（西）教學大樓 (3,12)；中央廣場出生點 (15,16)，委託板 (11,13)、佈告欄 (17,13)、郵筒 (12,11)、村長 (16,10)；市集（東，隔小溪 x 22～23，小橋 y 13～14）商店 (24,9)、防具店 (28,10)、鐵匠鋪 (24,15)、倉庫 (28,16)；傳送門正南 (15,22)。`NW.pos` 搭配 `NW.posV = 2`，舊座標回出生點；**以後地圖再重排，把 `POS_V` 加 1**。新增建築要自己確認 3×3 不壓到溪、牆、別的建築，門口走得到、名牌不疊——`nw10.test.js` 會檢查。鏡頭在 `nw-village.js`（捲動容器；走路 6 格／秒；只在走動與停下後 0.9 秒跟著），小地圖點建築傳送到門口。

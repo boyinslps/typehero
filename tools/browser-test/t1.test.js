@@ -181,7 +181,7 @@ const dismissGifts = async p => { for (let i = 0; i < 14; i++) { if (!(await p.$
     ok(await num('warn') === '1', '總覽：⚠ 換過名字 1 人（阿強：現名 ≠ name0）');
     ok(await T.$('[data-go="mail"].px-btn') && await T.$('[data-go="events"].px-btn') && await T.$('[data-go="bugs"].px-btn'), '3 個捷徑：寄信、開活動、審回報');
     await T.click('button.px-btn[data-go="events"]'); await ready(T);
-    ok(await T.$('[data-placeholder]') === null && (await T.textContent('#nav [aria-current="page"]')).includes('活動') && await T.$('[data-form]') !== null, '「開活動」捷徑連到活動分頁（直接開新增表單）');
+    ok(await T.$('[data-placeholder]') === null && (await T.textContent('#nav [aria-current="page"]')).includes('活動') && await T.$('[data-form]') === null && (await T.$$('[data-newtpl]')).length === 6 && await T.$('[data-new]') !== null, '「開活動」捷徑連到活動分頁：最上面直接列出 6 個範本按鈕＋自訂（不預先開表單）');
     await T.click('#nav [data-tab="overview"]'); await ready(T);
     await T.click('button.px-btn[data-go="bugs"]'); await ready(T);
     ok(await T.$('[data-placeholder]') === null && (await T.textContent('#nav [aria-current="page"]')).includes('回報') && await T.$('[data-zones]') !== null, '「審回報」捷徑連到回報分頁');
@@ -234,7 +234,8 @@ const dismissGifts = async p => { for (let i = 0; i < 14; i++) { if (!(await p.$
     ok(mt.includes('名字跟上次不一樣') && mt.includes('阿志') && mt.includes('阿強') && mt.includes('還沒處理'), '學生卡：⚠ 名字跟上次不一樣，列出基準、現在的名字與換名紀錄');
     await T.click('[data-modal] [data-act="nameok"]'); await T.waitForTimeout(500);
     const bb7 = await FS(T, 'mg_bugboard/' + ID7), fl = await FS(T, `mg_nw_flags/namechg_${ID7}_ab12cd34`);
-    ok(bb7 && bb7.nameOk === '阿強' && fl.status === 'ok', '名字沒問題：mg_bugboard.nameOk＝現在的名字，換名紀錄標「已確認」');
+    const { sha256Hex: sh } = await import('../../nw-access.js'), pv7 = await FS(T, 'mg_bugboard_private/' + ID7);
+    ok(bb7 && bb7.nameOkH === await sh('阿強') && !('nameOk' in bb7) && !JSON.stringify(bb7).includes('阿強') && pv7 && pv7.nameOk === '阿強' && fl.status === 'ok', '名字沒問題：學生讀得到的 mg_bugboard 只有名字的雜湊（沒有真名）、真名在老師專用的 mg_bugboard_private，換名紀錄標「已確認」');
     ok(!(await modalText(T)).includes('名字沒問題（解鎖）') && (await modalText(T)).includes('目前已解鎖'), '按完之後卡片顯示已解鎖');
     await clickModal(T, 'close'); await T.waitForTimeout(100);
     ok(!(await T.textContent(`tr[data-id="${ID7}"]`)).includes('換過名字'), '表格的 ⚠ 消失');
@@ -452,7 +453,7 @@ const dismissGifts = async p => { for (let i = 0; i < 14; i++) { if (!(await p.$
     ok((await TL.$$('#main tr[data-id]')).length === 1, '教師頁看得到 ⚠（小明）');
     await TL.click(`tr[data-id="${ID5}"] td:nth-child(4)`); await TL.waitForSelector('[data-modal]'); await TL.waitForTimeout(300);
     await TL.click('[data-modal] [data-act="nameok"]'); await TL.waitForTimeout(500);
-    ok((await FS(TL, 'mg_bugboard/' + ID5)).nameOk === '小明', '老師按「名字沒問題」');
+    ok((await FS(TL, 'mg_bugboard/' + ID5)).nameOkH === await (await import('../../nw-access.js')).sha256Hex('小明') && (await FS(TL, 'mg_bugboard_private/' + ID5)).nameOk === '小明' && !('nameOk' in (await FS(TL, 'mg_bugboard/' + ID5))), '老師按「名字沒問題」：雜湊在 mg_bugboard、真名在 mg_bugboard_private');
     const S1 = await student(browser, await allFS(TL));
     await S1.click('.vb[data-bld="mail"]'); await S1.waitForSelector('#nw-mail'); await S1.waitForTimeout(600);
     ok(!(await S1.textContent('#nw-mail')).includes('名字跟上次不一樣') && (await mailIds(S1)).includes('lk'), '按了之後：學生信箱解鎖，看得到信');
@@ -461,7 +462,7 @@ const dismissGifts = async p => { for (let i = 0; i < 14; i++) { if (!(await p.$
 
   /* ── 一次搬移（寫入、重按不重複、學生領得到） ── */
   {
-    const seedM = base();
+    const seedM = base(), H5 = await (await import('../../nw-access.js')).sha256Hex('小明');   // 學生端比對的是名字的雜湊，要放真的雜湊，小明才不會被鎖信箱
     Object.assign(seedM, Object.fromEntries([
       flag('mg_a', { status: 'approved', t: NOW - 5 * D, claimed: true }),                // 學生早就領過
       flag('mg_b', { status: 'approved', t: NOW - 4 * D, sev: 2, reply: '謝謝' }),
@@ -469,7 +470,8 @@ const dismissGifts = async p => { for (let i = 0; i < 14; i++) { if (!(await p.$
       flag('mg_p', { status: 'pending', t: NOW - 2 * D }),
       flag('mg_o', { docId: ID6, seat: 6, name: '小華', status: 'approved', t: NOW - 3 * D }),
       ['mg_nw_flags/aw_1', { type: 'award', award: 'bugking', status: 'approved', docId: ID5, cls: C3, seat: 5, name: '小明', t: NOW - D }],
-      ['mg_bugboard/' + ID5, { className: C3, seat: 5, hideNick: true, bonus: 1, nameOk: '小明' }]
+      ['mg_bugboard/' + ID5, { className: C3, seat: 5, hideNick: true, bonus: 1, nameOkH: H5 }],
+      ['mg_bugboard_private/' + ID5, { nameOk: '小明', notes: [{ pts: 1, why: '口頭回報', t: NOW - 6 * D }] }]
     ]));
     const TM = await teacher(browser, seedM);
     await tab(TM, 'settings');
@@ -479,7 +481,8 @@ const dismissGifts = async p => { for (let i = 0; i < 14; i++) { if (!(await p.$
     ok((await keys(TM, 'mg_mail/')).length === 1 && (await FS(TM, 'mg_bugboard/' + ID6)) === undefined, '預覽沒有寫入任何東西');
     await TM.click('[data-mig-run]'); await TM.waitForSelector('[data-modal]'); await clickModal(TM, 'ok'); await TM.waitForSelector('[data-mig-done]'); await TM.waitForTimeout(300);
     const board5 = await FS(TM, 'mg_bugboard/' + ID5), board6 = await FS(TM, 'mg_bugboard/' + ID6);
-    ok(board5.score === 1 + 2 + 1 + 1 && board5.n === 3 && board5.firstAt === NOW - 3 * D && board5.reports.length === 3 && board5.hideNick === true && board5.nameOk === '小明' && board5.bonus === 1, '搬移：小明 分數 1+2+1+手動加分 1＝5、n 3、firstAt、reports 3 筆；隱藏暱稱／名字沒問題／加分都還在：' + JSON.stringify(board5));
+    ok(board5.score === 1 + 2 + 1 + 1 && board5.n === 3 && board5.firstAt === NOW - 3 * D && board5.reports.length === 3 && board5.hideNick === true && board5.nameOkH === H5 && board5.bonus === 1, '搬移：小明 分數 1+2+1+手動加分 1＝5、n 3、firstAt、reports 3 筆；隱藏暱稱／名字沒問題（雜湊）／加分都還在：' + JSON.stringify(board5));
+    ok(!JSON.stringify([board5, board6]).includes('小明') && !JSON.stringify([board5, board6]).includes('小華') && !('name' in board5) && !('notes' in board5) && (await FS(TM, 'mg_bugboard_private/' + ID5)).nameOk === '小明', '搬移：沒有把真名寫進 mg_bugboard（flag 上的 name 沒被帶進來）；老師專用的資料沒被動到');
     ok(board6.score === 1 && board6.n === 1 && board6.reports.length === 1, '搬移：小華 1 分');
     const mk = await keys(TM, 'mg_mail/');
     ok(mk.includes('mg_mail/bug_mg_b') && mk.includes('mg_mail/bug_mg_c') && mk.includes('mg_mail/bug_mg_o') && mk.includes('mg_mail/award_aw_1') && !mk.includes('mg_mail/bug_mg_a') && !mk.includes('mg_mail/bug_mg_p') && mk.length === 5, '搬移：只有沒領的轉成信（固定 ID）；已領的 mg_a、待審的 mg_p 沒有信：' + mk.join());
@@ -490,7 +493,7 @@ const dismissGifts = async p => { for (let i = 0; i < 14; i++) { if (!(await p.$
     ok((await keys(TM, 'mg_mail/')).length === sizeAfter && JSON.stringify(await FS(TM, 'mg_bugboard/' + ID5)) === b5s, '重按一次：沒多寄信、分數沒重複加');
     await TM.click('[data-mig-plan]'); await TM.waitForTimeout(400);
     ok((await TM.textContent('[data-mig-stat]')).includes('字元 0 封') && (await TM.textContent('[data-mig-stat]')).includes('4 封之前搬移時已經寄過'), '再看預覽：0 封新信、4 封已寄過');
-    ok((await logsOf(TM)).some(l => l.act === '一次搬移'), '搬移寫了操作紀錄');
+    ok((await logsOf(TM)).some(l => l.act === '匯入舊回報'), '匯入舊回報寫了操作紀錄');
     /* 學生領得到 */
     const S = await student(browser, await allFS(TM)); await openMail(S);
     const mid = await mailIds(S);
