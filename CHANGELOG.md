@@ -5,6 +5,17 @@
 
 ---
 
+## v3.13.1 — 2026-11-18 — 標點符號挑戰：過關自動記錄、頓號鍵位、不能貼上
+
+只動標點挑戰的熱修，沒有新世界的改動（`NOTICES` 不變）。
+
+### 修正
+- **過關自動記錄**：每過一關記下「下一關的編號」`punctStage`（本機 `mg_hist`、雲端 `mg_scores` 都存，雲端失敗不卡遊戲）。`histFromDoc()`／`mergeHist()` 帶 `punctStage` 並取大的；`saveScore()` 整個取代 `MY_HIST` 時補帶 `punctDone`／`punctStage`。進挑戰時有進度且沒通關就從那一關繼續，過了的關卡不再跳教學。已通關的人照舊從第 1 關重玩。新增 `tools/browser-test/nw3b.test.js`。
+- **頓號鍵位**：`PUNCT_LESSONS`、`PUNCT_KEYBOARD`、`PUNCT_SAME` 的頓號由 `\\` 改成 `'`（ㄤ 右邊那顆），教學動畫與鍵盤圖一起改正。
+- **擋貼上和拖放**：`#pt-input` 擋 `paste`、`drop`、`beforeinput`（貼上／拖放／yank）；打怪題目 `#ptm-text` 不能選取，擋 `copy`、`cut`、`dragstart`。
+
+---
+
 ## v3.13.0 — 2026-11-12 — 打完標點挑戰就開放新世界、新世界公告
 
 ### 變更

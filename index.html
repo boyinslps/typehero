@@ -388,7 +388,7 @@ body{
 @keyframes ptmHit{25%{transform:translateX(-10px)}75%{transform:translateX(10px)}}
 .ptm-hp{width:min(420px,90%);height:16px;background:#2a1c1c;border:2px solid #6a5ab0}
 .ptm-hp i{display:block;height:100%;width:100%;background:repeating-linear-gradient(90deg,#d8402a 0 8px,transparent 8px 10px);transition:width .3s}
-#ptm-text{font-size:54px;font-weight:900;letter-spacing:.08em;color:var(--gold);text-align:center}
+#ptm-text{user-select:none;-webkit-user-select:none;font-size:54px;font-weight:900;letter-spacing:.08em;color:var(--gold);text-align:center}
 #pt-hint .pt-key{display:inline-block;min-width:2.2em;padding:.1em .6em;border:2px solid var(--gold);border-bottom-width:5px;border-radius:8px;background:var(--panel2);font-size:1.1em;text-align:center}
 .ptl-badge{background:var(--gold);color:#1a1409;font-weight:900;border-radius:99px;padding:2px 12px;font-size:14px}
 .ptl-mark{width:64px;height:64px;display:grid;place-items:center;border:3px solid var(--gold);border-radius:12px;background:var(--panel2);color:var(--gold)}
@@ -2708,8 +2708,14 @@ function initNw() {
    版本紀錄：首頁右下角那顆 v2.0.0 按鈕點開看到的內容。
    跟 CHANGELOG.md 是同一份資料，改一邊也要記得改另一邊。
    ══════════════════════════════════════════════════════════════ */
-const APP_VERSION = '3.13.0';
+const APP_VERSION = '3.13.1';
 const VERSION_LOG = [
+  { v:'3.13.1', date:'2026-11-18', title:'標點符號挑戰修好了三個地方',
+    fixed: [
+      '標點符號挑戰會記住你過了哪一關，下次從那一關繼續',
+      '頓號「、」的鍵按錯了：要按 Ctrl＋ㄤ 右邊那一顆',
+      '標點符號挑戰要自己打，不能用貼上的'
+    ] },
   { v:'3.13.0', date:'2026-11-12', title:'打完標點挑戰就開放新世界、新世界公告',
     added: [
       '打完「標點符號挑戰」就拿到「新世界門票」，直接開放新世界，不用輸入密語',
@@ -5581,21 +5587,21 @@ const PUNCT_LESSONS = [
   { ch: '？', name: '問號',   key: '/',  mod: 'Shift', use: '問別人事情的時候' },
   { ch: '，', name: '逗號',   key: ',',  mod: 'Ctrl',  use: '句子還沒講完，中間喘一口氣的地方' },
   { ch: '。', name: '句號',   key: '.',  mod: 'Ctrl',  use: '一句話講完了' },
-  { ch: '、', name: '頓號',   key: '\\', mod: 'Ctrl',  use: '並列的東西中間：蘋果、香蕉、芭樂' },
+  { ch: '、', name: '頓號',   key: "'", mod: 'Ctrl',  use: '並列的東西中間：蘋果、香蕉、芭樂' },
   { ch: '「', name: '上引號', key: '[',  mod: 'Ctrl',  use: '別人說的話從這裡開始', pick: ['【', '「', '『', '〔'] },
   { ch: '」', name: '下引號', key: ']',  mod: 'Ctrl',  use: '別人說的話到這裡結束', pick: ['】', '」', '』', '〕'] }
 ];
 const punctKeyLabel = p => `${p.mod} + ${p.key}`;
 
 /* 完整鍵盤，排法跟普通難度的注音鍵盤一樣，另外補上標點會用到的
-   [ ] \\ 三顆（注音鍵盤沒有那幾顆）。有標點的鍵會在上面標出來。 */
+   [ ] ' 三顆（注音鍵盤沒有那幾顆）。有標點的鍵會在上面標出來。 */
 const PUNCT_KEYBOARD = [
   [['`',''],['1','ㄅ'],['2','ㄉ'],['3','ˇ'],['4','ˋ'],['5','ㄓ'],['6','ˊ'],
    ['7','˙'],['8','ㄚ'],['9','ㄞ'],['0','ㄢ'],['-','ㄦ']],
   [['Q','ㄆ'],['W','ㄊ'],['E','ㄍ'],['R','ㄐ'],['T','ㄔ'],['Y','ㄗ'],
    ['U','ㄧ'],['I','ㄛ'],['O','ㄟ'],['P','ㄣ'],['[',''],[']','']],
   [['A','ㄇ'],['S','ㄋ'],['D','ㄎ'],['F','ㄑ'],['G','ㄕ'],['H','ㄘ'],
-   ['J','ㄨ'],['K','ㄜ'],['L','ㄠ'],[';','ㄤ'],['\\','']],
+   ['J','ㄨ'],['K','ㄜ'],['L','ㄠ'],[';','ㄤ'],["'",'']],
   [['Z','ㄈ'],['X','ㄌ'],['C','ㄏ'],['V','ㄒ'],['B','ㄖ'],['N','ㄙ'],
    ['M','ㄩ'],[',','ㄝ'],['.','ㄡ'],['/','ㄥ']]
 ];
@@ -5916,7 +5922,7 @@ function submitPunct() {
 }
 /* 只把「同一個標點的半形寫法」當成對，其餘一律算錯 */
 const PUNCT_SAME = {
-  '，': [',', '，'], '。': ['.', '。'], '、': ['、', '\\'],
+  '，': [',', '，'], '。': ['.', '。'], '、': ['、', "'"],
   '？': ['?', '？'], '！': ['!', '！'], '@': ['@', '＠'], '~': ['~', '～'],
   '「': ['「'], '」': ['」']
 };
@@ -7394,6 +7400,11 @@ function wireEvents() {
   $('pt-input').addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); submitPunct(); }
   });
+  /* 這個練習就是要親手打出標點：貼上、拖放都擋掉（beforeinput 連右鍵選單的貼上也攔得到） */
+  const ptNoPaste = e => { e.preventDefault(); toast('要自己打喔，不可以用貼上的！'); };
+  ['paste', 'drop'].forEach(t => $('pt-input').addEventListener(t, ptNoPaste));
+  $('pt-input').addEventListener('beforeinput', e => { if (e.inputType === 'insertFromPaste' || e.inputType === 'insertFromDrop' || e.inputType === 'insertFromYank') ptNoPaste(e); });
+  ['copy', 'cut', 'dragstart'].forEach(t => $('ptm-text').addEventListener(t, e => e.preventDefault()));
 
   /* 天賦 */
   $('btn-talent').addEventListener('click', openTalentPanel);

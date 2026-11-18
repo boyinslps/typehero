@@ -1,7 +1,7 @@
 /* 標點符號挑戰：過關自動記錄，下次從那一關繼續（本機＋雲端，取大的；通關後重玩不記進度） */
 const { chromium } = require('playwright'); const fs = require('fs');
 const path = require('path'); const M = path.join(__dirname, 'mock') + '/'; const OUT = process.argv[2] || require('os').tmpdir();
-const css = require('./tw.js')(OUT);
+const css = fs.existsSync(OUT + '/tw.css') ? fs.readFileSync(OUT + '/tw.css', 'utf8') : '';
 let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++; };
 const ID = '五年級3班_6號', HK = 'mg_hist_' + ID, PK = 'mg_pl_' + ID;
 
