@@ -57,11 +57,14 @@
 
 ---
 
-## v3.13.1 — 2026-11-16 — 標點挑戰修正（從分支補回）
+## v3.13.1 — 2026-11-18 — 標點符號挑戰：過關自動記錄、頓號鍵位、不能貼上、回饋重試
+
+只動標點挑戰與回饋的熱修，沒有新世界的改動（`NOTICES` 不變）。
 
 ### 修正
-- 頓號「、」鍵位從 `\` 改成 `'`（ㄤ 右邊那顆）：`PUNCT_LESSONS`、`PUNCT_KEYBOARD`、`PUNCT_SAME`。
-- 標點挑戰輸入框擋貼上／拖放（`paste`、`drop`、`beforeinput`）；打怪題目文字不能選取複製。
+- **過關自動記錄**：每過一關記下「下一關的編號」`punctStage`（本機 `mg_hist`、雲端 `mg_scores` 都存，雲端失敗不卡遊戲）。`histFromDoc()`／`mergeHist()` 帶 `punctStage` 並取大的；`saveScore()` 整個取代 `MY_HIST` 時補帶 `punctDone`／`punctStage`。進挑戰時有進度且沒通關就從那一關繼續，過了的關卡不再跳教學。已通關的人照舊從第 1 關重玩。新增 `tools/browser-test/nw3b.test.js`。
+- **頓號鍵位**：`PUNCT_LESSONS`、`PUNCT_KEYBOARD`、`PUNCT_SAME` 的頓號由 `\\` 改成 `'`（ㄤ 右邊那顆），教學動畫與鍵盤圖一起改正。
+- **擋貼上和拖放**：`#pt-input` 擋 `paste`、`drop`、`beforeinput`（貼上／拖放／yank）；打怪題目 `#ptm-text` 不能選取，擋 `copy`、`cut`、`dragstart`。
 - 測試魔物回饋：送出前濾掉 undefined 欄位、逾時 6→12 秒並自動重試一次、失敗顯示錯誤代碼、送出中鎖住按鈕。
 - 許願池「其他想法」提示改成「請寫玩法？想加入的內容？」。
 
