@@ -4764,6 +4764,7 @@ function histFromDoc(d) {
     tutorialDone: !!d.tutorialDone,
     talentIntroDone: !!d.talentIntroDone,
     punctDone: !!d.punctDone,
+    punctStage: d.punctDone ? PUNCT_TOTAL : Math.max(0, Math.min(PUNCT_TOTAL, d.punctStage | 0)),
     plays:      d.plays || 0,
     balanceVer: d.balanceVer || 0,
     lastPlayedMs: (ts && ts.toDate) ? ts.toDate().getTime() : 0
@@ -4808,6 +4809,8 @@ function mergeHist(a, b) {
     tutorialDone: !!((a && a.tutorialDone) || (b && b.tutorialDone)),
     talentIntroDone: !!((a && a.talentIntroDone) || (b && b.talentIntroDone)),
     punctDone: !!((a && a.punctDone) || (b && b.punctDone)),
+    /* 進度只增不減，取大的（v3.13.0 曾漏帶 punctDone，重新登入就不見）；通關的人一律是「全部通過」 */
+    punctStage: ((a && a.punctDone) || (b && b.punctDone)) ? PUNCT_TOTAL : pick('punctStage'),
     balanceVer: Math.max((a && a.balanceVer) || 0, (b && b.balanceVer) || 0),
     lastPlayedMs: pick('lastPlayedMs')
   };
@@ -5601,6 +5604,8 @@ const PUNCT_STAGES = [
   { name: 'Shift 加一顆鍵', chs: ['！', '@', '~', '？'], practice: 3 },
   { name: 'Ctrl 加一顆鍵', chs: ['，', '。', '、', '「', '」'], practice: 3 }
 ];
+/* 練習關卡數＋最後的打怪挑戰；punctStage 記「下一關的編號」，等於 PUNCT_TOTAL 就是全部通過 */
+const PUNCT_TOTAL = PUNCT_STAGES.length + 1;
 const PUNCT_BY_CH = Object.fromEntries(PUNCT_LESSONS.map(p => [p.ch, p]));
 const PUNCT_SENTENCES = ['你好嗎？', '太好了！', '蘋果、香蕉', '我來了。', '他說「好」', '吃飯，睡覺。', '哇！好大！', '你是誰？', '紅、黃、藍', '快跑！快跑！', '小明說「嗨！」', '好，走吧。', '好棒~', '哈哈~好玩！', '下雨了，快回家。'];
 const PT_MON_HITS = 5;
@@ -5703,8 +5708,34 @@ function startPtStage(si) {
   PT.queue = ptShuffle([...lessons]).slice(0, st.practice); PT.idx = 0; PT.phase = 'practice'; PT.miniCh = '';
   show('pt-prac', true); show('pt-mon', false);
   setTxt('pt-sub', `第 ${si + 1} / ${PUNCT_STAGES.length} 關：${st.name}・先看一遍，再練 ${st.practice} 個`);
-  PT.teach = ptLearned().has('#' + si) ? [] : [lessons];
+  /* 已經過的關卡不用再看教學；ptLearned 只在本機，換電腦就沒了，所以以進度為準 */
+  PT.teach = (ptLearned().has('#' + si) || si < PT.resumeFrom) ? [] : [lessons];
+  ptNoteResume();
   ptNextTeach();
+}
+
+/* 回到上次停下的那一關。已全部通關的人是複習，照舊從第 1 關開始，也不記進度 */
+function ptResumeStage() {
+  if (!MY_HIST || MY_HIST.punctDone) return 0;
+  return Math.max(0, Math.min(PUNCT_TOTAL - 1, MY_HIST.punctStage | 0));
+}
+function ptNoteResume() {
+  if (!PT.resumeNote) return;
+  const el = $('pt-sub');
+  el.textContent = PT.resumeNote + '。' + el.textContent;
+  PT.resumeNote = '';
+}
+/* 每過一關就記下一關的編號：本機先寫，雲端失敗不能卡住遊戲 */
+async function ptSaveProgress(next) {
+  if (MY_HIST && MY_HIST.punctDone) return;
+  if (next <= ((MY_HIST && MY_HIST.punctStage) | 0)) return;
+  MY_HIST = Object.assign({}, MY_HIST, { punctStage: next });
+  writeLocalHist(ME.docId, MY_HIST);
+  try {
+    await withTimeout(setDoc(doc(REF.scores, ME.docId), {
+      className: ME.className, seat: ME.seat, name: ME.name, punctStage: next
+    }, { merge: true }), 6000, '上傳逾時');
+  } catch (e) { console.error('標點進度上傳失敗', e); }
 }
 
 function startPunctDrill() {
@@ -5716,7 +5747,15 @@ function startPunctDrill() {
   buildPunctPad();
   $('pt-feedback').textContent = '';
   ptPaintTicket();
-  startPtStage(0);
+  const from = ptResumeStage();
+  PT.resumeFrom = from;
+  PT.resumeNote = '';
+  if (from > 0) {
+    const names = Array.from({ length: from }, (_, i) => i + 1).join('、');
+    PT.resumeNote = (from >= PUNCT_STAGES.length ? '從打怪挑戰繼續' : `從第 ${from + 1} 關繼續`) + `（第 ${names} 關已經過了）`;
+    for (let i = 0; i < from; i++) { const el = document.querySelector(`#pt-ticket .st[data-i="${i}"]`); if (el) el.classList.add('on'); }
+  }
+  if (from >= PUNCT_STAGES.length) startPtMonster(); else startPtStage(from);
 }
 
 /* 鍵盤長得跟普通難度那排一樣（.zk），只是把標點標在對應的鍵上 */
@@ -5788,6 +5827,7 @@ function startPtMonster() {
   PT.mon = { hp: PT_MON_HITS, cur: '', list: null, i: 0 };
   show('pt-prac', false); show('pt-mon', true);
   setTxt('pt-sub', '最後挑戰：打怪！字和標點混在一起打');
+  ptNoteResume();
   [...$('pt-keys').querySelectorAll('.ptk')].forEach(k => k.classList.remove('lit'));
   $('ptm-cv').replaceChildren(PX.canvas('monster', 'coo', 5, false));
   $('pt-feedback').textContent = '';
@@ -5798,6 +5838,7 @@ function startPtMonster() {
 function ptStageDone() {
   if (PT.busy) return;
   ptStamp(PT.stage); ptBanner(`第 ${PT.stage + 1} 關通過！`);
+  ptSaveProgress(PT.stage + 1);
   if (PT.stage + 1 < PUNCT_STAGES.length) {
     PT.busy = true;
     const fb = $('pt-feedback'); fb.style.color = 'var(--gr)'; fb.textContent = '🎉 過關！下一關…';
@@ -5911,14 +5952,14 @@ async function finishPunctDrill() {
   MY_HIST = Object.assign({}, MY_HIST, {
     growthPts: ((MY_HIST && MY_HIST.growthPts) || 0) + total,
     growthTotal: ((MY_HIST && MY_HIST.growthTotal) || 0) + total,
-    punctDone: true, lastPlayedMs: Date.now()
+    punctDone: true, punctStage: PUNCT_TOTAL, lastPlayedMs: Date.now()
   });
   writeLocalHist(ME.docId, MY_HIST);
   try {
     await withTimeout(setDoc(doc(REF.scores, ME.docId), {
       className: ME.className, seat: ME.seat, name: ME.name,
       growthPts: MY_HIST.growthPts, growthTotal: MY_HIST.growthTotal,
-      punctDone: true, lastPlayedAt: serverTimestamp()
+      punctDone: true, punctStage: PUNCT_TOTAL, lastPlayedAt: serverTimestamp()
     }, { merge: true }), 6000, '上傳逾時');
   } catch (e) {
     console.error('標點練習上傳失敗', e);
@@ -6921,6 +6962,9 @@ async function saveScore() {
     tier:         G.tier,                  // 這一場實際走的層級，寫回去當作現況
     dda:          before.dda,              // v3 不再使用，原樣帶著不覆蓋也不刪
     tutorialDone: true,                    // 走得到這裡代表教學一定做過（或跳過）了
+    /* 這個物件會整個取代 MY_HIST 與本機紀錄，沒帶的欄位等於被清掉：標點挑戰的進度要原樣留著 */
+    punctDone:    !!before.punctDone,
+    punctStage:   before.punctDone ? PUNCT_TOTAL : (before.punctStage || 0),
     plays:        (before.plays || 0) + 1,
     balanceVer:   BALANCE.ver,
     lastPlayedMs: Date.now()
