@@ -11,3 +11,7 @@ export { toMs, normalizeEvent, phaseOf, GRACE_MS, timeText, scoreText, sortDir, 
 export { normalizeNews, sortNews, bugCmp } from '../nw-notice.js';
 /* 名字鎖的雜湊：mg_bugboard 學生讀得到，所以只存正規化後名字的雜湊，不存真名（跟學生端 checkName() 同一個算法） */
 export { sha256Hex } from '../nw-access.js';
+/* 人物卡（teacher/pc.js）：畫法與學生背包共用同一套，見 nw-card.js */
+export { PX } from '../pixel.js';
+export { heroLook, HR_MAX } from '../nw-data.js';
+export { EQUIP_LEFT, EQUIP_RIGHT, heroOf, ownedWeapons, hrProgress, titleBadgeHtml, equipSlotHtml, mountSprites, CARD_CSS } from '../nw-card.js';

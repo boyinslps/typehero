@@ -5,6 +5,7 @@ import { db, doc, setDoc, writeBatch } from './fb.js';
 import { loadScores, loadBoard, loadFlags, loadMails, loadClassSizes, invalidate, nameChanged, nameBase, byClsSeat } from './data.js';
 import { clsShort, MONSTERS, REGIONS, ITEM_DEFS, MAIN_QUESTS, currentQuest, wordById, twDay, normName, sha256Hex } from './nw.js';
 import { MATS } from './gifts.js';
+import { openPersonCard } from './pc.js';
 import { $, esc, fmtT, relT, log, modal, toast, errText, ask, matchStudent, helpBox } from './util.js';
 
 const COLS = [
@@ -57,7 +58,7 @@ export default async function mount(el, ctx, params) {
   function paint() {
     const list = shown();
     el.innerHTML = `<h2>👥 學生</h2>
-      ${helpBox(['這裡列出所有有存檔的學生。上面可以用年級、班級、關鍵字篩選；關鍵字可以打姓名、暱稱，或「503 5」（503 班 5 號）。', '選一個班，會出現「班級快覽」：誰在線、誰今天沒來、誰勝率偏低，點一下就篩出那些人。', '點一列會打開學生卡：看他的進度，也可以直接寄信給他。', '勾好幾位同學，按右上角的「寄信給勾選的 N 人」。'])}
+      ${helpBox(['這裡列出所有有存檔的學生。上面可以用年級、班級、關鍵字篩選；關鍵字可以打姓名、暱稱，或「503 5」（503 班 5 號）。', '選一個班，會出現「班級快覽」：誰在線、誰今天沒來、誰勝率偏低，點一下就篩出那些人。', '點名字會打開人物卡（◀ ▶ 或左右鍵換下一位）；點同一列其他地方是文字版的學生卡。兩種都可以直接寄信給他。', '勾好幾位同學，按右上角的「寄信給勾選的 N 人」。'])}
       <div class="row" style="margin-bottom:8px">
         <select class="inp" data-f="grade"><option value="">全部年級</option>${grades().map(g => `<option ${f.grade === g ? 'selected' : ''}>${esc(g)}</option>`).join('')}</select>
         <select class="inp" data-f="cls"><option value="">全部班級</option>${classes().map(c => `<option value="${esc(c)}" ${f.cls === c ? 'selected' : ''}>${esc(clsShort(c))}（${esc(c)}）</option>`).join('')}</select>
@@ -89,7 +90,7 @@ export default async function mount(el, ctx, params) {
     const b = bd(s), warn = nameChanged(s, b);
     return `<tr class="clk" data-id="${esc(s.id)}"><td><input type="checkbox" data-sel="${esc(s.id)}" ${sel.has(s.id) ? 'checked' : ''}></td>
       <td>${esc(clsShort(s.className))}</td><td>${s.seat}</td>
-      <td>${esc(s.name)}${warn ? ' <span class="chip warn" title="名字跟上次不一樣">⚠ 換過名字</span>' : ''}</td>
+      <td><span class="pc-open" data-pc="${esc(s.id)}" title="看人物卡">${esc(s.name || '（沒有姓名）')}</span>${warn ? ' <span class="chip warn" title="名字跟上次不一樣">⚠ 換過名字</span>' : ''}</td>
       <td>${s.played ? esc(s.nick || '（還沒取）') : '<span class="dim">—</span>'}${b.hideNick ? ' <span class="chip warn">已隱藏</span>' : ''}</td>
       <td>${s.played ? s.hr : '—'}</td><td>${s.played ? s.coins : '—'}</td><td>${esc(s.weapon || '—')}</td><td class="wrap" style="min-width:130px">${esc(questText(s))}</td><td>${s.played ? s.hunts : '—'}</td>
       <td>${s.played ? `${s.wins}／${s.fails}` : '—'}${lowWin(s) ? ' <span class="chip warn" title="打 5 場以上、勝率低於 4 成">卡關？</span>' : ''}</td><td title="${esc(fmtT(s.last))}">${esc(relT(s.last))}</td>
@@ -116,9 +117,21 @@ export default async function mount(el, ctx, params) {
     const th = e.target.closest('[data-sort]');
     if (th) { sort = { key: th.dataset.sort, dir: sort.key === th.dataset.sort ? -sort.dir : 1 }; paint(); return; }
     if (e.target.closest('[data-mailsel]')) { ctx.go('mail', { aud: [...sel].map(i => 'id:' + i) }); return; }
+    const pc = e.target.closest('[data-pc]'); if (pc) { openPerson(pc.dataset.pc); return; }
     if (e.target.closest('input')) return;
     const tr = e.target.closest('tr[data-id]'); if (tr) openCard(tr.dataset.id);
   });
+
+  /* ── 人物卡：切換的順序就是點的當下表格看到的順序（篩選、排序後的結果） ── */
+  const openPerson = id => openPersonCard({ ids: shown().map(s => s.id), start: id, find: i => scores.find(x => x.id === i), board: bd, act: async (a, s) => {
+    try {
+      if (a === 'mail') { ctx.go('mail', { aud: ['id:' + s.id] }); return 'close'; }
+      if (a === 'detail') { setTimeout(() => openCard(s.id), 0); return 'close'; }
+      if (a === 'hide') await toggleHide(s);
+      if (a === 'nameok') await nameOk(s, await loadFlags(true).catch(() => []));
+      paint();
+    } catch (er) { toast('失敗：' + errText(er), true); }
+  } });
 
   /* ── 學生卡 ── */
   async function openCard(id) {

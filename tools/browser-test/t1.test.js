@@ -212,7 +212,7 @@ const dismissGifts = async p => { for (let i = 0; i < 14; i++) { if (!(await p.$
     await T.click('th[data-sort="cls"]'); await T.click('th[data-sort="cls"]');
 
     /* 學生卡 */
-    await T.click(`tr[data-id="${ID5}"] td:nth-child(4)`); await T.waitForSelector('[data-modal]'); await T.waitForTimeout(300);
+    await T.click(`tr[data-id="${ID5}"] td:nth-child(2)`); await T.waitForSelector('[data-modal]'); await T.waitForTimeout(300);
     let mt = await modalText(T);
     ok(mt.includes('HR 7') && mt.includes('字元 120') && mt.includes('已領的信') && mt.includes('舊信') && mt.includes('教學') && mt.includes('區域進度') && mt.includes('圖鑑') && mt.includes('材料') && mt.includes('任務') && mt.includes('稱號'), '學生卡：稱號、區域進度、圖鑑、道具、材料、教學、任務、已領的信（信用標題顯示）');
     ok(!mt.includes('名字沒問題') && !mt.includes('換過名字'), '沒換名字的人沒有「名字沒問題」按鈕');
@@ -229,7 +229,7 @@ const dismissGifts = async p => { for (let i = 0; i < 14; i++) { if (!(await p.$
     ok((await T.textContent(`tr[data-id="${ID5}"]`)).includes('已隱藏'), '表格那列標「已隱藏」');
 
     /* 阿強：⚠ 與名字沒問題 */
-    await T.click(`tr[data-id="${ID7}"] td:nth-child(4)`); await T.waitForSelector('[data-modal]'); await T.waitForTimeout(300);
+    await T.click(`tr[data-id="${ID7}"] td:nth-child(2)`); await T.waitForSelector('[data-modal]'); await T.waitForTimeout(300);
     mt = await modalText(T);
     ok(mt.includes('名字跟上次不一樣') && mt.includes('阿志') && mt.includes('阿強') && mt.includes('還沒處理'), '學生卡：⚠ 名字跟上次不一樣，列出基準、現在的名字與換名紀錄');
     await T.click('[data-modal] [data-act="nameok"]'); await T.waitForTimeout(500);
@@ -247,7 +247,7 @@ const dismissGifts = async p => { for (let i = 0; i < 14; i++) { if (!(await p.$
     ok(await T.isChecked('input[name="mode"][value="stu"]') && (await T.$$('[data-chosen] .chip')).length === 2, '帶到信箱：收件人＝學生、已選 2 人');
     ok((await T.textContent('[data-summary]')).includes('2 人'), '摘要寫 2 人');
     await tab(T, 'students');
-    await T.click(`tr[data-id="${ID6}"] td:nth-child(4)`); await T.waitForSelector('[data-modal]'); await T.waitForTimeout(300);
+    await T.click(`tr[data-id="${ID6}"] td:nth-child(2)`); await T.waitForSelector('[data-modal]'); await T.waitForTimeout(300);
     await T.click('[data-modal] [data-act="mail"]'); await ready(T);
     ok(await T.isChecked('input[name="mode"][value="stu"]') && (await T.$$('[data-chosen] .chip')).length === 1 && await modalOpen(T) === 0, '學生卡「寄信給他」：帶到信箱、收件人 1 人');
   }
@@ -451,7 +451,7 @@ const dismissGifts = async p => { for (let i = 0; i < 14; i++) { if (!(await p.$
     const TL = await teacher(browser, seedL);
     await tab(TL, 'students'); await TL.check('[data-f="warn"]');
     ok((await TL.$$('#main tr[data-id]')).length === 1, '教師頁看得到 ⚠（小明）');
-    await TL.click(`tr[data-id="${ID5}"] td:nth-child(4)`); await TL.waitForSelector('[data-modal]'); await TL.waitForTimeout(300);
+    await TL.click(`tr[data-id="${ID5}"] td:nth-child(2)`); await TL.waitForSelector('[data-modal]'); await TL.waitForTimeout(300);
     await TL.click('[data-modal] [data-act="nameok"]'); await TL.waitForTimeout(500);
     ok((await FS(TL, 'mg_bugboard/' + ID5)).nameOkH === await (await import('../../nw-access.js')).sha256Hex('小明') && (await FS(TL, 'mg_bugboard_private/' + ID5)).nameOk === '小明' && !('nameOk' in (await FS(TL, 'mg_bugboard/' + ID5))), '老師按「名字沒問題」：雜湊在 mg_bugboard、真名在 mg_bugboard_private');
     const S1 = await student(browser, await allFS(TL));

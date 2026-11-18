@@ -56,6 +56,8 @@ NODE_PATH=$(npm root -g) node tools/browser-test/seg0.test.js /tmp
 - M1 老師打的理由與真名不進 `mg_bugboard`（理由只在 `mg_bugboard_private` 與操作紀錄、名字沒問題只存雜湊、回覆另外寄信、學生「我的回報」看得到信裡那句）；M2 用 CDP `Input.imeSetComposition` 模擬注音輸入（學生頁、信箱頁、手動加分的搜尋框）；M3 信箱預設不選收件人、全校＋禮物多一道確認、24 小時內重複提醒；M4 點背景／Esc 先問要不要放棄；M5 已經有信寄出就不能重新排名；M6 總覽與活動頁的待發獎提醒。
 - S1 班級快覽與相對時間、S2 多人手動加分與搜尋認得「503 5」、S3 活動表單、S4 手機 390 寬按鈕不被切掉、S5 白話與空狀態。
 
+`t4.test.js` 測教師頁「👥 學生」的人物卡（開 `__RULES`）：點名字開卡、角色 canvas（整數倍率、呼吸動畫、減少動態時關閉）、暱稱／稱號／HR／武器名稱、裝備格（武器有圖、其他暗色＋）、小資訊列、沒進過新世界／沒造型不壞、◀ ▶ 與左右鍵（確認視窗開著不換人）、Esc／背景關閉、看詳細資料開文字版學生卡、寄信、隱藏暱稱、名字沒問題、手機 390 不橫向捲動。截圖 `/tmp/card-desktop.png`、`/tmp/card-mobile.png`。
+
 `nw5.test.js` 測 A 版（教師管理頁規格 §1.4～§1.7，開 `__RULES`）：房間改存 `mg_rooms`、序號（一人一份 `mg_gift_used`、同一人換電腦不能再領、次數上限用 count、舊版 `used` 也算）、回報不帶 `claimed`、學生端不讀 `mg_nw_flags`、`mg_bugboard` 同步（件數取 max、抓蟲分、詞條）、存檔最外層 `nwCls`／`nwEvDone`、`mg_clock` 時差、冒名鎖（基準 `nameOk`／`name0`、`namechg` 固定 ID、改回原名自動解鎖、全半形與空白）。
 
 `nw6.test.js` 測舊控制台的老師登入：過「teacher」那道門後跳 email 登入、錯誤訊息、非老師帳號被擋並登出、記住這台電腦（Local／Session）、重開還在、取消後控制台只看不寫、開戰／設定／序號／清空成績都走 admin 身分、序號「用掉幾次」用 count、回饋按鈕連到 `teacher.html`。

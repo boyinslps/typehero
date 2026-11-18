@@ -42,14 +42,14 @@ export function errText(e) {
    buttons: [{ id, label, cls }]，回傳按下的 id；點旁邊或按 Esc 回 null。
    sticky: true 給「有填寫內容」的視窗（發獎、加分、回覆）：點旁邊或按 Esc 不會直接關掉，
    會先問「要放棄填的內容嗎？」，不然手機上手指滑過去點到視窗外，整份表單就沒了。
-   視窗裡的元素要自己接事件的話，用 onOpen(box) 拿到內容容器。 */
+   視窗裡的元素要自己接事件的話，用 onOpen(box, el, close) 拿到內容容器、最外層與關閉函式；buttons 給空陣列就不畫按鈕列（人物卡自己有按鈕）。 */
 const openModals = [];   // 疊在上面的視窗才吃 Esc，不然「要放棄嗎？」跟底下的視窗會同時反應
 export function modal({ title, html, buttons = [{ id: 'ok', label: '確定', cls: 'gold' }], wide, sticky, onOpen }) {
   return new Promise(res => {
     const root = $('#modal-root'), el = document.createElement('div');
     el.className = 'mdl' + (wide ? ' wide' : ''); el.setAttribute('data-modal', ''); if (sticky) el.setAttribute('data-sticky', '');
     el.innerHTML = `<div class="px-panel" role="dialog" aria-modal="true">${title ? `<h2 style="margin-bottom:8px">${esc(title)}</h2>` : ''}<div data-body>${html || ''}</div>
-      <div class="row" style="justify-content:flex-end;margin-top:12px">${buttons.map(b => `<button class="px-btn ${b.cls || ''}" data-btn="${esc(b.id)}">${esc(b.label)}</button>`).join('')}</div></div>`;
+      ${buttons.length ? `<div class="row" style="justify-content:flex-end;margin-top:12px">${buttons.map(b => `<button class="px-btn ${b.cls || ''}" data-btn="${esc(b.id)}">${esc(b.label)}</button>`).join('')}</div>` : ''}</div>`;
     const done = v => { document.removeEventListener('keydown', onKey); const i = openModals.indexOf(el); if (i >= 0) openModals.splice(i, 1); el.remove(); res(v); };
     let asking = false;
     const dismiss = async () => {
@@ -68,7 +68,7 @@ export function modal({ title, html, buttons = [{ id: 'ok', label: '確定', cls
     document.addEventListener('keydown', onKey);
     openModals.push(el);
     root.appendChild(el);
-    if (onOpen) onOpen($('[data-body]', el), el);
+    if (onOpen) onOpen($('[data-body]', el), el, done);
   });
 }
 export const ask = (title, html, okLabel = '確定', cancelLabel = '取消', danger) =>

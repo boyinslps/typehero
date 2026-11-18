@@ -5,6 +5,7 @@ import {
   COLOR_NAME, COLOR_HEX, HR_MAX, VILLAGE, doorTile, buildingOpen, goalOf, TEST_TAGS, FB_COINS, FB_MINLEN, BUG_COINS, BUG_REWARD_MAX, LESSON_COINS, TESTER_MISSIONS, checkMissions, GIFT_WEAPONS, weaponInfo, weaponBase, curWeapon, WORDS, WORD_GROUPS, checkWords, setTitleParts, wordById, normName, NICK_A, NICK_B, ITEM_DEFS, nickText, nickWord, NOTICES
 } from './nw-data.js';
 import { injectUi } from './nw-ui.js';
+import { tierOf, EQUIP_LEFT, EQUIP_RIGHT, heroOf, titleBadgeHtml, darkDots, equipSlotHtml, mountSprites as mountSpritesPx, CARD_CSS } from './nw-card.js';
 import { mountVillage } from './nw-village.js';
 import { mountBoard } from './nw-board.js';
 import { startBattle } from './nw-battle.js';
@@ -282,7 +283,7 @@ export function initNewWorld(C) {
   }
 
   const tier = () => (C.getHist() && C.getHist().tier) || 'B';
-  const myHero = (weapon, gear) => heroLook(NW.look, weapon || curWeapon(NW) || 'staff', gear);
+  const myHero = (weapon, gear) => heroOf(NW, weapon, gear);
 
   function checkQuests() {
     const got = [];
@@ -315,10 +316,7 @@ export function initNewWorld(C) {
       <button class="px-btn text-sm px-4 py-2" data-act="${back}">${backTxt || '← 回獵人村'}</button>
     </div>`;
   const cv = (host, canvas) => { host.replaceChildren(canvas); return host; };
-  const mountSprites = scope => scope.querySelectorAll('[data-sprite]').forEach(el => {
-    const [kind, key, sc, ang] = el.dataset.sprite.split(':');
-    cv(el, PX.canvas(kind, key, +sc || 3, ang === '1'));
-  });
+  const mountSprites = scope => mountSpritesPx(PX, scope);
 
   async function enter() {
     const g = gate();
@@ -602,7 +600,6 @@ export function initNewWorld(C) {
 
   function syncTitle() { if (C.setTitle) C.setTitle(NW.title || '', (NW.titleParts || []).length); }
 
-  const darkDots = () => Array.from({ length: 7 }, (_, i) => `<i class="dkp" style="left:${8 + i * 7}px;bottom:${6 + (i * 5) % 18}px;animation-delay:${(i * .23).toFixed(2)}s;--dx:${(i % 2 ? 6 : -6)}px"></i>`).join('');
 
   function showGift(g) {
     return new Promise(done => {
@@ -1085,8 +1082,7 @@ export function initNewWorld(C) {
 
   function closeBag() { const b = document.getElementById('nw-bag'); if (b) b.remove(); }
 
-  const tierOf = n => Math.min(3, Math.max(1, n));
-  const titleLine = () => NW.title ? `${PX.badge(tierOf(NW.titleParts.length), 2)} <b>${escHtml(NW.title)}</b>` : `${PX.badge(1, 2)} <span style="color:#aab0d8">還沒有稱號・點我拚一個</span>`;
+  const titleLine = () => NW.title ? titleBadgeHtml(PX, NW, escHtml, 2) : `${PX.badge(1, 2)} <span style="color:#aab0d8">還沒有稱號・點我拚一個</span>`;
 
   function openTitleEditor(after) {
     introOnce('title');
@@ -1299,28 +1295,19 @@ export function initNewWorld(C) {
     const sheet = document.createElement('div');
     sheet.id = 'nw-bag'; sheet.className = 'nw-sheet fixed inset-0 z-[75] overflow-y-auto'; sheet.style.background = 'rgba(9,8,18,.9)';
     sheet.innerHTML = `<style>
-      .bp-slot{width:64px;height:64px;display:grid;place-items:center;position:relative;background:#0e0b16;border:3px solid #3a3070;box-shadow:inset 0 0 0 2px #1a1530}
-      .bp-slot.on{border-color:#e8b64c}
-      .bp-slot canvas{max-width:52px;max-height:52px;width:auto!important;height:auto!important}
-      .bp-slot span{color:#4a4570;font-size:22px;font-weight:900}
-      .bp-slot i{position:absolute;left:0;right:0;bottom:-18px;text-align:center;font-style:normal;font-size:11px;font-weight:900;color:#aab0d8}
+      ${CARD_CSS}
       .bp-title{display:block;width:100%;text-align:center;padding:6px 8px;background:#0a0714;border:3px solid #6a5ab0;color:#fff;font-weight:900;cursor:pointer}
       .bp-title:hover{border-color:#ffd24a}
       .bp-cell{aspect-ratio:1;display:grid;place-items:center;background:#0e0b16;border:3px solid #2a2450;position:relative}
       .bp-cell.on{border-color:#e8b64c}
-      .bp-cell.dark,.bp-slot.dark{overflow:visible}
-      .dkp{position:absolute;width:3px;height:3px;background:#12081e;box-shadow:0 0 0 1px #9a5ae8;opacity:0;animation:dkp 1.6s infinite;pointer-events:none}
-      @keyframes dkp{0%{opacity:0;transform:translateY(0)}20%{opacity:1}100%{opacity:0;transform:translateY(-30px) translateX(var(--dx,0))}}
+      .bp-cell.dark{overflow:visible}
     </style><div class="max-w-5xl mx-auto p-3"><div class="px-panel" style="padding:12px">
       <div class="flex items-center justify-between mb-3"><div class="px-title text-2xl">🎒 背包</div><button class="px-btn" data-bag-close>關閉（B）</button></div>
       <div class="flex gap-3 flex-wrap items-start">
         <div class="px-panel in" style="width:340px;max-width:100%;padding:12px" data-card></div>
         <div class="flex-1" style="min-width:280px"><div class="flex gap-2 flex-wrap mb-2">${TABS.map(([k, i, n]) => `<button class="px-btn" data-bag-tab="${k}" style="position:relative">${i} ${n}${k === 'mail' ? `<i data-bagdot style="display:${mailCount > 0 ? 'block' : 'none'};position:absolute;top:-5px;right:-5px;width:14px;height:14px;background:#d83a3a;border:2px solid #0a0714"></i>` : ''}</button>`).join('')}</div>
           <div class="px-panel in" style="min-height:360px" data-body></div></div></div></div></div>`;
-    const slot = (k, n) => {
-      const w = k === 'weapon' && curWeapon(NW);
-      return `<div class="bp-slot ${w ? 'on' : ''} ${w && GIFT_WEAPONS[w] ? 'dark' : ''}" data-slot="${k}">${w ? `<div data-sprite="weapon:${w}:3"></div>${GIFT_WEAPONS[w] ? darkDots() : ''}` : '<span>＋</span>'}<i>${n}</i></div>`;
-    };
+    const slot = (k, n) => equipSlotHtml(NW, k, n);
     const renderCard = () => {
       const c = sheet.querySelector('[data-card]');
       c.innerHTML = `<div class="text-center px-text" style="font-size:1.25em;font-weight:900">${escHtml(ME.name)}</div>
@@ -1328,9 +1315,9 @@ export function initNewWorld(C) {
         ${NW.nick && cards() < 1 ? '<p class="text-xs mt-1" style="color:#8a86b0">要有改名卡才能換喔（之後商店會賣，也可能是老師的禮物）</p>' : ''}
         <button class="bp-title mt-1" data-title-edit title="點一下編輯稱號">${titleLine()}</button>
         <div class="flex items-center justify-between gap-1 mt-3" style="padding-bottom:20px">
-          <div class="flex flex-col gap-6">${slot('helm', '頭盔')}${slot('armor', '盔甲')}${slot('boots', '護腳')}</div>
+          <div class="flex flex-col gap-6">${EQUIP_LEFT.map(([k, n]) => slot(k, n)).join('')}</div>
           <div class="px-img" data-hero style="background:#0e0b16;padding:6px;border:3px solid #0a0714"></div>
-          <div class="flex flex-col gap-6" style="align-self:flex-start">${slot('weapon', '武器')}${slot('gloves', '護手')}</div>
+          <div class="flex flex-col gap-6" style="align-self:flex-start">${EQUIP_RIGHT.map(([k, n]) => slot(k, n)).join('')}</div>
         </div>
         <div class="flex gap-2 mt-2 flex-wrap justify-center"><button class="px-btn" data-bag-act="creator">💇 改造型</button></div>
         <p class="text-xs mt-2" style="color:#aab0d8">頭盔、盔甲、護手、護腳要等鐵匠鋪開張才能穿，穿上去角色會跟著變。</p>`;
