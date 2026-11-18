@@ -231,14 +231,17 @@ const noErr = (p, m = '沒有 JS 錯誤') => ok(p.errs.length === 0, m + ' ' + p
     noErr(p); await p.close();
   }
   {
-    const p = await open(b, { name: '小華', seed: { ['mg_bugboard/' + ID]: { nameOk: '小華', n: 0, score: 0, reports: [] } } });
-    ok(!(await p.evaluate(() => window.__NWG.nameLocked())) && (await keys(p, 'mg_nw_flags/namechg_')).length === 0, '老師按了「沒問題」（nameOk＝小華）：小華就是新基準，不鎖也不再記錄');
+    /* mg_bugboard 所有學生都讀得到，所以老師核可的名字只存雜湊 nameOkH（正規化後的名字），學生端拿自己輸入的名字算雜湊比對 */
+    const { sha256Hex } = await import('../../nw-access.js'), hH = await sha256Hex('小華');
+    const p = await open(b, { name: '小華', seed: { ['mg_bugboard/' + ID]: { nameOkH: hH, n: 0, score: 0, reports: [] } } });
+    ok(!(await p.evaluate(() => window.__NWG.nameLocked())) && (await keys(p, 'mg_nw_flags/namechg_')).length === 0, '老師按了「沒問題」（nameOkH＝小華的雜湊）：小華就是新基準，不鎖也不再記錄');
     await p.close();
-  }
-  {
-    const p = await open(b, { name: '小明', seed: { ['mg_bugboard/' + ID]: { nameOk: '小華', n: 0, score: 0, reports: [] } } });
-    ok(await p.evaluate(() => window.__NWG.nameLocked()), '基準優先用老師寫的 nameOk：nameOk 是小華時，用「小明」登入反而被鎖');
-    await p.close();
+    const p2 = await open(b, { name: '小明', seed: { ['mg_bugboard/' + ID]: { nameOkH: hH, n: 0, score: 0, reports: [] } } });
+    ok(await p2.evaluate(() => window.__NWG.nameLocked()), '基準優先用老師寫的 nameOkH：核可的是小華時，用「小明」登入反而被鎖');
+    await p2.close();
+    const p3 = await open(b, { name: '小 華', seed: { ['mg_bugboard/' + ID]: { nameOkH: hH, n: 0, score: 0, reports: [] } } });
+    ok(!(await p3.evaluate(() => window.__NWG.nameLocked())), 'nameOkH 比對前先統一寫法：中間多一個空白的「小 華」不算換名');
+    await p3.close();
   }
   {
     const p = await open(b, { name: 'ＡＢ', nw: { name0: 'ab' } });

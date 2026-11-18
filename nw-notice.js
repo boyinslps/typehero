@@ -2,7 +2,8 @@
    上半是純函式（可以在 node 直接測）；下半 createNotice() 接 Firestore。畫面在 newworld.js 的 openNotice()。
 
    mg_news/{ID}：{ title, body, pin, t }（老師公告；只有老師能寫）
-   mg_bugboard/{班級_座號}：{ className, seat, score, n, firstAt, hideNick, reports[] }（只有老師能寫；不存真名）
+   mg_bugboard/{班級_座號}：{ className, seat, score, n, firstAt, hideNick, bonus, nameOkH, reports[] }（只有老師能寫；所有登入的人都讀得到，所以不存真名與老師打的理由：
+     那些放 mg_bugboard_private，只有老師讀得到；nameOkH 是老師核可名字的雜湊）
      沒有 className／seat 時從文件 ID 拆（「五年級4班_5號」）。 */
 import { NICK_EMPTY, clsShort } from './nw-data.js';
 import { toMs } from './nw-events.js';

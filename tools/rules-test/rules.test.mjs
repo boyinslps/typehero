@@ -6,7 +6,8 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
-import { doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, collection, query, where, getCountFromServer, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, collection, query, where, getCountFromServer, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { publicBoard } from '../../teacher/bug-calc.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const PORT = 8089;
@@ -214,6 +215,57 @@ describe('正式規則 firestore-rules.txt', () => {
     test('學生讀前 10 名（orderBy score limit）→ 過', async () => {
       const { orderBy, limit } = await import('firebase/firestore');
       await assertSucceeds(getDocs(query(collection(d.stu, 'mg_bugboard'), orderBy('score', 'desc'), limit(10))));
+    });
+  });
+  /* 老師打的理由與真名放 mg_bugboard_private（只有老師讀得到）；mg_bugboard 學生讀得到，裡面不能有真名 */
+  describe('mg_bugboard_private（老師專用）', () => {
+    const P = 'mg_bugboard_private/' + ID;
+    beforeEach(async () => { await seed(te, db => setDoc(doc(db, P), { notes: [{ pts: 2, why: '口頭回報', t: 1 }], nameOk: '甲' })); });
+    test('老師讀、寫 → 過', async () => {
+      await assertSucceeds(getDoc(doc(d.teacher, P)));
+      await assertSucceeds(getDocs(collection(d.teacher, 'mg_bugboard_private')));
+      await assertSucceeds(setDoc(doc(d.teacher, P), { nameOk: '乙' }, { merge: true }));
+    });
+    test('學生讀單份 → 不過', () => assertFails(getDoc(doc(d.stu, P))));
+    test('學生列出整個集合 → 不過', () => assertFails(getDocs(collection(d.stu, 'mg_bugboard_private'))));
+    test('學生寫、刪 → 不過', async () => {
+      await assertFails(setDoc(doc(d.stu, P), { nameOk: '偽' }, { merge: true }));
+      await assertFails(deleteDoc(doc(d.stu, P)));
+    });
+    test('不是老師的登入帳號讀、寫 → 不過', async () => {
+      await assertFails(getDoc(doc(d.notTeacher, P)));
+      await assertFails(setDoc(doc(d.notTeacher, P), { a: 1 }));
+    });
+    test('未登入讀 → 不過', () => assertFails(getDoc(doc(d.anon, P))));
+    test('老師用教師頁的 publicBoard() 寫抓蟲榜：學生讀得到，但裡面沒有真名與理由欄位', async () => {
+      const dirty = { className: '五年級4班', seat: 5, score: 3, n: 1, firstAt: 5, bonus: 2, hideNick: false, nameOkH: 'abc', nameOk: '甲', notes: [{ pts: 2, why: '口頭回報', t: 1 }],
+        reports: [{ id: 'f1', st: 'approved', sev: 1, t: 5, reply: '謝謝', name: '甲', text: '很長的內容' }] };
+      const b = writeBatch(d.teacher);
+      b.set(doc(d.teacher, 'mg_bugboard/' + ID), publicBoard(dirty));
+      b.set(doc(d.teacher, P), { notes: dirty.notes, nameOk: dirty.nameOk });
+      await assertSucceeds(b.commit());
+      const got = (await assertSucceeds(getDoc(doc(d.stu, 'mg_bugboard/' + ID)))).data(), txt = JSON.stringify(got);
+      if ('nameOk' in got || 'notes' in got || txt.includes('甲') || txt.includes('口頭回報') || txt.includes('很長的內容')) throw new Error('學生讀得到真名或理由：' + txt);
+      if (got.nameOkH !== 'abc' || got.bonus !== 2 || got.reports[0].reply !== '謝謝' || got.reports[0].name !== undefined) throw new Error('公開欄位不對：' + txt);
+    });
+  });
+  /* 教師頁的批次（回報審核、手動加分、發獎）一次寫很多份：確認規則沒有卡住 */
+  describe('老師的批次寫入', () => {
+    test('一次 20 人手動加分（抓蟲榜＋專用資料＋信＋紀錄）→ 過', async () => {
+      const b = writeBatch(d.teacher);
+      for (let i = 0; i < 20; i++) {
+        const id = '五年級4班_' + (i + 1) + '號';
+        b.set(doc(d.teacher, 'mg_bugboard/' + id), { score: 2, bonus: 2 }, { merge: true });
+        b.set(doc(d.teacher, 'mg_bugboard_private/' + id), { notes: [{ pts: 2, why: 'x', t: 1 }] }, { merge: true });
+        b.set(doc(d.teacher, 'mg_mail/bonus_' + id + '_1'), { aud: ['id:' + id], title: 't', body: '', items: [], t: 1 });
+        b.set(doc(d.teacher, 'mg_admin_log/l_' + i), { act: '抓蟲手動加分', t: 1 });
+      }
+      await assertSucceeds(b.commit());
+    });
+    test('學生帳號同樣的批次 → 不過', async () => {
+      const b = writeBatch(d.stu);
+      b.set(doc(d.stu, 'mg_bugboard/' + ID), { score: 99 }, { merge: true });
+      await assertFails(b.commit());
     });
   });
   describe('mg_mail 查詢', () => {

@@ -21,6 +21,7 @@ npm test         # 起模擬器、跑完自動關
 - `mg_nw_flags`：學生只能 create、欄位白名單、不能讀、不能帶 `claimed`（舊版送回報會被擋，所以 A 版要先上線）。
 - `mg_gift_used`：同一人第二次領會被擋，count 查詢可用。
 - `mg_scores` 刪除只有老師。
+- `mg_bugboard_private`（老師專用：手動加分理由、真名）：學生讀、寫、列出都不過；用教師頁的 `publicBoard()` 寫出來的 `mg_bugboard`，學生讀得到但沒有真名與理由。老師的批次寫入（20 人手動加分）也過。
 
 ## 已知限制
 - 學生仍可改自己的 `mg_scores`（字元、裝備）；匿名 uid 對不上「班級_座號」，規則做不到。

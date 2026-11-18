@@ -9,3 +9,5 @@ export {
 } from '../nw-data.js';
 export { toMs, normalizeEvent, phaseOf, GRACE_MS, timeText, scoreText, sortDir, saneScore, saneFloor, clsMatch, pctOf, classReached } from '../nw-events.js';
 export { normalizeNews, sortNews, bugCmp } from '../nw-notice.js';
+/* 名字鎖的雜湊：mg_bugboard 學生讀得到，所以只存正規化後名字的雜湊，不存真名（跟學生端 checkName() 同一個算法） */
+export { sha256Hex } from '../nw-access.js';

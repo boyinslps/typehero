@@ -100,7 +100,7 @@ export function initNewWorld(C) {
     mailList = []; mailAt = 0; mailCount = 0;
     /* 時差、抓蟲榜、換名判斷各讀一份文件，一起等；網路慢時最多等 5 秒，不卡進村 */
     await Promise.all([syncClock(), syncBoard(true)]);
-    checkName();
+    await checkName();
     checkWords(NW);
     if (C.setTitle) C.setTitle(NW.title || '', (NW.titleParts || []).length);
   }
@@ -170,13 +170,15 @@ export function initNewWorld(C) {
 
   /* ── 冒名鎖（SPEC §1.5）：只擋隨手亂打名字，打對同學的名字就過了 ──
      基準不能用 name：登入與每次存檔都會把 name 改成這次打的名字，冒名的人第二次登入就自己解鎖了。
-     基準 = 老師寫的 mg_bugboard.nameOk，沒有就用存檔裡只寫一次的 nw.name0。 */
+     基準 = 老師按「名字沒問題」時寫的 mg_bugboard.nameOkH（名字的雜湊，學生讀得到這份文件，所以不存真名），
+     沒有就用存檔裡只寫一次的 nw.name0。 */
   let nameLock = false, nameBase = '';
-  function checkName() {
-    const cur = ME.name || '', ok = board && board.nameOk;
-    if (!NW.name0 && !ok) { NW.name0 = cur; saveNw(); }
-    nameBase = ok || NW.name0 || cur;
-    nameLock = !!cur && normName(cur) !== normName(nameBase);
+  async function checkName() {
+    const cur = ME.name || '', okH = board && typeof board.nameOkH === 'string' ? board.nameOkH : '';
+    if (!NW.name0 && !okH) { NW.name0 = cur; saveNw(); }
+    nameBase = NW.name0 || cur;
+    if (okH) nameLock = !!cur && (await sha256Hex(normName(cur))) !== okH;
+    else nameLock = !!cur && normName(cur) !== normName(nameBase);
     if (nameLock) writeNameFlag(cur, nameBase);
   }
   /* ID 帶新名字的雜湊：同一個新名字只有一筆，換成別的名字才會多一筆 */
@@ -984,21 +986,29 @@ export function initNewWorld(C) {
     document.body.appendChild(sheet);
   }
 
-  /* 「我的回報」：讀 mg_bugboard.reports（老師確認時寫入：id、st 狀態、sev 嚴重度、reply 回覆、t 送出時間） */
+  /* 「我的回報」：讀 mg_bugboard.reports（老師確認時寫入：id、st 狀態、sev 嚴重度、reply 回覆、t 送出時間）。
+     mg_bugboard 所有同學都讀得到，所以老師的回覆另外寄成信給本人（bug_／bugr_ 加回報代號），有信就用信裡那句，沒有才用 reports 裡的 */
+  const mailReply = id => {
+    const m = mailList.find(x => x.id === 'bug_' + id) || mailList.find(x => x.id === 'bugr_' + id);
+    const r = m && /老師說：([\s\S]*)$/.exec(String(m.body || ''));
+    return r ? r[1].trim() : null;
+  };
   function myReportsHtml() {
     const rs = (board && Array.isArray(board.reports)) ? board.reports.slice().sort((a, b) => (b.t || 0) - (a.t || 0)).slice(0, 8) : [];
     const score = NW.bugScore > 0 ? `<span class="px-chip" style="color:#8ec96b">抓蟲分 ${NW.bugScore}</span>` : '';
+    const replyOf = r => { const m = mailReply(r.id); return m !== null ? m : r.reply; };
     if (!rs.length) return `<div class="px-text text-sm mt-3" style="color:#aab0d8">我的回報：老師還沒有看過你的回報。${score}</div>`;
     /* 重複與不採用都用溫和的話：不讓同學覺得自己做錯了。老師有寫回覆就顯示老師的話 */
     const st = r => r.st === 'approved' ? '<b style="color:#8ec96b">✓ 老師確認了</b>'
       : r.st === 'dup' ? '<span style="color:#9ec9ff">別人先回報了，謝謝你也發現了！</span>'
       : r.st === 'rejected' ? '<span style="color:#e5705f">這次沒有採用，謝謝你</span>' : '<span style="color:#ffd98a">老師還沒看</span>';
     return `<div class="px-text mt-3" style="font-weight:900;color:#ffd98a">我的回報 ${score}</div>
-      <div class="flex flex-col gap-1 mt-1" data-reports>${rs.map(r => `<div class="px-panel in text-sm" style="padding:6px 10px">${r.t ? new Date(r.t).toLocaleDateString('zh-TW') + '　' : ''}${st(r)}${r.sev ? `　嚴重度 ${'★'.repeat(Math.min(3, +r.sev || 0))}` : ''}${r.reply ? `<div style="color:#aab0d8">老師說：${escHtml(String(r.reply).slice(0, 80))}</div>` : ''}</div>`).join('')}</div>`;
+      <div class="flex flex-col gap-1 mt-1" data-reports>${rs.map(r => `<div class="px-panel in text-sm" style="padding:6px 10px">${r.t ? new Date(r.t).toLocaleDateString('zh-TW') + '　' : ''}${st(r)}${r.sev ? `　嚴重度 ${'★'.repeat(Math.min(3, +r.sev || 0))}` : ''}${replyOf(r) ? `<div style="color:#aab0d8">老師說：${escHtml(String(replyOf(r)).slice(0, 80))}</div>` : ''}</div>`).join('')}</div>`;
   }
 
   async function openTesterBook() {
     await refreshBoard(true);
+    await refreshMail(true);   // 老師的回覆優先用寄給本人的信（見 mailReply）
     introOnce('book');
     const sheet = document.createElement('div');
     sheet.className = 'nw-sheet fixed inset-0 overflow-y-auto'; sheet.style.zIndex = 94; sheet.style.background = 'rgba(9,8,18,.94)';

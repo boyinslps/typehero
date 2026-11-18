@@ -220,6 +220,15 @@ async function winHunt(p, rk, mk, star) {
     await p.click('[data-act="book"]'); await p.waitForSelector('[data-reports]', { timeout: 6000 });
     const rep = await p.textContent('[data-reports]');
     ok(rep.includes('別人先回報了，謝謝你也發現了！') && rep.includes('這次沒有採用，謝謝你') && rep.includes('老師說：這是設計成這樣的') && !rep.includes('老師還沒看'), '「我的回報」：重複顯示「別人先回報了…」、不採用顯示「這次沒有採用，謝謝你」與老師的回覆：' + rep.replace(/\s+/g, ' ').slice(0, 160));
+    /* 老師的回覆：mg_bugboard 全班讀得到，所以另外寄信給本人；信箱裡有那句就優先用信裡的 */
+    await p.evaluate(() => {
+      document.querySelectorAll('.nw-sheet').forEach(e => e.remove());
+      window.__FS['mg_bugboard/五年級3班_5號'].reports.push({ id: 'x_rej3', st: 'rejected', sev: 0, reply: '公開欄位的舊回覆', t: Date.now() - 4000 });
+      window.__FS['mg_mail/bugr_x_rej3'] = { aud: ['id:五年級3班_5號'], title: '謝謝你幫忙抓蟲', body: '這次沒有採用，謝謝你回報。\n老師說：信裡的回覆', items: [], from: '老師', sendAt: Date.now() - 5000, expireAt: 0, t: Date.now() - 5000, src: 'bug' };
+    });
+    await p.click('[data-act="book"]'); await p.waitForSelector('[data-reports]', { timeout: 6000 }); await p.waitForTimeout(600);
+    const rep2 = await p.textContent('[data-reports]');
+    ok(rep2.includes('老師說：信裡的回覆') && !rep2.includes('公開欄位的舊回覆') && rep2.includes('老師說：這是設計成這樣的'), '「我的回報」優先用寄給本人的信裡那句回覆；沒有信的回報照用 mg_bugboard.reports 的 reply：' + rep2.replace(/\s+/g, ' ').slice(0, 200));
     const nw = await p.evaluate(() => JSON.parse(localStorage.getItem('mg_nw_五年級3班_5號')));
     ok(nw.bugs === 1 && nw.bugScore === 2 && nw.words.includes('bughunter') && nw.tm.m_bug1 === 1 && nw.coins >= 20, '除蟲員詞條、任務蓋章、抓蟲分存進存檔');
     ok(!(await p.evaluate(() => (window.__READS || []).some(r => r.path.startsWith('mg_nw_flags')))), '學生端沒有讀過 mg_nw_flags（正式規則只有老師能讀）');

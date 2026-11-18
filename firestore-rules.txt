@@ -131,7 +131,7 @@ service cloud.firestore {
       allow delete: if isTeacher();
     }
 
-    // ── 信箱、活動、佈告欄公告、抓蟲榜：學生只能讀 ──
+    // ── 信箱、活動、佈告欄公告、抓蟲榜：學生只能讀（抓蟲榜裡不放真名，見下面 mg_bugboard_private）──
     match /mg_mail/{doc} {
       allow read: if signedIn();
       allow write: if isTeacher();
@@ -147,6 +147,11 @@ service cloud.firestore {
     match /mg_bugboard/{doc} {
       allow read: if signedIn();
       allow write: if isTeacher();
+    }
+    // ── 抓蟲榜的老師專用資料：手動加分的理由、老師核可的真名。學生連讀都不行 ──
+    // mg_bugboard 所有登入的人都讀得到，所以老師打的字與真名只能放這裡
+    match /mg_bugboard_private/{doc} {
+      allow read, write: if isTeacher();
     }
 
     // ── 老師操作紀錄：只有老師能讀、只能新增 ──

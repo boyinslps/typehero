@@ -4,7 +4,19 @@
 export const SEV_NAME = { 1: '小', 2: '中', 3: '大' };
 export const clampSev = v => Math.max(1, Math.min(3, Math.round(+v) || 1));
 
-/* reports＝[{ id, st, sev, reply, t, dupOf? }]；bonus＝老師手動加分的總和；notes＝[{ pts, why, t }]
+/* mg_bugboard（所有學生讀得到）只准放這幾個欄位；老師打的理由與真名放 mg_bugboard_private（只有老師讀得到）。
+   每個寫 mg_bugboard 的地方都過 publicBoard()，萬一誰又把 notes／nameOk 混進來，會在寫之前被濾掉。
+   reports 每一筆只留 id、st、sev、t、reply（老師回覆：學生會在「我的回報」看到，所以教師頁輸入處有提醒不要寫姓名）。 */
+export const BOARD_PUBLIC = ['className', 'seat', 'score', 'n', 'firstAt', 'hideNick', 'bonus', 'reports', 'nameOkH'];
+export const PRIVATE_FIELDS = ['notes', 'nameOk'];
+export function publicBoard(d) {
+  const o = {};
+  BOARD_PUBLIC.forEach(k => { if (d && d[k] !== undefined) o[k] = d[k]; });
+  if (Array.isArray(o.reports)) o.reports = o.reports.filter(Boolean).map(r => { const x = {}; ['id', 'st', 'sev', 't'].forEach(k => { if (r[k] !== undefined) x[k] = r[k]; }); if (r.reply) x.reply = r.reply; return x; });   // Firestore 不收 undefined
+  return o;
+}
+
+/* reports＝[{ id, st, sev, reply, t }]；bonus＝老師手動加分的總和；notes＝[{ pts, why, t }]（取自 mg_bugboard_private）
    firstAt：達到這個分數時那則回報的「送出」時間（不是老師確認的時間，老師常一次批完）。
    分數只靠「已確認」往上加（嚴重度至少 1 分），所以達到現在這個分數的，就是送出時間最晚的那則已確認回報。
    完全沒有已確認回報時，用最近一次加分的時間，同分的順序才固定。 */

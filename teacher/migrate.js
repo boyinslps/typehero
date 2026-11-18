@@ -1,4 +1,4 @@
-/* 一次搬移（SPEC §1.8 第 4 步，v3.2 版）：舊程式把「已確認的回報」與「職業除錯師」記在 mg_nw_flags、
+/* 匯入舊回報（畫面上叫這個名字；程式與規格裡叫「一次搬移」，SPEC §1.8 第 4 步，v3.2 版）：舊程式把「已確認的回報」與「職業除錯師」記在 mg_nw_flags、
    由學生進村時自己領（claimed）。新規則下學生不能讀 flags，所以老師按一次：
    ① 用「全部已確認」的 bug flags（包括學生早就領過的）建 mg_bugboard 的 score／n／firstAt／reports；
    ② 只有「已確認但還沒領」的，才轉成獎勵信（固定 ID bug_{flagID}／award_{flagID}）。
@@ -6,6 +6,7 @@
    重按不會重複：信的 ID 固定、已存在的信不再寫；分數每次都是「從 flags 重新算」，不是累加。 */
 import { BUG_COINS, BUG_REWARD_MAX } from './nw.js';
 import { idParts } from './ids.js';
+import { publicBoard } from './bug-calc.js';
 
 const clampSev = v => Math.max(1, Math.min(3, Math.round(+v) || 1));   // 舊資料沒有 sev 算 1 分
 export const MAIL_BUG_TITLE = '謝謝你幫忙抓蟲';
@@ -26,9 +27,10 @@ export function planMigration(flags, board, mailIds, now) {
     const ids = new Set(list.map(f => f.id));
     const keep = (Array.isArray(old.reports) ? old.reports : []).filter(r => r && !ids.has(r.id));
     const reports = keep.concat(list.map(f => ({ id: f.id, st: 'approved', sev: clampSev(f.sev), reply: String(f.reply || ''), t: f.t || 0 })));
-    boards.push({ id, data: {
+    /* 過 publicBoard()：mg_bugboard 學生讀得到，真名（flag 上的 name）與老師的字不會被帶進去 */
+    boards.push({ id, data: publicBoard({
       className: first.cls || old.className || p.className, seat: first.seat !== undefined && first.seat !== '' ? +first.seat : (old.seat !== undefined ? old.seat : p.seat),
-      score: sevSum + bonus, n: list.length, firstAt: list[list.length - 1].t || 0, reports } });
+      score: sevSum + bonus, n: list.length, firstAt: list[list.length - 1].t || 0, reports }) });
     stats.students++; stats.score += sevSum;
     list.forEach((f, i) => {
       if (f.claimed) return;                       // 學生已經領過了，不再寄
