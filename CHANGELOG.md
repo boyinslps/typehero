@@ -5,6 +5,49 @@
 
 ---
 
+## v3.14.0 — 2026-11-17 — 教師管理頁、信箱、活動、佈告欄與抓蟲榜、暱稱與改名卡、村莊延伸（待上線）
+
+> 狀態：**程式與正式規則都做好了，還沒上 main**（要老師同意，並照 [`docs/LAUNCH-TEACHER.md`](docs/LAUNCH-TEACHER.md) 一次上線）。規格 [`docs/SPEC-TEACHER-ADMIN.md`](docs/SPEC-TEACHER-ADMIN.md)（v3.2）；實作與規格不同的地方在該檔 §13。
+
+### 安全與資料（Firestore 正式規則）
+- `firestore-rules.txt` 改成**正式版（逐集合權限、沒有過渡版）**：老師身分 ＝ `mg_admins/{UID}` 存在（只能從主控台建，程式不能寫）。`mg_config`／`mg_round`／`mg_bank`／`mg_mail`／`mg_events`／`mg_news`／`mg_bugboard` 學生只讀、老師寫；`mg_scores` 刪除只有老師；`mg_nw_flags` 學生只能 create、欄位白名單、不能讀；`nw_vote` 學生只能動 `v`、`noms`。
+- **新集合**：`mg_admins`、`mg_rooms`（組隊房間，取代 `mg_config/nwroom_*`）、`mg_gift_used`（序號一人一份，ID＝`雜湊_班級_座號`）、`mg_clock`（伺服器時間，算學生電腦時差）、`mg_mail`、`mg_events`、`mg_news`、`mg_bugboard`、`mg_admin_log`。
+- `tools/rules-test/`：Firebase 模擬器跑規則測試（含 main v3.13.0 每一個讀寫在正式規則下是「過」還是「改走新路」的對照表）。
+
+### 學生端
+- **信箱**（`newworld.js`）：郵筒（`VILLAGE.decor` 的 `mailbox`）與背包「信箱」分頁開同一個視窗；`mg_mail` 用 `array-contains-any`（`all`／`cls:班級`／`id:班級_座號`）一次查，`sendAt`／`expireAt` 用伺服器時間在前端過濾；已領記在 `NW.mail`（物件 `{信件ID: 領取時間}`），領前重讀雲端合併、領完立刻存檔；未知 `type` 整封不領；已領 30 天後收起。禮物種類：weapon、coins、potion、exp、item、mat、word。
+- **暱稱與改名卡**：暱稱由詞庫 `NICK_A`＋`NICK_B` 組合（存詞 ID，`NW.nick`），**取了就固定**，換要用道具「改名卡」（`ITEM_DEFS.renameCard`，`NW.nickAt`）；第一次進新世界先取名；存檔最外層 `nwNick` 是組好的字串（榜單查詢不讀整份 `nw`）。班級短碼 `clsShort`。
+- **冒名鎖**：基準姓名是 `NW.name0`（只寫一次）或老師寫的 `mg_bugboard.nameOk`；名字不同就寫 `mg_nw_flags/namechg_{ID}_{雜湊8碼}`、信箱鎖住，改回原名自動解開。擋的是亂打名字，不是防駭客。
+- **活動**（`nw-events.js`）：`mg_events` 四種（boost 限時加倍、hunt 限時討伐、classwar 班級挑戰、ranking 活動排行榜：進步獎／討伐王／最快討伐／神準手）；每場有效結算更新 `NW.ev[ID]`；結束後 5 分鐘緩衝（`GRACE_MS`）；時間用 `C.now()`（本機時間＋`mg_clock` 時差）；班級達標用最外層 `nwEvDone` 陣列＋`array-contains` 計數、分母是 `nwCls`；進步獎的「活動前紀錄」用 `NW.fastMk`（每隻魔物＋星級自己最快）。預設值來自 `tools/nw-sim/events.mjs`（班級挑戰每人 3 隻、全班 50%、兩週）。
+- **佈告欄建築與視窗**（`nw-notice.js`、`newworld.js` 的 `openNotice`）：建築與上方按鈕同一個視窗，三分頁 公告｜活動｜抓蟲榜；老師公告 `mg_news` 跳一次、新人不跳；木板上方「！」；活動排行榜前 10＋自己、榜外只說差多少；超出合理範圍的分數不上榜。
+- **抓蟲榜與徽章**：`mg_bugboard/{班級_座號}`（`score`、`n`、`firstAt`、`hideNick`、`reports[]`、`bonus`）學生只讀；`NW.bugs` 取 max；詞條 `bug1／bug3／bug5／bug10`。回報不再帶 `claimed`，`claimBugs()`／`claimAwards()` 拿掉，獎勵改走信箱。「我的回報」也看得到 `dup`（別人先回報了）與 `rejected`（這次沒有採用）。
+- **村莊延伸**（`nw-data.js` `VILLAGE`、`nw-village.js`）：32×22 格、五個分區；兩個方向都能捲的鏡頭；右下角小地圖（點建築傳送到門口）；`NW.posV = 2`，舊座標回出生點。
+
+### 老師管理頁 `teacher.html`＋`teacher/`
+- 具名 admin app 登入（email／密碼），檢查 `mg_admins/{uid}`；可勾「記住這台電腦」。舊控制台的開戰、設定、序號、清空成績、提名頁管理也改走 admin 身分；舊控制台「新世界測試回饋」整塊換成連到管理頁的按鈕。
+- 分頁（`teacher/tabs.js` 登記，每頁一個 `tab-*.js`）：📊 總覽、👥 學生、✉ 信箱、🎪 活動、📢 公告、💬 回饋、🐛 回報與抓蟲榜、⚙ 設定（一次搬移、班級人數 `mg_config/class_sizes`、操作紀錄 `mg_admin_log`）。
+- 純函式獨立成檔，可在 node 直接測：`ev-calc.js`（名次、⚠、名次快照、信）、`bug-calc.js`（抓蟲分）、`migrate.js`（一次搬移）、`ids.js`。
+- 發獎：先寫名次快照 `mg_events/{ID}.result` → 用固定信件 ID `ev_{活動}_{位置}` 與 `ev_{活動}_p_{學生}` 寄信 → 最後寫 `awarded`。重按會照同一份快照重寄，不會變兩封。快照不放真名。
+- 活動開始後鎖欄位：類型、魔物、星級、目標、指標、倍數、加倍什麼、至少打幾場、對象班級；只能改標題、說明、延長結束時間、達標獎勵（可加碼）。
+
+### 最後補的三個小修正（老師決定）
+- 學生「我的回報」支援 `dup`、`rejected`。
+- 教師頁活動開始後也鎖 `mul`／`what`／`minRuns`／`cls`；`items` 仍可改。
+- ranking 發獎：被 ⚠ 擋下的人**保留參加獎**（不拿名次獎）；老師自己手動取消勾選的正常分數的人，仍然連參加獎都沒有。
+
+### 搬移
+- 上線時老師在管理頁「⚙ 設定 → 一次搬移」按一次：用全部已確認的舊回報建 `mg_bugboard`，只有「已確認但學生還沒領」的才轉成獎勵信（固定 ID）；重按不會重複。
+
+### 測試
+- `tools/browser-test/`：新增或大改 `nw4`（禮物、回報、我的回報）、`nw5`（A 版）、`nw6`（舊控制台老師登入）、`nw7`（信箱、暱稱）、`nw8`（活動）、`nw9`（佈告欄、抓蟲榜）、`nw10`（村莊延伸）、`t1`（教師頁前半）、`t2`（教師頁活動、回饋、回報）；假 Firebase（`mock/`）擴充查詢、count、batch、具名 app、`__RULES`（簡化規則）、`__SERVER_SKEW_MS`；測試自動編 Tailwind CSS（`tw.js`）。
+- `tools/rules-test/`（模擬器，需 Java）。
+- `tools/nw-sim/events.mjs`：活動預設值模擬。
+
+### 文件
+- 新增 `docs/SPEC-TEACHER-ADMIN.md`、`docs/ANNOUNCEMENT-GUIDE.md`、`docs/LAUNCH-TEACHER.md`（給老師的上線步驟）、`docs/research/GAME-DESIGN-REFS.md`；更新 HANDOFF、DATA、GDD、RELEASE-STAGES、UI-ART-SPEC §4。
+
+---
+
 ## v3.13.1 — 2026-11-16 — 標點挑戰修正（從分支補回）
 
 ### 修正

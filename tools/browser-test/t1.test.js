@@ -6,6 +6,8 @@
 const { chromium } = require('playwright'); const fs = require('fs');
 const path = require('path'); const M = path.join(__dirname, 'mock') + '/'; const OUT = process.argv[2] || require('os').tmpdir();
 const css = require('./tw.js')(OUT);
+/* 最新一則改版公告的 id：發新公告時不用回來改測試（「已讀」的種子資料要等於它，不然會跳公告、冒「！」） */
+const NOTICE_ID = /export const NOTICES = \[\s*\{ id: '([^']+)'/.exec(fs.readFileSync(path.join(__dirname, '../../nw-data.js'), 'utf8'))[1];
 let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++; };
 const NOW = Date.now(), H = 3600000, D = 24 * H;
 const C3 = '五年級3班', C4 = '五年級4班', ID5 = C3 + '_5號', ID6 = C3 + '_6號', ID7 = C3 + '_7號', ID41 = C4 + '_1號';
@@ -51,7 +53,7 @@ const logsOf = async p => (await docsOf(p, 'mg_admin_log/')).sort((a, b) => a.t 
 
 /* ── 種子資料 ── */
 const stu = (cls, seat, name, o = {}) => [`mg_scores/${cls}_${seat}號`, Object.assign({ className: cls, seat, name, nwCls: cls, bestLevel: 10, bestScore: 20, scoreVer: 2, plays: 9, tutorialDone: true, talentIntroDone: true, tier: 'B', balanceVer: 3, punctDone: true, lastPlayedAt: { __ts: o.last === undefined ? NOW : o.last } },
-  o.nw === null ? {} : { nw: Object.assign({ v: 1, savedAt: o.last === undefined ? NOW : o.last, look: { style: 1, hair: 2, skin: 1 }, starter: 'dagger', quest: { done: ['1-0', '1-0a'] }, items: { potion: 3 }, intro: { hub: 1, mail: 1, notice: 1 }, seenNotice: '2026-11-12', name0: name, nick: ['a_flash', 'b_coo'] }, o.nw || {}) }, o.top || {})];
+  o.nw === null ? {} : { nw: Object.assign({ v: 1, savedAt: o.last === undefined ? NOW : o.last, look: { style: 1, hair: 2, skin: 1 }, starter: 'dagger', quest: { done: ['1-0', '1-0a'] }, items: { potion: 3 }, intro: { hub: 1, mail: 1, notice: 1 }, seenNotice: NOTICE_ID, name0: name, nick: ['a_flash', 'b_coo'] }, o.nw || {}) }, o.top || {})];
 const base = () => Object.fromEntries([
   ['mg_admins/T1', { ok: true }],
   stu(C3, 5, '小明', { nw: { hr: 7, coins: 120, hunts: 10, stat: { wins: 8, fails: 2 }, mail: { m1: NOW - 1000 }, bugsSent: 2 } }),

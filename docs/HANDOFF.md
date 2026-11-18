@@ -1,10 +1,12 @@
 # 交接：目前進度與下一步
 
-> 更新：2026-11-09　開發分支：`claude/youthful-cerf-a6t41t`
+> 更新：2026-11-17　開發分支：`claude/gracious-pasteur-773n2t`（v3.14.0，**還沒合併到 main**）
 > **分段開放表在 [`RELEASE-STAGES.md`](RELEASE-STAGES.md)**：現在只開討伐看板、武器背包、稱號（榮譽碑等到防作弊做完才開）。
 > `main` 在 `9df6109`（委託板、房間、國字判定、姿態條都已合併）；之後的「稱號＋榮譽碑排行」在分支上，**還沒合併到 main，要老師點頭**。
 
 ## 現在在哪裡
+
+> **2026-11-17：v3.14.0（教師管理頁、信箱、暱稱與改名卡、活動、佈告欄與抓蟲榜、村莊延伸、正式 Firestore 規則）程式與測試都做好了，在分支 `claude/gracious-pasteur-773n2t`，等老師照 [`LAUNCH-TEACHER.md`](LAUNCH-TEACHER.md) 一次上線**。規格 [`SPEC-TEACHER-ADMIN.md`](SPEC-TEACHER-ADMIN.md)（已實作，§13 記了跟規格不同的地方）、完整紀錄 [`../CHANGELOG.md`](../CHANGELOG.md)。下面「v3.14.0 各系統怎麼接」是接手必讀。
 
 > 想加入的內容（寵物、轉蛋、造型衣服等）見 [`IDEAS-FUTURE.md`](IDEAS-FUTURE.md)；那只是點子池，沒有一項是承諾。
 
@@ -15,6 +17,70 @@
 | 第 0 段：戰績分防亂打、天賦發亮 | **完成，v3.3.0** | `index.html`，見 [`../CHANGELOG.md`](../CHANGELOG.md) |
 | 新世界預告＋提名投票頁 | **完成，v3.6.0（11 個關鍵字、16 頁、不捲動；投票有三步驟說明）** | `nw-preview.js`（頁面資料、投票）、`index.html` 的 `#nw-modal` 與 `.nwp-*` 樣式，見 [`../CHANGELOG.md`](../CHANGELOG.md) |
 | 第 1 段：獵人村開幕 | **大部分完成（搶先體驗中，用通關密語進）**：獵人村、造型、4 把初心武器、委託板、房間（只能開、不能加入）、戰鬥、HR、稱號、榮譽碑排行 | `newworld.js`、`nw-*.js`、`pixel.js` |
+
+## v3.14.0 各系統怎麼接（2026-11-17）
+
+### 上線前老師要做的事（`LAUNCH-TEACHER.md` 的摘要）
+1. Firebase 開「電子郵件／密碼」登入，建老師帳號，複製 UID。
+2. Firestore 手動建 `mg_admins/{UID}`，`ok: true`（**一定要在貼規則之前**）。
+3. **先備份舊規則**，再貼 `firestore-rules.txt` 發布。
+4. **老師同意後**新程式推上 main（第 3、4 步中間舊程式的序號、房間、回報、舊控制台會被擋，愈短愈好）。
+5. 開 `teacher.html` 登入 → ⚙ 設定 →「一次搬移」。
+6. 用「手動加分」補遊戲外抓過 bug 的同學。
+7. 提醒學生按 F5。
+上線後 pcclass 的 `TYPEHERO_UPDATES` 要改（CLAUDE.md 發版清單第 3 點）。退回方式：貼回舊規則＋main revert。
+
+### 時間：`C.now()`
+`newworld.js` 把 `C.now = now` 設成「本機時間＋`mg_clock/{我}` 算出的時差」。**凡是活動開始／結束、信件 `sendAt`／`expireAt` 的判斷都用它，不要直接用 `Date.now()`**（學生電腦時間不準會提早或延後看到活動）。取不到伺服器時間就用本機時間。測試用 `window.__SERVER_SKEW_MS` 模擬時差。
+
+### 信箱 `mg_mail`
+- 學生端在 `newworld.js`（`openMail`、`claimMail`、`mailVisible`）。一次查詢 `aud array-contains-any ['all','cls:班級','id:班級_座號']`，時間在前端用 `C.now()` 過濾。
+- 已領 `NW.mail[信件ID] = 時間`。領前重讀雲端的 `nw.mail` 合併（雙分頁不會領兩次）。`applyReward` 認的 `type`：weapon、coins、potion、exp、item、mat、word；**不認得的整封不領**（舊版程式遇到新禮物種類不會亂收）。要加新禮物種類：改 `applyReward`、教師頁 `teacher/gifts.js` 的 `GIFT_TYPES`（兩邊要一起）。
+- 郵筒是 `VILLAGE.decor` 裡 `k:'mailbox'`；村莊程式用 `k` 找它，換位置只改 `nw-data.js`。
+- 系統自動寄的信一律**固定 ID**（`bug_{flagID}`、`award_{flagID}`、`ev_{活動}_{位置}`、`ev_{活動}_p_{學生}`），重寄是覆蓋。
+
+### 暱稱與改名卡
+- 詞庫 `nw-data.js` 的 `NICK_A`／`NICK_B`（存詞 ID `NW.nick=[a,b]`）、`nickText()`；`NW.nickAt`。取了就固定，換要消耗道具 `renameCard`（`ITEM_DEFS`）。商店開張後在 `SHOP_ITEMS` 賣 300 字元，**目前商店沒開，改名卡只能靠老師寄信**。
+- 存檔最外層 `nwNick`（組好的字串）給榜單用。老師可在抓蟲榜隱藏某人暱稱（`mg_bugboard.hideNick`），隱藏由顯示端負責。
+- 冒名鎖：`NW.name0`／`mg_bugboard.nameOk` 當基準；不同就寫 `mg_nw_flags/namechg_{ID}_{雜湊8碼}` 並鎖信箱。
+
+### 活動 `nw-events.js`（`mg_events`）
+- 欄位寫在檔頭註解。學生進度 `NW.ev[ID]`；每場結算在 `finishHunt()` → `EV.onRun(res, prevBest, t0, now)`。**進步獎要在更新 `NW.fastMk` 之前算**（拿活動前的紀錄當 base）。
+- 班級挑戰：最外層 `nwEvDone`（`"活動ID|班級"` 字串陣列）＋ `array-contains` 的 count；分母 `nwCls` 的 count，教師頁可在活動或 `mg_config/class_sizes` 手動覆寫。
+- 活動榜單用 `orderBy('nw.ev.{ID}.s')`（單一欄位），並在查詢裡就濾掉超出合理範圍的分數（`IMPROVE_SANE_MAX`、`FASTEST_FLOOR`）。
+- 預設值 `EVENT_DEFAULTS`、範本 `EVENT_TEMPLATES`（`nw-data.js`）；數字來自 `node tools/nw-sim/events.mjs`，改之前先重跑模擬。
+- 加新活動類型：`nw-events.js` 的 `EV_TYPES` 與結算、教師頁 `tab-events.js` 的 `FIELDS`／`TYPE_NAME`／`buildDoc`／`LOCKED`。
+
+### 佈告欄 `nw-notice.js`、抓蟲榜 `mg_bugboard`
+- 建築 `VILLAGE.buildings` 的 `notice`（`act:'notice'`），與上方按鈕開同一個視窗（`newworld.js` 的 `openNotice`），三分頁公告｜活動｜抓蟲榜，「看過了」各自記（`NW.seenNews`／`seenNotice`／`seenEv`／`seenBug`）。
+- 老師公告 `mg_news`（置頂在前）；改版公告 `NOTICES`（`nw-data.js`，最新一則進村自動跳一次）。
+- 抓蟲榜：`mg_bugboard/{班級_座號}` 只有老師寫。排序 `bugCmp`（分數高在前，同分比 `firstAt` 早的）；第 10 名同分的另外查。學生端 `NW.bugs` 取 max，分數與詞條 `bug1／3／5／10` 由 `mg_bugboard` 同步。榜單不含真名。
+- 回報流程：學生送 `mg_nw_flags`（`type:'bug'`，`status:'pending'`）→ 老師在教師頁確認／重複／不採用 → 同一個 batch 寫 flag 狀態、`mg_bugboard`（含 `reports[]`）、獎勵信 → 學生看「我的回報」（測試員手冊）。**`claimBugs()`／`claimAwards()` 已刪**，職業除錯師與回報獎勵都走信箱。
+
+### 村莊地圖（32×22 格）
+`nw-data.js` 的 `VILLAGE`（格 16px）：高台（北，y 0～6，石牆 y=7，樓梯 x 15～17）放組隊酒館 (5,2)、星圖台 (15,2)、榮譽碑 (25,2)；學習區（西）教學大樓 (3,12)；中央廣場出生點 (15,16)，委託板 (11,13)、佈告欄 (17,13)、郵筒 (12,11)、村長 (16,10)；市集（東，隔小溪 x 22～23，小橋 y 13～14）商店 (24,9)、防具店 (28,10)、鐵匠鋪 (24,15)、倉庫 (28,16)；傳送門正南 (15,22)。`NW.pos` 搭配 `NW.posV = 2`，舊座標回出生點；**以後地圖再重排，把 `POS_V` 加 1**。新增建築要自己確認 3×3 不壓到溪、牆、別的建築，門口走得到、名牌不疊——`nw10.test.js` 會檢查。鏡頭在 `nw-village.js`（捲動容器；走路 6 格／秒；只在走動與停下後 0.9 秒跟著），小地圖點建築傳送到門口。
+
+### 教師管理頁 `teacher.html`＋`teacher/`
+- 登入：`teacher/fb.js` 建**具名 app `'admin'`**（跟學生用的匿名 app 分開，老師登入不會影響同一台電腦上的學生遊戲）；`main.js` 登入後讀 `mg_admins/{uid}`，不是老師就登出。舊控制台（`index.html`）的老師登入同樣用 `adminApp`，寫入走它。
+- 分頁：`teacher/tabs.js` 的 `TABS`（`load` 用動態 import，一個分頁壞了不會讓整頁打不開）。**加分頁的方法**：新增 `teacher/tab-xxx.js`，`export default async function mount(el, ctx, params)`（`ctx = { user, go(id, params), tab }`；回傳一個函式，離開時會呼叫它來清計時器），再到 `tabs.js` 加一列。
+- 共用：`util.js`（`log` 寫操作紀錄、`confirmBig`、`previewMail`／`previewConfirm`、`modal`）、`data.js`（有快取的讀取，寫完呼叫 `invalidate`）、`gifts.js`／`gift-ui.js`（禮物列）。純函式（`ev-calc.js`、`bug-calc.js`、`migrate.js`）不碰畫面與 Firebase，node 可以直接 import 測。
+- **老師寫的每個動作都要 `log()`**（`mg_admin_log`）。給學生東西一律寄信，不直接改存檔。
+- 測試：`t1`（前半）、`t2`（活動、回饋、回報）。
+
+### 規則
+`firestore-rules.txt` 是正式版；`tools/rules-test/`（`npm test`，需要 Java）。新增集合先改規則、補測試、再通知老師重貼（先備份）。逐集合權限見 [`DATA.md`](DATA.md) §2。
+
+### 老師決定、要記得的
+- 活動排行榜第一版就做（進步獎主推）；不做過渡規則，沒課時一次上線。
+- ranking 發獎：被 ⚠ 擋下的人不拿名次獎但保留參加獎。
+- 活動開始後鎖欄位（含倍數、至少打幾場、對象班級）；獎品仍可加碼。
+- 學生「我的回報」重複顯示「別人先回報了，謝謝你也發現了！」。
+
+### 還沒做（第二版候選）
+- 角色、村民、建築依腳的 y 座標排前後；區名淡入、畫面邊緣目標箭頭。
+- 公告預約／到期；小地圖尋路。
+- 商店開張後改名卡可購買（`SHOP_ITEMS` 已備好）。
+- 真 Firebase 驗證：全部只用假 Firebase 與規則模擬器測過，上線後請照 `LAUNCH-TEACHER.md` 的檢查清單走一遍。
 
 ## 下一步（照順序）
 

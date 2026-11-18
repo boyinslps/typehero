@@ -4,6 +4,8 @@
 const { chromium } = require('playwright'); const fs = require('fs');
 const path = require('path'); const M = path.join(__dirname, 'mock') + '/'; const OUT = process.argv[2] || require('os').tmpdir();
 const css = require('./tw.js')(OUT);
+/* 最新一則改版公告的 id：發新公告時不用回來改測試（「已讀」的種子資料要等於它，不然會跳公告、冒「！」） */
+const NOTICE_ID = /export const NOTICES = \[\s*\{ id: '([^']+)'/.exec(fs.readFileSync(path.join(__dirname, '../../nw-data.js'), 'utf8'))[1];
 let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++; };
 const ID = '五年級3班_5號', CLS = '五年級3班';
 const HOUR = 3600000, DAY = 86400000;
@@ -19,7 +21,7 @@ async function open(browser, o = {}) {
   const hash = await sha256Hex('Test-Pass_9!x');
   const seed = Object.assign({
     ['mg_scores/' + ID]: { className: CLS, seat: 5, name: '小明', bestLevel: 10, bestScore: 20, scoreVer: 2, plays: 9, tutorialDone: true, talentIntroDone: true, tier: 'B', balanceVer: 3, punctDone: true,
-      nw: Object.assign({ v: 1, savedAt: 5, look: { style: 1, hair: 2, skin: 1 }, starter: 'dagger', quest: { done: ['1-0', '1-0a'] }, items: { potion: 3 }, intro: { hub: 1 }, seenNotice: '2026-11-12', nick: ['a_flash', 'b_coo'] }, o.nw || {}) }
+      nw: Object.assign({ v: 1, savedAt: 5, look: { style: 1, hair: 2, skin: 1 }, starter: 'dagger', quest: { done: ['1-0', '1-0a'] }, items: { potion: 3 }, intro: { hub: 1 }, seenNotice: NOTICE_ID, nick: ['a_flash', 'b_coo'] }, o.nw || {}) }
   }, o.seed || {});
   await p.addInitScript(a => {
     window.__FS = a.s; window.__RULES = true; localStorage.clear(); localStorage.setItem('mg_nw_fast', '1');
@@ -131,7 +133,7 @@ const dotOn = p => p.evaluate(() => { const e = document.querySelector('[data-no
     const chips = () => p.evaluate(() => [...document.querySelectorAll('#nw-notice [data-news]')].filter(e => [...e.querySelectorAll('.px-chip')].some(c => c.textContent === '新')).length);
     ok(await chips() === 3, '第一次看：三則都標「新」');
     let n = await nwLocal(p);
-    ok(n.seenNews === now - 3 * HOUR && n.seenNotice === '2026-11-12', `看過公告分頁：seenNews 記最新一則的 t（${n.seenNews}）`);
+    ok(n.seenNews === now - 3 * HOUR && n.seenNotice === NOTICE_ID, `看過公告分頁：seenNews 記最新一則的 t（${n.seenNews}）`);
     await closeNotice(p);
     ok(!(await bangOn(p)) && !(await dotOn(p)), '看過公告後：「！」與小紅點消失');
     await p.click('[data-act="notice"]'); await p.waitForSelector('#nw-notice'); await p.waitForTimeout(400);
@@ -163,7 +165,7 @@ const dotOn = p => p.evaluate(() => { const e = document.querySelector('[data-no
     await p.waitForTimeout(1200);
     ok(await p.$('#nw-notice') === null, '第一次來的新人：看完介紹就好，老師公告與改版公告都不跳');
     const n = await nwLocal(p);
-    ok(n.seenNews === now - HOUR && n.seenNotice === '2026-11-12', '新人直接記成已讀（seenNews、seenNotice）');
+    ok(n.seenNews === now - HOUR && n.seenNotice === NOTICE_ID, '新人直接記成已讀（seenNews、seenNotice）');
     ok(!(await bangOn(p)), '新人沒有「！」');
     noErr(p); await p.close();
   }

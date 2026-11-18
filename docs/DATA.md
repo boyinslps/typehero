@@ -1,6 +1,6 @@
 # 雲端資料結構（`mg_scores`）與局外成長的前置
 
-這份文件回答兩件事：**Firestore 規則要不要改**、**要做局外成長還缺什麼資料**。
+這份文件回答兩件事：**存檔與 Firestore 規則怎麼設（v3.14.0 起是正式規則）**、**要做局外成長還缺什麼資料**。
 數值曲線請看 [`BALANCE.md`](BALANCE.md)。
 
 ---
@@ -50,21 +50,62 @@
 
 ---
 
-## 2. Firestore 規則要不要改？**不用。**
+### 1.4 新世界相關欄位（v3.14.0 起）
 
-`firestore-rules.txt` 裡 `mg_scores` 寫的是
+新世界的存檔整包放 `nw`（`nw-data.js` 的 `normalizeNw()` 是欄位清單，缺的補預設值）。
+因為「不讀整份 `nw` 也要查得到」，有幾個值**另外抄一份放最外層**：
 
-```
-allow read, create, update, delete: if request.auth != null;
-```
+| 欄位 | 位置 | 意思 | 誰用 |
+|---|---|---|---|
+| `nwTitle`／`nwTitleN` | 最外層 | 稱號字串、詞條數 | 舊世界大廳與排行榜 |
+| `nwCls` | 最外層 | 班級（`className` 的複本） | 班級挑戰的分母（`where('nwCls','==',班)` 的 count） |
+| `nwEvDone` | 最外層 | 已達標活動，字串陣列 `"活動ID\|班級"` | 班級挑戰達標人數（`array-contains` 的 count） |
+| `nwNick` | 最外層 | 組好的暱稱字串（例：`勇敢的史萊姆`） | 活動排行榜、抓蟲榜的顯示 |
+| `nw.nick` | `nw` 裡 | 暱稱的兩個詞 ID `[A, B]`；取了就固定 | 暱稱顯示；換要用改名卡 |
+| `nw.nickAt` | `nw` 裡 | 取名／換名時間 | |
+| `nw.name0` | `nw` 裡 | **只寫一次**的基準姓名（冒名鎖用）。`name` 每次登入都會被覆蓋，不能當基準 | 冒名鎖 |
+| `nw.nameFlagged` | `nw` 裡 | 已經送出過換名紀錄的雜湊 `{8碼: 1}` | 避免重複寫 `namechg` |
+| `nw.mail` | `nw` 裡 | 信箱已領紀錄 `{信件ID: 領取時間}` | 信箱；領前重讀雲端合併 |
+| `nw.ev` | `nw` 裡 | 每個活動的個人進度 `{ID: {e, t, n, done, cw, s, base, best, runs, accSum, gone}}`，結束超過 30 天自動刪 | 活動、教師頁排行榜 |
+| `nw.evDone` | `nw` 裡 | 同 `nwEvDone` | |
+| `nw.fastMk` | `nw` 裡 | `{魔物:星級: 自己最快秒數}`，進步獎的活動前紀錄 | 進步獎 |
+| `nw.bugs`／`nw.bugScore` | `nw` 裡 | 老師確認的回報數、抓蟲分（從 `mg_bugboard` 同步，取 max） | 手冊、詞條 |
+| `nw.seenNotice`／`seenNews`／`seenEv`／`seenBug` | `nw` 裡 | 佈告欄各分頁看到哪裡 | 「！」與自動跳出 |
+| `nw.pos`／`nw.posV` | `nw` 裡 | 村莊座標；`posV` 不是 2（32×22 地圖）的舊座標一律回出生點 | 村莊 |
 
-**完全不看欄位名稱**，所以遊戲這邊每次新增欄位（`bestLevel`、`bestAcc`、
-`last*`…）都不用回頭改規則、也不用重新發布。
+### 1.5 新集合（v3.14.0 起）
 
-要注意的只有一種情況：如果之後改用那份「加強版」規則（規則檔尾巴的
-註解區），那份是**逐欄檢查**的，遊戲加欄位就得跟著維護。那份註解裡原本
-寫的 `request.resource.data.damage is number` 有個坑——練習的那筆根本沒有
-`damage` 欄位，這條會把**全部練習存檔擋掉**，已經在註解裡改成「有才檢查」。
+| 集合／文件 | 誰寫 | 內容 |
+|---|---|---|
+| `mg_admins/{UID}` | 老師從主控台手動建 | `{ ok: true }`。有這份文件的帳號就是老師；程式不能寫、不能列出 |
+| `mg_mail/{ID}` | 老師 | 信：`aud`（`['all']`／`['cls:班級']`／`['id:班級_座號']`）、`title`、`body`、`items[]`、`from`、`sendAt`、`expireAt`、`t`、`src`。固定 ID 的信（`bug_…`、`ev_…`、`award_…`）重寄是覆蓋 |
+| `mg_events/{ID}` | 老師 | 活動，欄位見 `nw-events.js` 檔頭；ranking 發獎後多 `result`（名次快照，不放真名）、`awarded` |
+| `mg_news/{ID}` | 老師 | 公告 `{ title, body, pin, t }` |
+| `mg_bugboard/{班級_座號}` | 老師 | 抓蟲榜：`score`、`n`、`firstAt`、`hideNick`、`bonus`、`nameOk`、`reports[]`（`{id, st, sev, reply, t}`，`st`＝approved／rejected／dup）。不放真名 |
+| `mg_nw_flags/{ID}` | 學生 create、老師全部 | 回報（`bug_…`）、回饋（`fb_…`）、換名紀錄（`namechg_…`，有真名）。學生不能讀 |
+| `mg_gift_used/{雜湊_班級_座號}` | 學生 create | `{ h, id, t }`，序號一人一份；次數用 count 查詢 |
+| `mg_rooms/{班級_座號}` | 學生 | 組隊房間（取代 `mg_config/nwroom_*`） |
+| `mg_clock/{班級_座號}` | 學生 | 只有 `t`（伺服器時間），算學生電腦的時差 |
+| `mg_admin_log/{ID}` | 老師 | 操作紀錄 `{ act, target, summary, t }` |
+| `mg_config/class_sizes` | 老師 | `{ sizes: {班級: 人數}, t }`，班級挑戰分母（活動自己的 `clsSize` 優先） |
+
+---
+
+## 2. Firestore 規則（v3.14.0 起是**正式版**，逐集合權限）
+
+以前這裡寫「規則不用改」，因為 `mg_scores` 是 `allow read, write: if request.auth != null`，
+所有登入（含匿名）的人什麼都能寫，連**全校存檔都能刪**。v3.14.0 改成正式版
+（`firestore-rules.txt`，規格 `SPEC-TEACHER-ADMIN.md` §1），重點：
+
+- **老師身分 = `mg_admins/{UID}` 存在**。老師用 email／密碼登入（舊遊戲用具名 admin app，不影響學生機）。
+- **學生（匿名登入）**：
+  - 讀：幾乎全部可讀，**除了** `mg_nw_flags`（有真名）與 `mg_admin_log`。
+  - 寫：`mg_scores`（create、update）、`mg_rooms`、`mg_nw_runs`（create）、`mg_clock`（只能寫 `t`）、`mg_gift_used`（只能 create）、`nw_vote`（只能動 `v`、`noms`）、`mg_nw_flags`（只能 create 回報／回饋／換名，欄位白名單、不能自己帶已確認狀態）。
+- **只有老師能寫**：`mg_config`、`mg_round`、`mg_bank`、`mg_mail`、`mg_events`、`mg_news`、`mg_bugboard`、`mg_admin_log`；`mg_scores` 與 `mg_nw_runs` 的刪除。
+- 舊站（`competition`、`scores`）維持原樣。
+- **規則本身不看 `mg_scores` 的欄位**，所以遊戲新增存檔欄位不用回來改規則。
+- **還是擋不住的**：匿名登入的 uid 對不上「班級_座號」，學生仍然能改**自己的**字元與裝備。規則擋的是「學生自己寄信、開活動、批准回報、改題庫、刪全校存檔」。要真正防作弊得有伺服器端驗證，超出單檔網頁的範圍。
+- 改規則後一定要跑 `tools/rules-test/`（`npm test`）；發布步驟給老師的版本在 [`LAUNCH-TEACHER.md`](LAUNCH-TEACHER.md)。
 
 ---
 
@@ -82,7 +123,7 @@ allow read, create, update, delete: if request.auth != null;
 1. **身分綁在「班級_座號」上**。換班、換座號、老師改座號表，局外進度就
    跟著不見了。單場成績丟了還好，**局外成長丟了學生會很在意**。
    要嘛接受（每學期重來一次也算一種設計），要嘛改成有真正的帳號。
-2. **現在的規則擋不住作弊**。匿名登入的 uid 跟「班級_座號」對不起來，
+2. **規則擋不住學生改自己的存檔**（v3.14.0 的正式規則只擋「改別人的、改全校的、老師才能做的事」）。匿名登入的 uid 跟「班級_座號」對不起來，
    規則沒辦法判斷「這筆是不是他本人寫的」，所以學生開主控台就能改自己的
    數字。單場成績被改影響有限，但**貨幣／永久解鎖被改是會擴散的**
    （改一次爽整學期，而且同學看得到）。真要防要嘛老師帳號才有寫入權、
