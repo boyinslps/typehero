@@ -4,7 +4,7 @@
 import { db, doc, setDoc, deleteDoc } from './fb.js';
 import { loadScores, loadMails, invalidate, audRecipients, audText } from './data.js';
 import { clsShort, toMs } from './nw.js';
-import { GIFT_TYPES, giftType, newItem, itemLabel, itemError } from './gifts.js';
+import { GIFT_TYPES, giftType, newItem, itemLabel, itemError, optionsHtml, filterOpts, hintText } from './gifts.js';
 import { $, $$, esc, uid, fmtT, fromInput, log, modal, ask, toast, errText, confirmBig, previewMail, mailCardHtml, mailSummary, matchStudent, helpBox } from './util.js';
 
 const SRC = [['', '全部來源'], ['manual', '手動寄的'], ['event', '活動獎勵'], ['bug', '回報獎勵'], ['award', '頒獎']];
@@ -27,6 +27,7 @@ export default async function mount(el, ctx, params) {
     items: Array.isArray(params.items) ? params.items.map(x => Object.assign({}, x)) : []
   };
   let srcFilter = '';
+  let gq = {};   // 禮物列的搜尋字（每一列各一個），重畫表單時要留著
 
   const aud = () => st.mode === 'all' ? ['all'] : st.mode === 'cls' ? [...st.cls].map(c => 'cls:' + c) : st.mode === 'stu' ? [...st.ids].map(i => 'id:' + i) : [];
   const curMail = () => ({ aud: aud(), title: st.title.trim(), body: st.body.trim(), items: st.items.map(x => Object.assign({}, x)), from: '老師',
@@ -67,17 +68,29 @@ export default async function mount(el, ctx, params) {
       : st.q.trim() ? '<div class="dim" style="margin-top:4px">找不到。可以用姓名，或「503 5」（班級 座號）來找。</div>' : '';
   }
   function giftRow(it, i) {
-    const g = giftType(it.type);
-    const opts = g.pick ? g.pick() : null;
+    const g = giftType(it.type), all = g.pick ? g.pick() : null;
     let sel = '';
-    if (opts) {
-      const groups = g.groups;
-      sel = `<select class="inp" data-key="${i}">${groups ? groups.map(gr => `<optgroup label="${gr}">${opts.filter(o => o.group === gr).map(o => `<option value="${esc(o.value)}" ${it.key === o.value ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}</optgroup>`).join('')
-        : opts.map(o => `<option value="${esc(o.value)}" ${it.key === o.value ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}</select>`;
+    if (all) {
+      const q = gq[i] || '', opts = filterOpts(all, q), cur = all.find(o => o.value === it.key);
+      /* 搜尋後沒有目前選的那個，也要留著它，不然下拉會偷偷換成別的 */
+      const shown = cur && !opts.includes(cur) ? [cur].concat(opts) : opts;
+      sel = `${g.search && all.length > 6 ? `<input class="inp" type="search" data-gq="${i}" value="${esc(q)}" placeholder="搜尋…" style="width:120px" aria-label="搜尋${esc(g.label)}">` : ''}<select class="inp" data-key="${i}">${optionsHtml(g, shown, it.key, esc)}</select>`;
     }
+    const hint = hintText(it);
     return `<div class="gift-row" data-grow="${i}"><select class="inp" data-type="${i}">${GIFT_TYPES.map(x => `<option value="${x.type}" ${x.type === it.type ? 'selected' : ''}>${x.label}</option>`).join('')}</select>${sel}
-      ${g.qty ? `<input class="inp" type="number" min="1" step="1" data-n="${i}" value="${it.n === undefined ? '' : it.n}" style="width:90px" aria-label="數量">` : ''}
-      <button class="px-btn sm danger" data-del="${i}" aria-label="拿掉這個禮物">✕</button></div>`;
+      ${g.qty ? `${g.unit ? `<span class="dim">${esc(g.unit)}</span>` : ''}<input class="inp" type="number" min="${g.min || 1}" ${g.max ? `max="${g.max}"` : ''} step="1" data-n="${i}" value="${it.n === undefined ? '' : it.n}" style="width:90px" aria-label="數量">` : ''}
+      <button class="px-btn sm danger" data-del="${i}" aria-label="拿掉這個禮物">✕</button>
+      ${hint ? `<div class="dim" data-hint="${i}" style="flex-basis:100%;font-size:.85em">${esc(hint)}</div>` : ''}</div>`;
+  }
+  /* 禮物搜尋：只換這一列的下拉與說明，搜尋框不重畫（重畫會打斷注音輸入法）；結果的第一個變成目前選的 */
+  function searchGift(i, q) {
+    gq[i] = q;
+    const it = st.items[i], g = it && giftType(it.type); if (!g || !g.pick) return;
+    const opts = filterOpts(g.pick(), q), sel = $(`[data-key="${i}"]`, el); if (!sel || !opts.length) return;
+    if (!opts.some(o => o.value === it.key)) it.key = opts[0].value;
+    sel.innerHTML = optionsHtml(g, opts, it.key, esc);
+    const h = $(`[data-hint="${i}"]`, el); if (h) h.textContent = hintText(it);
+    paintPreview();
   }
   const counters = () => { const t = $('[data-tc]', el), b = $('[data-bc]', el); if (t) t.textContent = `${st.title.length}/20`; if (b) b.textContent = `${st.body.length}/200`; };
   function paintPreview() {
@@ -95,19 +108,24 @@ export default async function mount(el, ctx, params) {
     else if (t.matches('[data-body]')) st.body = t.value;
     else if (t.matches('[data-n]')) { const v = t.value.trim(); st.items[+t.dataset.n].n = v === '' ? NaN : Number(v); }
     else if (t.matches('[data-q]')) { if (e.isComposing) return; st.q = t.value; paintFound(); return; }
+    else if (t.matches('[data-gq]')) { if (e.isComposing) return; searchGift(+t.dataset.gq, t.value); return; }
     else if (t.matches('[data-send]')) st.sendAt = t.value;
     else if (t.matches('[data-exp]')) st.expireAt = t.value;
     else return;
     counters(); paintPreview();
   });
-  el.addEventListener('compositionend', e => { if (e.target.matches && e.target.matches('[data-q]')) { st.q = e.target.value; paintFound(); } });
+  el.addEventListener('compositionend', e => {
+    if (!e.target.matches) return;
+    if (e.target.matches('[data-q]')) { st.q = e.target.value; paintFound(); }
+    else if (e.target.matches('[data-gq]')) searchGift(+e.target.dataset.gq, e.target.value);
+  });
   el.addEventListener('change', e => {
     const t = e.target;
     if (t.name === 'mode') { st.mode = t.value; paintForm(); }
     else if (t.matches('[data-cls]')) { t.checked ? st.cls.add(t.dataset.cls) : st.cls.delete(t.dataset.cls); }
     else if (t.matches('[data-addgift]')) { if (t.value) { st.items.push(newItem(t.value)); paintForm(); } }
-    else if (t.matches('[data-type]')) { st.items[+t.dataset.type] = newItem(t.value); paintForm(); }
-    else if (t.matches('[data-key]')) st.items[+t.dataset.key].key = t.value;
+    else if (t.matches('[data-type]')) { const i = +t.dataset.type; st.items[i] = newItem(t.value); delete gq[i]; paintForm(); }
+    else if (t.matches('[data-key]')) { const i = +t.dataset.key; st.items[i].key = t.value; const h = $(`[data-hint="${i}"]`, el); if (h) h.textContent = hintText(st.items[i]); }
     else if (t.matches('[data-src]')) { srcFilter = t.value; paintSent(); return; }
     else return;
     paintPreview();
@@ -116,7 +134,7 @@ export default async function mount(el, ctx, params) {
     const t = e.target;
     const add = t.closest('[data-add]'); if (add) { st.ids.add(add.dataset.add); st.q = ''; paintForm(); paintPreview(); const qi = $('[data-q]', el); if (qi) qi.focus(); return; }
     const rm = t.closest('[data-rm]'); if (rm) { e.preventDefault(); st.ids.delete(rm.dataset.rm); paintForm(); paintPreview(); return; }
-    const del = t.closest('[data-del]'); if (del) { st.items.splice(+del.dataset.del, 1); paintForm(); paintPreview(); return; }
+    const del = t.closest('[data-del]'); if (del) { st.items.splice(+del.dataset.del, 1); gq = {}; paintForm(); paintPreview(); return; }
     if (t.closest('[data-submit]')) { send(); return; }
     const rc = t.closest('[data-receipt]'); if (rc) { receipt(rc.dataset.receipt); return; }
     const rb = t.closest('[data-recall]'); if (rb) recall(rb.dataset.recall);
@@ -162,7 +180,7 @@ export default async function mount(el, ctx, params) {
     } catch (e) { err.textContent = '寄出失敗：' + errText(e); btn.disabled = false; sending = false; return; }
     await log('寄信', id, summaryOf(m) + `（「${m.title}」）`);
     invalidate('mails'); mails = await loadMails(true);
-    st.title = ''; st.body = ''; st.items = []; st.sendAt = ''; st.expireAt = '';
+    st.title = ''; st.body = ''; st.items = []; gq = {}; st.sendAt = ''; st.expireAt = '';
     sending = false; paintForm(); paintPreview(); paintSent();
     toast(m.sendAt > Date.now() + 60000 ? '已排程，時間到學生就收得到' : '寄出了，學生下次進新世界（或重新整理信箱）就收得到');
   }
@@ -203,4 +221,6 @@ export default async function mount(el, ctx, params) {
   }
 
   paintForm(); paintPreview(); paintSent();
+  /* 從人物卡按「給東西」來的：收件人已經帶好，直接停在「加一個禮物」 */
+  if (params.gift) { const a = $('[data-addgift]', el); if (a) { a.focus(); a.scrollIntoView({ block: 'center' }); } }
 }

@@ -283,6 +283,25 @@ export const ITEM_DEFS = {
 };
 /* 商店開張時用（現在 OPEN_STAGE=1，商店還沒開，沒有購買流程；改名卡先由信箱寄） */
 export const SHOP_ITEMS = [{ key: 'renameCard', price: 300 }];
+/* 材料與圖紙的名稱表：{ id: [名稱, 顏色] }。背包、信箱領取、教師頁「給東西」的清單都從這裡來，
+   魔物的 drops／rare、初心武器圖紙一加，各處就自動多一項，不用另外登記。 */
+export const MAT_INFO = (() => {
+  const m = {};
+  Object.values(MONSTERS).forEach(mo => {
+    (mo.drops || []).forEach(([id, name, color]) => { m[id] = [name, color]; });
+    (mo.rare || []).forEach(([id, name, color]) => { m[id] = [name.replace('📜 ', ''), color]; });
+  });
+  Object.entries(STARTERS).forEach(([k, st]) => { m['bp_' + k] = [st.name + '圖紙', 'gray']; });
+  return m;
+})();
+/* 圖紙的 id 一律 bp_ 開頭；其他是材料。信箱用這兩個擋掉老師打錯的 key（SPEC-STAGE2 F6） */
+export const isBpId = id => typeof id === 'string' && id.startsWith('bp_') && Object.prototype.hasOwnProperty.call(MAT_INFO, id);
+export const isMatId = id => typeof id === 'string' && !id.startsWith('bp_') && Object.prototype.hasOwnProperty.call(MAT_INFO, id);
+/* 教學大樓三堂課（NW.tut 的 key） */
+export const TUT_LESSONS = [['dodge', '閃避'], ['defend', '防禦'], ['attack', '打字']];
+/* 區域進度（NW.zone[區域]＝打贏的最高星級）老師能補到幾星 */
+export const ZONE_STAR_MAX = 5;
+
 /* 台灣時間的「第幾天」：活動剩幾天照日曆日算。固定 +8 小時而不用瀏覽器時區，電腦時區設錯也一樣；時間要用 C.now()（伺服器時間）。 */
 export const TW_OFFSET_MS = 8 * 3600 * 1000;
 export const twDay = ms => Math.floor((ms + TW_OFFSET_MS) / 86400000);

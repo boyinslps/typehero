@@ -3,8 +3,9 @@
    與 mg_bugboard_private（老師核可的真名，學生讀不到）。 */
 import { db, doc, setDoc, writeBatch } from './fb.js';
 import { loadScores, loadBoard, loadFlags, loadMails, loadClassSizes, invalidate, nameChanged, markNameWarn, nameBase, byClsSeat } from './data.js';
-import { clsShort, MONSTERS, REGIONS, ITEM_DEFS, MAIN_QUESTS, currentQuest, wordById, twDay, normName, sha256Hex } from './nw.js';
-import { MATS } from './gifts.js';
+import { clsShort, MONSTERS, REGIONS, MAIN_QUESTS, currentQuest, wordById, twDay, normName, sha256Hex } from './nw.js';
+import { ownedSummary } from './gifts.js';
+import { awardTitle } from './title-ui.js';
 import { openPersonCard } from './pc.js';
 import { $, esc, fmtT, relT, log, modal, toast, errText, ask, matchStudent, helpBox } from './util.js';
 
@@ -127,6 +128,8 @@ export default async function mount(el, ctx, params) {
   const openPerson = id => openPersonCard({ ids: shown().map(s => s.id), start: id, find: i => scores.find(x => x.id === i), board: bd, act: async (a, s) => {
     try {
       if (a === 'mail') { ctx.go('mail', { aud: ['id:' + s.id] }); return 'close'; }
+      if (a === 'gift') { ctx.go('mail', { aud: ['id:' + s.id], gift: true }); return 'close'; }
+      if (a === 'title') { await awardTitle(s); return; }
       if (a === 'detail') { setTimeout(() => openCard(s.id), 0); return 'close'; }
       if (a === 'hide') await toggleHide(s);
       if (a === 'nameok') await nameOk(s, await loadFlags(true).catch(() => []));
@@ -144,14 +147,17 @@ export default async function mount(el, ctx, params) {
       const titleOf = mid => { const m = mails.find(x => x.id === mid); return m ? m.title : mid; };
       let nwHtml = '<p class="dim">還沒進過新世界。</p>';
       if (nw) {
-        const q = currentQuest(nw), words = (nw.words || []).map(w => (wordById(w) || { w }).w);
+        const q = currentQuest(nw), words = (nw.words || []).map(w => (wordById(w) || { w }).w), own = ownedSummary(nw);
         nwHtml = `<div class="kv">
           <b>稱號</b><span>${esc(nw.title || '（沒有）')}　<span class="dim">詞條 ${words.length} 個</span></span>
           <b>獵人</b><span>HR ${nw.hr}・字元 ${nw.coins}・狩獵 ${nw.hunts} 場・勝 ${nw.stat.wins}／敗 ${nw.stat.fails}</span>
           <b>區域進度</b><span>${Object.keys(REGIONS).filter(k => !REGIONS[k].wip).map(k => `${REGIONS[k].icon}${esc(REGIONS[k].name)} ★${(nw.zone || {})[k] || 0}`).join('　')}</span>
           <b>圖鑑</b><span>${Object.keys(nw.dex || {}).map(k => `${esc((MONSTERS[k] || { name: k }).name)}×${nw.dex[k]}`).join('　') || '—'}</span>
-          <b>道具</b><span>${Object.keys(nw.items || {}).filter(k => nw.items[k] > 0).map(k => `${esc((ITEM_DEFS[k] || { name: k }).name)}×${nw.items[k]}`).join('　') || '—'}</span>
-          <b>材料</b><span>${Object.keys(nw.mats || {}).filter(k => nw.mats[k] > 0).map(k => `${esc(MATS[k] || k)}×${nw.mats[k]}`).join('　') || '—'}</span>
+          <b>稱號詞條</b><span data-own="words">${own.words.map(g => `${esc(g.g)}：${g.names.length ? esc(g.names.join('、')) : '—'}`).join('<br>')}</span>
+          <b>武器</b><span data-own="weapons">${esc(own.weapons.join('、')) || '—'}</span>
+          <b>道具</b><span data-own="items">${esc(own.items.join('　')) || '—'}</span>
+          <b>材料</b><span data-own="mats">${esc(own.mats.join('　')) || '—'}</span>
+          <b>圖紙</b><span data-own="bps">${esc(own.bps.join('、')) || '—'}</span>
           <b>教學</b><span>${['dodge', 'defend', 'attack'].map(k => `${{ dodge: '閃避', defend: '防禦', attack: '打字' }[k]}${(nw.tut || {})[k] ? '✓' : '—'}`).join('　')}</span>
           <b>任務</b><span>完成 ${(nw.quest.done || []).length} / ${MAIN_QUESTS.length}・目前：${q ? esc(q.t) : '全部完成'}</span>
           <b>已領的信</b><span>${Object.keys(nw.mail || {}).length ? Object.keys(nw.mail).map(k => `<span class="chip" style="margin:1px">${esc(titleOf(k))}</span>`).join(' ') : '—'}</span></div>`;
@@ -168,6 +174,8 @@ export default async function mount(el, ctx, params) {
         <h3 style="margin-top:12px">新世界</h3>${nwHtml}
         <div class="row" style="margin-top:12px">
           <button class="px-btn gold" data-act="mail">✉ 寄信給他</button>
+          <button class="px-btn gold" data-act="gift">🎁 給東西</button>
+          <button class="px-btn" data-act="title">🏷 頒稱號</button>
           <button class="px-btn" data-act="hide">${b.hideNick ? '恢復暱稱' : '隱藏暱稱'}</button>
           ${warn ? '<button class="px-btn" data-act="nameok">名字沒問題（解鎖）</button>' : ''}</div>`;
     };
@@ -179,6 +187,8 @@ export default async function mount(el, ctx, params) {
         a.disabled = true;
         try {
           if (a.dataset.act === 'mail') { $('[data-modal]').remove(); ctx.go('mail', { aud: ['id:' + id] }); return; }
+          if (a.dataset.act === 'gift') { $('[data-modal]').remove(); ctx.go('mail', { aud: ['id:' + id], gift: true }); return; }
+          if (a.dataset.act === 'title') { await awardTitle(s); draw(box); a.disabled = false; return; }
           if (a.dataset.act === 'hide' && !(await toggleHide(s))) { a.disabled = false; return; }
           if (a.dataset.act === 'nameok') await nameOk(s, flags);
           draw(box); paint();

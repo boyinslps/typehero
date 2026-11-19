@@ -5,6 +5,7 @@
 import { clsShort, curWeapon, weaponInfo, PX, heroLook, EQUIP_LEFT, EQUIP_RIGHT, heroOf, ownedWeapons, hrProgress, titleBadgeHtml, equipSlotHtml, mountSprites, CARD_CSS } from './nw.js';
 import { $, esc, relT, modal } from './util.js';
 import { nameChanged } from './data.js';
+import { ownedSummary } from './gifts.js';
 
 /* 倍率一律整數（UI-ART-SPEC §1）：角色桌機 8、手機 5；手機窄到放不下兩排裝備格＋角色時才會用到 5 */
 const heroScale = () => (window.innerWidth <= 480 ? 5 : 8);
@@ -37,6 +38,10 @@ const CSS = `${CARD_CSS}
 .pc-later .px-panel{padding:8px 10px;text-align:center;filter:grayscale(1);opacity:.7}
 .pc-later b{display:block;color:#aab0d8}
 .pc-later span{font-size:.9em;color:#8a86b0}
+.pc-own{margin-top:10px;padding:8px 10px;display:grid;grid-template-columns:auto 1fr;gap:3px 8px;font-size:.9em;line-height:1.5}
+.pc-own b{color:#ffd98a;white-space:nowrap}
+.pc-own span{overflow-wrap:anywhere}
+.pc-own .none{color:#8a86b0}
 .pc-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
 @media (prefers-reduced-motion:reduce){.pc-breath,.pc .dkp{animation:none}}
 @media (max-width:480px){.pc-nick{font-size:1.6em}.pc-stage{padding-left:4px;padding-right:4px}}`;
@@ -46,6 +51,14 @@ function injectCss() {
 }
 
 const chip = (text, color = '#ffd98a') => `<span class="px-chip" style="color:${color}">${esc(text)}</span>`;
+
+/* 「他有什麼」：老師要給東西前看一眼，避免重複給。沒有的顯示「—」 */
+function ownHtml(nw) {
+  const o = ownedSummary(nw); if (!o) return '';
+  const line = (k, label, text) => `<b>${label}</b><span data-pc-own="${k}" class="${text ? '' : 'none'}">${text ? esc(text) : '—'}</span>`;
+  const words = o.words.filter(g => g.names.length).map(g => `${g.g}：${g.names.join('、')}`).join('　');
+  return `<div class="px-panel in pc-own" data-pc-ownbox>${line('words', `🏅 稱號詞條 ${o.wordN}`, words)}${line('mats', '📦 材料', o.mats.join('、'))}${line('bps', '📜 圖紙', o.bps.join('、'))}${line('items', '🎴 道具', o.items.join('、'))}${line('weapons', '🗡 武器', o.weapons.join('、'))}</div>`;
+}
 
 /* 單張卡的 HTML 與要掛上去的圖。s 是 loadScores 整理過的學生列，b 是他在 mg_bugboard 的資料 */
 function cardHtml(s, b, pos, total) {
@@ -76,8 +89,11 @@ function cardHtml(s, b, pos, total) {
       <div class="pc-col">${EQUIP_RIGHT.map(slot).join('')}</div>
     </div>
     <div class="pc-chips" data-pc-chips>${chips.join('')}</div>
+    ${ownHtml(nw)}
     <div class="pc-later"><div class="px-panel in" data-pc-later="skill"><b>技能</b><span>之後開放</span></div><div class="px-panel in" data-pc-later="item"><b>道具</b><span>之後開放</span></div></div>
     <div class="pc-acts"><button class="px-btn gold" data-pc-act="mail">✉ 寄信給他</button>
+      <button class="px-btn gold" data-pc-act="gift">🎁 給東西</button>
+      <button class="px-btn" data-pc-act="title">🏷 頒稱號</button>
       <button class="px-btn" data-pc-act="hide">${b.hideNick ? '恢復暱稱' : '隱藏暱稱'}</button>
       ${warn ? '<button class="px-btn" data-pc-act="nameok">名字沒問題（解鎖）</button>' : ''}
       <button class="px-btn" data-pc-act="detail">看詳細資料</button></div>

@@ -1,7 +1,7 @@
 /* 教師頁共用小工具：跳出視窗、提示、操作紀錄、數量防呆、信件預覽。
    各分頁直接 import 這支，不用透過 ctx。 */
 import { db, doc, setDoc } from './fb.js';
-import { itemLabel } from './gifts.js';
+import { itemLabel, isBigItem, bigNorm } from './gifts.js';
 import { clsShort } from './nw.js';
 
 export const $ = (s, el = document) => el.querySelector(s);
@@ -83,15 +83,12 @@ export function log(act, target, summary, batch) {
 }
 
 /* ── 數量防呆（SPEC §2.5）：超過平常值就再按一次確認，避免手滑打成 10000 ── */
-export const BIG = { coins: 1000, potion: 20, renameCard: 5 };
-export function bigItems(items) {
-  return (items || []).filter(it => it && ((it.type === 'coins' && it.n > BIG.coins) || (it.type === 'potion' && it.n > BIG.potion)
-    || (it.type === 'item' && it.key === 'renameCard' && it.n > BIG.renameCard)));
-}
+/* 每種禮物自己訂「平常用量」（gifts.js 的 big／bigNorm），新增種類不用改這裡 */
+export const bigItems = items => (items || []).filter(isBigItem);
 export async function confirmBig(items) {
   const big = bigItems(items);
   if (!big.length) return true;
-  const lines = big.map(it => `<li><b>${esc(itemLabel(it))}</b>　（平常 ${it.type === 'coins' ? BIG.coins : it.type === 'potion' ? BIG.potion : BIG.renameCard} 以內）</li>`).join('');
+  const lines = big.map(it => `<li><b>${esc(itemLabel(it))}</b>　（平常 ${bigNorm(it)} 以內）</li>`).join('');
   return ask('數量比平常多很多', `<p>這封信的數量很大：</p><ul>${lines}</ul><p class="warn">寄出就不能扣回。是不是多打了一個 0？</p>`, '沒錯，照這個數量寄', '回去改', true);
 }
 

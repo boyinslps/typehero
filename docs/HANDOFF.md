@@ -35,7 +35,7 @@
 
 ### 信箱 `mg_mail`
 - 學生端在 `newworld.js`（`openMail`、`claimMail`、`mailVisible`）。一次查詢 `aud array-contains-any ['all','cls:班級','id:班級_座號']`，時間在前端用 `C.now()` 過濾。
-- 已領 `NW.mail[信件ID] = 時間`。領前重讀雲端的 `nw.mail` 合併（雙分頁不會領兩次）。`applyReward` 認的 `type`：weapon、coins、potion、exp、item、mat、word；**不認得的整封不領**（舊版程式遇到新禮物種類不會亂收）。要加新禮物種類：改 `applyReward`、教師頁 `teacher/gifts.js` 的 `GIFT_TYPES`（兩邊要一起）。
+- 已領 `NW.mail[信件ID] = 時間`。領前重讀雲端的 `nw.mail` 合併（雙分頁不會領兩次）。`newworld.js` 的 `REWARD` 表（`itemKnown`／`applyReward`／`itemLabel` 都從它來）認的 `type`：weapon、coins、potion、exp、item、mat、word、bp、hr、zone、dex、tut；**不認得的（含 key 不在資料表、數量不合理）整封不領**（舊版程式遇到新禮物種類不會亂收）。要加新禮物種類：`REWARD` 加一列、教師頁 `teacher/gifts.js` 的 `GIFT_TYPES` 加一列（兩邊的 label 要一樣）；清單內容由資料表自動產生。盤點與刻意不做的項目見 `docs/research/TEACHER-GIVE-AUDIT.md`。教師頁「🏷 頒稱號」（`teacher/title-ui.js`，信件固定 ID `title_{詞條id}_{學生docId}`）。
 - 郵筒是 `VILLAGE.decor` 裡 `k:'mailbox'`；村莊程式用 `k` 找它，換位置只改 `nw-data.js`。
 - 系統自動寄的信一律**固定 ID**（`bug_{flagID}`、`award_{flagID}`、`ev_{活動}_{位置}`、`ev_{活動}_p_{學生}`），重寄是覆蓋。
 

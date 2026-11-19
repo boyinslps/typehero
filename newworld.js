@@ -2,7 +2,7 @@ import { PX } from './pixel.js';
 import {
   LOOK, DEFAULT_LOOK, heroLook, STARTERS, LOCKED_WEAPONS, REGIONS, MAP_POS, ELEM, STATUS, MONSTERS,
   regionLv, MAIN_QUESTS, normalizeNw, currentQuest, zoneOpen, starOpen, addHrExp, hrNeed, huntExp, huntCoins,
-  COLOR_NAME, COLOR_HEX, HR_MAX, VILLAGE, doorTile, buildingOpen, goalOf, TEST_TAGS, FB_COINS, FB_MINLEN, BUG_COINS, BUG_REWARD_MAX, LESSON_COINS, TESTER_MISSIONS, checkMissions, GIFT_WEAPONS, weaponInfo, weaponBase, curWeapon, WORDS, WORD_GROUPS, checkWords, setTitleParts, wordById, normName, ITEM_DEFS, displayName, NOTICES
+  COLOR_NAME, COLOR_HEX, HR_MAX, VILLAGE, doorTile, buildingOpen, goalOf, TEST_TAGS, FB_COINS, FB_MINLEN, BUG_COINS, BUG_REWARD_MAX, LESSON_COINS, TESTER_MISSIONS, checkMissions, GIFT_WEAPONS, weaponInfo, weaponBase, curWeapon, WORDS, WORD_GROUPS, checkWords, setTitleParts, wordById, normName, ITEM_DEFS, displayName, NOTICES, MAT_INFO, isBpId, isMatId, TUT_LESSONS, ZONE_STAR_MAX
 } from './nw-data.js';
 import { injectUi } from './nw-ui.js';
 import { tierOf, EQUIP_LEFT, EQUIP_RIGHT, heroOf, titleBadgeHtml, darkDots, equipSlotHtml, mountSprites as mountSpritesPx, CARD_CSS } from './nw-card.js';
@@ -550,15 +550,7 @@ export function initNewWorld(C) {
     return () => { alive = false; cancelAnimationFrame(raf); };
   }
 
-  const MAT = (() => {
-    const m = {};
-    Object.values(MONSTERS).forEach(mo => {
-      mo.drops.forEach(([id, name, color]) => { m[id] = [name, color]; });
-      mo.rare.forEach(([id, name, color]) => { m[id] = [name.replace('📜 ', ''), color]; });
-    });
-    Object.entries(STARTERS).forEach(([k, st]) => { m['bp_' + k] = [st.name + '圖紙', 'gray']; });
-    return m;
-  })();
+  const MAT = MAT_INFO;
   const matName = id => MAT[id] || [id, 'gray'];
 
   function questBody() {
@@ -633,37 +625,134 @@ export function initNewWorld(C) {
   }
 
   const posN = r => Number.isFinite(+r.n) && +r.n > 0;
-  /* 信裡有這版程式不認得的東西（老師用了新功能、學生還沒重新整理）就整封不領，才不會領一半、之後又領一次 */
-  const itemKnown = r => !!r && ({
-    weapon: () => !!GIFT_WEAPONS[r.key], coins: () => posN(r), potion: () => posN(r), exp: () => posN(r), item: () => !!ITEM_DEFS[r.key] && typeof r.key === 'string' && posN(r),
-    mat: () => typeof r.key === 'string' && !!r.key && posN(r), word: () => !!wordById(r.key)
-  }[r.type] || (() => false))();
+  const intIn = (v, lo, hi) => typeof v === 'number' && Number.isInteger(v) && v >= lo && v <= hi;
+  /* 資料表用 key 查：'constructor' 這種字不能被當成存在 */
+  const own = (tbl, k) => typeof k === 'string' && Object.prototype.hasOwnProperty.call(tbl, k);
+  /* 老師補發的「狀態類」禮物（獵人等級、區域、圖鑑、教學課）領完要重新檢查任務與測試員任務，
+     不然學生要等下一場狩獵才看到任務跟著往前 */
+  let stateGifted = false;
+  /* 每一種禮物一列：known＝這版程式認得、欄位合理（不認得就整封不領，才不會領一半、之後又領一次）；
+     apply＝真的加進存檔，回通知內容；label＝信裡的小標籤。
+     要加新種類（例如第 2 段的 gear）只要在這裡加一列、再到 teacher/gifts.js 加一列，其他地方都從這張表走。 */
+  const REWARD = {
+    weapon: {
+      known: r => own(GIFT_WEAPONS, r.key),
+      apply: r => {
+        const w = GIFT_WEAPONS[r.key];
+        if (!NW.gw.includes(r.key)) NW.gw.push(r.key);
+        return { weapon: r.key, dark: !!w.dark, title: w.name, note: `${w.desc}　到背包的裝備格點一下就能換上。` };
+      },
+      label: r => `🗡 ${(GIFT_WEAPONS[r.key] || { name: '新武器' }).name}`
+    },
+    coins: {
+      known: posN,
+      apply: r => { NW.coins += +r.n; return { icon: '🪙', title: `字元 ×${r.n}`, note: '字元是新世界的貨幣，之後可以買東西、打造裝備。' }; },
+      label: r => `🪙 字元 ×${r.n}`
+    },
+    potion: {
+      known: posN,
+      apply: r => { NW.items.potion = (NW.items.potion || 0) + +r.n; return { icon: '🧪', title: `回復藥 ×${r.n}`, note: '回復藥要等商店開張才能在戰鬥中使用，先幫你存著。' }; },
+      label: r => `🧪 回復藥 ×${r.n}`
+    },
+    exp: {
+      known: posN,
+      apply: r => {
+        const ups = addHrExp(NW, +r.n);
+        return { icon: '⭐', title: `獵人經驗 +${r.n}`, note: ups ? `獵人等級升到 ${NW.hr}！` : '經驗滿了，獵人等級就會升級。' };
+      },
+      label: r => `⭐ 獵人經驗 +${r.n}`
+    },
+    item: {
+      known: r => own(ITEM_DEFS, r.key) && posN(r),
+      apply: r => {
+        const d = ITEM_DEFS[r.key]; NW.items[r.key] = (NW.items[r.key] || 0) + +r.n;
+        return d.pixel ? { itemPx: d.pixel, title: `${d.name} ×${r.n}`, note: d.desc } : { icon: d.icon || '📦', title: `${d.name} ×${r.n}`, note: d.desc };
+      },
+      label: r => `🎴 ${(ITEM_DEFS[r.key] || { name: '道具' }).name} ×${r.n}`
+    },
+    /* 材料一定要是資料表裡有的：打錯的 key 會變成叫不出名字的東西（SPEC-STAGE2 F6） */
+    mat: {
+      known: r => isMatId(r.key) && posN(r),
+      apply: r => { const [nm] = matName(r.key); NW.mats[r.key] = (NW.mats[r.key] || 0) + +r.n; return { icon: '📦', title: `${nm} ×${r.n}`, note: '材料先幫你存著，鐵匠鋪開張就能用。' }; },
+      label: r => `📦 ${matName(r.key)[0]} ×${r.n}`
+    },
+    /* 任何 WORDS 的詞條都能頒。跟自己達成條件一樣：寫進 words；awards 也記一筆（職業除錯師這類「老師頒發」的詞條看它）。
+       再跑一次 checkWords，這封信順便讓別的條件跟著達成的詞條也一起解鎖、一起說 */
+    word: {
+      known: r => typeof r.key === 'string' && !!wordById(r.key),
+      apply: r => {
+        const wd = wordById(r.key), had = NW.words.includes(r.key);
+        NW.awards[r.key] = 1;
+        if (!had) NW.words.push(r.key);
+        const more = checkWords(NW);
+        return { icon: '🏅', title: `新的稱號詞條：${wd.w}`,
+          note: (had ? '這個稱號詞條你本來就有了。' : `原本要「${wd.how}」才拿得到，老師直接送給你了。`) + (more.length ? `另外也解鎖了：${more.join('、')}。` : '') + '到背包點名字下面的稱號，就能把它戴上。' };
+      },
+      label: r => `🏅 稱號詞條「${(wordById(r.key) || { w: '' }).w}」`
+    },
+    bp: {
+      known: r => isBpId(r.key),
+      apply: r => {
+        const nm = matName(r.key)[0], had = NW.bp.includes(r.key);
+        if (!had) NW.bp.push(r.key);
+        return { icon: '📜', title: `圖紙「${nm}」`, note: had ? '這張圖紙你已經會了，不用再學一次。' : '圖紙學會了就不會用掉。鐵匠鋪開張就能用它打造。' };
+      },
+      label: r => `📜 圖紙「${matName(r.key)[0]}」`
+    },
+    /* 直接升到某個獵人等級（只往上）。星星跟著等級走（addHrExp 每升一級給一顆）。
+       主要給存檔被同學亂蓋、要補回進度的人用 */
+    hr: {
+      known: r => intIn(r.n, 2, HR_MAX),
+      apply: r => {
+        const to = +r.n, from = NW.hr;
+        while (NW.hr < to) addHrExp(NW, hrNeed(NW.hr) - NW.hrExp);
+        stateGifted = true;
+        return { icon: '⭐', title: `獵人等級升到 ${to}`, note: NW.hr > from ? `獵人等級從 ${from} 升到 ${NW.hr}！` : '你的獵人等級已經比這個高了。' };
+      },
+      label: r => `⭐ 獵人等級升到 ${r.n}`
+    },
+    /* 區域進度只往上不往下：n 是「這個區域打贏到 ★幾」，★n 以下都算過關 */
+    zone: {
+      known: r => own(REGIONS, r.key) && !REGIONS[r.key].wip && intIn(r.n, 1, ZONE_STAR_MAX),
+      apply: r => {
+        const rg = REGIONS[r.key], n = +r.n, up = (NW.zone[r.key] || 0) < n;
+        if (up) NW.zone[r.key] = n;
+        stateGifted = true;
+        const next = Object.values(REGIONS).find(x => x.needs === r.key && !x.wip);
+        return { icon: rg.icon, title: `${rg.name} ★${n} 以下都算過關`,
+          note: up ? `${rg.name}的委託板可以挑戰更高的星了。${n >= 5 && next ? `${next.name}也開放了！` : ''}` : '你已經走得比這裡更遠了。' };
+      },
+      label: r => `🗺 ${(REGIONS[r.key] || { name: '新地方' }).name} ★${r.n} 以下都算過關`
+    },
+    /* 圖鑑只標「打過」（至少 1 次），不改次數 */
+    dex: {
+      known: r => own(MONSTERS, r.key) && !MONSTERS[r.key].wip,
+      apply: r => {
+        const m = MONSTERS[r.key], had = (NW.dex[r.key] || 0) > 0;
+        if (!had) NW.dex[r.key] = 1;
+        stateGifted = true;
+        return { icon: '📖', title: `魔物圖鑑：${m.name}`, note: had ? '你本來就打倒過牠了。' : '圖鑑亮起來了，算你打倒過牠。' };
+      },
+      label: r => `📖 圖鑑：${(MONSTERS[r.key] || { name: '新魔物' }).name}`
+    },
+    /* 只標「學會了」。不給那堂課的 200 字元（要給字元另外放）；任務與測試員任務會自己往前 */
+    tut: {
+      known: r => TUT_LESSONS.some(([k]) => k === r.key),
+      apply: r => {
+        const nm = TUT_LESSONS.find(([k]) => k === r.key)[1], had = !!NW.tut[r.key];
+        NW.tut[r.key] = 1; stateGifted = true;
+        return { icon: '🏫', title: `教學大樓：${nm}課`, note: had ? '這堂課你已經學會了。' : '老師說這堂課你學會了，不用再上。' };
+      },
+      label: r => `🏫 教學大樓：${(TUT_LESSONS.find(([k]) => k === r.key) || ['', '一堂'])[1]}課學會了`
+    }
+  };
+  const rewardOf = r => (r && typeof r.type === 'string' && Object.prototype.hasOwnProperty.call(REWARD, r.type)) ? REWARD[r.type] : null;
+  /* 信裡有這版程式不認得的東西（老師用了新功能、學生還沒重新整理）就整封不領 */
+  const itemKnown = r => { const d = rewardOf(r); return !!d && !!d.known(r); };
   const rewardOk = r => !!r && (r.type === 'weapon' ? !!GIFT_WEAPONS[r.key] : (r.type === 'coins' || r.type === 'potion') && Number.isFinite(+r.n));
   function applyReward(r) {
-    if (r.type === 'weapon') {
-      const w = GIFT_WEAPONS[r.key]; if (!w) return null;
-      if (!NW.gw.includes(r.key)) NW.gw.push(r.key);
-      return { weapon: r.key, dark: !!w.dark, title: w.name, note: `${w.desc}　到背包的裝備格點一下就能換上。` };
-    }
-    if (r.type === 'coins') { NW.coins += r.n; return { icon: '🪙', title: `字元 ×${r.n}`, note: '字元是新世界的貨幣，之後可以買東西、打造裝備。' }; }
-    if (r.type === 'potion') { NW.items.potion = (NW.items.potion || 0) + r.n; return { icon: '🧪', title: `回復藥 ×${r.n}`, note: '回復藥要等商店開張才能在戰鬥中使用，先幫你存著。' }; }
     if (!itemKnown(r)) return null;
-    if (r.type === 'exp') {
-      const ups = addHrExp(NW, +r.n);
-      return { icon: '⭐', title: `獵人經驗 +${r.n}`, note: ups ? `獵人等級升到 ${NW.hr}！` : '經驗滿了，獵人等級就會升級。' };
-    }
-    if (r.type === 'item') {
-      const d = ITEM_DEFS[r.key]; NW.items[r.key] = (NW.items[r.key] || 0) + +r.n;
-      return d.pixel ? { itemPx: d.pixel, title: `${d.name} ×${r.n}`, note: d.desc } : { icon: d.icon || '📦', title: `${d.name} ×${r.n}`, note: d.desc };
-    }
-    if (r.type === 'mat') { const [nm] = matName(r.key); NW.mats[r.key] = (NW.mats[r.key] || 0) + +r.n; return { icon: '📦', title: `${nm} ×${r.n}`, note: '材料先幫你存著，鐵匠鋪開張就能用。' }; }
-    if (r.type === 'word') {
-      /* bugking 這類老師頒的詞條看 NW.awards；其他詞條沒有對應的條件，就直接放進已解鎖 */
-      NW.awards[r.key] = 1; checkWords(NW);
-      if (!NW.words.includes(r.key)) NW.words.push(r.key);
-      return { icon: '🏅', title: `稱號詞條「${wordById(r.key).w}」`, note: '到背包點名字下面的稱號，自己拚拚看。' };
-    }
-    return null;
+    return rewardOf(r).apply(r);
   }
 
   const guideBuilding = () => (goalOf(NW) ? goalOf(NW).building : null);
@@ -1161,10 +1250,7 @@ export function initNewWorld(C) {
   }
   const refreshMail = force => fetchMail(force).catch(() => {});
 
-  const itemLabel = it => !it ? '' : ({
-    weapon: () => `🗡 ${(GIFT_WEAPONS[it.key] || { name: '新武器' }).name}`, coins: () => `🪙 字元 ×${it.n}`, potion: () => `🧪 回復藥 ×${it.n}`,
-    exp: () => `⭐ 獵人經驗 +${it.n}`, item: () => `🎴 ${(ITEM_DEFS[it.key] || { name: '道具' }).name} ×${it.n}`, mat: () => `📦 ${matName(it.key)[0]} ×${it.n}`, word: () => `🏅 稱號詞條「${(wordById(it.key) || { w: '' }).w}」`
-  }[it.type] || (() => '❓ 新東西'))();
+  const itemLabel = it => { const d = rewardOf(it); return !it ? '' : d ? d.label(it) : '❓ 新東西'; };
 
   async function claimMail(ids) {
     if (mailBusy) return;
@@ -1177,6 +1263,7 @@ export function initNewWorld(C) {
         if (cm && typeof cm === 'object' && !Array.isArray(cm)) for (const k in cm) if (!NW.mail[k]) NW.mail[k] = cm[k];
       } catch (e) { toast('現在連不上網路，等一下再來領', 3000); return; }
       const gifts = []; let did = 0, unknown = 0;
+      stateGifted = false;
       for (const id of ids) {
         const m = mailList.find(x => x.id === id);
         if (!m || NW.mail[id]) continue;
@@ -1186,12 +1273,16 @@ export function initNewWorld(C) {
         if (!items.length) gifts.push({ icon: '✉', title: m.title || '一封信', note: m.body || '' });
         NW.mail[id] = now(); did++;
       }
+      /* 補發的獵人等級、區域、圖鑑、教學課會讓任務往前：先算任務（任務完成可能解鎖詞條），再算詞條 */
+      const qs = stateGifted ? checkQuests() : [];
       const ws = checkWords(NW);
+      qs.forEach(q => gifts.push({ icon: '📌', title: `任務完成：${q.t}`, note: `獎勵：${q.rewardText}。` }));
       if (ws.length) gifts.push({ icon: '🏅', title: '新的稱號詞條', note: ws.join('、') + '。到背包點名字下面的稱號，自己拚拚看。' });
       if (did) await saveNwNow();
       mailCount = countUnread(); paintMailBadge();
       paintMail();
       for (const g of gifts) await showGift(g);
+      if (stateGifted) { stateGifted = false; await awardMissions(); }
       if (unknown) toast('有信裡的東西這個版本還不認得，請按 F5 重新整理再來領', 4200);
       if (did && view === 'hub') viewHub();
     } finally { mailBusy = false; }
