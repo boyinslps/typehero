@@ -1,5 +1,5 @@
 /* 📊 總覽（SPEC §2.2）：數字卡、「今天要做的事」、三個捷徑。卡片點下去到對應的分頁（帶篩選）。 */
-import { loadScores, loadBoard, loadFlags, loadEvents, nameChanged, pendingAwards } from './data.js';
+import { loadScores, loadBoard, loadFlags, loadEvents, nameChanged, markNameWarn, pendingAwards } from './data.js';
 import { twDay, normalizeEvent, phaseOf } from './nw.js';
 import { esc, fmtT, helpBox } from './util.js';
 
@@ -17,6 +17,7 @@ export default async function mount(el, ctx) {
   const pend = pendingAwards(events, now);
   const pending = flags.filter(f => f.type === 'bug' && (f.status || 'pending') === 'pending').length;
   const unread = flags.filter(f => f.type === 'feedback' && !f.read).length;
+  markNameWarn(scores, flags);
   const warn = scores.filter(s => s.played && nameChanged(s, board[s.id])).length;
 
   const card = (key, label, val, go, cls = '', sub = '') =>

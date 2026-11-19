@@ -28,6 +28,11 @@ export default async function mount(el) {
       <p style="margin:0 0 6px">班級挑戰的「全班達標率」分母。空白＝自動算（進過新世界的人數）。想用全班人數就在這裡填；這裡填的所有活動都會用。</p>
       <div data-size-body></div>
       <div class="row" style="margin-top:8px"><button class="px-btn gold" data-size-save>儲存班級人數</button></div></div>
+    <h3>名字與榜單</h3>
+    <div class="px-panel in" data-namenote>
+      <p style="margin:0 0 6px"><b>榜單顯示的是學生登入時填的名字</b>，不是另外取的暱稱。抓蟲榜與活動榜是全校都看得到的，名字可能是真名，建議請學生填想讓大家看到的暱稱。</p>
+      <p style="margin:0 0 6px">名字第一次登入後就固定，之後再用別的名字登入只會被記錄、不會改掉。學生要改名字，用「改名卡」（在「✉ 信箱」寄給他）。</p>
+      <p style="margin:0">名字不適合：到「👥 學生」按「隱藏暱稱」，榜上就顯示「神秘獵人」。學生本人用別的名字登入並在新世界被鎖時，確認沒問題按「名字沒問題」，那個名字就變成新名字。</p></div>
     <h3>其他設定</h3>
     <p class="dim" style="margin:0 0 6px">新世界開放方式、通關密語、序號禮物還在舊控制台（遊戲首頁的教師控制台）。</p>
     <p><a class="px-btn" href="index.html" style="text-decoration:none">← 回遊戲</a></p>

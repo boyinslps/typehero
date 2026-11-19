@@ -2,7 +2,7 @@
    畫法跟學生背包左邊的人物卡共用（nw-card.js），老師看到的角色、武器、稱號徽章跟學生自己看到的一樣。
    這支只負責畫與切換；寄信、隱藏暱稱、名字沒問題這些會寫資料的動作由 tab-students.js 傳進來（act），
    這裡不直接碰資料庫。 */
-import { clsShort, nickText, curWeapon, weaponInfo, PX, heroLook, EQUIP_LEFT, EQUIP_RIGHT, heroOf, ownedWeapons, hrProgress, titleBadgeHtml, equipSlotHtml, mountSprites, CARD_CSS } from './nw.js';
+import { clsShort, curWeapon, weaponInfo, PX, heroLook, EQUIP_LEFT, EQUIP_RIGHT, heroOf, ownedWeapons, hrProgress, titleBadgeHtml, equipSlotHtml, mountSprites, CARD_CSS } from './nw.js';
 import { $, esc, relT, modal } from './util.js';
 import { nameChanged } from './data.js';
 
@@ -51,7 +51,7 @@ const chip = (text, color = '#ffd98a') => `<span class="px-chip" style="color:${
 function cardHtml(s, b, pos, total) {
   const nw = s.nw, hasLook = !!(nw && nw.look && typeof nw.look === 'object'), warn = nameChanged(s, b);
   const w = nw && curWeapon(nw), wi = w ? weaponInfo(w) : null;
-  const nick = nw && nw.nick ? nickText(nw) : '';
+  const nick = s.name || '';
   const hp = nw ? hrProgress(nw) : null;
   const slot = ([k, n]) => nw ? equipSlotHtml(nw, k, n, 2) : `<div class="bp-slot" data-slot="${k}"><span>＋</span><i>${n}</i></div>`;
   const chips = [];
@@ -65,8 +65,8 @@ function cardHtml(s, b, pos, total) {
       <span class="dim mono" data-pc-pos>${pos + 1} / ${total}</span>
       <button class="px-btn" data-pc-nav="1" aria-label="下一位" ${pos >= total - 1 ? 'disabled' : ''}>▶</button>
       <button class="px-btn" data-pc-close style="margin-left:auto">✕ 關閉</button></div>
-    <div class="pc-nick px-title ${nick ? '' : 'none'}" data-pc-nick>${nick ? esc(nick) : '（還沒取暱稱）'}${b.hideNick ? ' ' + chip('已隱藏', '#e5705f') : ''}</div>
-    <div class="pc-real" data-pc-real>${esc(s.name || '（沒有姓名）')}・${esc(clsShort(s.className))}・${s.seat}號${warn ? ' ' + chip('⚠ 換過名字', '#e5705f') : ''}</div>
+    <div class="pc-nick px-title ${nick ? '' : 'none'}" data-pc-nick>${nick ? esc(nick) : '（沒有名字）'}${b.hideNick ? ' ' + chip('已隱藏', '#e5705f') : ''}</div>
+    <div class="pc-real" data-pc-real>${esc(clsShort(s.className))}・${s.seat}號${warn ? ' ' + chip('⚠ 換過名字', '#e5705f') : ''}</div>
     ${nw && nw.title ? `<div class="pc-titleline" data-pc-title>${titleBadgeHtml(PX, nw, esc, 2)}</div>` : `<div class="pc-titleline none" data-pc-title>${PX.badge(1, 2)} ${nw ? '還沒有稱號' : '—'}</div>`}
     ${nw ? `<div class="pc-hr" data-pc-hr><b class="px-text" style="color:#ffd98a;white-space:nowrap">獵人 HR ${nw.hr}</b><div class="px-bar xp"><i style="width:${hp.pct}%"></i></div><span class="mono" style="font-size:.85em;white-space:nowrap">${hp.text}</span></div>` : ''}
     <div class="px-panel in pc-stage" data-pc-stage>

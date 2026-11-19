@@ -2,7 +2,7 @@ import { PX } from './pixel.js';
 import {
   LOOK, DEFAULT_LOOK, heroLook, STARTERS, LOCKED_WEAPONS, REGIONS, MAP_POS, ELEM, STATUS, MONSTERS,
   regionLv, MAIN_QUESTS, normalizeNw, currentQuest, zoneOpen, starOpen, addHrExp, hrNeed, huntExp, huntCoins,
-  COLOR_NAME, COLOR_HEX, HR_MAX, VILLAGE, doorTile, buildingOpen, goalOf, TEST_TAGS, FB_COINS, FB_MINLEN, BUG_COINS, BUG_REWARD_MAX, LESSON_COINS, TESTER_MISSIONS, checkMissions, GIFT_WEAPONS, weaponInfo, weaponBase, curWeapon, WORDS, WORD_GROUPS, checkWords, setTitleParts, wordById, normName, NICK_A, NICK_B, ITEM_DEFS, nickText, nickWord, NOTICES
+  COLOR_NAME, COLOR_HEX, HR_MAX, VILLAGE, doorTile, buildingOpen, goalOf, TEST_TAGS, FB_COINS, FB_MINLEN, BUG_COINS, BUG_REWARD_MAX, LESSON_COINS, TESTER_MISSIONS, checkMissions, GIFT_WEAPONS, weaponInfo, weaponBase, curWeapon, WORDS, WORD_GROUPS, checkWords, setTitleParts, wordById, normName, ITEM_DEFS, displayName, NOTICES
 } from './nw-data.js';
 import { injectUi } from './nw-ui.js';
 import { tierOf, EQUIP_LEFT, EQUIP_RIGHT, heroOf, titleBadgeHtml, darkDots, equipSlotHtml, mountSprites as mountSpritesPx, CARD_CSS } from './nw-card.js';
@@ -114,7 +114,7 @@ export function initNewWorld(C) {
   C.now = now;
   /* 活動（nw-events.js）。grant：領獎，信裡有這版不認得的東西就整份不領（回 null），跟信箱同一套規矩 */
   const EV = createEvents(C, {
-    now, me: () => ME, nw: () => NW, save: () => saveNw(), saveNow: () => saveNwNow(), nickText,
+    now, me: () => ME, nw: () => NW, save: () => saveNw(), saveNow: () => saveNwNow(), myName: () => ME.name,
     grant: items => (Array.isArray(items) && items.every(itemKnown)) ? items.map(applyReward).filter(Boolean) : null
   });
   /* 進村、開佈告欄時：清舊紀錄、提示被取消的活動、檢查全班獎 */
@@ -170,17 +170,30 @@ export function initNewWorld(C) {
   }
 
   /* ── 冒名鎖（SPEC §1.5）：只擋隨手亂打名字，打對同學的名字就過了 ──
-     基準不能用 name：登入與每次存檔都會把 name 改成這次打的名字，冒名的人第二次登入就自己解鎖了。
-     基準 = 老師按「名字沒問題」時寫的 mg_bugboard.nameOkH（名字的雜湊，學生讀得到這份文件，所以不存真名），
-     沒有就用存檔裡只寫一次的 nw.name0。 */
+     v3.14.1 起名字固定（ME.name＝基準名字），登入時打的字放在 ME.typed，拿它跟基準比。
+     基準 = 存檔裡只寫一次的 nw.name0（用改名卡改名時會換成新名字）；
+     老師按「名字沒問題」時寫的 mg_bugboard.nameOkH（名字的雜湊，學生讀得到這份文件，所以不存真名）也算數，
+     而且那個名字會變成新基準。 */
   let nameLock = false, nameBase = '';
   async function checkName() {
-    const cur = ME.name || '', okH = board && typeof board.nameOkH === 'string' ? board.nameOkH : '';
-    if (!NW.name0 && !okH) { NW.name0 = cur; saveNw(); }
-    nameBase = NW.name0 || cur;
-    if (okH) nameLock = !!cur && (await sha256Hex(normName(cur))) !== okH;
-    else nameLock = !!cur && normName(cur) !== normName(nameBase);
-    if (nameLock) writeNameFlag(cur, nameBase);
+    const typed = ME.typed || ME.name || '', okH = board && typeof board.nameOkH === 'string' ? board.nameOkH : '';
+    if (!NW.name0) { NW.name0 = ME.name || typed; saveNw(); }
+    nameBase = NW.name0;
+    const same0 = normName(typed) === normName(NW.name0), renamed = (NW.nameLog || []).length > 0;
+    let ok;
+    if (okH) {
+      const hit = !!typed && (await sha256Hex(normName(typed))) === okH;
+      ok = hit || (renamed && same0);
+      /* 老師核可的新名字：換成新基準。用過改名卡的人不跟著換，不然改名會被舊的核可蓋回去 */
+      if (hit && !same0 && !renamed) adoptName(typed);
+    } else ok = same0;
+    nameLock = !!typed && !ok;
+    if (nameLock) writeNameFlag(typed, nameBase);
+  }
+  function adoptName(n) {
+    NW.name0 = n; ME.name = n; nameBase = n;
+    if (C.onRename) C.onRename(n);
+    saveNw();
   }
   /* ID 帶新名字的雜湊：同一個新名字只有一筆，換成別的名字才會多一筆 */
   async function writeNameFlag(cur, base) {
@@ -201,10 +214,10 @@ export function initNewWorld(C) {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(pushCloud, 800);
   }
-  /* nwNick 是組好的暱稱字串，給榜單用（榜單查詢不讀整份 nw）；被老師隱藏的人照樣存，隱藏由顯示端負責 */
+  /* nwNick＝登入名字，給榜單用（榜單查詢不讀整份 nw）；被老師隱藏的人照樣存，隱藏由顯示端負責 */
   function pushCloud() {
     if (!C.online() || !NW) return Promise.resolve();
-    return C.withTimeout(C.setDoc(docRef(), { className: ME.className, seat: ME.seat, name: ME.name, nwTitle: NW.title || '', nwTitleN: (NW.titleParts || []).length, nwCls: ME.className, nwEvDone: NW.evDone || [], nwNick: NW.nick ? nickText(NW) : '', nw: NW }, { merge: true }), 6000, 'nw-save')
+    return C.withTimeout(C.setDoc(docRef(), { className: ME.className, seat: ME.seat, name: ME.name, nwTitle: NW.title || '', nwTitleN: (NW.titleParts || []).length, nwCls: ME.className, nwEvDone: NW.evDone || [], nwNick: ME.name || '', nw: NW }, { merge: true }), 6000, 'nw-save')
       .catch(e => console.warn('新世界存檔失敗', e));
   }
   /* 領信、領獎這種「領了就不能反悔」的事不等 800ms 的延遲：關掉分頁前先寫進雲端，另一個分頁才領不到第二次 */
@@ -699,7 +712,7 @@ export function initNewWorld(C) {
   /* ── 佈告欄（SPEC §9.1）：建築與上方按鈕打開同一個視窗，三個分頁 📢 公告｜🎪 活動｜🐛 抓蟲榜 ──
      「看過了」分頁各自記：公告 NW.seenNews／seenNotice、活動 NW.seenEv、抓蟲榜 NW.seenBug。
      沒看過的東西讓木板上方彈跳「！」、上方按鈕與分頁加小紅點。 */
-  const NT = createNotice(C, { me: () => ME, nw: () => NW, ownBoard: () => board, nickText });
+  const NT = createNotice(C, { me: () => ME, nw: () => NW, ownBoard: () => board, myName: () => ME.name });
   const NOTICE_TAB_KEY = 'mg_nw_ntab';
   const NTABS = [['news', '📢', '公告'], ['ev', '🎪', '活動'], ['bug', '🐛', '抓蟲榜']];
   const readTab = () => { try { const t = localStorage.getItem(NOTICE_TAB_KEY); return NTABS.some(x => x[0] === t) ? t : 'news'; } catch (e) { return 'news'; } };
@@ -878,12 +891,6 @@ export function initNewWorld(C) {
       showTab(readTab());
     });
   }
-  /* 進新世界就先取名：沒取過就跳選擇器，不能完全跳過（關掉就幫他存隨機的）。被冒名鎖時不跳。
-     測試機用 __NW_NOINTRO__ 關掉所有第一次的畫面，要測這個再開 __NW_NICKPROMPT__。 */
-  async function nickFirst() {
-    if (NW.nick || nameLock || (window.__NW_NOINTRO__ && !window.__NW_NICKPROMPT__)) return;
-    await new Promise(res => openNickPicker(res, 'first'));
-  }
   /* 進村：先讀老師公告與活動（為了「！」），再決定要不要自動跳出來。
      自動跳出：新的老師公告（t 比 NW.seenNews 新）、最新的改版公告；第一次來的人什麼都不跳，直接記成已讀。 */
   async function noticeOnce(fresh) {
@@ -896,7 +903,7 @@ export function initNewWorld(C) {
     if (!news.length && !notice) return;
     await openNotice(true, { news, notice });
   }
-  async function hubStart() { const fresh = !NW.intro.hub; refreshMail(); await introOnce('hub'); await nickFirst(); await noticeOnce(fresh); await earlyGift(); refreshBoard(); }
+  async function hubStart() { const fresh = !NW.intro.hub; refreshMail(); await introOnce('hub'); await nameFirst(); await noticeOnce(fresh); await earlyGift(); refreshBoard(); }
 
   async function awardMissions() {
     const ms = checkMissions(NW);
@@ -1236,57 +1243,83 @@ export function initNewWorld(C) {
     paintMail();
   }
 
-  /* ── 暱稱（SPEC §8）：從詞庫選兩個詞，一天最多改一次 ── */
+  /* ── 改名字（SPEC §8）：名字是登入名字、固定。
+     兩個入口：背包「改名字」用 1 張改名卡；第一次進新世界問一次「沿用還是改」，這次改不扣卡。 ── */
   const cards = () => (NW.items.renameCard || 0);
-  function openNickPicker(after, mode) {
-    if (nameLock) { toast('名字跟上次不一樣，暱稱先鎖起來了；請找老師', 3800); if (after) after(); return; }
-    /* 取過了就固定，要換得用改名卡 */
-    const first = mode === 'first' || !NW.nick;
-    if (!first && cards() < 1) { toast('要有改名卡才能換喔（之後商店會賣，也可能是老師的禮物）', 3600); return; }
-    const sel = { a: NW.nick ? NW.nick[0] : '', b: NW.nick ? NW.nick[1] : '' };
-    const ed = document.createElement('div');
-    ed.id = 'nw-nick'; ed.className = 'nw-sheet fixed inset-0 grid place-items-center p-4'; ed.style.zIndex = 93; ed.style.background = 'rgba(9,8,18,.9)';
-    const row = (key, list) => list.map(x => `<button class="nw-chip" data-n="${key}" data-id="${x.id}" aria-pressed="${sel[key] === x.id}">${escHtml(x.w)}</button>`).join('');
-    ed.innerHTML = `<div class="px-panel" style="max-width:560px;width:100%;max-height:92vh;overflow-y:auto;padding:16px">
-      <div class="px-title" style="font-size:1.4em">${first ? '✏ 先取個暱稱吧' : '✏ 換暱稱'}</div>
-      <p class="text-xs mb-2" style="color:#aab0d8">前面選一個、後面選一個，組成你的暱稱。暱稱會出現在抓蟲榜。${first ? '<b>取了就固定</b>，想好再按「確定」；之後想換要用「改名卡」。' : '<b>會用掉 1 張改名卡</b>，想好再按「確定」。'}</p>
-      <div class="px-panel in text-center" style="padding:12px;font-size:1.4em" data-prev></div>
-      <div class="px-text mt-3 mb-1" style="color:#ffd98a">前面</div><div class="flex flex-wrap gap-2">${row('a', NICK_A)}</div>
-      <div class="px-text mt-3 mb-1" style="color:#ffd98a">後面</div><div class="flex flex-wrap gap-2">${row('b', NICK_B)}</div>
-      <div class="flex gap-2 justify-end mt-4"><button class="px-btn" data-rand style="margin-right:auto">🎲 隨機</button>${first ? '<button class="px-btn" data-skip>先用隨機的</button>' : '<button class="px-btn" data-cancel>取消</button>'}<button class="px-btn gold" data-ok>確定</button></div></div>`;
-    const paint = () => {
-      const a = nickWord(NICK_A, sel.a), b = nickWord(NICK_B, sel.b);
-      ed.querySelector('[data-prev]').innerHTML = a && b ? `<b class="px-title" style="display:inline">${escHtml(a.w + b.w)}</b>` : '<span style="color:#6d6a90">兩邊都選好，就會出現暱稱</span>';
-      ed.querySelector('[data-ok]').disabled = !(a && b);
-      ed.querySelectorAll('[data-n]').forEach(x => x.setAttribute('aria-pressed', sel[x.dataset.n] === x.dataset.id));
-    };
-    ed.addEventListener('click', e => {
-      const c = e.target.closest('[data-n]');
-      if (c) { sel[c.dataset.n] = c.dataset.id; paint(); return; }
-      if (e.target.closest('[data-rand]')) { sel.a = NICK_A[Math.floor(Math.random() * NICK_A.length)].id; sel.b = NICK_B[Math.floor(Math.random() * NICK_B.length)].id; paint(); return; }
-      /* 第一次取名不能完全跳過：按「先用隨機的」或點旁邊關掉，都幫他存一個隨機組合 */
-      if (e.target.closest('[data-skip]') || (first && e.target === ed)) {
-        sel.a = NICK_A[Math.floor(Math.random() * NICK_A.length)].id; sel.b = NICK_B[Math.floor(Math.random() * NICK_B.length)].id;
-        NW.nick = [sel.a, sel.b]; saveNwNow(); ed.remove();
-        toast(`先幫你取了「${nickText(NW)}」`, 3000);
-        if (after) after();
-        return;
+  /* 名字規則：去空白、最多 10 字（跟登入一樣），不能全是數字、不能只有符號 */
+  function nameProblem(raw) {
+    const n = raw.trim();
+    if (!n) return '請輸入新的名字';
+    if (n.length > 10) return '名字太長了（最多 10 個字）';
+    if (/^[0-9０-９]+$/.test(n)) return '名字不能全是數字';
+    if (!/[\p{L}\p{N}]/u.test(n)) return '名字不能只有符號';
+    return '';
+  }
+  /* 雲端 name、nw.name0、nwNick 都跟著換（pushCloud 一起寫），舊世界下次用新名字登入就不會被鎖 */
+  function applyName(n, useCard) {
+    if (useCard) NW.items.renameCard = cards() - 1;
+    /* 記一筆在存檔裡給老師看；不寫 mg_nw_flags，免得被教師頁當成「冒名」的待處理 */
+    NW.nameLog = (NW.nameLog || []).concat([{ t: Date.now(), from: ME.name, to: n, card: useCard ? 1 : 0 }]).slice(-5);
+    NW.name0 = n; ME.name = n; ME.typed = n; nameBase = n;
+    if (C.onRename) C.onRename(n);
+  }
+  function openRename(after, first) {
+    return new Promise(res => {
+      if (!first) {
+        if (nameLock) { toast('名字跟登入時不一樣，先鎖起來了；請找老師', 3800); res(); return; }
+        if (cards() < 1) { toast('要有改名卡才能改名字（老師會寄給你）', 3600); res(); return; }
       }
-      if (e.target === ed || e.target.closest('[data-cancel]')) { ed.remove(); return; }
-      if (e.target.closest('[data-ok]')) {
-        if (!nickWord(NICK_A, sel.a) || !nickWord(NICK_B, sel.b)) return;
-        if (!first) {
-          /* 開著視窗時卡可能已經在別的分頁用掉了 */
-          if (cards() < 1) { ed.remove(); toast('改名卡不夠了', 2600); return; }
-          NW.items.renameCard = cards() - 1;
+      const ed = document.createElement('div');
+      ed.id = 'nw-rename'; ed.className = 'nw-sheet fixed inset-0 grid place-items-center p-4'; ed.style.zIndex = 93; ed.style.background = 'rgba(9,8,18,.9)';
+      if (first) ed.dataset.first = '1';
+      const inputHtml = `<input class="w-full p-3 text-center font-bold text-xl" data-rn maxlength="10" placeholder="新的名字" value="" style="background:#0e0b16;border:3px solid #6a5ab0;color:#fff">
+        <p class="text-xs mt-1" style="min-height:1.2em;color:#ff9a8a" data-rn-err></p>`;
+      const cur = escHtml(ME.name);
+      ed.innerHTML = first
+        ? `<div class="px-panel" style="max-width:460px;width:100%;padding:16px">
+            <div class="px-title" style="font-size:1.4em">你的名字</div>
+            <p class="text-sm mb-3" style="color:#aab0d8">你現在的名字是「<b>${cur}</b>」。進新世界要用這個名字嗎？選好之後就固定了，之後想改要用「改名卡」。名字會出現在抓蟲榜和活動榜。</p>
+            <div data-rn-box style="display:none">${inputHtml}</div>
+            <div class="flex gap-2 justify-end mt-3 flex-wrap"><button class="px-btn gold" data-keep>沿用「${cur}」</button><button class="px-btn" data-change>改新名字</button><button class="px-btn gold" data-ok style="display:none">確定</button></div></div>`
+        : `<div class="px-panel" style="max-width:460px;width:100%;padding:16px">
+            <div class="px-title" style="font-size:1.4em">✏ 改名字</div>
+            <p class="text-xs mb-2" style="color:#aab0d8">請填你想讓大家看到的名字，會出現在抓蟲榜和活動榜。<b>會用掉 1 張改名卡</b>，想好再按「確定」。</p>
+            <div data-rn-box>${inputHtml}</div>
+            <div class="flex gap-2 justify-end mt-3"><button class="px-btn" data-cancel>取消</button><button class="px-btn gold" data-ok>確定</button></div></div>`;
+      const inp = () => ed.querySelector('[data-rn]'), err = () => ed.querySelector('[data-rn-err]');
+      const done = () => { ed.remove(); if (after) after(); res(); };
+      const commit = () => {
+        const n = inp().value.trim(), pb = nameProblem(n);
+        if (pb) { err().textContent = pb; return; }
+        if (first) {
+          if (normName(n) === normName(ME.name)) { NW.nameSet = 1; saveNwNow(); done(); return; }
+          applyName(n, false); NW.nameSet = 1; saveNwNow(); toast(`你的名字是「${n}」，之後就固定了`, 3000); done(); return;
         }
-        NW.nick = [sel.a, sel.b]; saveNwNow(); ed.remove();
-        toast(`你的暱稱是「${nickText(NW)}」`, 2600);
-        if (after) after();
-      }
+        if (normName(n) === normName(ME.name)) { err().textContent = '跟現在的名字一樣喔'; return; }
+        /* 開著視窗時卡可能已經在別的分頁用掉了 */
+        if (cards() < 1) { ed.remove(); toast('改名卡不夠了', 2600); res(); return; }
+        applyName(n, true); saveNwNow(); toast(`你的名字改成「${n}」`, 2600); done();
+      };
+      ed.addEventListener('click', e => {
+        if (!first && (e.target === ed || e.target.closest('[data-cancel]'))) { ed.remove(); res(); return; }
+        if (e.target.closest('[data-keep]')) { NW.nameSet = 1; saveNwNow(); toast(`你的名字是「${ME.name}」，之後就固定了`, 3000); done(); return; }
+        if (e.target.closest('[data-change]')) {
+          ed.querySelector('[data-rn-box]').style.display = ''; ed.querySelector('[data-ok]').style.display = '';
+          ed.querySelector('[data-keep]').style.display = 'none'; e.target.closest('[data-change]').style.display = 'none'; inp().focus(); return;
+        }
+        if (e.target.closest('[data-ok]')) commit();
+      });
+      /* 注音輸入選字時的 Enter 不算送出 */
+      ed.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing && e.target.matches && e.target.matches('[data-rn]')) commit(); });
+      document.body.appendChild(ed);
+      const i0 = inp(); if (i0 && !first) i0.focus();
     });
-    document.body.appendChild(ed);
-    paint();
+  }
+  /* 第一次進新世界問一次（NW.nameSet 舊存檔沒有，所以已經在玩的人也會問一次）。
+     被冒名鎖時不問（名字有疑問先不固定）。測試機用 __NW_NOINTRO__ 關掉，要測這個再開 __NW_NICKPROMPT__。 */
+  async function nameFirst() {
+    if (NW.nameSet || nameLock || (window.__NW_NOINTRO__ && !window.__NW_NICKPROMPT__)) return;
+    await openRename(null, true);
   }
 
   function openBackpack(tab) {
@@ -1311,8 +1344,9 @@ export function initNewWorld(C) {
     const renderCard = () => {
       const c = sheet.querySelector('[data-card]');
       c.innerHTML = `<div class="text-center px-text" style="font-size:1.25em;font-weight:900">${escHtml(ME.name)}</div>
-        <button class="px-btn mt-1" data-nick-edit style="display:block;width:100%;${NW.nick && cards() < 1 ? 'opacity:.5' : ''}" title="暱稱會顯示在抓蟲榜上">${NW.nick ? (cards() > 0 ? `暱稱：${escHtml(nickText(NW))}　用 1 張改名卡換暱稱` : `暱稱：${escHtml(nickText(NW))}`) : '✏ 取暱稱'}</button>
-        ${NW.nick && cards() < 1 ? '<p class="text-xs mt-1" style="color:#8a86b0">要有改名卡才能換喔（之後商店會賣，也可能是老師的禮物）</p>' : ''}
+        ${nameLock ? '<p class="text-xs mt-1" style="color:#8a86b0">名字跟登入時不一樣，先不能改名字；請找老師</p>'
+          : `<button class="px-btn mt-1" data-name-edit style="display:block;width:100%;${cards() < 1 ? 'opacity:.5' : ''}" title="名字會顯示在抓蟲榜上">${cards() > 0 ? `✏ 改名字　用 1 張改名卡（有 ${cards()} 張）` : '✏ 改名字'}</button>
+        ${cards() < 1 ? '<p class="text-xs mt-1" style="color:#8a86b0">要有改名卡才能改名字（老師會寄給你）</p>' : ''}`}
         <button class="bp-title mt-1" data-title-edit title="點一下編輯稱號">${titleLine()}</button>
         <div class="flex items-center justify-between gap-1 mt-3" style="padding-bottom:20px">
           <div class="flex flex-col gap-6">${EQUIP_LEFT.map(([k, n]) => slot(k, n)).join('')}</div>
@@ -1335,7 +1369,7 @@ export function initNewWorld(C) {
       const t = e.target.closest('[data-bag-tab]');
       if (t && t.dataset.bagTab === 'mail') { openMail(); return; }   // 信箱是獨立視窗，跟郵筒打開的是同一個
       if (t) { render(t.dataset.bagTab); return; }
-      if (e.target.closest('[data-nick-edit]')) { openNickPicker(renderCard); return; }
+      if (e.target.closest('[data-name-edit]')) { openRename(renderCard, false); return; }
       if (e.target.closest('[data-title-edit]')) { openTitleEditor(renderCard); return; }
       const eq = e.target.closest('[data-equip]');
       if (eq) { NW.equip = eq.dataset.equip === NW.starter ? '' : eq.dataset.equip; saveNw(); renderCard(); render('equip'); return; }
@@ -1351,7 +1385,7 @@ export function initNewWorld(C) {
     const k = e.key.toLowerCase();
     if (/INPUT|TEXTAREA|SELECT/.test((e.target && e.target.tagName) || '') || root.classList.contains('hidden') || !NW) return;
     if (k === 'b' && ['hub', 'board', 'room'].includes(view)) { document.getElementById('nw-bag') ? closeBag() : openBackpack('equip'); }
-    if (k === 'escape') { const ne = document.getElementById('nw-nick') || document.getElementById('nw-mail'); if (ne) { ne.remove(); return; } const te = document.getElementById('nw-title'); if (te) te.querySelector('[data-ok]').click(); else closeBag(); }
+    if (k === 'escape') { const ne = document.getElementById('nw-rename') || document.getElementById('nw-mail'); if (ne) { if (!ne.dataset.first) ne.remove(); return; } const te = document.getElementById('nw-title'); if (te) te.querySelector('[data-ok]').click(); else closeBag(); }
   });
 
   let boardSel = null;

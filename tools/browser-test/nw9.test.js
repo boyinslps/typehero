@@ -21,7 +21,7 @@ async function open(browser, o = {}) {
   const hash = await sha256Hex('Test-Pass_9!x');
   const seed = Object.assign({
     ['mg_scores/' + ID]: { className: CLS, seat: 5, name: '小明', bestLevel: 10, bestScore: 20, scoreVer: 2, plays: 9, tutorialDone: true, talentIntroDone: true, tier: 'B', balanceVer: 3, punctDone: true,
-      nw: Object.assign({ v: 1, savedAt: 5, look: { style: 1, hair: 2, skin: 1 }, starter: 'dagger', quest: { done: ['1-0', '1-0a'] }, items: { potion: 3 }, intro: { hub: 1 }, seenNotice: NOTICE_ID, nick: ['a_flash', 'b_coo'] }, o.nw || {}) }
+      nw: Object.assign({ v: 1, savedAt: 5, look: { style: 1, hair: 2, skin: 1 }, starter: 'dagger', quest: { done: ['1-0', '1-0a'] }, items: { potion: 3 }, intro: { hub: 1 }, seenNotice: NOTICE_ID, nick: ['a_flash', 'b_coo'], nameSet: 1 }, o.nw || {}) }
   }, o.seed || {});
   await p.addInitScript(a => {
     window.__FS = a.s; window.__RULES = true; localStorage.clear(); localStorage.setItem('mg_nw_fast', '1');
@@ -301,7 +301,7 @@ const dotOn = p => p.evaluate(() => { const e = document.querySelector('[data-no
     await dismissGifts(p);
     await openBtn(p); await tabOf(p, 'bug');
     const rows = await p.evaluate(() => [...document.querySelectorAll('#nw-notice [data-bugrow]')].map(e => e.textContent.replace(/\s+/g, ' ')));
-    ok(rows.length === 3 && rows[1].includes('503・5號') && rows[1].includes('← 你') && rows[1].includes('閃電咕咕鳥'), '自己在榜上：標「← 你」，用自己的暱稱（閃電咕咕鳥）：' + rows[1]);
+    ok(rows.length === 3 && rows[1].includes('503・5號') && rows[1].includes('← 你') && rows[1].includes('小明'), '自己在榜上：標「← 你」，用自己的名字（小明；舊存檔的詞庫暱稱不再用）（閃電咕咕鳥）：' + rows[1]);
     ok(await p.$('#nw-notice [data-bugtext]') === null, '在榜上就不寫榜外文字');
     noErr(p); await p.close();
   }

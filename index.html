@@ -805,10 +805,12 @@ select option{background:var(--panel2);color:var(--ink)}
     </div>
     <div class="flex-1">
       <label class="label block text-left mb-2">姓名</label>
-      <input id="in-name" type="text" maxlength="10" placeholder="請輸入姓名"
+      <input id="in-name" type="text" maxlength="10" placeholder="請填你想讓大家看到的名字"
              class="w-full p-3 rounded-lg panel-flat text-center font-bold text-xl">
     </div>
   </div>
+  <p id="login-name-note" class="text-xs text-left mb-2" style="color:var(--dim2)">
+    名字第一次登入後就固定了，之後會加密碼。</p>
   <p id="login-hint" class="text-sm text-left mb-5" style="color:var(--dim2)">
     第一次來把座號和姓名都填上；之後只要填座號，就會自動帶出你的紀錄。</p>
 
@@ -2730,8 +2732,14 @@ function initNw() {
    版本紀錄：首頁右下角那顆 v2.0.0 按鈕點開看到的內容。
    跟 CHANGELOG.md 是同一份資料，改一邊也要記得改另一邊。
    ══════════════════════════════════════════════════════════════ */
-const APP_VERSION = '3.14.0';
+const APP_VERSION = '3.14.1';
 const VERSION_LOG = [
+  { v:'3.14.1', date:'2026-11-19', title:'名字固定了，進新世界不用再取暱稱',
+    changed: [
+      '名字第一次登入後就固定了，之後會加密碼',
+      '進新世界不用再取暱稱，直接用你的登入名字。第一次進去會問你一次要不要沿用，選好就固定',
+      '想改名字，要用「改名卡」（老師會寄給你）'
+    ] },
   { v:'3.14.0', date:'2026-11-17', title:'新世界：信箱、佈告欄、活動、村莊變大了',
     added: [
       '新世界有「✉ 信箱」了。老師寄的信和禮物，村莊的藍色郵筒會收著',
@@ -5044,7 +5052,9 @@ function paintLoginHistory(h) {
   show('login-history', true);
 }
 
-function doLogin() {
+let LOGIN_BUSY = false;
+async function doLogin() {
+  if (LOGIN_BUSY) return;
   const grade = $('in-grade').value, cls = $('in-class').value;
   const seat = normSeat($('in-seat').value);
   const name = $('in-name').value.trim();
@@ -5053,11 +5063,23 @@ function doLogin() {
   if (!name) { fail('請輸入姓名'); $('in-name').focus(); return; }
   if (name.length > 10) { fail('姓名太長了'); return; }
 
+  /* 名字是第一次登入時填的、之後固定，所以要先知道雲端那筆有沒有名字。
+     座號剛打完、查詢還沒回來就按進入的話，等它一下（最多 5 秒），不然會把別人填的名字當成第一次。 */
+  const docId = seatDocId(grade + cls, seat);
+  if (ONLINE && LOOKUP_ID !== docId) {
+    LOGIN_BUSY = true;
+    try { await lookupHistory(); } catch (e) { console.warn(e); } finally { LOGIN_BUSY = false; }
+  }
+  const localH = readLocalHist(docId);
+  const cloudName = (ONLINE && LOOKUP_ID === docId && LOOKUP_CLOUD_NAME) || '';
+  const base = cloudName || (localH && localH.name) || name;   // 雲端 > 本機 > 這次填的（第一次）
+
   ME.className = grade + cls;
   ME.seat = seat;
-  ME.name = name;
-  ME.docId = seatDocId(ME.className, seat);
-  localStorage.setItem('mg_me', JSON.stringify({ grade, cls, seat, name }));
+  ME.name = base;               // 畫面、榜單、所有成績存檔都用基準名字
+  ME.typed = name;              // 這次打的字，只給新世界的冒名鎖比對
+  ME.docId = docId;
+  localStorage.setItem('mg_me', JSON.stringify({ grade, cls, seat, name: base }));
 
   /* 難度鎖要用這位學生的紀錄，登入當下先用本機那份保底
      （雲端那份 lookupHistory 撈回來時會再蓋上去，取大的那個）*/
@@ -5065,17 +5087,19 @@ function doLogin() {
                       readLocalHist(ME.docId));
   paintLoadout();
 
-  /* 姓名以這次填的為準：第二次登入改掉名字，就覆蓋回紀錄裡。
-     只覆蓋已經存在的那筆，不會為了改名憑空生出一筆空成績。 */
+  /* 名字固定：只有「雲端那筆存在、但還沒有名字」才補寫，已經有的絕不覆蓋
+     （不然名字會變成最後一次登入打的）。第一次登入、雲端還沒有成績那筆時，
+     第一場成績存檔會帶 name: ME.name 一起寫進去。 */
   const local = readLocalHist(ME.docId);
-  if (local && local.name !== name) writeLocalHist(ME.docId, { ...local, name });
-  if (ONLINE && LOOKUP_ID === ME.docId
-      && LOOKUP_CLOUD_NAME !== null && LOOKUP_CLOUD_NAME !== name) {
+  if (local && local.name !== base) writeLocalHist(ME.docId, { ...local, name: base });
+  if (ONLINE && LOOKUP_ID === ME.docId && LOOKUP_CLOUD_NAME === '') {
     setDoc(doc(REF.scores, ME.docId),
            { className: ME.className, seat: ME.seat, name: ME.name }, { merge: true })
       .catch(e => console.warn('姓名同步失敗', e));
-    LOOKUP_CLOUD_NAME = name;
+    LOOKUP_CLOUD_NAME = base;
   }
+  const flat = x => String(x).replace(/[\s\u3000]/g, '').toLowerCase();
+  if (flat(name) !== flat(base)) toast(`你的名字固定是「${base}」`, 4200);
 
   show('login-err', false);
   show('screen-login', false);
@@ -5092,7 +5116,7 @@ function doLogin() {
 function gotoLogin() {
   if (G && G.timer) clearInterval(G.timer);
   G = null;
-  ME.className = ''; ME.seat = ''; ME.name = ''; ME.docId = ''; ME.practice = false;
+  ME.className = ''; ME.seat = ''; ME.name = ''; ME.typed = ''; ME.docId = ''; ME.practice = false;
   MY_HIST = null;
   LOOKUP_ID = ''; LOOKUP_CLOUD_NAME = null;
   show('screen-lobby', false); show('screen-game', false);
@@ -7391,6 +7415,12 @@ function wireEvents() {
     $, show, toast, escHtml, ME, db, doc, getDoc, setDoc, deleteDoc, collection, getDocs, query, where, documentId, increment, REF, withTimeout, gotoLobby,
     orderBy, limit, getCountFromServer, serverTimestamp, adminDb: ensureAdmin,
     online: () => ONLINE,
+    /* 用改名卡改名後：登入畫面下次帶出新名字，本機成績也跟著改 */
+    onRename: n => {
+      try { const m = JSON.parse(localStorage.getItem('mg_me') || '{}'); m.name = n; localStorage.setItem('mg_me', JSON.stringify(m)); } catch (e) {}
+      const l = readLocalHist(ME.docId); if (l) writeLocalHist(ME.docId, { ...l, name: n });
+      LOOKUP_CLOUD_NAME = n; paintWho();
+    },
     getHist: () => MY_HIST,
     bestLevel: myBestLevel,
     unlockLevel: BALANCE.unlockLevel.epic,

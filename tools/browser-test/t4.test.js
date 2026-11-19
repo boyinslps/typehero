@@ -49,8 +49,7 @@ const seed = () => Object.fromEntries([
 ]);
 
 (async () => {
-  const { nickText } = await import('../../nw-data.js');
-  const nick5 = nickText({ nick: ['a_flash', 'b_coo'] });
+  const nick5 = '小明';
   const browser = await chromium.launch();
   {
     const p = await teacher(browser, seed());
@@ -61,7 +60,7 @@ const seed = () => Object.fromEntries([
     const cv = await p.$eval('[data-pc-hero] canvas', c => ({ w: c.width, h: c.height, cw: c.getBoundingClientRect().width }));
     ok(cv.w > 0 && cv.w % 8 === 0 && cv.h % 8 === 0 && Math.abs(cv.cw - cv.w) < 1, `角色 canvas 存在，倍率是整數 8（${cv.w}×${cv.h}，顯示寬 ${cv.cw}）`);
     ok((await T(p, '[data-pc-nick]')).includes(nick5), '暱稱：' + nick5);
-    ok((await T(p, '[data-pc-real]')).includes('小明') && (await T(p, '[data-pc-real]')).includes('503') && (await T(p, '[data-pc-real]')).includes('5號'), '真名與班級座號（clsShort）');
+    ok((await T(p, '[data-pc-real]')).includes('503') && (await T(p, '[data-pc-real]')).includes('5號'), '班級座號（clsShort）；名字在上面的大字');
     ok((await T(p, '[data-pc-title]')).includes('勇敢的新手') && await p.$('[data-pc-title] svg') !== null, '稱號文字與徽章 SVG');
     ok((await T(p, '[data-pc-hr]')).includes('HR 7') && (await T(p, '[data-pc-hr]')).includes('40/'), 'HR 與經驗文字');
     const barW = await p.$eval('[data-pc-hr] .px-bar.xp i', e => e.style.width);
@@ -93,7 +92,7 @@ const seed = () => Object.fromEntries([
     /* ◀ ▶ 與左右鍵 */
     ok(await p.$eval('[data-pc-nav="-1"]', b => b.disabled) && (await T(p, '[data-pc-pos]')) === '1 / 5', '第一位：◀ 灰掉、顯示 1 / 5');
     await p.click('[data-pc-nav="1"]'); await p.waitForTimeout(100);
-    ok(await cardId(p) === ID6 && (await T(p, '[data-pc-wname]')) === '學徒木杖' && (await T(p, '[data-pc-nick]')).includes('還沒取暱稱'), '▶ 切到下一位（小華：木杖、還沒取暱稱）');
+    ok(await cardId(p) === ID6 && (await T(p, '[data-pc-wname]')) === '學徒木杖' && (await T(p, '[data-pc-nick]')).includes('小華'), '▶ 切到下一位（小華：木杖、大字是登入名字）');
     ok((await T(p, '[data-pc-title]')).includes('還沒有稱號'), '沒稱號寫「還沒有稱號」');
     await p.keyboard.press('ArrowRight'); await p.waitForTimeout(100);
     ok(await cardId(p) === ID7, '→ 鍵切到下一位（阿強，沒進過新世界）');

@@ -5,7 +5,7 @@
    mg_bugboard/{班級_座號}：{ className, seat, score, n, firstAt, hideNick, bonus, nameOkH, reports[] }（只有老師能寫；所有登入的人都讀得到，所以不存真名與老師打的理由：
      那些放 mg_bugboard_private，只有老師讀得到；nameOkH 是老師核可名字的雜湊）
      沒有 className／seat 時從文件 ID 拆（「五年級4班_5號」）。 */
-import { NICK_EMPTY, clsShort } from './nw-data.js';
+import { NICK_EMPTY, clsShort, displayName } from './nw-data.js';
 import { toMs } from './nw-events.js';
 
 export const BUG_TOP = 10;
@@ -91,7 +91,7 @@ export function createNotice(C, h) {
     }
     comp.rows.forEach(r => {
       /* 自己的暱稱用本機的（剛取的還沒存到雲端也對）；被老師隱藏就跟別人一樣顯示神秘獵人 */
-      r.nick = r.hideNick ? NICK_EMPTY : r.mine ? (h.nickText(h.nw())) : (nicks[r.id] || NICK_EMPTY);
+      r.nick = r.hideNick ? NICK_EMPTY : r.mine ? displayName(h.myName()) : (nicks[r.id] || NICK_EMPTY);
       r.label = `${r.cls}・${r.seat}號`;
     });
     comp.mine = { score: ownScore, n: Math.max(0, +own.n || 0) };

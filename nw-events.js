@@ -11,7 +11,7 @@
      ranking：metric（improve｜kills｜fastest｜acc）、mk、minStar、minRuns
    學生個人進度：NW.ev[ID] = { e, t, n, done, cw, s, base, best, runs, accSum, gone }
      e＝活動結束時間（活動文件被刪了也能判斷何時清掉）、t＝標題（取消提示用）。 */
-import { MONSTERS, EVENT_DEFAULTS, NICK_EMPTY, FASTEST_FLOOR, IMPROVE_SANE_MAX, clsShort, twDay } from './nw-data.js';
+import { MONSTERS, EVENT_DEFAULTS, NICK_EMPTY, displayName, FASTEST_FLOOR, IMPROVE_SANE_MAX, clsShort, twDay } from './nw-data.js';
 
 export const GRACE_MS = 5 * 60 * 1000;        // 結束後 5 分鐘內打完的場次照算（SPEC §1.6）
 export const WINDOW_MS = 7 * 86400000;        // 讀活動時多撈「剛結束」7 天
@@ -183,7 +183,7 @@ export function gradeTop(list, myCls) {
 const gradeOf = cls => { const m = /^(.+?年級)/.exec(cls || ''); return m ? m[1] : ''; };
 
 /* ── 接 Firestore ──
-   h = { now(), me(), nw(), save(), saveNow(), nickText(nw), grant(items) → gift 陣列或 null（有不認得的東西）}；
+   h = { now(), me(), nw(), save(), saveNow(), myName(), grant(items) → gift 陣列或 null（有不認得的東西）}；
    C 要有 classNames() → ['1班',…]（同年級各班的名單，活動沒指定班級時用） */
 export function createEvents(C, h) {
   let cache = { at: 0, list: [], ok: false };
@@ -339,7 +339,7 @@ export function createEvents(C, h) {
     const st = ev$()[e.id] || null;
     const comp = composeBoard(e, rows, st, myId);
     comp.rows.forEach(r => {
-      if (r._me) { r.cls = clsShort(mine().className); r.seat = mine().seat; r.nick = hidden.has(myId) ? NICK_EMPTY : (h.nickText(nw)); delete r._me; }
+      if (r._me) { r.cls = clsShort(mine().className); r.seat = mine().seat; r.nick = hidden.has(myId) ? NICK_EMPTY : (displayName(h.myName())); delete r._me; }
       r.text = scoreText(e, r.s);
       r.label = `${r.cls}・${r.seat}號・${r.nick}`;
     });

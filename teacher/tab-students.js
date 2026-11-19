@@ -2,14 +2,14 @@
    這一頁不直接改存檔：給東西一律寄信。唯一的寫入是 mg_bugboard（隱藏暱稱、名字沒問題的雜湊）
    與 mg_bugboard_private（老師核可的真名，學生讀不到）。 */
 import { db, doc, setDoc, writeBatch } from './fb.js';
-import { loadScores, loadBoard, loadFlags, loadMails, loadClassSizes, invalidate, nameChanged, nameBase, byClsSeat } from './data.js';
+import { loadScores, loadBoard, loadFlags, loadMails, loadClassSizes, invalidate, nameChanged, markNameWarn, nameBase, byClsSeat } from './data.js';
 import { clsShort, MONSTERS, REGIONS, ITEM_DEFS, MAIN_QUESTS, currentQuest, wordById, twDay, normName, sha256Hex } from './nw.js';
 import { MATS } from './gifts.js';
 import { openPersonCard } from './pc.js';
 import { $, esc, fmtT, relT, log, modal, toast, errText, ask, matchStudent, helpBox } from './util.js';
 
 const COLS = [
-  ['cls', '班級'], ['seat', '座號'], ['name', '姓名'], ['nick', '暱稱'], ['hr', 'HR'], ['coins', '字元'], ['weapon', '武器'],
+  ['cls', '班級'], ['seat', '座號'], ['name', '姓名'], ['nick', '榜上名字'], ['hr', 'HR'], ['coins', '字元'], ['weapon', '武器'],
   ['quest', '目前任務'], ['hunts', '場次'], ['wins', '勝／敗'], ['last', '最後上線'], ['rep', '回報（確認／送出）']
 ];
 /* 「現在在線」＝最近 10 分鐘內有存檔（遊戲每打完一場、每幾分鐘就會存一次）。「勝率偏低」是用累積場次估的：
@@ -24,6 +24,7 @@ const label = s => `${clsShort(s.className)}・${s.seat}號${s.name ? ' ' + s.na
 export default async function mount(el, ctx, params) {
   let scores = await loadScores(true), board = await loadBoard(true), sizes = {};
   try { sizes = await loadClassSizes(); } catch (e) { console.warn('讀班級人數失敗', e); }
+  markNameWarn(scores, await loadFlags(true).catch(() => []));
   const sel = new Set(), f = { grade: '', cls: '', played: !!params.played, kw: '', warn: !!params.warn, quick: params.today ? 'today' : '' };
   let sort = { key: 'cls', dir: 1 };
 
@@ -91,7 +92,7 @@ export default async function mount(el, ctx, params) {
     return `<tr class="clk" data-id="${esc(s.id)}"><td><input type="checkbox" data-sel="${esc(s.id)}" ${sel.has(s.id) ? 'checked' : ''}></td>
       <td>${esc(clsShort(s.className))}</td><td>${s.seat}</td>
       <td><span class="pc-open" data-pc="${esc(s.id)}" title="看人物卡">${esc(s.name || '（沒有姓名）')}</span>${warn ? ' <span class="chip warn" title="名字跟上次不一樣">⚠ 換過名字</span>' : ''}</td>
-      <td>${s.played ? esc(s.nick || '（還沒取）') : '<span class="dim">—</span>'}${b.hideNick ? ' <span class="chip warn">已隱藏</span>' : ''}</td>
+      <td>${s.played ? esc(s.nick || '（沒有名字）') : '<span class="dim">—</span>'}${b.hideNick ? ' <span class="chip warn">已隱藏</span>' : ''}</td>
       <td>${s.played ? s.hr : '—'}</td><td>${s.played ? s.coins : '—'}</td><td>${esc(s.weapon || '—')}</td><td class="wrap" style="min-width:130px">${esc(questText(s))}</td><td>${s.played ? s.hunts : '—'}</td>
       <td>${s.played ? `${s.wins}／${s.fails}` : '—'}${lowWin(s) ? ' <span class="chip warn" title="打 5 場以上、勝率低於 4 成">卡關？</span>' : ''}</td><td title="${esc(fmtT(s.last))}">${esc(relT(s.last))}</td>
       <td>${(+b.n || 0)}／${s.sent}${b.score ? ` <span class="dim">（${b.score} 分）</span>` : ''}</td></tr>`;
@@ -157,12 +158,13 @@ export default async function mount(el, ctx, params) {
       }
       box.innerHTML = `<div class="kv"><b>班級座號</b><span>${esc(s.className)}　${s.seat} 號</span>
           <b>姓名</b><span>${esc(s.name)}${warn ? ' <span class="chip warn">⚠ 換過名字</span>' : ''}</span>
-          <b>暱稱</b><span>${esc(s.nick || '（還沒取）')}${b.hideNick ? ' <span class="chip warn">已隱藏（榜上顯示「神秘獵人」）</span>' : ''}</span>
+          <b>榜上名字</b><span>${esc(s.nick || '（沒有名字）')}${b.hideNick ? ' <span class="chip warn">已隱藏（榜上顯示「神秘獵人」）</span>' : ''}</span>
           <b>最後上線</b><span>${esc(relT(s.last))}　<span class="dim">${esc(fmtT(s.last))}</span></span>
           <b>抓蟲</b><span>${b.score || 0} 分・確認 ${b.n || 0} 個・送出 ${s.sent} 個${b.bonus ? `・手動加分 ${b.bonus}` : ''}</span></div>
-        ${warn || mine.length ? `<div class="note bad" data-namechg><b>名字跟上次不一樣</b>　基準：「${esc(nameBase(s, b))}」→ 現在：「${esc(s.name)}」
-            ${warn ? '<br>信箱和改暱稱先鎖著。確定是本人改了名字、或老師改了名單，就按「名字沒問題」解鎖。' : '<br>目前已解鎖。'}
+        ${warn || mine.length ? `<div class="note bad" data-namechg><b>名字跟登入時不一樣</b>　基準：「${esc(nameBase(s, b) || s.name)}」→ 學生打的：「${esc(s.chg ? s.chg.name : s.name)}」
+            ${warn ? '<br>信箱和改名字先鎖著。確定是本人要改名、或老師改了名單，就按「名字沒問題」：學生打的名字會變成新名字。' : '<br>目前已解鎖。'}
             ${mine.length ? `<br><span class="dim">紀錄：${mine.map(x => `${esc(fmtT(x.t))} ${esc(x.oldName || '')}→${esc(x.name || '')}（${x.status === 'ok' ? '已確認沒問題' : '還沒處理'}）`).join('；')}</span>` : ''}</div>` : ''}
+        ${nw && (nw.nameLog || []).length ? `<div class="note" data-namelog><b>改過名字</b>　<span class="dim">${nw.nameLog.map(x => `${esc(fmtT(x.t))} ${esc(x.from || '')}→${esc(x.to)}${x.card ? '（用改名卡）' : '（第一次進新世界）'}`).join('；')}</span></div>` : ''}
         <h3 style="margin-top:12px">新世界</h3>${nwHtml}
         <div class="row" style="margin-top:12px">
           <button class="px-btn gold" data-act="mail">✉ 寄信給他</button>
@@ -199,13 +201,15 @@ export default async function mount(el, ctx, params) {
      真名只放老師專用的 mg_bugboard_private.nameOk；學生讀得到的 mg_bugboard 只放名字的雜湊 nameOkH，
      學生端拿自己登入的名字算雜湊比對，下次進新世界就不再鎖。 */
   async function nameOk(s, flags) {
-    const b = writeBatch(db), h = await sha256Hex(normName(s.name));
+    /* 學生打的新名字只在換名紀錄裡（雲端 name 是固定的基準），所以以紀錄為準 */
+    const nn = s.chg && s.chg.name ? s.chg.name : s.name;
+    const b = writeBatch(db), h = await sha256Hex(normName(nn));
     b.set(doc(db, 'mg_bugboard', s.id), { className: s.className, seat: s.seat, nameOkH: h }, { merge: true });
-    b.set(doc(db, 'mg_bugboard_private', s.id), { nameOk: s.name }, { merge: true });
+    b.set(doc(db, 'mg_bugboard_private', s.id), { nameOk: nn }, { merge: true });
     flags.filter(x => x.docId === s.id && x.type === 'namechg' && (x.status || 'pending') === 'pending').forEach(x => { b.set(doc(db, 'mg_nw_flags', x.id), { status: 'ok' }, { merge: true }); x.status = 'ok'; });
-    await log('名字沒問題', s.id, `${label(s)}：基準改成「${s.name}」`, b);
+    await log('名字沒問題', s.id, `${label(s)}：基準改成「${nn}」`, b);
     await b.commit();
-    invalidate('board', 'flags'); board = await loadBoard(true);
+    invalidate('board', 'flags'); board = await loadBoard(true); markNameWarn(scores, await loadFlags(true).catch(() => []));
     toast('已解鎖，學生下次進新世界就能用信箱');
   }
 

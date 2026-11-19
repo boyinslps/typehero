@@ -16,7 +16,7 @@ async function open(browser, o = {}) {
   const hash = await sha256Hex('Test-Pass_9!x');
   const seed = Object.assign({
     ['mg_scores/' + ID]: { className: '五年級3班', seat: 5, name: '小明', bestLevel: 10, bestScore: 20, scoreVer: 2, plays: 9, tutorialDone: true, talentIntroDone: true, tier: 'B', balanceVer: 3,
-      nw: Object.assign({ v: 1, savedAt: 5, look: { style: 1, hair: 2, skin: 1 }, starter: 'dagger', quest: { done: ['1-0', '1-0a'] }, items: { potion: 3 }, intro: { hub: 1 }, seenNotice: NOTICE_ID, name0: '小明' }, o.nw || {}) }
+      nw: Object.assign({ v: 1, savedAt: 5, look: { style: 1, hair: 2, skin: 1 }, starter: 'dagger', quest: { done: ['1-0', '1-0a'] }, items: { potion: 3 }, intro: { hub: 1 }, seenNotice: NOTICE_ID, name0: '小明', nameSet: 1 }, o.nw || {}) }
   }, o.seed || {});
   await p.addInitScript(a => {
     window.__FS = a.s; window.__RULES = true; localStorage.clear(); localStorage.setItem('mg_nw_fast', '1');
@@ -58,13 +58,11 @@ const mail = (aud, o = {}) => Object.assign({ aud, title: '信 ' + aud.join(',')
   const { clsShort, nickText, NICK_A, NICK_B } = D;
   ok(clsShort('五年級4班') === '504' && clsShort('六年級12班') === '612' && clsShort('三年級1班') === '301' && clsShort('５年級４班') === '504', 'clsShort：五年級4班→504、六年級12班→612、一位數補 0、全形數字也行');
   ok(clsShort('資優班') === '資優班' && clsShort('') === '' && clsShort('五年級甲班') === '五年級甲班', 'clsShort：解析不了就回原字串');
-  ok(NICK_A.length >= 30 && NICK_A.length <= 40 && NICK_B.length >= 30 && NICK_B.length <= 40, `詞庫各 30～40 個（前 ${NICK_A.length}、後 ${NICK_B.length}）`);
-  const ids = NICK_A.map(x => x.id).concat(NICK_B.map(x => x.id));
-  ok(new Set(ids).size === ids.length && NICK_A.every(x => /^a_/.test(x.id) && x.w) && NICK_B.every(x => /^b_/.test(x.id) && x.w), '詞的 ID 不重複、前綴 a_／b_、都有字');
-  ok(![...NICK_A, ...NICK_B].some(x => /笨|臭|迷糊|胖|醜|傻|呆|懶|死|蠢|弱/.test(x.w)), '詞庫沒有負面或能取笑人的詞');
-  ok(nickText({ nick: ['a_flash', 'b_coo'] }) === '閃電咕咕鳥' && nickText({}) === '神秘獵人' && nickText({ nick: ['a_flash', 'b_gone'] }) === '神秘獵人' && nickText({ nick: ['a_flash'] }) === '神秘獵人', 'nickText：組出「閃電咕咕鳥」；沒取、詞庫找不到、長度不對都回「神秘獵人」');
+  const { displayName } = D;
+  ok(displayName('小明') === '小明' && displayName(' 小明 ') === '小明' && displayName('') === '神秘獵人' && displayName(undefined) === '神秘獵人' && displayName('   ') === '神秘獵人', 'displayName：登入名字去空白；沒名字回「神秘獵人」');
+  ok(D.NICK_A === undefined && D.NICK_B === undefined && D.nickText === undefined, '詞庫與 nickText 已拿掉');
   const norm = D.normalizeNw({ mail: ['x'], nick: ['a_flash'], nickAt: 'abc' });
-  ok(!Array.isArray(norm.mail) && Object.keys(norm.mail).length === 0 && norm.nick === null && norm.nickAt === 0, 'normalizeNw：mail 一定是物件、壞掉的 nick 變 null');
+  ok(!Array.isArray(norm.mail) && Object.keys(norm.mail).length === 0 && norm.nick === undefined && norm.nickAt === undefined && norm.nameSet === 0 && Array.isArray(norm.nameLog), 'normalizeNw：mail 一定是物件、舊的 nick／nickAt 丟掉、nameSet 預設 0');
 
   const b = await chromium.launch();
 
@@ -206,77 +204,112 @@ const mail = (aud, o = {}) => Object.assign({ aud, title: '信 ' + aud.join(',')
     await p.close();
   }
 
-  /* ── 暱稱：取了就固定，要換用改名卡 ── */
+  /* ── 名字固定：要換用改名卡（背包「✏ 改名字」）── */
   {
-    const p = await open(b, {});
+    const p = await open(b, { nw: { nick: ['a_brave', 'b_slime'], nickAt: 5 } });   // 舊存檔有詞庫暱稱：安全忽略
     await p.keyboard.press('b'); await p.waitForSelector('#nw-bag');
-    ok((await p.textContent('#nw-bag [data-nick-edit]')).includes('取暱稱'), '背包人物卡名字下方有「✏ 取暱稱」');
-    await p.click('#nw-bag [data-nick-edit]'); await p.waitForSelector('#nw-nick');
-    ok((await p.textContent('#nw-nick')).includes('取了就固定') && !!(await p.$('#nw-nick [data-skip]')), '第一次取：寫「取了就固定」、有「先用隨機的」');
-    ok(await p.$eval('#nw-nick [data-ok]', e => e.disabled), '兩邊都沒選：「確定」按不了');
-    await p.click('#nw-nick [data-n="a"][data-id="a_flash"]');
-    await p.click('#nw-nick [data-n="b"][data-id="b_coo"]');
-    ok((await p.textContent('#nw-nick [data-prev]')).includes('閃電咕咕鳥'), '預覽顯示「閃電咕咕鳥」');
-    await p.click('#nw-nick [data-ok]'); await p.waitForTimeout(300);
-    const n = await nwLocal(p);
-    ok(n.nick && n.nick[0] === 'a_flash' && n.nick[1] === 'b_coo', '存的是詞的 ID：' + JSON.stringify(n.nick));
-    await p.waitForTimeout(1000);
-    const doc = await FS(p, 'mg_scores/' + ID);
-    ok(doc.nwNick === '閃電咕咕鳥' && doc.nw.nick[1] === 'b_coo', '存檔最外層有 nwNick＝「閃電咕咕鳥」');
-    const btn = await p.textContent('#nw-bag [data-nick-edit]');
-    ok(btn.includes('閃電咕咕鳥') && !btn.includes('改名卡'), '人物卡顯示新暱稱；沒卡時不寫「用改名卡換」');
-    ok((await p.textContent('#nw-bag [data-card]')).includes('要有改名卡才能換喔（之後商店會賣，也可能是老師的禮物）'), '沒有卡：寫「要有改名卡才能換喔…」（灰色）');
-    await p.click('#nw-bag [data-nick-edit]'); await p.waitForTimeout(300);
-    ok(!(await p.$('#nw-nick')) && (await p.textContent('#toast-body')).includes('要有改名卡'), '取了就固定：沒有改名卡按下去不會開選擇器，提示要有改名卡');
+    const card = await p.textContent('#nw-bag [data-card]');
+    ok(card.includes('小明') && !card.includes('勇敢的史萊姆') && !card.includes('換暱稱') && !card.includes('取暱稱'), '舊存檔有 nw.nick：人物卡顯示登入名字「小明」，不顯示舊暱稱、沒有「換暱稱」');
+    ok((await p.textContent('#nw-bag [data-name-edit]')).includes('改名字') && card.includes('要有改名卡才能改名字（老師會寄給你）') && await p.$eval('#nw-bag [data-name-edit]', e => e.style.opacity === '0.5'), '人物卡有「✏ 改名字」；沒卡：灰色並寫「要有改名卡才能改名字（老師會寄給你）」');
+    await p.click('#nw-bag [data-name-edit]'); await p.waitForTimeout(300);
+    ok(!(await p.$('#nw-rename')) && (await p.textContent('#toast-body')).includes('要有改名卡'), '沒卡：按下去不會開視窗，提示要有改名卡');
+    ok(!(await p.$('#nw-nick')) && (await FS(p, 'mg_scores/' + ID)).name === '小明', '沒有詞庫取名視窗（進村、人物卡都沒有）；雲端 name 是登入名字「小明」');
     noErr(p); await p.close();
   }
   {
-    const p = await open(b, { nw: { nick: ['a_brave', 'b_slime'], items: { potion: 3, renameCard: 2 } } });
+    const p = await open(b, { nw: { items: { potion: 3, renameCard: 2 } } });
     await p.keyboard.press('b'); await p.waitForSelector('#nw-bag');
-    ok((await p.textContent('#nw-bag [data-nick-edit]')).includes('用 1 張改名卡換暱稱'), '有改名卡：按鈕寫「用 1 張改名卡換暱稱」');
-    await p.click('#nw-bag [data-nick-edit]'); await p.waitForSelector('#nw-nick');
-    ok((await p.textContent('#nw-nick')).includes('用掉 1 張改名卡') && !(await p.$('#nw-nick [data-skip]')), '換暱稱：寫「會用掉 1 張改名卡」、沒有「先用隨機的」');
-    await p.click('#nw-nick [data-cancel]'); await p.waitForTimeout(200);
+    ok((await p.textContent('#nw-bag [data-name-edit]')).includes('用 1 張改名卡'), '有改名卡：按鈕寫「用 1 張改名卡」');
+    await p.click('#nw-bag [data-name-edit]'); await p.waitForSelector('#nw-rename');
+    ok((await p.textContent('#nw-rename')).includes('會用掉 1 張改名卡') && (await p.textContent('#nw-rename')).includes('請填你想讓大家看到的名字'), '改名視窗：寫「會用掉 1 張改名卡」「請填你想讓大家看到的名字」');
+    await p.click('#nw-rename [data-cancel]'); await p.waitForTimeout(200);
     ok((await nwLocal(p)).items.renameCard === 2, '取消：不扣卡');
-    await p.click('#nw-bag [data-nick-edit]'); await p.waitForSelector('#nw-nick');
-    await p.click('#nw-nick [data-n="a"][data-id="a_calm"]'); await p.click('#nw-nick [data-ok]'); await p.waitForTimeout(1200);
-    const n2 = await nwLocal(p);
-    ok(n2.items.renameCard === 1 && n2.nick[0] === 'a_calm' && (await FS(p, 'mg_scores/' + ID)).nwNick === '安靜的史萊姆', '確定後扣 1 張（2 → 1），nwNick 跟著更新');
-    await p.click('#nw-bag [data-tab-items], #nw-bag [data-bag-tab="items"]'); await p.waitForTimeout(200);
+    await p.click('#nw-bag [data-name-edit]'); await p.waitForSelector('#nw-rename');
+    for (const [v, re] of [['', /請輸入/], ['12345', /全是數字/], ['！！！', /只有符號/], ['小明', /一樣/]]) {
+      await p.fill('#nw-rename [data-rn]', v); await p.click('#nw-rename [data-ok]');
+      ok(re.test(await p.textContent('#nw-rename [data-rn-err]')) && (await nwLocal(p)).items.renameCard === 2, `改名字輸入「${v}」：提示不合法、不扣卡`);
+    }
+    await p.fill('#nw-rename [data-rn]', '  閃電貓 '); await p.click('#nw-rename [data-ok]'); await p.waitForTimeout(1200);
+    const n2 = await nwLocal(p), doc = await FS(p, 'mg_scores/' + ID);
+    ok(n2.items.renameCard === 1 && n2.name0 === '閃電貓' && doc.name === '閃電貓' && doc.nwNick === '閃電貓' && doc.nw.name0 === '閃電貓', '改名成功：扣 1 張（2→1），雲端 name、nwNick、nw.name0 都是「閃電貓」（去掉空白）');
+    ok(n2.nameLog.length === 1 && n2.nameLog[0].from === '小明' && n2.nameLog[0].to === '閃電貓' && n2.nameLog[0].card === 1, 'nw.nameLog 記一筆（給老師看）');
+    ok(!Object.keys(await p.evaluate(() => window.__FS)).some(k => k.startsWith('mg_nw_flags/')), '改名不寫 mg_nw_flags（不會觸發教師頁 ⚠）');
+    ok((await p.textContent('#nw-bag [data-card]')).includes('閃電貓') && !(await p.evaluate(() => window.__NWG.nameLocked())), '人物卡顯示新名字、沒有被鎖');
+    ok(JSON.parse(await p.evaluate(() => localStorage.getItem('mg_me'))).name === '閃電貓', '登入畫面下次帶出新名字（mg_me）');
+    await p.click('#nw-bag [data-bag-tab="items"]'); await p.waitForTimeout(200);
     ok((await p.textContent('#nw-bag [data-body]')).includes('改名卡') && (await p.$('#nw-bag [data-body] canvas')) !== null, '道具分頁看得到「改名卡」與像素圖示');
     noErr(p); await p.close();
   }
-  /* 進村先取名 */
+  /* 改完用新名字登入：不鎖、不寫 namechg；用舊名字登入：鎖 */
   {
-    const p = await open(b, { nickprompt: true });
-    ok(!!(await p.$('#nw-nick')), '第一次進村（還沒暱稱）：自動跳出取暱稱選擇器');
-    ok(!!(await p.$('#nw-nick [data-skip]')) && !(await p.$('#nw-nick [data-cancel]')), '有「先用隨機的」，沒有一般的「取消」');
-    await p.click('#nw-nick [data-rand]');
-    await p.click('#nw-nick [data-skip]'); await p.waitForTimeout(1200);
+    const seed = { ['mg_scores/' + ID]: { className: '五年級3班', seat: 5, name: '閃電貓', bestLevel: 10, bestScore: 20, scoreVer: 2, plays: 9, tutorialDone: true, talentIntroDone: true, tier: 'B', balanceVer: 3,
+      nw: { v: 1, savedAt: 5, look: { style: 1, hair: 2, skin: 1 }, starter: 'dagger', quest: { done: ['1-0', '1-0a'] }, items: {}, intro: { hub: 1 }, seenNotice: NOTICE_ID, name0: '閃電貓', nameSet: 1, nameLog: [{ t: 1, from: '小明', to: '閃電貓', card: 1 }] } } };
+    const p = await open(b, { seed, name: '閃電貓' });
+    ok(!(await p.evaluate(() => window.__NWG.nameLocked())) && !Object.keys(await p.evaluate(() => window.__FS)).some(k => k.startsWith('mg_nw_flags/')), '改過名的人用新名字登入：不鎖、不寫 namechg');
+    await p.close();
+    const p2 = await open(b, { seed, name: '小明' });
+    ok(await p2.evaluate(() => window.__NWG.nameLocked()), '改過名的人打舊名字：照冒名鎖處理（鎖信箱）');
+    ok((await FS(p2, 'mg_scores/' + ID)).name === '閃電貓', '打舊名字登入：雲端 name 不被覆蓋');
+    await p2.close();
+  }
+  /* 登入：第一次寫入名字；之後別的名字登入不覆蓋雲端 name，畫面用基準名字 */
+  {
+    const noName = { ['mg_scores/' + ID]: { className: '五年級3班', seat: 5, bestLevel: 10, bestScore: 20, scoreVer: 2, plays: 9, tutorialDone: true, talentIntroDone: true, tier: 'B', balanceVer: 3 } };
+    const p = await open(b, { seed: noName, name: '阿花' });
+    ok((await FS(p, 'mg_scores/' + ID)).name === '阿花' && await p.evaluate(() => document.getElementById('lobby-who').textContent.includes('阿花')), '第一次登入（雲端沒有名字）：填的名字「阿花」寫進雲端 name');
+    await p.close();
+    const p2 = await open(b, { name: '小華' });
+    const who = await p2.evaluate(() => document.getElementById('lobby-who').textContent);
+    ok((await FS(p2, 'mg_scores/' + ID)).name === '小明' && who.includes('小明') && !who.includes('小華'), '第二次用別的名字「小華」登入：雲端 name 仍是「小明」、畫面顯示基準名字：' + who.trim());
+    ok(JSON.parse(await p2.evaluate(() => localStorage.getItem('mg_me'))).name === '小明', '登入畫面記住的是基準名字');
+    ok(/名字第一次登入後就固定了，之後會加密碼/.test(await p2.evaluate(() => document.getElementById('login-name-note').textContent)) && (await p2.getAttribute('#in-name', 'placeholder')) === '請填你想讓大家看到的名字', '登入畫面有備註與「請填你想讓大家看到的名字」');
+    await p2.close();
+  }
+  /* 第一次進村問一次：沿用或改名（不扣卡） */
+  {
+    const p = await open(b, { nickprompt: true, nw: { nameSet: 0, items: { renameCard: 1 } } });
+    const t = await p.textContent('#nw-rename');
+    ok(!!(await p.$('#nw-rename')) && t.includes('你的名字') && t.includes('小明') && t.includes('選好之後就固定了') && t.includes('改名卡'), '第一次進村（nameSet 沒設）：問「你的名字」，說明選好就固定、之後用改名卡');
+    ok(!!(await p.$('#nw-rename [data-keep]')) && !!(await p.$('#nw-rename [data-change]')) && !(await p.$('#nw-rename [data-cancel]')), '有「沿用」「改新名字」兩個按鈕，沒有取消');
+    await p.keyboard.press('Escape'); await p.waitForTimeout(200);
+    ok(!!(await p.$('#nw-rename')), 'Esc 關不掉（要選一個）');
+    await p.click('#nw-rename [data-keep]'); await p.waitForTimeout(1000);
     const n = await nwLocal(p);
-    ok(!(await p.$('#nw-nick')) && n.nick && n.nick.length === 2 && ((await FS(p, 'mg_scores/' + ID)).nwNick || '').length >= 3, '按「先用隨機的」：關掉並存下一個隨機暱稱：' + JSON.stringify(n.nick));
+    ok(!(await p.$('#nw-rename')) && n.nameSet === 1 && n.name0 === '小明' && n.items.renameCard === 1 && (await FS(p, 'mg_scores/' + ID)).name === '小明', '選沿用：名字不變、nameSet=1、不扣卡');
     await p.close();
   }
   {
-    const p = await open(b, { nickprompt: true });
-    await p.click('#nw-nick', { position: { x: 4, y: 4 } }); await p.waitForTimeout(1200);
-    const n = await nwLocal(p);
-    ok(!(await p.$('#nw-nick')) && n.nick && n.nick.length === 2, '點旁邊把視窗關掉：也會幫他存隨機的（不能完全跳過）');
+    const p = await open(b, { nickprompt: true, nw: { nameSet: 0, items: { renameCard: 1 } } });
+    await p.click('#nw-rename [data-change]');
+    for (const [v, re] of [['', /請輸入/], ['007', /全是數字/], ['…', /只有符號/]]) {
+      await p.fill('#nw-rename [data-rn]', v); await p.click('#nw-rename [data-ok]');
+      ok(re.test(await p.textContent('#nw-rename [data-rn-err]')) && !!(await p.$('#nw-rename')) && (await nwLocal(p)).nameSet === 0, `第一次改名輸入「${v}」：提示不合法、視窗還在、還沒固定`);
+    }
+    await p.fill('#nw-rename [data-rn]', '小星'); await p.click('#nw-rename [data-ok]'); await p.waitForTimeout(1200);
+    const n = await nwLocal(p), doc = await FS(p, 'mg_scores/' + ID);
+    ok(n.nameSet === 1 && n.name0 === '小星' && n.items.renameCard === 1 && doc.name === '小星' && doc.nwNick === '小星' && doc.nw.name0 === '小星', '選改新名字：name、nwNick、name0 都換成「小星」，不扣卡');
+    ok(n.nameLog.length === 1 && n.nameLog[0].card === 0, 'nameLog 記一筆（沒用卡）');
+    ok(!(await p.evaluate(() => window.__NWG.nameLocked())), '改完沒有被鎖');
     await p.close();
   }
   {
-    const p = await open(b, { nickprompt: true, nw: { nick: ['a_brave', 'b_slime'] } });
-    ok(!(await p.$('#nw-nick')), '已經有暱稱：進村不再跳');
+    const p = await open(b, { nickprompt: true, nw: { nameSet: 1 } });
+    ok(!(await p.$('#nw-rename')), '已經選過（nameSet=1）：進村不再問');
     await p.close();
   }
   {
-    const p = await open(b, { nickprompt: true, name: '小華' });
-    ok(!(await p.$('#nw-nick')) && !(await nwLocal(p)).nick, '名字被冒名鎖鎖住：不跳取名、也沒有幫他存暱稱');
+    const p = await open(b, { nickprompt: true, name: '小華', nw: { nameSet: 0 } });
+    ok(!(await p.$('#nw-rename')) && (await nwLocal(p)).nameSet === 0, '名字被冒名鎖鎖住：不問、也沒固定');
     await p.close();
   }
   {
-    const p = await open(b, { intro: true, nickprompt: true, nw: { intro: {}, seenNotice: '' } });
-    ok(!(await p.$('#nw-nick')) && !!(await p.$('#nw-intro, .nw-sheet')), '有第一次介紹時：先看介紹，取名排在介紹之後');
+    const p = await open(b, { nw: { nameSet: 0 } });
+    ok(!(await p.$('#nw-rename')), '沒開 __NW_NICKPROMPT__（__NW_NOINTRO__）：測試機不跳');
+    await p.close();
+  }
+  {
+    const p = await open(b, { intro: true, nickprompt: true, nw: { intro: {}, seenNotice: '', nameSet: 0 } });
+    ok(!(await p.$('#nw-rename')) && !!(await p.$('#nw-intro, .nw-sheet')), '有第一次介紹時：先看介紹，問名字排在介紹之後');
     await p.close();
   }
   /* 信箱寄改名卡 */
@@ -295,16 +328,15 @@ const mail = (aud, o = {}) => Object.assign({ aud, title: '信 ' + aud.join(',')
   {
     const p = await open(b, { name: '小華' });
     await p.keyboard.press('b'); await p.waitForSelector('#nw-bag');
-    await p.click('#nw-bag [data-nick-edit]'); await p.waitForTimeout(300);
-    ok(!(await p.$('#nw-nick')), '名字被鎖：不能改暱稱');
-    ok(/請找老師/.test(await p.textContent('body')), '被鎖時畫面說「請找老師」');
-    ok(((await FS(p, 'mg_scores/' + ID)).nwNick || '') === '', '被鎖時沒有寫 nwNick');
+    ok(!(await p.$('#nw-bag [data-name-edit]')) && (await p.textContent('#nw-bag [data-card]')).includes('請找老師'), '名字被鎖：人物卡沒有改名字按鈕，寫「請找老師」');
+    ok((await FS(p, 'mg_scores/' + ID)).name === '小明', '被鎖（打別的名字登入）：雲端 name 不被覆蓋，仍是「小明」');
+    ok((await p.textContent('#nw-bag [data-card]')).includes('小明') && !(await p.textContent('#nw-bag [data-card]')).includes('小華'), '畫面用基準名字「小明」，不是這次打的「小華」');
     await p.close();
   }
   {
-    const p = await open(b, { nw: { nick: ['a_brave', 'b_slime'], nickAt: 1 }, seed: { ['mg_bugboard/' + ID]: { hideNick: true, n: 0, score: 0 } } });
+    const p = await open(b, { nw: { nick: ['a_brave', 'b_slime'] }, seed: { ['mg_bugboard/' + ID]: { hideNick: true, n: 0, score: 0 } } });
     await p.keyboard.press('b'); await p.waitForSelector('#nw-bag'); await p.click('#nw-bag [data-title-edit]'); await p.click('#nw-title [data-ok]'); await p.waitForTimeout(1200);
-    ok((await FS(p, 'mg_scores/' + ID)).nwNick === '勇敢的史萊姆', '被老師隱藏暱稱的人照樣存 nwNick（隱藏由顯示端負責）');
+    ok((await FS(p, 'mg_scores/' + ID)).nwNick === '小明', '被老師隱藏暱稱的人照樣存 nwNick（隱藏由顯示端負責）');
     await p.close();
   }
 

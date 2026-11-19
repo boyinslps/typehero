@@ -81,6 +81,7 @@ async function student(browser, seed, o = {}) {
   await route(p);
   await p.goto('http://localhost:8765/index.html'); await p.waitForFunction(() => window.__NWG, null, { timeout: 15000 }); await p.waitForTimeout(500);
   await p.selectOption('#in-grade', '五年級'); await p.selectOption('#in-class', '3班'); await p.fill('#in-seat', '5'); await p.waitForTimeout(900);
+  if (o.name) await p.fill('#in-name', o.name);
   await p.click('#btn-enter'); await p.waitForTimeout(1000);
   await p.click('#nw-door'); await p.waitForTimeout(1800);
   await dismissGifts(p);   // 抓蟲件數 > 0 的人進村會先跳「除蟲員」任務獎勵，擋住按鈕
@@ -197,14 +198,14 @@ const dismissGifts = async p => { for (let i = 0; i < 14; i++) { if (!(await p.$
     const rows = () => T.$$eval('#main tr[data-id]', r => r.map(x => x.dataset.id));
     ok((await rows()).length === 4, '學生：讀整個 mg_scores，4 列');
     const heads = await T.$$eval('#main th[data-sort]', h => h.map(x => x.textContent.replace(/[ ▲▼]/g, '')));
-    ok(['班級', '座號', '姓名', '暱稱', 'HR', '字元', '武器', '場次', '勝／敗', '最後上線'].every(c => heads.includes(c)) && heads.some(h => h.startsWith('回報')), '欄位齊全：' + heads.join(','));
+    ok(['班級', '座號', '姓名', '榜上名字', 'HR', '字元', '武器', '場次', '勝／敗', '最後上線'].every(c => heads.includes(c)) && heads.some(h => h.startsWith('回報')), '欄位齊全：' + heads.join(','));
     const r5 = (await T.textContent(`tr[data-id="${ID5}"]`)).replace(/\s+/g, ' ');
-    ok(r5.includes('503') && r5.includes('小明') && r5.includes('閃電咕咕鳥') && r5.includes('鐵製小刀') && r5.includes('8／2') && r5.includes('2／2'), '一列：班級短碼、姓名、暱稱、武器、勝／敗、回報（確認／送出）：' + r5);
+    ok(r5.includes('503') && r5.includes('小明') && r5.includes('鐵製小刀') && r5.includes('8／2') && r5.includes('2／2'), '一列：班級短碼、姓名（榜上名字就是登入名字）、武器、勝／敗、回報（確認／送出）：' + r5);
     await T.check('[data-f="played"]'); ok((await rows()).length === 3, '篩選：玩過新世界 → 3 人');
     await T.uncheck('[data-f="played"]');
     await T.selectOption('[data-f="cls"]', C4); ok((await rows()).join() === ID41, '篩選：班級');
     await T.selectOption('[data-f="cls"]', ''); await T.fill('[data-f="kw"]', '華'); ok((await rows()).join() === ID6, '篩選：關鍵字（姓名）');
-    await T.fill('[data-f="kw"]', '閃電'); ok((await rows()).length === 2, '篩選：關鍵字（暱稱）');
+    await T.fill('[data-f="kw"]', '阿強'); ok((await rows()).length === 1, '篩選：關鍵字（榜上名字）');
     await T.fill('[data-f="kw"]', '');
     await T.check('[data-f="warn"]'); ok((await rows()).join() === ID7, '篩選：⚠ 換過名字 → 阿強'); await T.uncheck('[data-f="warn"]');
     await T.click('th[data-sort="hr"]'); const asc = await rows(); await T.click('th[data-sort="hr"]'); const desc = await rows();
@@ -231,7 +232,7 @@ const dismissGifts = async p => { for (let i = 0; i < 14; i++) { if (!(await p.$
     /* 阿強：⚠ 與名字沒問題 */
     await T.click(`tr[data-id="${ID7}"] td:nth-child(2)`); await T.waitForSelector('[data-modal]'); await T.waitForTimeout(300);
     mt = await modalText(T);
-    ok(mt.includes('名字跟上次不一樣') && mt.includes('阿志') && mt.includes('阿強') && mt.includes('還沒處理'), '學生卡：⚠ 名字跟上次不一樣，列出基準、現在的名字與換名紀錄');
+    ok(mt.includes('名字跟登入時不一樣') && mt.includes('阿志') && mt.includes('阿強') && mt.includes('還沒處理'), '學生卡：⚠ 名字跟登入時不一樣，列出基準、現在的名字與換名紀錄');
     await T.click('[data-modal] [data-act="nameok"]'); await T.waitForTimeout(500);
     const bb7 = await FS(T, 'mg_bugboard/' + ID7), fl = await FS(T, `mg_nw_flags/namechg_${ID7}_ab12cd34`);
     const { sha256Hex: sh } = await import('../../nw-access.js'), pv7 = await FS(T, 'mg_bugboard_private/' + ID7);
@@ -458,6 +459,27 @@ const dismissGifts = async p => { for (let i = 0; i < 14; i++) { if (!(await p.$
     await S1.click('.vb[data-bld="mail"]'); await S1.waitForSelector('#nw-mail'); await S1.waitForTimeout(600);
     ok(!(await S1.textContent('#nw-mail')).includes('名字跟上次不一樣') && (await mailIds(S1)).includes('lk'), '按了之後：學生信箱解鎖，看得到信');
     noErr(TL); await TL.close(); await S1.close();
+  }
+
+  /* ── v3.14.1：學生打別的名字登入（雲端 name 不變）→ 老師看得到 ⚠，按「名字沒問題」＝打的名字變新名字 ── */
+  {
+    const seedN = base();
+    seedN['mg_mail/lk'] = { aud: ['id:' + ID5], title: '要鎖著的信', body: '', items: [{ type: 'coins', n: 5 }], from: '老師', sendAt: NOW - 1000, expireAt: 0, t: NOW - 1000, src: 'manual' };
+    const S0 = await student(browser, JSON.parse(JSON.stringify(seedN)), { name: '小明大' });
+    ok((await FS(S0, 'mg_scores/' + ID5)).name === '小明' && await S0.evaluate(() => window.__NWG.nameLocked()), '學生打「小明大」登入：雲端 name 仍是「小明」、新世界鎖信箱');
+    const fl = await allFS(S0);
+    ok(Object.entries(fl).some(([k, v]) => k.startsWith('mg_nw_flags/namechg_' + ID5) && v.name === '小明大' && v.oldName === '小明'), '寫了 namechg（name＝打的字、oldName＝基準）');
+    await S0.close();
+    const TN = await teacher(browser, fl);
+    await tab(TN, 'students'); await TN.check('[data-f="warn"]');
+    ok((await TN.$$eval('#main tr[data-id]', r => r.map(x => x.dataset.id))).includes(ID5), '教師頁：雲端 name 沒變也看得到 ⚠（看 pending 的換名紀錄）');
+    await TN.click(`tr[data-id="${ID5}"] td:nth-child(2)`); await TN.waitForSelector('[data-modal]'); await TN.waitForTimeout(300);
+    ok((await modalText(TN)).includes('小明大') && (await modalText(TN)).includes('小明'), '卡片列出基準「小明」與學生打的「小明大」');
+    await TN.click('[data-modal] [data-act="nameok"]'); await TN.waitForTimeout(500);
+    ok((await FS(TN, 'mg_bugboard_private/' + ID5)).nameOk === '小明大' && (await FS(TN, 'mg_bugboard/' + ID5)).nameOkH === await (await import('../../nw-access.js')).sha256Hex('小明大'), '名字沒問題：新基準是學生打的「小明大」');
+    const S1 = await student(browser, await allFS(TN), { name: '小明大' });
+    ok(!(await S1.evaluate(() => window.__NWG.nameLocked())) && (await FS(S1, 'mg_scores/' + ID5)).name === '小明大', '學生再用「小明大」登入：不鎖，雲端 name 與 name0 換成「小明大」');
+    await S1.close(); await TN.close();
   }
 
   /* ── 一次搬移（寫入、重按不重複、學生領得到） ── */

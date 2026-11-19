@@ -2,7 +2,7 @@
    所以集中在這裡讀一次；寫入之後呼叫 invalidate('board') 之類，下次再讀才是新的。
    快取只活在這個分頁的記憶體，重新整理就沒了。 */
 import { db, collection, doc, getDoc, getDocs, query, orderBy, limit } from './fb.js';
-import { toMs, nickText, normName, normalizeNw, curWeapon, weaponInfo, clsShort, normalizeEvent, phaseOf } from './nw.js';
+import { toMs, normName, normalizeNw, curWeapon, weaponInfo, clsShort, normalizeEvent, phaseOf } from './nw.js';
 
 const cache = {};
 const TTL = 45 * 1000;
@@ -34,7 +34,7 @@ export function loadScores(force) {
       list.push({
         id: d.id, className: x.className || p.className, seat: +(x.seat !== undefined && x.seat !== '' ? x.seat : p.seat) || 0, name: x.name || '',
         played, nw, raw: x,
-        nick: played && nw.nick ? nickText(nw) : '', hr: nw ? nw.hr : 0, coins: nw ? nw.coins : 0, weapon: w ? w.name : '',
+        nick: played ? (x.name || '') : '', hr: nw ? nw.hr : 0, coins: nw ? nw.coins : 0, weapon: w ? w.name : '',
         hunts: nw ? (nw.hunts || 0) : 0, wins: nw ? nw.stat.wins : 0, fails: nw ? nw.stat.fails : 0,
         sent: nw ? (nw.bugsSent || 0) : 0, last, nwCls: x.nwCls || ''
       });
@@ -93,9 +93,21 @@ export async function loadClassSizes() {
    基準 = 老師核可的名字（mg_bugboard_private.nameOk），沒有就用存檔裡只寫一次的 name0。
    學生端比的是 mg_bugboard.nameOkH（名字的雜湊），看不到真名；老師這邊直接比名字。 */
 export const nameBase = (s, board) => (board && board.nameOk) || (s.nw && s.nw.name0) || '';
+/* v3.14.1 起名字固定：雲端 name 就是基準，學生這次打的別的名字只留在 mg_nw_flags 的 namechg。
+   所以「換過名字」＝有還沒處理的 namechg（markNameWarn 掛在 s.chg 上）；舊的比對方式留著，
+   但老師核可的名字（nameOk）與存檔的 name0 兩個都算「對」，用改名卡改過名的人不會被誤標。 */
+export function markNameWarn(scores, flags) {
+  const m = {};
+  (flags || []).filter(f => f.type === 'namechg' && (f.status || 'pending') === 'pending')
+    .sort((a, b) => (a.t || 0) - (b.t || 0)).forEach(f => { m[f.docId] = f; });
+  scores.forEach(s => { s.chg = m[s.id] || null; });
+}
 export function nameChanged(s, board) {
-  const base = nameBase(s, board);
-  return !!(base && s.name && normName(s.name) !== normName(base));
+  if (s.chg) return true;
+  const n = normName(s.name || '');
+  if (!n) return false;
+  const oks = [board && board.nameOk, s.nw && s.nw.name0].filter(Boolean).map(normName);
+  return oks.length > 0 && !oks.includes(n);
 }
 
 /* 收件人：aud 陣列 → 學生列。'all' 是全部；'cls:' 是整班；'id:' 是個人（不在 mg_scores 的 id 回報在 unknown） */

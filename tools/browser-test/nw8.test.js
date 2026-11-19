@@ -354,7 +354,7 @@ const others = (evId, scores, o = {}) => scores.map((s, i) => mkScore(o.cls || '
     ok(v.rows.length === 5 && v.inTop && v.rows.map(r => r.s).join() === '5,3,3,2,1' && v.rows.filter(r => r.mine).length === 1, '榜單不滿 10 人：自己（3 隻）排進去：' + v.rows.map(r => r.label).join(' / '));
     const labs = v.rows.map(r => r.label).join('|');
     ok(labs.includes('601・1號・勇敢的史萊姆') && labs.includes('601・2號・神秘獵人') && labs.includes('601・4號・神秘獵人') && labs.includes('601・3號・閃電咕咕鳥'), '沒取暱稱、被老師隱藏（hideNick）的顯示「神秘獵人」，其他顯示暱稱');
-    ok(!/陳大華|真名|小明/.test(JSON.stringify(v)), '榜單資料裡沒有任何真名（含自己的）');
+    ok(!/陳大華|真名/.test(JSON.stringify(v)) && v.rows.find(r => r.mine).label.includes('小明'), '榜單資料只有榜上名字（nwNick）：別人的 name 欄位（陳大華）不會出現，自己這列用登入名字（小明）');
     ok(v.rows.find(r => r.mine).label.startsWith('503・5號・'), '自己這一列也是短碼・座號・暱稱：' + v.rows.find(r => r.mine).label);
     const reads = await p.evaluate(() => window.__READS.filter(r => r.path.startsWith('mg_bugboard')).length);
     ok(reads >= 1, '隱藏暱稱讀 mg_bugboard（用 in 一次讀這幾個人）');

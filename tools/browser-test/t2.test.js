@@ -348,7 +348,7 @@ const saveForm = async p => { await submitForm(p); await waitModal(p); await cli
     await clickModal(T, 'ok'); await T.waitForTimeout(800);
     const evRK = await FS(T, 'mg_events/RK');
     ok(evRK.awarded === true && evRK.result && Array.isArray(evRK.result.rows) && evRK.result.rows.length === 5, '先寫名次快照：mg_events/RK.result 5 筆有分數的、awarded=true');
-    ok(!JSON.stringify(evRK.result).includes('小明') && !JSON.stringify(evRK.result).includes('同學'), '快照裡沒有真名（mg_events 全部登入的人都讀得到）');
+    ok(evRK.result.rows.every(r => !('name' in r) && !('className' in r) && !('seat' in r)), '快照只放榜上名字（nick，也就是登入名字，跟榜單公開的一樣），沒有 name／班級／座號欄位（mg_events 全部登入的人都讀得到）');
     const rr = id => evRK.result.rows.find(r => r.id === id);
     ok(rr(ID11).warn === true && rr(ID11).pick === false && rr(ID5).rank === 1 && rr(ID6).rank === 2 && rr(ID7).rank === 2 && rr(ID12).rank === 4 && rr(ID6).pos !== rr(ID7).pos && rr(ID5).n === 4, '快照：每人分數、有效場次、⚠、同分同名次但位置不同');
     const mk = (await evMails(T, 'ev_RK_')).sort((a, b) => a._id < b._id ? -1 : 1);

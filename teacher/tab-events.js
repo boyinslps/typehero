@@ -9,7 +9,7 @@
    「重新排名」（作廢存檔重做）會繞過這個保證：名次一變，固定 ID 的信可能被改成寄給別人，所以已經有信寄出就不准重做。
    存檔裡不放真名：mg_events 所有登入的人都讀得到。 */
 import { db, doc, setDoc, updateDoc, deleteDoc, deleteField, writeBatch, commitAll, collection, getDocs, query, where } from './fb.js';
-import { loadScores, loadEvents, loadClassSizes, invalidate, pendingAwards } from './data.js';
+import { loadScores, loadEvents, loadClassSizes, loadBoard, invalidate, pendingAwards } from './data.js';
 import { EVENT_TEMPLATES, EVENT_DEFAULTS, IMPROVE_SANE_MAX, MONSTERS, clsShort, normalizeEvent, phaseOf, timeText, scoreText, pctOf, classReached } from './nw.js';
 import { itemLabel, itemError } from './gifts.js';
 import { mountItems } from './gift-ui.js';
@@ -52,6 +52,10 @@ function evCard(ev) {
 export default async function mount(el, ctx, params) {
   let scores = await loadScores(true), events = await loadEvents(true), sizes = {};
   try { sizes = await loadClassSizes(); } catch (e) { console.warn('讀班級人數失敗', e); }
+  /* 榜上名字就是登入名字（可能是真名）；老師隱藏的人，名次快照（全校讀得到）不放他的名字 */
+  let hidden = new Set();
+  try { const bd = await loadBoard(true); hidden = new Set(Object.keys(bd).filter(k => bd[k] && bd[k].hideNick)); } catch (e) { console.warn('讀抓蟲榜失敗', e); }
+  const rankRowsOf = ev => rankingRows(ev, scores).map(x => hidden.has(x.id) ? { ...x, nick: '' } : x);
   const classes = [...new Set(scores.map(s => s.className).filter(Boolean))].sort((a, b) => clsShort(a) < clsShort(b) ? -1 : 1);
   let view = { mode: 'list' }, f = null, busy = false;
 
@@ -268,9 +272,9 @@ export default async function mount(el, ctx, params) {
 
   const who = id => { const s = scores.find(x => x.id === id); return s ? `${clsShort(s.className)}・${s.seat}號${s.name ? ' ' + s.name : ''}` : id; };
   function rankingHtml(ev, r, ph) {
-    const rows = rankingRows(ev, scores), scored = rows.filter(x => x.s !== null);
+    const rows = rankRowsOf(ev), scored = rows.filter(x => x.s !== null);
     const top = rankRows(ev, rows, () => true).filter(x => x.s !== null).slice(0, 10);
-    const table = `<h3>${ph === 'ended' ? '最後' : '目前'}前 10 名</h3><div class="tscroll"><table class="tbl" data-ranktable><thead><tr><th>名次</th><th>學生</th><th>暱稱</th><th>分數</th><th>有效場次</th><th></th></tr></thead><tbody>${top.map(x => `<tr><td>${x.rank}</td><td>${esc(who(x.id))}</td><td>${esc(x.nick || '—')}</td><td>${esc(scoreText(ev, x.s))}</td><td>${x.n}</td><td>${x.warn ? '<span class="chip warn" title="分數超出合理範圍，請確認">⚠ 請確認</span>' : ''}</td></tr>`).join('') || '<tr><td colspan="6" class="dim">還沒有人有分數</td></tr>'}</tbody></table></div>
+    const table = `<h3>${ph === 'ended' ? '最後' : '目前'}前 10 名</h3><div class="tscroll"><table class="tbl" data-ranktable><thead><tr><th>名次</th><th>學生</th><th>榜上名字</th><th>分數</th><th>有效場次</th><th></th></tr></thead><tbody>${top.map(x => `<tr><td>${x.rank}</td><td>${esc(who(x.id))}</td><td>${esc(x.nick || '—')}</td><td>${esc(scoreText(ev, x.s))}</td><td>${x.n}</td><td>${x.warn ? '<span class="chip warn" title="分數超出合理範圍，請確認">⚠ 請確認</span>' : ''}</td></tr>`).join('') || '<tr><td colspan="6" class="dim">還沒有人有分數</td></tr>'}</tbody></table></div>
       <p class="dim" style="margin-top:6px">有分數 ${scored.length} 人、參加 ${rows.length} 人。⚠＝分數超出合理範圍（進步獎超過 ${IMPROVE_SANE_MAX}%、或比魔物的合理下限還快），分數是學生端算的，請確認再發獎。</p>`;
     if (ph !== 'ended') return table;
     const snap = r.result && r.result.rows ? r.result : null;
@@ -399,10 +403,10 @@ export default async function mount(el, ctx, params) {
     const r = byId(id), ev = r && normalizeEvent(id, r); if (!ev || ev.type !== 'ranking') return;
     let snap = r.result && Array.isArray(r.result.rows) ? r.result : null;
     if (!snap) {
-      const rows = rankingRows(ev, scores), st = { pick: new Map(rows.map(x => [x.id, !x.warn])), t1: [], t23: [], t410: [], part: [], partOn: false };
+      const rows = rankRowsOf(ev), st = { pick: new Map(rows.map(x => [x.id, !x.warn])), t1: [], t23: [], t410: [], part: [], partOn: false };
       const tbl = () => {
         const ranked = rankRows(ev, rows, x => st.pick.get(x.id));
-        return `<div class="tscroll" style="max-height:34vh"><table class="tbl" data-award-table><thead><tr><th>發獎</th><th>名次</th><th>學生</th><th>暱稱</th><th>分數</th><th>有效場次</th><th></th></tr></thead><tbody>${ranked.filter(x => x.s !== null).map(x => `<tr data-arow="${esc(x.id)}"><td><input type="checkbox" data-pick="${esc(x.id)}" ${x.pick ? 'checked' : ''} aria-label="發獎給他"></td><td>${x.rank || '—'}</td><td>${esc(who(x.id))}</td><td>${esc(x.nick || '—')}</td><td>${esc(scoreText(ev, x.s))}</td><td>${x.n}</td><td>${x.warn ? '<span class="chip warn">⚠ 請確認</span>' : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="dim">還沒有人有分數</td></tr>'}</tbody></table></div>`;
+        return `<div class="tscroll" style="max-height:34vh"><table class="tbl" data-award-table><thead><tr><th>發獎</th><th>名次</th><th>學生</th><th>榜上名字</th><th>分數</th><th>有效場次</th><th></th></tr></thead><tbody>${ranked.filter(x => x.s !== null).map(x => `<tr data-arow="${esc(x.id)}"><td><input type="checkbox" data-pick="${esc(x.id)}" ${x.pick ? 'checked' : ''} aria-label="發獎給他"></td><td>${x.rank || '—'}</td><td>${esc(who(x.id))}</td><td>${esc(x.nick || '—')}</td><td>${esc(scoreText(ev, x.s))}</td><td>${x.n}</td><td>${x.warn ? '<span class="chip warn">⚠ 請確認</span>' : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="dim">還沒有人有分數</td></tr>'}</tbody></table></div>`;
       };
       const anyWarn = rows.some(x => x.warn);
       const html = `${anyWarn ? '<p class="dim" style="margin:0 0 6px">⚠ 的人分數超出合理範圍，預設<b>不拿名次獎</b>（名次由後面的人遞補），但<b>仍然有參加獎</b>（有送參加獎的話）。確認沒問題再勾回來就能拿名次獎。其他人如果你自己取消勾選，連參加獎也不會有。</p>' : '<p class="dim" style="margin:0 0 6px">沒有勾的人不會拿名次獎，連參加獎也不會有。</p>'}

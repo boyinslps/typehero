@@ -229,7 +229,7 @@ export const defaultNw = () => ({
   stat: { dodgeOk: 0, dodgeAll: 0, defOk: 0, defAll: 0, accN: 0, accSum: 0, wins: 0, fails: 0 },
   flags: 0, fb: {}, gw: [], equip: '', gifts: [], giftedEarly: false, tm: {}, bugs: 0, bugsSent: 0, tut: {}, intro: {}, awards: {}, seenNotice: '', seenNews: 0, seenEv: {}, seenBug: 0,
   name0: '', bugScore: 0, evDone: [], nameFlagged: {},
-  mail: {}, nick: null, nickAt: 0, ev: {}, fastMk: {}
+  mail: {}, nameLog: [], nameSet: 0, ev: {}, fastMk: {}
 });
 
 export function normalizeNw(d) {
@@ -253,8 +253,10 @@ export function normalizeNw(d) {
   o.evDone = Array.isArray(d.evDone) ? d.evDone : []; o.nameFlagged = d.nameFlagged || {};
   /* 已領的信是物件不是陣列：兩個分頁各自合併存檔時，不會整份蓋掉對方領過的紀錄 */
   o.mail = (d.mail && typeof d.mail === 'object' && !Array.isArray(d.mail)) ? d.mail : {};
-  o.nick = (Array.isArray(d.nick) && d.nick.length === 2 && d.nick.every(x => typeof x === 'string')) ? d.nick.slice() : null;
-  o.nickAt = +d.nickAt || 0;
+  /* 舊的詞庫暱稱不再使用，丟掉；nameLog＝用改名卡改過的名字（老師在學生卡看得到） */
+  delete o.nick; delete o.nickAt;
+  o.nameSet = d.nameSet ? 1 : 0;
+  o.nameLog = Array.isArray(d.nameLog) ? d.nameLog.filter(x => x && typeof x.to === 'string').slice(-5) : [];
   /* ev＝每個活動的個人進度（SPEC §4.3）；fastMk＝每隻魔物（含星級）自己最快的秒數，給「進步獎」當活動前的紀錄。
      NW.fastest 的鍵是「區域:星級」，沒有魔物，進步獎用不了 */
   o.ev = (d.ev && typeof d.ev === 'object' && !Array.isArray(d.ev)) ? d.ev : {};
@@ -271,100 +273,21 @@ export const normName = s => String(s || '')
   .replace(/[\s\u3000\u200b-\u200d\ufeff]/g, '')
   .toLowerCase();
 
-/* ── 暱稱（SPEC §8）：從詞庫組合，不開放自由輸入 ──
-   存的是詞的 ID 不是索引，之後詞庫調整順序大家的暱稱才不會變。
-   不放能拿來取笑人的詞（笨、臭、迷糊、胖…）；舊世界不顯示。 */
-export const NICK_A = [
-  { id: 'a_brave', w: '勇敢的' },
-  { id: 'a_flash', w: '閃電' },
-  { id: 'a_calm', w: '安靜的' },
-  { id: 'a_starlight', w: '星光' },
-  { id: 'a_happy', w: '快樂的' },
-  { id: 'a_rainbow', w: '彩虹' },
-  { id: 'a_moon', w: '月光' },
-  { id: 'a_smile', w: '微笑的' },
-  { id: 'a_flame', w: '火焰' },
-  { id: 'a_breeze', w: '清風' },
-  { id: 'a_power', w: '大力' },
-  { id: 'a_wise', w: '聰明的' },
-  { id: 'a_gentle', w: '溫柔的' },
-  { id: 'a_gold', w: '黃金' },
-  { id: 'a_cloud', w: '白雲' },
-  { id: 'a_lucky', w: '幸運的' },
-  { id: 'a_ice', w: '冰晶' },
-  { id: 'a_forest', w: '森林' },
-  { id: 'a_fly', w: '飛翔的' },
-  { id: 'a_hot', w: '熱血' },
-  { id: 'a_swift', w: '神速' },
-  { id: 'a_shiny', w: '閃亮的' },
-  { id: 'a_ocean', w: '海洋' },
-  { id: 'a_dawn', w: '晨曦' },
-  { id: 'a_earnest', w: '認真的' },
-  { id: 'a_lively', w: '活力' },
-  { id: 'a_courage', w: '勇氣' },
-  { id: 'a_thunder', w: '雷鳴' },
-  { id: 'a_diligent', w: '努力的' },
-  { id: 'a_light', w: '輕盈的' },
-  { id: 'a_silver', w: '銀色' },
-  { id: 'a_amber', w: '琥珀' },
-  { id: 'a_diamond', w: '鑽石' },
-  { id: 'a_dream', w: '夢想' }
-];
-export const NICK_B = [
-  { id: 'b_slime', w: '史萊姆' },
-  { id: 'b_hunter', w: '獵人' },
-  { id: 'b_coo', w: '咕咕鳥' },
-  { id: 'b_treeling', w: '小樹精' },
-  { id: 'b_frog', w: '泡泡蛙' },
-  { id: 'b_shroom', w: '跳跳菇' },
-  { id: 'b_wolf', w: '炎牙狼' },
-  { id: 'b_dragon', w: '小龍' },
-  { id: 'b_swordsman', w: '劍客' },
-  { id: 'b_archer', w: '弓手' },
-  { id: 'b_mage', w: '法師' },
-  { id: 'b_blade', w: '刀客' },
-  { id: 'b_knight', w: '騎士' },
-  { id: 'b_traveler', w: '旅人' },
-  { id: 'b_bear', w: '小熊' },
-  { id: 'b_fox', w: '小狐狸' },
-  { id: 'b_owl', w: '貓頭鷹' },
-  { id: 'b_dolphin', w: '海豚' },
-  { id: 'b_whale', w: '鯨魚' },
-  { id: 'b_unicorn', w: '獨角獸' },
-  { id: 'b_phoenix', w: '鳳凰' },
-  { id: 'b_rabbit', w: '小兔' },
-  { id: 'b_squirrel', w: '松鼠' },
-  { id: 'b_eagle', w: '老鷹' },
-  { id: 'b_lion', w: '獅子' },
-  { id: 'b_penguin', w: '企鵝' },
-  { id: 'b_panda', w: '熊貓' },
-  { id: 'b_deer', w: '小鹿' },
-  { id: 'b_seal', w: '小海豹' },
-  { id: 'b_butterfly', w: '蝴蝶' },
-  { id: 'b_star', w: '星星' },
-  { id: 'b_comet', w: '彗星' },
-  { id: 'b_elf', w: '精靈' },
-  { id: 'b_guardian', w: '守護者' }
-];
+/* ── 暱稱（v3.14.1）：就是登入時填的名字，第一次登入後固定，只能用「改名卡」換 ──
+   舊存檔的 nw.nick（詞庫組合）不再使用，留著不影響。 */
 export const NICK_EMPTY = '神秘獵人';
-/* 暱稱取了就固定，要換用「改名卡」（SPEC §8 改）。道具定義放這裡，背包、信箱共用 */
+/* 名字固定，要換用「改名卡」（SPEC §8）。道具定義放這裡，背包、信箱共用 */
 export const ITEM_DEFS = {
   potion: { name: '回復藥', desc: '要等商店開張才能在戰鬥中使用，先幫你存著。', icon: '🧪' },
-  renameCard: { name: '改名卡', desc: '可以換一次暱稱。', pixel: 'renameCard' }
+  renameCard: { name: '改名卡', desc: '可以改一次名字。', pixel: 'renameCard' }
 };
 /* 商店開張時用（現在 OPEN_STAGE=1，商店還沒開，沒有購買流程；改名卡先由信箱寄） */
 export const SHOP_ITEMS = [{ key: 'renameCard', price: 300 }];
 /* 台灣時間的「第幾天」：活動剩幾天照日曆日算。固定 +8 小時而不用瀏覽器時區，電腦時區設錯也一樣；時間要用 C.now()（伺服器時間）。 */
 export const TW_OFFSET_MS = 8 * 3600 * 1000;
 export const twDay = ms => Math.floor((ms + TW_OFFSET_MS) / 86400000);
-export const nickWord = (list, id) => list.find(x => x.id === id) || null;
-/* 沒取、或詞庫裡找不到的詞（例如之後被拿掉）都回「神秘獵人」，不會顯示出壞字串 */
-export function nickText(nw) {
-  const n = nw && nw.nick;
-  if (!Array.isArray(n) || n.length !== 2) return NICK_EMPTY;
-  const a = nickWord(NICK_A, n[0]), b = nickWord(NICK_B, n[1]);
-  return a && b ? a.w + b.w : NICK_EMPTY;
-}
+/* 榜單與人物卡顯示的名字＝登入名字（基準）；沒有名字才顯示「神秘獵人」 */
+export const displayName = name => (typeof name === 'string' && name.trim()) ? name.trim() : NICK_EMPTY;
 
 /* 班級短碼：五年級4班 → 504（年級數字＋兩位數班號）；解析不了就回原字串，榜單才不會空白 */
 const GRADE_NUM = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
@@ -567,6 +490,11 @@ export const EVENT_TEMPLATES = [
 /* 改版公告（新的放最前面；寫法照 docs/ANNOUNCEMENT-GUIDE.md）。
    放在這裡而不放 newworld.js：教師頁「公告」分頁要唯讀列出最近 3 則，newworld.js 是學生端程式、不能被教師頁 import。 */
 export const NOTICES = [
+  { id: '2026-11-19', date: '11 月 19 日', title: '名字固定了', items: [
+    '🏷 不用再取暱稱了。榜上會用你登入時的名字。',
+    '❓ 第一次進新世界，會問你一次：要沿用現在的名字，還是改新名字？選好就固定了。',
+    '✏ 之後想改名字，要用「改名卡」。在背包的人物卡上按「改名字」。'
+  ] },
   { id: '2026-11-17', date: '11 月 17 日', title: '新世界變大了！', items: [
     '✉ 村莊多了藍色郵筒。老師寄的信和禮物，都在「信箱」裡領。',
     '🏷 第一次進新世界，要先取暱稱。想換的話，要有「改名卡」。',
