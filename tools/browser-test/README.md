@@ -58,6 +58,8 @@ NODE_PATH=$(npm root -g) node tools/browser-test/seg0.test.js /tmp
 
 `t4.test.js` 測教師頁「👥 學生」的人物卡（開 `__RULES`）：點名字開卡、角色 canvas（整數倍率、呼吸動畫、減少動態時關閉）、暱稱／稱號／HR／武器名稱、裝備格（武器有圖、其他暗色＋）、小資訊列、沒進過新世界／沒造型不壞、◀ ▶ 與左右鍵（確認視窗開著不換人）、Esc／背景關閉、看詳細資料開文字版學生卡、寄信、隱藏暱稱、名字沒問題、手機 390 不橫向捲動。截圖 `/tmp/card-desktop.png`、`/tmp/card-mobile.png`。
 
+`t5.test.js` 測教師頁「給東西」與「🏷 頒稱號」（開 `__RULES`，教師頁寄的信搬給學生頁驗證）：禮物種類涵蓋所有學生端 type、清單＝資料表（`WORDS` 三組、`GIFT_WEAPONS`、`ITEM_DEFS`、材料、圖紙、區域、圖鑑、教學課）、**動態塞假稱號／道具／武器／材料／圖紙進資料表後清單自動出現**、稱號搜尋與解鎖條件、範圍與 `confirmBig` 防呆；人物卡與學生卡的「頒稱號」（已擁有／已寄出標示、固定 ID 不重複寄、操作紀錄）、「給東西」帶收件人、顯示他有的稱號／材料／圖紙／道具／武器；學生端領稱號（通知、解鎖、背包戴上）、`bp`／`hr`／`zone`／`dex`／`tut`／`mat`／`word` 各領一次、重複不加（不往下）、狀態類禮物領完立刻重算任務、10 種不認得的信整封不領。
+
 `nw5.test.js` 測 A 版（教師管理頁規格 §1.4～§1.7，開 `__RULES`）：房間改存 `mg_rooms`、序號（一人一份 `mg_gift_used`、同一人換電腦不能再領、次數上限用 count、舊版 `used` 也算）、回報不帶 `claimed`、學生端不讀 `mg_nw_flags`、`mg_bugboard` 同步（件數取 max、抓蟲分、詞條）、存檔最外層 `nwCls`／`nwEvDone`、`mg_clock` 時差、冒名鎖（基準 `nameOk`／`name0`、`namechg` 固定 ID、改回原名自動解鎖、全半形與空白）。
 
 `nw6.test.js` 測舊控制台的老師登入：過「teacher」那道門後跳 email 登入、錯誤訊息、非老師帳號被擋並登出、記住這台電腦（Local／Session）、重開還在、取消後控制台只看不寫、開戰／設定／序號／清空成績都走 admin 身分、序號「用掉幾次」用 count、回饋按鈕連到 `teacher.html`。
@@ -70,4 +72,16 @@ NODE_PATH=$(npm root -g) node tools/browser-test/seg0.test.js /tmp
 
 ```bash
 NODE_PATH=$(npm root -g) node tools/browser-test/nw.test.js /tmp
+```
+
+`t6.test.js` 測教師頁「⚙ 設定」的「📊 匯出打字速度（匿名）」（開 `__RULES`，資料全是假姓名）：
+- 去識別化：下載的 JSON／CSV 全文逐一確認沒有姓名、暱稱、班級名稱、docId；只輸出白名單欄位，武器等字串不符格式就丟掉；列的順序洗牌、隨機編號每次匯出都不同。
+- 年級不足 5 人合併成 `?`、摘要的平均／中位數／P10／P25／P75／P90、`?` 組少於 3 人不單獨列、欄位缺漏或亂值不會壞。
+- 介面：預覽（人數、各年級人數、欄位、前 3 列）、確認視窗（取消不下載也不寫紀錄）、檔名、CSV 有 BOM 且逗號引號跳脫、操作紀錄 `export／speed`、沒有資料的提示、手機 390 不橫向捲動。
+- `tools/nw-sim/load-real.mjs`：讀匯出檔轉成模擬器的 `[{ grade, wpm, acc, tier, weapon }]`，再丟給 `run.mjs` 確認吃得進去。
+
+**用真實匯出檔校準模擬器**：匯出檔放 `data-private/`（已在 `.gitignore`，不進 repo；測試只用假資料）。
+```bash
+node tools/nw-sim/load-real.mjs data-private/typehero-speed-YYYYMMDD.json --out data-private/profiles.json
+node tools/nw-sim/run.mjs data-private/profiles.json     # 年級不明的人可加 --unknown-as 五年級
 ```

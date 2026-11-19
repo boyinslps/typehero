@@ -9,6 +9,7 @@ import { loadScores, loadFlags, loadClassSizes, invalidate } from './data.js';
 import { clsShort } from './nw.js';
 import { planMigration } from './migrate.js';
 import { $, esc, fmtT, log, ask, toast, errText, helpBox } from './util.js';
+import { mountSpeedExport } from './export-speed.js';
 
 export default async function mount(el) {
   const scores = await loadScores(true);
@@ -33,6 +34,8 @@ export default async function mount(el) {
       <p style="margin:0 0 6px"><b>榜單顯示的是學生登入時填的名字</b>，不是另外取的暱稱。抓蟲榜與活動榜是全校都看得到的，名字可能是真名，建議請學生填想讓大家看到的暱稱。</p>
       <p style="margin:0 0 6px">名字第一次登入後就固定，之後再用別的名字登入只會被記錄、不會改掉。學生要改名字，用「改名卡」（在「✉ 信箱」寄給他）。</p>
       <p style="margin:0">名字不適合：到「👥 學生」按「隱藏暱稱」，榜上就顯示「神秘獵人」。學生本人用別的名字登入並在新世界被鎖時，確認沒問題按「名字沒問題」，那個名字就變成新名字。</p></div>
+    <h3>📊 匯出打字速度（匿名）</h3>
+    <div class="px-panel in" data-speedexp></div>
     <h3>其他設定</h3>
     <p class="dim" style="margin:0 0 6px">新世界開放方式、通關密語、序號禮物還在舊控制台（遊戲首頁的教師控制台）。</p>
     <p><a class="px-btn" href="index.html" style="text-decoration:none">← 回遊戲</a></p>
@@ -98,6 +101,11 @@ export default async function mount(el) {
     await log('改班級人數', 'mg_config/class_sizes', Object.keys(out).length ? Object.keys(out).map(c => `${clsShort(c)}＝${out[c]}`).join('、') : '全部改回自動算');
     toast('已儲存'); paintLog();
   });
+
+  /* ── 匯出打字速度（匿名）── 邏輯在 export-speed.js；版本號在遊戲本體 index.html，抓不到就寫「?」不擋匯出 */
+  let appVersion = '?';
+  fetch('index.html').then(r => r.text()).then(t => { const m = /const APP_VERSION\s*=\s*'([^']+)'/.exec(t); if (m) appVersion = m[1]; }).catch(() => {});
+  mountSpeedExport($('[data-speedexp]', el), () => scores, { esc, ask, toast, appVersion: () => appVersion, log: async (...a) => { await log(...a); paintLog(); } });
 
   /* ── 操作紀錄 ── */
   async function paintLog() {

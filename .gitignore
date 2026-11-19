@@ -29,3 +29,6 @@ service-account*.json
 token.json
 token_*.json
 tools/rules-test/*.log
+
+# 真實學生資料（匯出的匿名打字速度等）放這裡，不進版控
+/data-private/
