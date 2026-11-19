@@ -10,7 +10,7 @@
    存檔裡不放真名：mg_events 所有登入的人都讀得到。 */
 import { db, doc, setDoc, updateDoc, deleteDoc, deleteField, writeBatch, commitAll, collection, getDocs, query, where } from './fb.js';
 import { loadScores, loadEvents, loadClassSizes, loadBoard, invalidate, pendingAwards } from './data.js';
-import { EVENT_TEMPLATES, EVENT_DEFAULTS, IMPROVE_SANE_MAX, MONSTERS, clsShort, normalizeEvent, phaseOf, timeText, scoreText, pctOf, classReached } from './nw.js';
+import { EVENT_TEMPLATES, EVENT_DEFAULTS, IMPROVE_SANE_MAX, MONSTERS, clsShort, normalizeEvent, phaseOf, timeText, scoreText, pctOf, classReached, ruleLines, rankBoardHtml, METRIC_UNIT } from './nw.js';
 import { itemLabel, itemError } from './gifts.js';
 import { mountItems } from './gift-ui.js';
 import { rankingRows, rankRows, buildSnapshot, snapshotMails, snapshotSummary, tierOf, TIER_NAME } from './ev-calc.js';
@@ -37,6 +37,21 @@ function condText(ev) {
   const m = { improve: `比自己以前的紀錄快越多越好（${mon}，至少打 2 場）`, kills: `打倒最多隻 ${mon}`, fastest: `${mon} 最快討伐`, acc: `平均正確率（至少 ${ev.minRuns} 場）` }[ev.metric];
   return `${METRIC_NAME[ev.metric]}：${m}。結束後老師會寄獎品`;
 }
+/* 學生點進活動詳情頁會看到的「規則」與「排名」（用學生端同一個榜單模板，名單是範例，不是真的學生）。
+   送出前預覽只要看得出版面大概長怎樣，所以不讀真資料。 */
+function detailPreview(ev) {
+  const rules = `<div class="dim" style="margin-top:8px;font-size:.85em">學生點進去會看到的規則：</div><ul style="margin:2px 0 0;padding-left:1.2em;line-height:1.6">${ruleLines(ev).map(l => `<li>${esc(l)}</li>`).join('')}</ul>`;
+  let board = '';
+  if (ev.type === 'ranking') {
+    const sample = { improve: [30, 22, 15], kills: [9, 7, 6], fastest: [8.2, 9.5, 10.1], acc: [97, 94, 91] }[ev.metric] || [3, 2, 1];
+    board = rankBoardHtml({ id: 'pv', title: '前 10 名（範例，不是真的名單）', unit: METRIC_UNIT[ev.metric], refresh: false,
+      rows: sample.map((s, i) => ({ rank: i + 1, label: `50${i + 1}・${i + 3}號`, nick: '範例', score: scoreText(ev, s) })) });
+  } else if (ev.type === 'classwar') {
+    board = rankBoardHtml({ id: 'pv', title: '同年級前 3 名（範例）', unit: '%', refresh: false, mineMark: '← 我們班',
+      rows: [80, 66, 50].map((s, i) => ({ rank: i + 1, label: `50${i + 1} 班`, score: s })) });
+  } else board = `<div class="dim" style="margin-top:8px">${ev.type === 'hunt' ? '限時討伐沒有排名，學生只看到自己的進度條。' : '限時加倍沒有排名，學生只看到說明。'}</div>`;
+  return rules + board;
+}
 /* 學生佈告欄「活動」卡片的樣子（簡化版，給送出前預覽用） */
 function evCard(ev) {
   const goal = ev.type === 'hunt' ? ev.goal : ev.type === 'classwar' ? ev.per : 0;
@@ -46,7 +61,7 @@ function evCard(ev) {
     ${ev.desc ? `<p style="white-space:pre-wrap;line-height:1.6;margin:6px 0 0;overflow-wrap:anywhere">${esc(ev.desc)}</p>` : ''}
     <p class="dim" style="margin:6px 0 0">${esc(condText(ev))}</p>
     ${goal ? `<div class="dim" style="margin-top:4px">你的進度：0 / ${goal} 隻</div>` : ''}
-    <div class="dim" style="margin-top:4px">${ev.cls.length ? '對象：' + ev.cls.map(clsShort).join('、') : '對象：全校'}</div></div>`;
+    <div class="dim" style="margin-top:4px">${ev.cls.length ? '對象：' + ev.cls.map(clsShort).join('、') : '對象：全校'}</div>${detailPreview(ev)}</div>`;
 }
 
 export default async function mount(el, ctx, params) {

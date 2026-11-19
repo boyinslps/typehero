@@ -9,6 +9,8 @@ import { NICK_EMPTY, clsShort, displayName } from './nw-data.js';
 import { toMs } from './nw-events.js';
 
 export const BUG_TOP = 10;
+/* 抓蟲徽章的分數門檻（WORDS 的 bug1、bug3、bug5、bug10）；常駐活動的詳情頁畫進度條與徽章用 */
+export const BUG_MILESTONES = [1, 3, 5, 10];
 export const CACHE_MS = 60 * 1000;
 
 /* 壞資料（沒標題）整份丟掉，不讓一份壞公告弄壞佈告欄 */
@@ -95,7 +97,8 @@ export function createNotice(C, h) {
       r.label = `${r.cls}・${r.seat}號`;
     });
     comp.mine = { score: ownScore, n: Math.max(0, +own.n || 0) };
-    bug = { at: Date.now(), v: comp };
+    comp.at = Date.now();
+    bug = { at: comp.at, v: comp };
     return comp;
   }
 

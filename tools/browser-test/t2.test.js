@@ -574,7 +574,7 @@ const saveForm = async p => { await submitForm(p); await waitModal(p); await cli
     await S.keyboard.press('Escape'); await S.waitForTimeout(200);
     if (await S.$('#nw-mail')) await S.evaluate(() => document.querySelector('#nw-mail').remove());
     await openNotice(S, 'bug');
-    const br = await S.$$eval('#nw-notice [data-bugrow]', r => r.map(x => [x.dataset.bugrow, x.textContent.replace(/\s+/g, ' ')]));
+    const br = await S.$$eval('#nw-notice [data-rbrow]', r => r.map(x => [x.dataset.rbid, x.textContent.replace(/\s+/g, ' ')]));
     ok(br.map(x => x[0]).join() === [ID7, ID5, ID6, ID11].join(), '學生抓蟲榜更新：阿強 7、小明 5、小華 2、丁同學 1：' + br.map(x => x[0]).join());
     const mine = br.find(x => x[0] === ID5)[1];
     ok(mine.includes('神秘獵人') && !mine.includes('閃電咕咕鳥'), '被老師隱藏暱稱的人（自己）在榜上顯示「神秘獵人」：' + mine);

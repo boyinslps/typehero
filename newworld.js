@@ -11,8 +11,9 @@ import { mountBoard } from './nw-board.js';
 import { startBattle } from './nw-battle.js';
 import { openNwRank } from './nw-rank.js';
 import { tour, openAcademy } from './nw-academy.js';
-import { createEvents } from './nw-events.js';
-import { createNotice, newsLatest } from './nw-notice.js';
+import { createEvents, ruleLines, finalRows, awardList, dateText, METRIC_NAME, METRIC_UNIT, runsNeed, BOARD_SIZE } from './nw-events.js';
+import { createNotice, newsLatest, BUG_MILESTONES } from './nw-notice.js';
+import { rankBoardHtml, mountRankBoard } from './nw-rankboard.js';
 import { DEFAULT_CODE_HASH, sha256Hex, cleanCode } from './nw-access.js';
 
 const CSS = `
@@ -842,7 +843,6 @@ export function initNewWorld(C) {
   }
 
   const nlines = t => escHtml(t).replace(/\n/g, '<br>');
-  const rankCell = r => r <= 3 ? PX.badge(4 - r, 3) : `<b class="px-text" style="display:inline-block;min-width:33px;text-align:center;color:#aab0d8">${r}</b>`;
   const bar = (pct, cls) => `<div class="px-bar ${cls || 'xp'}"><i style="width:${Math.max(0, Math.min(100, pct))}%"></i></div>`;
 
   function newsCard(n, isNew) {
@@ -853,81 +853,194 @@ export function initNewWorld(C) {
   const noticeCard = n => `<div class="px-panel in mt-3" style="padding:10px 12px"><div class="px-text" style="color:#ffd98a;font-weight:900;font-size:1.1em">${n.title}　<span class="text-xs" style="color:#aab0d8;font-weight:400">${n.date}</span></div>
     <ul class="px-text mt-1" style="font-size:.98em;line-height:1.65;list-style:none;padding:0">${n.items.map(t => `<li style="margin-top:4px">${t}</li>`).join('')}</ul></div>`;
 
-  /* 活動卡片：進行中（大）、快開始（灰）、剛結束。班級進度與榜單要讀雲端，先放空位，讀完再填 */
+  /* ── 活動卡片與詳情頁 ──
+     卡片只放「我的成績」和一行「看榜單 ▶」，榜單全部在詳情頁（用 nw-rankboard.js 的模板畫），卡片才不會太長。
+     詳情頁是佈告欄視窗裡的子畫面，不另開一層視窗（多一層視窗會擋住按鍵）：◀ 返回回到分頁，Esc 先返回再關視窗。
+     抓蟲大作戰是常駐活動，沒有 mg_events 文件，所以用保留的代號 '@bug'（活動 ID 不允許 @，不會撞到老師開的活動）。 */
   const EV_ICON = { boost: '⚡', hunt: '🗡', classwar: '🏫', ranking: '🏆' };
   const EV_NAME = { boost: '限時加倍', hunt: '限時討伐', classwar: '班級挑戰', ranking: '活動排行榜' };
+  const RANK_LABEL = { improve: '進步幅度', kills: '打倒隻數', fastest: '最快秒數', acc: '平均正確率' };
+  const BUG_ID = '@bug';
+  const openAttr = id => `data-evopen="${escHtml(id)}" role="button" tabindex="0"`;
+  const moreLine = t => `<div class="px-text text-sm mt-2" data-evmore style="color:#ffd98a;font-weight:900">${t} ▶</div>`;
+  const cwLine = v => `<div class="px-text text-sm">我們班：${v.count} / ${v.size} 人達標（${v.pct}%）　目標 ${v.goalPct}%</div><div class="mt-1">${bar(v.pct, v.reached ? 'ok' : 'mp')}</div>${v.reached ? '<div class="px-text text-sm mt-1" style="color:#8ec96b">🎉 全班達標了！</div>' : ''}`;
+
   function activeCard(e) {
     const p = EV.eventProgress(e), t = EV.timeText(e);
-    let mine = '';
+    let mine = '', more = '看說明';
     if (e.type === 'boost') mine = `<div class="px-text text-sm mt-2" style="color:#8ec96b">${e.what === 'coins' ? '字元' : '獵人經驗'} ×${e.mul}：打贏魔物就會自動加倍。</div>`;
-    else if (e.type === 'hunt') mine = `<div class="mt-2">${bar(p.done ? 100 : p.n / e.goal * 100, p.done ? 'ok' : 'xp')}<div class="px-text text-sm mt-1">${p.text}</div></div>`;
-    else if (e.type === 'classwar') mine = `<div class="mt-2">${bar(p.n / e.per * 100, p.mineReached ? 'ok' : 'xp')}<div class="px-text text-sm mt-1">${p.text}${p.mineReached ? '　✓ 你達標了！' : ''}</div></div><div data-cwx="${escHtml(e.id)}" class="mt-2 px-text text-sm" style="color:#aab0d8">讀全班進度中…</div>`;
-    else if (e.type === 'ranking') mine = `<div class="px-text text-sm mt-2">我的成績：<b style="color:#ffd98a">${escHtml(p.text)}</b></div><div data-rkx="${escHtml(e.id)}" class="mt-2 px-text text-sm" style="color:#aab0d8">讀榜單中…</div>`;
-    return `<div class="px-panel in mt-3" data-evcard="${escHtml(e.id)}" data-evphase="active" style="padding:12px 14px;border-color:#e8b64c">
-      <div class="flex items-center gap-2 flex-wrap"><span style="font-size:24px">${EV_ICON[e.type]}</span><b class="px-text" style="color:#ffd98a;font-size:1.15em;flex:1">${escHtml(e.title)}</b><span class="px-chip" style="color:#8ec96b">${t}</span></div>
+    else if (e.type === 'hunt') { mine = `<div class="mt-2">${bar(p.done ? 100 : p.n / e.goal * 100, p.done ? 'ok' : 'xp')}<div class="px-text text-sm mt-1">${p.text}</div></div>`; more = '看規則和獎勵'; }
+    else if (e.type === 'classwar') { mine = `<div class="mt-2">${bar(p.n / e.per * 100, p.mineReached ? 'ok' : 'xp')}<div class="px-text text-sm mt-1">${p.text}${p.mineReached ? '　✓ 你達標了！' : ''}</div></div><div data-cwx="${escHtml(e.id)}" class="mt-2" style="color:#aab0d8"><span class="px-text text-sm">讀全班進度中…</span></div>`; more = '看榜單'; }
+    else if (e.type === 'ranking') { mine = `<div class="px-text text-sm mt-2">我的成績：<b style="color:#ffd98a">${escHtml(p.text)}</b></div>`; more = '看榜單'; }
+    return `<div class="px-panel in mt-3" data-evcard="${escHtml(e.id)}" data-evphase="active" ${openAttr(e.id)} style="padding:12px 14px;border-color:#e8b64c;cursor:pointer">
+      <div class="flex items-center gap-2 flex-wrap"><span style="font-size:24px">${EV_ICON[e.type]}</span><b class="px-text" style="color:#ffd98a;font-size:1.15em;flex:1;min-width:0;overflow-wrap:anywhere">${escHtml(e.title)}</b><span class="px-chip" style="color:#8ec96b">${t}</span></div>
       <div class="px-text text-xs mt-1" style="color:#aab0d8">${EV_NAME[e.type]}</div>
-      ${e.desc ? `<div class="px-text mt-1" style="line-height:1.6">${nlines(e.desc)}</div>` : ''}${mine}</div>`;
+      ${e.desc ? `<div class="px-text mt-1" style="line-height:1.6;overflow-wrap:anywhere">${nlines(e.desc)}</div>` : ''}${mine}${moreLine(more)}</div>`;
   }
-  const soonCard = e => `<div class="px-panel in mt-2" data-evcard="${escHtml(e.id)}" data-evphase="soon" style="padding:10px 14px;opacity:.6;filter:grayscale(.7)">
-    <div class="flex items-center gap-2 flex-wrap"><span style="font-size:20px">${EV_ICON[e.type]}</span><b class="px-text" style="flex:1">${escHtml(e.title)}</b><span class="px-chip" style="color:#aab0d8">${EV.timeText(e)}</span></div>
-    ${e.desc ? `<div class="px-text text-sm mt-1" style="color:#aab0d8">${nlines(e.desc)}</div>` : ''}</div>`;
-  const endedCard = e => `<div class="px-panel in mt-2" data-evcard="${escHtml(e.id)}" data-evphase="ended" style="padding:10px 14px;opacity:.85">
-    <div class="flex items-center gap-2 flex-wrap"><span style="font-size:20px">${EV_ICON[e.type]}</span><b class="px-text" style="flex:1">${escHtml(e.title)}</b><span class="px-chip" style="color:#aab0d8">已結束</span></div>
-    <div class="px-text text-sm mt-1" style="color:#ffd98a">老師可能會寄獎品到信箱喔</div></div>`;
+  const soonCard = e => `<div class="px-panel in mt-2" data-evcard="${escHtml(e.id)}" data-evphase="soon" ${openAttr(e.id)} style="padding:10px 14px;opacity:.6;filter:grayscale(.7);cursor:pointer">
+    <div class="flex items-center gap-2 flex-wrap"><span style="font-size:20px">${EV_ICON[e.type]}</span><b class="px-text" style="flex:1;min-width:0;overflow-wrap:anywhere">${escHtml(e.title)}</b><span class="px-chip" style="color:#aab0d8">${EV.timeText(e)}</span></div>
+    ${e.desc ? `<div class="px-text text-sm mt-1" style="color:#aab0d8;overflow-wrap:anywhere">${nlines(e.desc)}</div>` : ''}${moreLine('看說明')}</div>`;
+  const endedCard = e => `<div class="px-panel in mt-2" data-evcard="${escHtml(e.id)}" data-evphase="ended" ${openAttr(e.id)} style="padding:10px 14px;opacity:.85;cursor:pointer">
+    <div class="flex items-center gap-2 flex-wrap"><span style="font-size:20px">${EV_ICON[e.type]}</span><b class="px-text" style="flex:1;min-width:0;overflow-wrap:anywhere">${escHtml(e.title)}</b><span class="px-chip" style="color:#aab0d8">已結束</span></div>
+    <div class="px-text text-sm mt-1" style="color:#ffd98a">老師可能會寄獎品到信箱喔</div>${moreLine(e.type === 'ranking' ? '看最後的榜單' : '看說明')}</div>`;
+  /* 常駐的抓蟲大作戰：永遠排在最上面，不會結束，也不是老師開的 */
+  const bugCard = () => {
+    const sc = Math.max(0, NW.bugScore || 0);
+    return `<div class="px-panel in mt-3" data-bugcard ${openAttr(BUG_ID)} style="padding:12px 14px;border-color:#8ec96b;cursor:pointer">
+      <div class="flex items-center gap-2 flex-wrap"><span style="font-size:24px">🐛</span><b class="px-text" style="color:#ffd98a;font-size:1.15em;flex:1;min-width:0">抓蟲大作戰</b>${nflags.bug ? '<span class="px-chip" style="color:#ffd98a">分數有變</span> ' : ''}<span class="px-chip" style="color:#8ec96b">常駐</span></div>
+      <div class="px-text text-xs mt-1" style="color:#aab0d8">抓蟲榜</div>
+      <div class="px-text mt-1" style="line-height:1.6">發現哪裡怪怪的，回報給老師。老師確認了就有分數，還能拿徽章！</div>
+      <div class="px-text text-sm mt-2">我的抓蟲分：<b style="color:#8ec96b">${sc} 分</b></div>${moreLine('看榜單')}</div>`;
+  };
 
-  const cwHtml = (e, v) => `<div class="px-panel in" style="padding:8px 10px">
-      <div class="px-text text-sm">我們班：${v.count} / ${v.size} 人達標（${v.pct}%）　目標 ${v.goalPct}%</div>
-      <div class="mt-1">${bar(v.pct, v.reached ? 'ok' : 'mp')}</div>
-      <div class="px-text text-sm mt-1" style="color:${v.reached ? '#8ec96b' : '#aab0d8'}">${v.reached ? '🎉 全班達標了！' : `全班有 ${v.goalPct}% 的人達標，大家就有獎勵。一起加油！`}</div>
-      ${v.top.length ? `<div class="px-text text-sm mt-2" style="color:#ffd98a;font-weight:900">同年級前 ${v.top.length} 名</div>${v.top.map((x, i) => `<div class="flex items-center gap-2 px-text text-sm mt-1" style="${x.mine ? 'color:#ffd98a' : ''}">${rankCell(i + 1)}<span style="flex:1">${escHtml(x.cls)} 班${x.mine ? '（我們班）' : ''}</span><b>${x.pct}%</b></div>`).join('')}` : ''}</div>`;
-  const rkHtml = (e, v) => `<div class="px-panel in" style="padding:8px 10px">
-      <div class="px-text text-sm" style="color:#ffd98a;font-weight:900">前 ${v.rows.length || 10} 名</div>
-      ${v.rows.length ? v.rows.map((r, i) => `<div class="flex items-center gap-2 px-text text-sm mt-1" data-rkrow style="${r.mine ? 'color:#ffd98a;background:#2a2358;padding:2px 4px' : 'padding:2px 4px'}">${rankCell(i + 1)}<span style="flex:1">${escHtml(r.label)}${r.mine ? '　← 你' : ''}</span><b>${escHtml(r.text)}</b></div>`).join('') : '<div class="px-text text-sm mt-1" style="color:#aab0d8">還沒有人上榜，你可以當第一個！</div>'}
-      ${v.outOfRange ? '<div class="px-text text-sm mt-2" style="color:#ffd98a">你的成績很特別，老師看過以後才會放上榜單喔。</div>' : v.text ? `<div class="px-text text-sm mt-2" style="color:#ffd98a">${escHtml(v.text)}</div>` : ''}</div>`;
+  const secHead = t => `<div class="px-text mt-4" style="color:#ffd98a;font-weight:900;font-size:1.05em">${t}</div>`;
+  const backBtn = '<button class="px-btn mt-3" data-nback>◀ 返回</button>';
+  const bullets = lines => `<ul class="px-text mt-1" style="list-style:none;padding:0;font-size:.98em;line-height:1.65">${lines.map(l => `<li style="margin-top:4px;overflow-wrap:anywhere">・${escHtml(l)}</li>`).join('')}</ul>`;
+  const noRead = '<div class="px-panel in px-text text-center mt-3" style="padding:18px">現在連不上網路，讀不到資料。</div>';
+
+  /* 抓蟲大作戰：「🐛 抓蟲榜」分頁與活動詳情頁是同一份內容（withBack 只決定要不要放返回鍵），兩個入口才會一致 */
+  function bugView(body, alive, withBack) {
+    const MS = BUG_MILESTONES, tier = [1, 2, 3, 3];
+    const mineHtml = score => {
+      const next = MS.find(m => score < m), nm = next ? (wordById('bug' + next) || { w: '抓蟲徽章' }).w : '';
+      return `<div class="mt-2">${bar(next ? score / next * 100 : 100, next ? 'xp' : 'ok')}<div class="px-text text-sm mt-1" data-bugmine>${next ? `你的抓蟲分：<b style="color:#8ec96b">${score} 分</b>。再拿 ${next - score} 分，就有「${escHtml(nm)}」！` : `你的抓蟲分：<b style="color:#8ec96b">${score} 分</b>。四個徽章都拿到了！`}</div></div>
+        <div class="mt-3" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px">${MS.map((m, i) => {
+          const got = score >= m;
+          return `<div data-bugbadge="${m}" data-got="${got ? 1 : 0}" style="text-align:center;min-width:0;opacity:${got ? 1 : .4};${got ? '' : 'filter:grayscale(1)'}">${PX.badge(tier[i], 3)}<div class="px-text" style="font-size:.82em;margin-top:2px;overflow-wrap:anywhere">${escHtml((wordById('bug' + m) || { w: '徽章' }).w)}</div><div style="color:#aab0d8;font-size:.82em">${m} 分</div></div>`;
+        }).join('')}</div>`;
+    };
+    body.innerHTML = `${withBack ? backBtn : ''}<div class="px-title mt-3" data-bugview style="font-size:1.25em">🐛 抓蟲大作戰　<span class="px-chip" style="color:#8ec96b;font-size:.5em;vertical-align:middle">常駐</span></div>
+      <p class="px-text text-sm mt-1" style="line-height:1.6">發現遊戲怪怪的地方，到「回報問題」寫下來；老師確認後就會上榜！</p>
+      ${secHead('📖 規則與怎麼算分')}${bullets(['發現遊戲怪怪的地方，按上面的「🐛 回報問題」寫下來。', '寫清楚做了什麼事、看到什麼狀況，老師比較好確認。', '老師確認以後，依問題的嚴重程度，給你 1～3 分。', '分數會加起來，排進抓蟲榜。到 1、3、5、10 分，各有一個抓蟲徽章。'])}
+      ${secHead('🏅 我的進度與徽章')}<div data-bugmine-box>${mineHtml(Math.max(0, NW.bugScore || 0))}</div>
+      ${secHead('🏆 抓蟲榜')}<div data-rbmount="bug"></div>`;
+    const box = body.querySelector('[data-bugmine-box]');
+    mountRankBoard(body.querySelector('[data-rbmount]'), {
+      alive,
+      /* 重新整理要連自己的分數也重讀（force），不然老師剛確認的回報看不到 */
+      load: async force => { if (!C.online()) throw new Error('offline'); await syncBoard(!!force); return NT.loadBugBoard(!!force); },
+      shell: () => ({ id: 'bug', title: '前 10 名', unit: '分', scoreLabel: '抓蟲分', errorText: C.online() ? '榜單現在讀不到，等一下再試試看。' : '現在連不上網路，榜單讀不到。' }),
+      toSpec: v => ({
+        id: 'bug', title: '前 10 名', unit: '分', scoreLabel: '抓蟲分',
+        rows: v.rows.map(r => ({ id: r.id, rank: r.rank, label: r.label, nick: r.nick, score: r.score, extra: `確認 ${r.n} 件`, mine: r.mine })),
+        mine: v.mine.score > 0 ? { label: '我的抓蟲分', score: v.mine.score, status: `老師確認 ${v.mine.n} 件` } : null,
+        outText: v.text, emptyText: '還沒有人上榜，快去找找看吧！'
+      }),
+      onData: v => { if (!v) return; markSeen('bug'); box.innerHTML = mineHtml(Math.max(0, v.mine.score)); }
+    }).run(false);
+  }
+  const bugTab = (body, alive) => bugView(body, alive, false);
+
+  const rankSpec = (e, v, ph) => ({
+    id: e.id, title: `前 ${v.rows.length || BOARD_SIZE} 名`, unit: METRIC_UNIT[e.metric], scoreLabel: RANK_LABEL[e.metric],
+    rows: v.rows.map((r, i) => ({ id: r.id, rank: i + 1, label: `${r.cls}・${r.seat}號`, nick: r.nick, score: r.text, mine: r.mine })),
+    mine: { score: v.mine.s !== null ? EV.eventProgress(e).text : null, status: v.mine.s !== null ? (v.inTop ? '你在榜上喔！' : '') : EV.eventProgress(e).text },
+    /* 自己的分數超出合理範圍：只對自己說明。結束以後「再快幾秒就上榜」沒有意義，不說 */
+    outText: v.outOfRange ? '你的成績很特別，老師看過以後才會放上榜單喔。' : ph === 'ended' ? '' : v.text,
+    emptyText: ph === 'ended' ? '這次沒有人上榜。' : '還沒有人上榜，你可以當第一個！'
+  });
+
+  async function evDetail(body, alive, id) {
+    if (id === BUG_ID) { bugView(body, alive, true); return; }
+    body.innerHTML = `${backBtn}<div class="px-panel in px-text text-center mt-3" data-msg style="padding:18px">讀活動中…</div>`;
+    await EV.load();
+    if (!alive()) return;
+    const e = EV.visible().find(x => x.id === id);
+    if (!e) { body.innerHTML = `${backBtn}<div class="px-panel in px-text text-center mt-3" data-noev style="padding:18px">找不到這個活動了，可能已經收起來囉。</div>`; return; }
+    const ph = EV.phase(e), p = EV.eventProgress(e), myId = ME.docId;
+    const items = e.items.map(itemLabel).filter(Boolean);
+    const kind = e.type === 'ranking' ? `${EV_NAME[e.type]}・${METRIC_NAME[e.metric]}` : EV_NAME[e.type];
+    let h = `${backBtn}<div class="px-panel in mt-3" data-evdetail="${escHtml(e.id)}" data-evphase="${ph}" style="padding:12px 14px;border-color:#e8b64c">
+      <div class="flex items-center gap-2 flex-wrap"><span style="font-size:26px">${EV_ICON[e.type]}</span><b class="px-title" style="font-size:1.25em;flex:1;min-width:0;overflow-wrap:anywhere">${escHtml(e.title)}</b><span class="px-chip" style="color:${ph === 'ended' ? '#aab0d8' : '#8ec96b'}">${EV.timeText(e)}</span></div>
+      <div class="px-text text-xs mt-1" style="color:#aab0d8">${escHtml(kind)}</div>
+      ${e.desc ? `<div class="px-text mt-2" style="line-height:1.6;overflow-wrap:anywhere">${nlines(e.desc)}</div>` : ''}
+      <div class="px-text text-xs mt-2" style="color:#aab0d8">${dateText(e.startAt)} ～ ${dateText(e.endAt - 1)}</div></div>
+      ${secHead('📖 規則與怎麼算分')}${bullets(ruleLines(e))}`;
+    if (items.length) h += `${secHead('🎁 獎勵')}<div class="flex gap-2 flex-wrap mt-1">${items.map(t => `<span class="px-chip" style="color:#ffd98a;font-size:.9em">${escHtml(t)}</span>`).join('')}</div>`;
+    if (ph === 'soon') {
+      body.innerHTML = h + `<div class="px-panel in px-text text-center mt-4" data-soonmsg style="padding:12px;color:#ffd98a">${escHtml(EV.timeText(e))}（${dateText(e.startAt)}）。先去委託板練功，等它開始吧！</div>`;
+      return;
+    }
+    const ended = ph === 'ended';
+    if (e.type === 'boost') {
+      h += `${secHead('⚡ 說明')}<div class="px-text text-sm mt-1" style="line-height:1.65">${ended ? '這次的加倍已經結束了。' : `現在打贏魔物，${e.what === 'coins' ? '字元' : '獵人經驗'}就是 ×${e.mul}。結算畫面會寫「🎪 活動加倍」。`}</div>`;
+      body.innerHTML = h; return;
+    }
+    if (e.type === 'hunt') {
+      h += `${secHead('📈 我的進度')}<div class="mt-1">${bar(p.done ? 100 : p.n / e.goal * 100, p.done ? 'ok' : 'xp')}<div class="px-text text-sm mt-1">${p.text}</div></div>
+        <div class="px-text text-sm mt-3" data-nornk style="color:#aab0d8;line-height:1.6">這個活動不比名次，自己打到就算達標。${ended ? (p.done ? '你達標了，獎勵已經領到囉。' : '這次沒有達標，下次再加油！') : ''}</div>`;
+      body.innerHTML = h; return;
+    }
+    if (e.type === 'classwar') {
+      h += `${secHead('📈 我的進度')}<div class="mt-1">${bar(p.n / e.per * 100, p.mineReached ? 'ok' : 'xp')}<div class="px-text text-sm mt-1">${p.text}${p.mineReached ? '　✓ 你達標了！' : ''}</div></div>
+        ${secHead('🏫 我們班')}<div class="px-panel in mt-1" data-cwbox style="padding:8px 10px"><span class="px-text text-sm" style="color:#aab0d8">讀全班進度中…</span></div>
+        ${secHead('🏆 同年級排行')}<div data-rbmount="cw"></div>`;
+      body.innerHTML = h;
+      const box = body.querySelector('[data-cwbox]');
+      mountRankBoard(body.querySelector('[data-rbmount]'), {
+        alive,
+        load: async force => { if (!C.online()) throw new Error('offline'); return EV.classProgress(e, !!force); },
+        shell: () => ({ id: 'cw-' + e.id, title: '同年級前 3 名', unit: '%', scoreLabel: '達標率', errorText: C.online() ? '全班進度現在讀不到，等一下再試試看。' : '現在連不上網路，讀不到全班進度。' }),
+        toSpec: v => ({
+          id: 'cw-' + e.id, title: `同年級前 ${v.top.length || 3} 名`, subtitle: '只列前 3 名的班級，不列最後一名。', unit: '%', scoreLabel: '達標率', mineMark: '← 我們班',
+          rows: v.top.map((x, i) => ({ rank: i + 1, label: `${x.cls} 班`, score: x.pct, mine: x.mine })), emptyText: '還沒有班級的資料。'
+        }),
+        onData: v => {
+          if (!v) { box.innerHTML = '<span class="px-text text-sm" style="color:#aab0d8">全班進度現在讀不到，等一下再試試看。</span>'; return; }
+          box.innerHTML = cwLine(v) + (v.reached ? '' : `<div class="px-text text-sm mt-1" style="color:#aab0d8">${ended ? '這次全班沒有達標，下次再一起加油！' : `全班有 ${v.goalPct}% 的人達標，大家就有獎勵。一起加油！`}</div>`)
+            + (ended && v.reached ? `<div class="px-text text-sm mt-1" style="color:#ffd98a">${p.cw ? '全班獎你已經領過了。' : p.n >= 1 ? '獎勵會在你進村或打開佈告欄時，自動送到你手上。' : '你這次沒有打倒魔物，沒有領到獎勵。'}</div>` : '');
+        }
+      }).run(false);
+      return;
+    }
+    /* ranking */
+    const need = runsNeed(e), nn = Math.min(p.n, need);
+    h += `${secHead('📈 我的進度')}<div class="mt-1">${bar(nn / need * 100, p.s !== null ? 'ok' : 'xp')}<div class="px-text text-sm mt-1" data-rkprog>${need > 1 ? `有效場次 ${nn} / ${need}${p.s !== null ? '，已經有分數了' : '，打滿才有分數'}` : p.n ? `有效場次 ${p.n}` : '還沒參加，打倒一隻就有分數'}</div></div>
+      ${secHead(ended ? '🏁 最後的榜單' : '🏆 目前排名')}`;
+    const snapRows = ended ? finalRows(e, myId) : null;
+    const award = ended ? awardList(e, myId) : null;
+    if (snapRows) {
+      /* 老師已經存了名次（發獎用的快照）：最後的榜單以那份為準，之後分數怎麼變都不影響 */
+      h += rankBoardHtml({ id: e.id, title: `前 ${snapRows.length || BOARD_SIZE} 名`, unit: METRIC_UNIT[e.metric], scoreLabel: RANK_LABEL[e.metric], rows: snapRows, refresh: false, emptyText: '這次沒有人上榜。',
+        mine: p.s !== null ? { score: p.text, status: snapRows.some(r => r.mine) ? '你在榜上喔！' : '' } : { score: null, status: p.text } });
+    } else h += '<div data-rbmount="rk"></div>';
+    if (ended && !award) h += `<div class="px-panel in px-text text-center mt-3" data-notawarded style="padding:10px;color:#ffd98a">老師可能會寄獎品到信箱喔</div>`;
+    if (award) {
+      const mineWin = award.winners.find(w => w.mine);
+      const partLabels = award.part.map(itemLabel).filter(Boolean).join('、');
+      h += `${secHead('🎁 得獎名單')}${rankBoardHtml({ id: 'award-' + e.id, title: '拿到獎品的人', subtitle: partLabels ? `有參加的人都有參加獎：${partLabels}${award.partCount ? `（${award.partCount} 人）` : ''}` : '', rows: award.winners.map(w => ({ id: w.id, rank: w.rank, label: w.label, nick: w.nick, score: w.score, extra: w.items.map(itemLabel).filter(Boolean).join('、'), mine: w.mine })), refresh: false, emptyText: '這次沒有名次獎。',
+        mine: { label: '我的獎品', score: mineWin ? mineWin.items.map(itemLabel).filter(Boolean).join('、') : null, status: mineWin ? '已經寄到信箱囉。' : award.myPart ? '你拿到參加獎了，已經寄到信箱囉。' : '這次沒有拿到獎品，下次再加油！' } })}`;
+    }
+    body.innerHTML = h;
+    const mount = body.querySelector('[data-rbmount]');
+    if (mount) mountRankBoard(mount, {
+      alive,
+      load: async force => { if (!C.online()) throw new Error('offline'); return EV.eventBoard(e, !!force); },
+      shell: () => ({ id: e.id, title: '前 10 名', unit: METRIC_UNIT[e.metric], scoreLabel: RANK_LABEL[e.metric], mine: { score: p.s !== null ? p.text : null, status: p.s !== null ? '' : p.text }, errorText: C.online() ? '榜單現在讀不到，等一下再試試看。' : '現在連不上網路，榜單讀不到。' }),
+      toSpec: v => rankSpec(e, v, ph)
+    }).run(false);
+  }
 
   async function eventsTab(body, alive) {
-    if (!C.online()) { body.innerHTML = '<div class="px-panel in px-text text-center mt-3" style="padding:18px">現在連不上網路，活動讀不到。</div>'; return; }
-    body.innerHTML = '<div class="px-panel in px-text text-center mt-3" data-msg style="padding:18px">讀活動中…</div>';
+    if (!C.online()) { body.innerHTML = bugCard() + '<div class="px-panel in px-text text-center mt-3" style="padding:18px">現在連不上網路，活動讀不到。</div>'; return; }
+    body.innerHTML = bugCard() + '<div class="px-panel in px-text text-center mt-3" data-msg style="padding:18px">讀活動中…</div>';
     await EV.load();
     if (!alive()) return;
     const g = EV.groups();
-    let html = '';
+    let html = bugCard();
+    if (!g.active.length) html += `<div class="px-panel in px-text text-center mt-3" data-noev style="padding:18px">現在沒有活動，先去委託板打怪吧！</div>`;
     if (g.active.length) html += g.active.map(activeCard).join('');
     if (g.soon.length) html += `<div class="px-text text-sm mt-4" style="color:#aab0d8;font-weight:900">快開始</div>${g.soon.map(soonCard).join('')}`;
     if (g.ended.length) html += `<div class="px-text text-sm mt-4" style="color:#aab0d8;font-weight:900">剛結束</div>${g.ended.map(endedCard).join('')}`;
-    if (!g.active.length) html = `<div class="px-panel in px-text text-center mt-3" data-noev style="padding:18px">現在沒有活動，先去委託板打怪吧！</div>` + html;
     body.innerHTML = html;
     markSeen('ev');
-    g.active.forEach(e => {
-      const fill = async (sel, fn, fail) => {
-        const el = [...body.querySelectorAll(`[${sel}]`)].find(x => x.getAttribute(sel) === e.id);
-        if (!el) return;
-        try { const v = await fn(); if (alive()) el.innerHTML = (e.type === 'classwar' ? cwHtml : rkHtml)(e, v); } catch (er) { console.warn('讀活動資料失敗', er); if (alive()) el.textContent = fail; }
-      };
-      if (e.type === 'classwar') fill('data-cwx', () => EV.classProgress(e), '全班進度現在讀不到，等一下再試試看。');
-      if (e.type === 'ranking') fill('data-rkx', () => EV.eventBoard(e), '榜單現在讀不到，等一下再試試看。');
+    /* 班級挑戰卡片只補一行全班進度（榜單在詳情頁）；讀的是同一份 60 秒快取，點進去就不用再等 */
+    g.active.filter(e => e.type === 'classwar').forEach(async e => {
+      const el = [...body.querySelectorAll('[data-cwx]')].find(x => x.getAttribute('data-cwx') === e.id);
+      if (!el) return;
+      try { const v = await EV.classProgress(e); if (alive()) el.innerHTML = cwLine(v); } catch (er) { console.warn('讀全班進度失敗', er); if (alive()) el.textContent = '全班進度現在讀不到，等一下再試試看。'; }
     });
     eventsCheck();
-  }
-
-  async function bugTab(body, alive) {
-    const head = `<div class="px-title mt-3" style="font-size:1.25em">🐛 抓蟲大作戰</div>
-      <p class="px-text text-sm mt-1" style="line-height:1.6">發現遊戲怪怪的地方，到「回報問題」寫下來；老師確認後就會上榜！</p>`;
-    if (!C.online()) { body.innerHTML = head + '<div class="px-panel in px-text text-center mt-3" style="padding:18px">現在連不上網路，榜單讀不到。</div>'; return; }
-    body.innerHTML = head + '<div class="px-panel in px-text text-center mt-3" data-msg style="padding:18px">讀榜單中…</div>';
-    await syncBoard(false);
-    let v;
-    try { v = await NT.loadBugBoard(); } catch (er) { console.warn('讀抓蟲榜失敗', er); if (alive()) body.innerHTML = head + '<div class="px-panel in px-text text-center mt-3" style="padding:18px">榜單現在讀不到，等一下再試試看。</div>'; return; }
-    if (!alive()) return;
-    const rows = v.rows.map(r => `<div class="px-panel in flex items-center gap-2" data-bugrow="${escHtml(r.id)}" style="padding:6px 10px;${r.mine ? 'border-color:#e8b64c;background:#2a2358' : ''}">
-        ${rankCell(r.rank)}
-        <span class="px-text" style="flex:1;min-width:0"><b>${escHtml(r.label)}</b>　<span style="color:#ffd98a">${escHtml(r.nick)}</span>${r.mine ? '　← 你' : ''}</span>
-        <span class="px-text text-right"><b style="color:#8ec96b">${r.score} 分</b><br><span class="text-xs" style="color:#aab0d8">確認 ${r.n} 件</span></span></div>`).join('');
-    const mineLine = v.mine.score > 0 ? `<div class="px-text text-sm mt-3">你的抓蟲分：<b style="color:#8ec96b">${v.mine.score} 分</b>・老師確認 ${v.mine.n} 件</div>` : '';
-    body.innerHTML = head + `<div class="flex flex-col gap-2 mt-3" data-bugrows>${rows || '<div class="px-panel in px-text text-center" data-nobug style="padding:18px">還沒有人上榜，快去找找看吧！</div>'}</div>${mineLine}
-      ${v.text ? `<div class="px-panel in px-text text-center mt-3" data-bugtext style="padding:10px;color:#ffd98a">${escHtml(v.text)}</div>` : ''}
-      <p class="text-xs mt-3" style="color:#aab0d8">抓蟲分到 1、3、5、10 分，各有一個「抓蟲」稱號詞條。</p>`;
-    markSeen('bug');
   }
 
   function openNotice(auto, a) {
@@ -945,21 +1058,22 @@ export function initNewWorld(C) {
           <p class="text-xs mt-3" style="color:#aab0d8">這個只會跳一次。想再看，按上面的「📢 佈告欄」。</p>
           <div class="text-right mt-3"><button class="px-btn gold" data-close style="padding:8px 26px">知道了 ✓</button></div></div>`;
         sheet.addEventListener('click', e => { if (e.target === sheet || e.target.closest('[data-close]')) shut(); });
+        sheet._esc = shut;
         document.body.appendChild(sheet);
         return;
       }
       /* 這次打開之前的「已讀」位置：標「新」要用它比，不能用已經更新過的 */
       const seen0 = { news: NW.seenNews || 0, notice: NW.seenNotice };
-      let tok = 0;
+      let tok = 0, scroll0 = 0;
       sheet.innerHTML = `<div class="px-panel" style="max-width:560px;width:100%;padding:18px;margin:0 auto">
         <div class="px-title" style="font-size:1.5em">📢 佈告欄</div>
         <div class="flex gap-2 flex-wrap mt-3">${NTABS.map(([k, i, n]) => `<button class="px-btn" data-ntab="${k}" style="position:relative">${i} ${n}<i data-ntabdot="${k}" style="display:${nflags[k] ? 'block' : 'none'};position:absolute;top:-5px;right:-5px;width:14px;height:14px;background:#d83a3a;border:2px solid #0a0714"></i></button>`).join('')}</div>
         <div data-nbody></div>
         <div class="text-right mt-3"><button class="px-btn gold" data-close style="padding:8px 26px">知道了 ✓</button></div></div>`;
       const body = sheet.querySelector('[data-nbody]');
-      const showTab = t => {
+      const showTab = (t, restore) => {
         const my = ++tok, alive = () => my === tok && sheet.isConnected;
-        sheet._tab = t; saveTab(t);
+        sheet._tab = t; sheet._detail = null; saveTab(t);
         sheet.querySelectorAll('[data-ntab]').forEach(b => b.classList.toggle('gold', b.dataset.ntab === t));
         if (t === 'news') {
           const ns = NT.news();
@@ -967,14 +1081,30 @@ export function initNewWorld(C) {
             ${ns.length ? '<div class="px-text text-sm mt-4" style="color:#aab0d8;font-weight:900">改版公告</div>' : ''}${NOTICES.map(noticeCard).join('')}
             <p class="text-xs mt-3" style="color:#aab0d8">舊的公告也都留在這裡。</p>`;
           markSeen('news');
-        } else if (t === 'ev') eventsTab(body, alive);
+        } else if (t === 'ev') eventsTab(body, alive).then(() => { if (restore && alive()) sheet.scrollTop = scroll0; });
         else bugTab(body, alive);
       };
+      /* 活動詳情是視窗裡的子畫面：進去記住捲到哪，返回時回到同一個位置 */
+      const showDetail = id => {
+        const my = ++tok, alive = () => my === tok && sheet.isConnected;
+        scroll0 = sheet.scrollTop; sheet._detail = id; sheet.scrollTop = 0;
+        evDetail(body, alive, id);
+      };
+      const back = () => showTab(sheet._tab, true);
+      const close = () => { tok++; sheet.remove(); res(); };
+      sheet._esc = () => { if (sheet._detail) back(); else close(); };
       sheet._reshow = () => showTab('news');
       sheet.addEventListener('click', e => {
         const tb = e.target.closest('[data-ntab]');
         if (tb) { showTab(tb.dataset.ntab); return; }
-        if (e.target === sheet || e.target.closest('[data-close]')) { tok++; sheet.remove(); res(); }
+        if (e.target.closest('[data-nback]')) { back(); return; }
+        const op = e.target.closest('[data-evopen]');
+        if (op) { showDetail(op.dataset.evopen); return; }
+        if (e.target === sheet || e.target.closest('[data-close]')) close();
+      });
+      sheet.addEventListener('keydown', e => {
+        const op = e.target.closest && e.target.closest('[data-evopen]');
+        if (op && e.target === op && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); showDetail(op.dataset.evopen); }
       });
       document.body.appendChild(sheet);
       showTab(readTab());
@@ -1476,7 +1606,7 @@ export function initNewWorld(C) {
     const k = e.key.toLowerCase();
     if (/INPUT|TEXTAREA|SELECT/.test((e.target && e.target.tagName) || '') || root.classList.contains('hidden') || !NW) return;
     if (k === 'b' && ['hub', 'board', 'room'].includes(view)) { document.getElementById('nw-bag') ? closeBag() : openBackpack('equip'); }
-    if (k === 'escape') { const ne = document.getElementById('nw-rename') || document.getElementById('nw-mail'); if (ne) { if (!ne.dataset.first) ne.remove(); return; } const te = document.getElementById('nw-title'); if (te) te.querySelector('[data-ok]').click(); else closeBag(); }
+    if (k === 'escape') { const ne = document.getElementById('nw-rename') || document.getElementById('nw-mail'); if (ne) { if (!ne.dataset.first) ne.remove(); return; } const nt = document.getElementById('nw-notice'); if (nt && nt._esc) { nt._esc(); return; } const te = document.getElementById('nw-title'); if (te) te.querySelector('[data-ok]').click(); else closeBag(); }
   });
 
   let boardSel = null;

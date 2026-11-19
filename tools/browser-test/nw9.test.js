@@ -213,15 +213,23 @@ const dotOn = p => p.evaluate(() => { const e = document.querySelector('[data-no
     await p.waitForTimeout(500);
     const cw = await p.textContent('#nw-notice [data-cwx="CW"]');
     ok(/4 \/ [56] 人達標/.test(cw) && cw.includes('全班達標了') && cw.includes('目標 60%'), '班級挑戰：自己班達標進度（分子 4 ／ 分母）、目標與達標訊息：' + cw.replace(/\s+/g, ' '));
-    ok(cw.includes('同年級前 3 名') && cw.includes('501') && cw.includes('502') && cw.includes('503') && cw.includes('我們班') && !cw.includes('504'), '同年級前 3（501、502、503），不列最後一名 504：' + cw.replace(/\s+/g, ' '));
-    const imp = await p.textContent('#nw-notice [data-rkx="IMP"]');
+    /* 榜單都在詳情頁（卡片只有「我的成績」和「看榜單 ▶」） */
+    ok(!cw.includes('同年級前 3 名') && await p.$('#nw-notice [data-evcard="IMP"] [data-rankboard]') === null && (await p.textContent('#nw-notice [data-evcard="IMP"]')).includes('看榜單 ▶'), '卡片上沒有內嵌榜單，只有「看榜單 ▶」');
+    const detail = async id => { await p.click(`#nw-notice [data-evopen="${id}"]`); await p.waitForSelector(`#nw-notice [data-evdetail="${id}"]`); await p.waitForTimeout(600); return p.textContent('#nw-notice [data-nbody]'); };
+    const backToList = async () => { await p.click('#nw-notice [data-nback]'); await p.waitForTimeout(600); };
+    const cwd = await detail('CW');
+    ok(cwd.includes('同年級前 3 名') && cwd.includes('501') && cwd.includes('502') && cwd.includes('503') && cwd.includes('我們班') && !cwd.includes('504'), '同年級前 3（501、502、503），不列最後一名 504：' + cwd.replace(/\s+/g, ' ').slice(0, 300));
+    await backToList();
+    const imp = await detail('IMP');
     ok(!imp.includes('95%') && !imp.includes('90%') && !imp.includes('70%') && imp.includes('進步 55%') && imp.includes('進步 40%'), '進步獎榜：超過 60% 的分數不放上公開的前 10：' + imp.replace(/\s+/g, ' '));
     ok(!imp.includes('← 你') && imp.includes('你的成績很特別'), '自己 80% 超出範圍：不在榜上，只對自己說明');
-    ok(t.includes('進步 80%'), '自己的進度照常看得到（我的成績：進步 80%）');
+    ok(imp.includes('進步 80%'), '自己的進度照常看得到（我的成績：進步 80%）');
     ok(imp.includes('502・23號・勇敢的獵人') && !imp.includes('502・20號') && !/真名/.test(imp), '榜單列：502・23號・暱稱，沒有真名；超範圍的 20 號不在榜上');
-    const kil = await p.textContent('#nw-notice [data-rkx="KIL"]');
+    await backToList();
+    const kil = await detail('KIL');
     ok(kil.includes('601・30號・神秘獵人') && kil.includes('← 你') && kil.includes('2 隻'), '討伐王：沒暱稱顯示神秘獵人、自己上榜標「← 你」');
-    ok(await p.evaluate(() => document.querySelectorAll('#nw-notice [data-evcard="KIL"] svg').length) >= 3, '前 3 名有金銀銅像素徽章');
+    ok(await p.evaluate(() => document.querySelectorAll('#nw-notice [data-rankboard="KIL"] [data-rbrow] svg').length) >= 3, '前 3 名有金銀銅像素徽章');
+    await backToList();
     await p.screenshot({ path: OUT + '/nw9-events.png' });
     const n = await nwLocal(p);
     ok(['HUNT', 'CW', 'IMP', 'KIL'].every(id => n.seenEv[id]) && !n.seenEv.SOON, '看過活動分頁：進行中的活動記進 seenEv（快開始的不算）');
@@ -270,12 +278,12 @@ const dotOn = p => p.evaluate(() => { const e = document.querySelector('[data-no
     await openBtn(p); await tabOf(p, 'bug');
     const t = await bodyText(p);
     ok(t.includes('🐛 抓蟲大作戰') && t.includes('發現遊戲怪怪的地方，到「回報問題」寫下來；老師確認後就會上榜！'), '標題與副標照規格');
-    const rows = await p.evaluate(() => [...document.querySelectorAll('#nw-notice [data-bugrow]')].map(e => ({ id: e.dataset.bugrow, text: e.textContent.replace(/\s+/g, ' '), svg: e.querySelectorAll('svg').length })));
+    const rows = await p.evaluate(() => [...document.querySelectorAll('#nw-notice [data-rbrow]')].map(e => ({ id: e.dataset.rbid, text: e.textContent.replace(/\s+/g, ' '), svg: e.querySelectorAll('svg').length })));
     const ids = rows.map(r => r.id);
     const want = ['五年級4班_1號', '五年級4班_2號', '六年級1班_3號', '六年級2班_3號', '五年級4班_12號', '五年級4班_5號', '五年級4班_7號', '五年級4班_8號', '五年級4班_11號', '五年級4班_13號'];
     ok(ids.join('|') === want.join('|'), '前 10 名順序：同分 5 分的 12 號（firstAt 早）在 5 號前面；第 10 名同分（2 分）的三人，firstAt 最早的 11、13 號進榜、晚的 10 號被擠出：' + ids.join(','));
     ok(rows[0].svg === 1 && rows[1].svg === 1 && rows[2].svg === 1 && rows[3].svg === 0, '前 3 名有像素徽章（金銀銅），第 4 名起是數字');
-    const golds = await p.evaluate(() => [...document.querySelectorAll('#nw-notice [data-bugrow] svg')].slice(0, 3).map(s => [...s.querySelectorAll('rect')].map(r => r.getAttribute('fill')).join(',')));
+    const golds = await p.evaluate(() => [...document.querySelectorAll('#nw-notice [data-rbrow] svg')].slice(0, 3).map(s => [...s.querySelectorAll('rect')].map(r => r.getAttribute('fill')).join(',')));
     ok(new Set(golds).size === 3, '三個徽章顏色不同：金、銀、銅');
     ok(rows[0].text.includes('504・1號') && rows[0].text.includes('閃電咕咕鳥') && rows[0].text.includes('9 分') && rows[0].text.includes('確認 9 件'), '每列：504・1號、暱稱、分數、確認件數：' + rows[0].text);
     ok(rows[2].text.includes('601・3號') && rows[2].text.includes('安靜的小龍'), '六年級1班 → 601：' + rows[2].text);
@@ -300,17 +308,17 @@ const dotOn = p => p.evaluate(() => { const e = document.querySelector('[data-no
     const p = await open(b, { seed });
     await dismissGifts(p);
     await openBtn(p); await tabOf(p, 'bug');
-    const rows = await p.evaluate(() => [...document.querySelectorAll('#nw-notice [data-bugrow]')].map(e => e.textContent.replace(/\s+/g, ' ')));
+    const rows = await p.evaluate(() => [...document.querySelectorAll('#nw-notice [data-rbrow]')].map(e => e.textContent.replace(/\s+/g, ' ')));
     ok(rows.length === 3 && rows[1].includes('503・5號') && rows[1].includes('← 你') && rows[1].includes('小明'), '自己在榜上：標「← 你」，用自己的名字（小明；舊存檔的詞庫暱稱不再用）（閃電咕咕鳥）：' + rows[1]);
-    ok(await p.$('#nw-notice [data-bugtext]') === null, '在榜上就不寫榜外文字');
+    ok(await p.$('#nw-notice [data-rb-out]') === null, '在榜上就不寫榜外文字');
     noErr(p); await p.close();
   }
   {
     const seed = seedOf([bugDoc('五年級4班', 1, 3, now - DAY), bugDoc(CLS, 5, 0, now)]);
     const p = await open(b, { seed });
     await openBtn(p); await tabOf(p, 'bug');
-    ok((await p.textContent('#nw-notice [data-bugtext]')).includes('還沒有回報被確認，去找找看吧！'), '0 分：還沒有回報被確認，去找找看吧！');
-    ok(await p.evaluate(() => document.querySelectorAll('#nw-notice [data-bugrow]').length) === 1, '榜上只有 1 人（0 分的不列）');
+    ok((await p.textContent('#nw-notice [data-rb-out]')).includes('還沒有回報被確認，去找找看吧！'), '0 分：還沒有回報被確認，去找找看吧！');
+    ok(await p.evaluate(() => document.querySelectorAll('#nw-notice [data-rbrow]').length) === 1, '榜上只有 1 人（0 分的不列）');
     noErr(p); await p.close();
   }
   {

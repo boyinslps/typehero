@@ -2,11 +2,12 @@
    名次與信件 ID 的規則（SPEC §4.2b、§4.4）：
    - 同分的人名次一樣（rank），決定拿哪一級獎品；
    - 但信件固定 ID 用「位置 pos」（1、2、3…不重複），不然同分兩個人會寫到同一封信、後寄的蓋掉先寄的。 */
-import { saneScore, sortDir, scoreText } from './nw.js';
+import { saneScore, sortDir, scoreText, awardTierOf } from './nw.js';
 
 export const clip = (s, n) => { const a = [...String(s || '')]; return a.length > n ? a.slice(0, n).join('') : a.join(''); };
 /* 名次分三級：第 1 名／第 2～3 名／第 4～10 名；第 10 名以後沒有名次獎 */
-export const tierOf = rank => rank === 1 ? 't1' : rank >= 2 && rank <= 3 ? 't23' : rank >= 4 && rank <= 10 ? 't410' : '';
+/* 規則本身放在學生端 nw-events.js（學生的「得獎名單」也要用），這裡沿用原名 */
+export const tierOf = awardTierOf;
 export const TIER_NAME = { t1: '第 1 名', t23: '第 2～3 名', t410: '第 4～10 名' };
 
 /* 一位學生在這個活動的進度（沒參加＝null）。scores＝loadScores() 的列；進度存在存檔 nw.ev.{ID} */

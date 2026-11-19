@@ -182,6 +182,64 @@ export function gradeTop(list, myCls) {
 
 const gradeOf = cls => { const m = /^(.+?年級)/.exec(cls || ''); return m ? m[1] : ''; };
 
+/* ── 活動詳情頁用的純函式（規則白話、日期、最後的榜單、得獎名單）── */
+export const METRIC_NAME = { improve: '進步獎', kills: '討伐王', fastest: '最快討伐', acc: '神準手' };
+export const METRIC_UNIT = { improve: '%', kills: '隻', fastest: '秒', acc: '%' };
+/* 要打幾場有效場次才有分數：進步獎要 2 場（只打 1 場，進步無從比起）、神準手要 minRuns 場，其他 1 場 */
+export const runsNeed = ev => ev.metric === 'improve' ? 2 : ev.metric === 'acc' ? ev.minRuns : 1;
+/* 名次分三級（跟 teacher/ev-calc.js 的 tierOf 是同一條規則，教師頁從這裡拿）：第 1 名／第 2～3 名／第 4～10 名 */
+export const awardTierOf = rank => rank === 1 ? 't1' : rank >= 2 && rank <= 3 ? 't23' : rank >= 4 && rank <= 10 ? 't410' : '';
+export const TIER_LABEL = { t1: '第 1 名', t23: '第 2～3 名', t410: '第 4～10 名' };
+
+/* 「11 月 20 日」。endAt 剛好是 0 點算前一天（跟 timeText 一樣） */
+export const dateText = ms => { const d = new Date(ms + 8 * 3600 * 1000); return `${d.getUTCMonth() + 1} 月 ${d.getUTCDate()} 日`; };
+
+const monText = ev => ev.mk ? `${(MONSTERS[ev.mk] || { name: ev.mk }).name}${ev.minStar > 1 ? `（★${ev.minStar} 以上）` : ''}` : '任何魔物';
+
+/* 規則與怎麼算分，白話（給國小四～六年級看，寫法照 docs/ANNOUNCEMENT-GUIDE.md）。回字串陣列，一句一條 */
+export function ruleLines(ev) {
+  const mon = monText(ev);
+  if (ev.type === 'boost') return [`活動期間打贏魔物，${ev.what === 'coins' ? '字元' : '獵人經驗'}會變成 ${ev.mul} 倍。`, '不用報名，打贏就自動加倍。', '只有打贏的場次有加倍。'];
+  if (ev.type === 'hunt') return [`打倒 ${mon} ${ev.goal} 隻就達標。`, '只算打贏的場次。', ...(ev.items.length ? ['達標的時候，獎勵會自動送到你手上。一個人領一次。'] : [])];
+  if (ev.type === 'classwar') return [`每個人打倒 ${mon} ${ev.per} 隻，就算「達標」。`, `全班有 ${ev.goalPct}% 的人達標，全班一起拿獎勵。`, '你自己至少要打倒 1 隻，才領得到喔。', '同年級只列出前 3 名的班級，不會列出最後一名。'];
+  const by = {
+    improve: [`打 ${mon}，比你自己以前的最快紀錄快越多越好。`, '分數是「進步了幾 %」。以前最快 10 秒、現在 8 秒，就是進步 20%。', '以前沒打過也沒關係，從活動中的第一場開始算。', '至少要打 2 場才有分數。'],
+    kills: [`打倒 ${mon}，每打倒 1 隻就加 1 隻。`, '打倒越多隻，排得越前面。'],
+    fastest: [`打倒 ${mon} 用的時間越短越好。`, '只看你最快的那一場，單位是秒。'],
+    acc: [`看打字的平均正確率，越準越好${ev.mk ? `（只算 ${mon}）` : ''}。`, `至少要打 ${ev.minRuns} 場才有分數。`]
+  }[ev.metric] || [];
+  return [...by, '只算打贏的場次。', '榜上只列前 10 名。你不在榜上的時候，只會告訴你還差多少。', '活動結束後，老師可能會寄獎品到信箱。'];
+}
+
+/* 「班級短碼・座號」：快照裡只有文件 ID（五年級4班_5號），不放真名 */
+export function idLabel(id) {
+  const m = /^(.+)_(\d+)號$/.exec(id || '');
+  return m ? `${clsShort(m[1])}・${m[2]}號` : '';
+}
+
+/* 老師發獎時存的名次快照（mg_events/{ID}.result）→ 最後的榜單。沒有快照回 null。
+   rows＝[{ rank, label, nick, score, mine, id }]；沒名次的（被 ⚠ 擋下、老師沒勾）不列。 */
+export function finalRows(ev, myId) {
+  const r = ev.result;
+  if (!r || !Array.isArray(r.rows) || !r.rows.length) return null;
+  const rows = r.rows.filter(x => x && x.rank >= 1 && x.rank <= BOARD_SIZE).sort((a, b) => (a.pos || 0) - (b.pos || 0)).slice(0, BOARD_SIZE)
+    .map(x => ({ rank: x.rank, label: idLabel(x.id), nick: displayName(x.nick), score: scoreText({ metric: r.metric || ev.metric }, x.s), mine: x.id === myId, id: x.id }));
+  return rows;
+}
+
+/* 得獎名單：老師已經發獎（awarded）而且有快照才有。每個人帶他拿到的獎品（items 陣列）；
+   另外回參加獎（part）與有參加獎的人數。沒發獎回 null。 */
+export function awardList(ev, myId) {
+  const r = ev.result;
+  if (!ev.awarded || !r || !Array.isArray(r.rows)) return null;
+  const prizes = r.prizes || {};
+  const winners = (r.rows || []).filter(x => x && x.pick && x.pos && awardTierOf(x.rank) && (prizes[awardTierOf(x.rank)] || []).length)
+    .sort((a, b) => a.pos - b.pos)
+    .map(x => ({ rank: x.rank, label: idLabel(x.id), nick: displayName(x.nick), score: scoreText({ metric: r.metric || ev.metric }, x.s), items: prizes[awardTierOf(x.rank)], mine: x.id === myId, id: x.id }));
+  const part = Array.isArray(r.part) ? r.part : [];
+  return { winners, part, partCount: part.length ? (r.parts || []).length : 0, myPart: part.length && (r.parts || []).includes(myId) };
+}
+
 /* ── 接 Firestore ──
    h = { now(), me(), nw(), save(), saveNow(), myName(), grant(items) → gift 陣列或 null（有不認得的東西）}；
    C 要有 classNames() → ['1班',…]（同年級各班的名單，活動沒指定班級時用） */
@@ -293,7 +351,7 @@ export function createEvents(C, h) {
     await Promise.all([...names].map(async cn => { const [a, b] = await Promise.all([count(cn), size(cn)]); per[cn] = { count: a, size: b }; }));
     const me = per[cls];
     const list = [...names].filter(cn => per[cn].size > 0).map(cn => ({ cls: cn, pct: pctOf(per[cn].count, per[cn].size) }));
-    const v = { count: me.count, size: me.size, pct: pctOf(me.count, me.size), goalPct: e.goalPct, reached: classReached(e, me.count, me.size), top: gradeTop(list, cls) };
+    const v = { at: Date.now(), count: me.count, size: me.size, pct: pctOf(me.count, me.size), goalPct: e.goalPct, reached: classReached(e, me.count, me.size), top: gradeTop(list, cls) };
     classes[e.id] = { at: Date.now(), v };
     return v;
   }
@@ -343,10 +401,10 @@ export function createEvents(C, h) {
       r.text = scoreText(e, r.s);
       r.label = `${r.cls}・${r.seat}號・${r.nick}`;
     });
-    const v = { ev: e, rows: comp.rows, inTop: comp.inTop, text: comp.text, outOfRange: comp.outOfRange, mine: st ? { s: Number.isFinite(st.s) ? st.s : null, n: st.n || 0 } : { s: null, n: 0 } };
+    const v = { at: Date.now(), ev: e, rows: comp.rows, inTop: comp.inTop, text: comp.text, outOfRange: comp.outOfRange, mine: st ? { s: Number.isFinite(st.s) ? st.s : null, n: st.n || 0 } : { s: null, n: 0 } };
     boards[e.id] = { at: Date.now(), v };
     return v;
   }
 
-  return { load, visible, groups, activeEvents, byId, sweep, onRun, eventProgress, classProgress, claimClassWar, eventBoard, timeText: e => timeText(e, h.now()), list: () => cache.list, ok: () => cache.ok };
+  return { load, visible, groups, activeEvents, byId, phase: e => phaseOf(e, h.now()), sweep, onRun, eventProgress, classProgress, claimClassWar, eventBoard, timeText: e => timeText(e, h.now()), list: () => cache.list, ok: () => cache.ok };
 }

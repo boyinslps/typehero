@@ -428,7 +428,7 @@ const dismissGifts = async p => { for (let i = 0; i < 14; i++) { if (!(await p.$
     fsH['mg_bugboard/' + ID6] = { className: C3, seat: 6, score: 2, n: 2, firstAt: NOW - D };
     fsH['mg_bugboard/' + ID7] = Object.assign({}, fsH['mg_bugboard/' + ID7], { score: 1, n: 1, firstAt: NOW - D });
     const bugRows = async fsx => { const S = await student(browser, fsx); await S.click('[data-act="notice"]'); await S.waitForSelector('#nw-notice'); await S.click('#nw-notice [data-ntab="bug"]'); await S.waitForTimeout(700);
-      const r = await S.$$eval('#nw-notice [data-bugrow]', e => e.map(x => ({ id: x.dataset.bugrow, t: x.textContent.replace(/\s+/g, ' ') }))); await S.close(); return r; };
+      const r = await S.$$eval('#nw-notice [data-rbrow]', e => e.map(x => ({ id: x.dataset.rbid, t: x.textContent.replace(/\s+/g, ' ') }))); await S.close(); return r; };
     const rows = await bugRows(fsH);
     ok(rows.find(r => r.id === ID5).t.includes('神秘獵人') && !rows.find(r => r.id === ID5).t.includes('閃電咕咕鳥'), '小明被隱藏：榜上顯示「神秘獵人」');
     ok(rows.find(r => r.id === ID6).t.includes('閃電咕咕鳥'), '沒被隱藏的人：顯示暱稱');

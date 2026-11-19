@@ -7,7 +7,8 @@ export {
   MAIN_QUESTS, currentQuest, normalizeNw, curWeapon, weaponInfo,
   BUG_COINS, BUG_REWARD_MAX, NOTICES
 } from '../nw-data.js';
-export { toMs, normalizeEvent, phaseOf, GRACE_MS, timeText, scoreText, sortDir, saneScore, saneFloor, clsMatch, pctOf, classReached } from '../nw-events.js';
+export { toMs, normalizeEvent, phaseOf, GRACE_MS, timeText, scoreText, sortDir, saneScore, saneFloor, clsMatch, pctOf, classReached, awardTierOf, ruleLines, finalRows, awardList, dateText, METRIC_NAME, METRIC_UNIT, runsNeed } from '../nw-events.js';
+export { rankBoardHtml } from '../nw-rankboard.js';
 export { normalizeNews, sortNews, bugCmp } from '../nw-notice.js';
 /* 名字鎖的雜湊：mg_bugboard 學生讀得到，所以只存正規化後名字的雜湊，不存真名（跟學生端 checkName() 同一個算法） */
 export { sha256Hex } from '../nw-access.js';
