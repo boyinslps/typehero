@@ -230,12 +230,23 @@ const leaks = text => leakStrings().filter(s => text.includes(s)).concat(/_\d+�
     const node = process.execPath, tool = path.join(ROOT, 'tools/nw-sim/load-real.mjs');
     const o1 = execFileSync(node, [tool, fx, '--out', outp], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
     const P = JSON.parse(fs.readFileSync(outp, 'utf8'));
-    ok(Array.isArray(P) && P.length === 18 + 1 - 3, `load-real：轉出 ${P.length} 人（18 人＋只有 lastWpm 的 1 人，年級不明的 3 人預設丟掉；沒速度的略過）`);
-    ok(P.every(x => ['四年級', '五年級'].includes(x.grade) && x.wpm > 0 && x.acc >= 0 && ['A', 'B', 'C', 'D'].includes(x.tier) && ['staff', 'bow', 'dagger', 'crossbow'].includes(x.weapon) && Object.keys(x).length === 5), '每筆是模擬器要的 { grade, wpm, acc, tier, weapon }，沒有 id 之類多餘欄位');
+    ok(Array.isArray(P) && P.length === 18 + 1, `load-real：轉出 ${P.length} 人（18 人＋只有 lastWpm 的 1 人；年級不明的 3 人預設保留、年級寫 '?'；沒速度的略過）`);
+    ok(P.filter(x => x.grade === '?').length === 3 && P.every(x => ['四年級', '五年級', '?'].includes(x.grade)), "年級不明的 3 人保留，年級是 '?'");
+    const MUST = ['grade', 'wpm', 'acc', 'tier', 'weapon'], MAY = ['tierKnown', 'accLast', 'lastWpm', 'plays', 'nw'];
+    const NW_MAY = ['hr', 'hunts', 'wins', 'fails', 'fastest', 'fastMk', 'dex', 'wwin', 'dodgeOk', 'dodgeAll', 'defOk', 'defAll'];
+    const IDENT = /^(id|rid|docId|name|nick|nickname|seat|className|class|uid|email)$/i;
+    const hasIdKey = v => v && typeof v === 'object' && Object.entries(v).some(([k, x]) => IDENT.test(k) || hasIdKey(x));
+    ok(P.every(x => ['四年級', '五年級', '?'].includes(x.grade) && x.wpm > 0 && x.acc >= 0 && ['A', 'B', 'C', 'D'].includes(x.tier) && ['staff', 'bow', 'dagger', 'crossbow'].includes(x.weapon)
+      && MUST.every(k => k in x) && Object.keys(x).every(k => MUST.includes(k) || MAY.includes(k)) && !hasIdKey(x)
+      && (!x.nw || Object.keys(x.nw).every(k => NW_MAY.includes(k)))), '每筆必有 grade／wpm／acc／tier／weapon，只可多 tierKnown／accLast／lastWpm／plays／nw；沒有 id、姓名、座號、班級、docId、暱稱、rid（nw 內也沒有）');
+    ok(hasIdKey({ nw: { id: 1 } }) && !hasIdKey({ nw: { hr: 1, fastest: { 'grass:1': 50 } } }), '身分欄位檢查自己抓得到 id、放得過 nw 的正常欄位');
+    ok(P.every(x => typeof x.tierKnown === 'boolean'), 'tierKnown 一定有，分得出「真的 B」與「補的 B」');
     ok(P.filter(x => x.grade === '五年級').some(x => x.wpm === 15 && x.acc === 97), '只有 lastWpm 的人用 lastWpm，沒有正確率用 97');
     ok(leaks(JSON.stringify(P)).length === 0, 'profiles.json 也沒有任何身分字串');
     const o2 = execFileSync(node, [tool, fx, '--unknown-as', '五年級'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
     ok(JSON.parse(o2).length === 19 && JSON.parse(o2).filter(x => x.grade === '五年級').length === 14, '--unknown-as 五年級：年級不明的 3 人併進五年級');
+    const o3 = JSON.parse(execFileSync(node, [tool, fx, '--drop-unknown'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }));
+    ok(o3.length === 16 && o3.every(x => x.grade !== '?'), '--drop-unknown：回到舊行為，年級不明的 3 人丟掉（16 人）');
     const run = execFileSync(node, [path.join(ROOT, 'tools/nw-sim/run.mjs'), outp], { encoding: 'utf8', timeout: 120000 });
     ok(/四年級（5 人）/.test(run) && /五年級（\d+ 人）/.test(run) && /贏\s+\d+%/.test(run), 'run.mjs 吃得進轉出的檔、跑得出結果');
     let code = 0; try { execFileSync(node, [tool, path.join(dir, 'nope.json')], { stdio: 'pipe' }); } catch (e) { code = e.status; }
