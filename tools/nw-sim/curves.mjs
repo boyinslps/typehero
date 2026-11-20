@@ -6,7 +6,12 @@
      node tools/nw-sim/curves.mjs hp combat          只印某幾節（params hp weapon gear combat flip exp econ drops unlock timeline sens checks stats）
      node tools/nw-sim/curves.mjs --set acc=0.95 --set sigmaB=0.25   改假設（任何 P 的欄位；巢狀用點：persona.slow=5）
      node tools/nw-sim/curves.mjs --real data-private/profiles.json  換真實分布（load-real.mjs 的輸出）：
-                                                     母體改用名單本身，慢／中／快改成名單的 p25／p50／p90，σ 由四分位重擬
+                                                     母體改用名單本身，慢／中／快改成名單的 p25／p50／p90，σ 由四分位重擬，
+                                                     極快改成 p97（最大值常是單一峰值，不拿來當「最快」）。
+                                                     層級預設用名單裡真的層級（沒有的人是 B，跟遊戲一樣）；
+                                                     --set tierSrc=model 改回用手速回推（設計模型）
+     node tools/nw-sim/curves.mjs --preset calibrated  2026-11 真實資料校準後的建議參數（不需要私人資料；--preset proposal＝校準前的提案）
+     node tools/nw-sim/curves.mjs --real <檔> calib   用真實「最快秒數」反推 α、驗證模型時長與勝率、檢查層級換算
      node tools/nw-sim/curves.mjs --json             輸出 JSON（給試算表或其他腳本）
 
    數字的來源：魔物、傷害、等級、價格公式直接 import nw-data.js（現行程式），所以程式改了這裡跟著變；
@@ -50,6 +55,8 @@ export const P = {
   winPick: 0.55,                                     // 學生挑「勝率 ≥ 這個」的最高星級
   unlockNeed: 1,                                     // 某星要贏過幾種不同魔物才開下一星（現行 1）
   grayCap: 1,                                        // 灰色裝備最多強化到幾（之後存錢做綠的；學生策略假設）
+  tierSrc: null,                                     // 母體用哪個層級：'real'＝名單裡的 tier（沒有的人 B，遊戲就是這樣）、'model'＝由手速回推；null＝有 --real 用 real
+  calibAcc: 0.98,                                    // calib：打贏的那幾場的逐字正確率（假設；贏的場通常比平均準）
   N: 200, seed: 2026
 };
 
@@ -76,8 +83,9 @@ const r1 = x => Math.round(x * 10) / 10, r2 = x => Math.round(x * 100) / 100, pc
 /* ───────── 1. 玩家模型 ───────── */
 export const tierOf = (v, p = P) => { const t = v * p.tutRatio, [a, b, c] = p.tierCut; return t < a ? 'A' : t < b ? 'B' : t < c ? 'C' : 'D'; };
 export const quantile = (q, p = P) => p.median * Math.exp(p.sigma * Pinv(q));
+export const realQ = (p, f) => { const w = p.real.map(r => r.wpm).sort((a, b) => a - b); return w[Math.min(w.length - 1, Math.floor(f * w.length))]; };
 /* 母體：對數常態的 400 個等機率點，或真實名單 */
-export const population = (p = P) => p.real ? p.real.map(r => ({ v: r.wpm, acc: clamp((r.acc > 1 ? r.acc / 100 : r.acc) - 0.02, 0.85, 0.995) }))
+export const population = (p = P) => p.real ? p.real.map(r => ({ v: r.wpm, acc: clamp((r.acc > 1 ? r.acc / 100 : r.acc) - 0.02, 0.85, 0.995), tier: p.tierSrc === 'real' ? (r.tier || 'B') : undefined }))
   : Array.from({ length: 400 }, (_, i) => { const v = quantile((i + 0.5) / 400, p); return { v, acc: v < p.persona.mid ? p.acc.slow : v < p.persona.fast ? p.acc.mid : p.acc.fast }; });
 
 /* 題長：現行詞庫（assets/banks）的平均字數。normal、fine 平均 2.0 字，epic 3.75，legend ≤6 字 5.32、≤8 字 6.19 */
@@ -190,11 +198,11 @@ export function vNeed(a, rk, mk, star, gear = NOGEAR, p = P, tier) {
   for (let i = 0; i < 30; i++) { const mid = Math.sqrt(lo * hi); if (battle(mid, a, rk, mk, star, gear, p, tier).T > p.timeLimit) lo = mid; else hi = mid; }
   return hi;
 }
-export function winP(v, a, rk, mk, star, gear = NOGEAR, p = P) {
-  const tier = tierOf(v, p), vn = vNeed(a, rk, mk, star, gear, p, tier), b = battle(v, a, rk, mk, star, gear, p, tier);
+export function winP(v, a, rk, mk, star, gear = NOGEAR, p = P, tierArg) {
+  const tier = tierArg || tierOf(v, p), vn = vNeed(a, rk, mk, star, gear, p, tier), b = battle(v, a, rk, mk, star, gear, p, tier);
   return { ...b, vNeed: vn, win: Phi(Math.log(v / vn) / p.sigmaB) * (1 - b.pFail) };
 }
-export const popWin = (rk, mk, star, gear = NOGEAR, p = P) => { const pop = population(p); return pop.reduce((s, x) => s + winP(x.v, x.acc, rk, mk, star, gear, p).win, 0) / pop.length; };
+export const popWin = (rk, mk, star, gear = NOGEAR, p = P) => { const pop = population(p); return pop.reduce((s, x) => s + winP(x.v, x.acc, rk, mk, star, gear, p, x.tier).win, 0) / pop.length; };
 
 /* ───────── 3. 曲線 ───────── */
 export const SLOT = {   // SPEC-STAGE2 §3.2
@@ -327,6 +335,10 @@ const sn = ([rk, mk, s]) => `${MN[mk]}★${s}(Lv${regionLv(rk, s)})`;
 
 export const SECTIONS = {
   params(p) { say('## params：假設'); say('```'); say(JSON.stringify({ ...p, real: p.real ? `${p.real.length} 人` : undefined })); say('```');
+    if (p.real) { const l = p.real.map(r => Math.log(r.wpm)), m = l.reduce((s, x) => s + x, 0) / l.length, sd = Math.sqrt(l.reduce((s, x) => s + (x - m) ** 2, 0) / (l.length - 1));
+      say(`真實名單 ${p.real.length} 人：ln v 平均 μ=${r2(m)}（中位 ${realQ(p, 0.5)}）、σ 全部標準差 ${r2(sd)}／四分位法 ${r2(p.sigma)}（模型用後者，不受 1～3 字/分的新手尾巴拉大）；`
+        + `p10 ${realQ(p, 0.1)}、p25 ${realQ(p, 0.25)}、p75 ${realQ(p, 0.75)}、p90 ${realQ(p, 0.9)}、p99 ${realQ(p, 0.99)}；≥40 字/分 ${p.real.filter(r => r.wpm >= 40).length} 人；`
+        + `有層級 ${p.real.filter(r => r.tierKnown !== false).length} 人、沒有 ${p.real.filter(r => r.tierKnown === false).length} 人（母體層級來源：${p.tierSrc === 'real' ? '名單，沒有的當 B' : '由手速回推'}）`); say(''); }
     table(['', 'bestWpm', '教學量到', '層級', '戰鬥中字/分'], PERS(p).map(([n, v]) => [n, v, r1(v * p.tutRatio), tierOf(v, p), r1(v * p.alpha)])); },
   hp(p) { say(`## hp：魔物血量（(440+20·Lv)·hpMul·層級倍率 ${JSON.stringify(p.hpTier || HP_TIER)}）與各層級門檻速度`);
     table(['魔物★', 'Lv', '題長(平靜/生氣)', 'A', 'B', 'C', 'D'], SCEN.map(sc => { const [rk, mk, s] = sc, lv = regionLv(rk, s);
@@ -345,7 +357,8 @@ export const SECTIONS = {
     table(['預設組', '攻擊倍率 g（打怕火的）', '生命', '受傷少', '舉盾+', '紅線早', '戰力'], Object.entries(PRESETS).map(([n, s]) => [n, r2(s.atk / 100 * (s.elem ? 1.1 : 1)), 100 + s.hp, pc(s.cut) + '%', s.shield, s.warn, '']));
     table(['強化到', '+1', '+2', '+3', '+4', '+5', '灰合計', '綠合計', '藍合計'], [['字元', ...[1, 2, 3, 4, 5].map(n => enhanceCost(n)), ...['gray', 'green', 'blue'].map(c => [1, 2, 3, 4, 5].reduce((s, n) => s + enhanceCost(n, c), 0))],
       ['每 +1% 攻擊花的字元（灰）', ...[1, 2, 3, 4, 5].map(n => r1(enhanceCost(n) / (2 / (100 + 2 * (n - 1)) * 100))), '', '', '']]);
-    const lr = Math.log(p.real ? Math.max(...p.real.map(r => r.wpm)) / Math.min(...p.real.map(r => r.wpm)) : quantile(0.9, p) / quantile(0.1, p));
+    /* 公式是 p90/p10；真實名單不能拿最大／最小（99 倍會把裝備佔比壓成 6%） */
+    const lr = Math.log(p.real ? realQ(p, 0.9) / realQ(p, 0.1) : quantile(0.9, p) / quantile(0.1, p));
     say(`裝備佔比 ln(g_max)/ln(v_p90/v_p10)：g=1.32 → ${pc(Math.log(1.32) / lr)}%（p10～p90 = ${r1(Math.exp(lr))} 倍）；g=1.20 → ${pc(Math.log(1.2) / lr)}%；g=1.50 → ${pc(Math.log(1.5) / lr)}%`);
     say(`翻盤人數上限 ln g/(σ√2π)（σ 加上 σ_b）：g=1.10 → ${r1(100 * Math.log(1.1) / (Math.hypot(p.sigma, p.sigmaB) * Math.sqrt(2 * Math.PI)))}%、1.32 → ${r1(100 * Math.log(1.32) / (Math.hypot(p.sigma, p.sigmaB) * Math.sqrt(2 * Math.PI)))}%`); say(''); },
   combat(p) { for (const wa of [false, true]) { const q = { ...p, wolfAttacks: wa };
@@ -427,11 +440,67 @@ export const SECTIONS = {
   stats(p) { say('## stats：驗收要幾場');
     const ci = (q, n) => r1(196 * Math.sqrt(q * (1 - q) / n)), nd = (q, d) => Math.ceil(2 * q * (1 - q) / (d / 1.96) ** 2);
     table(['', 'n=300', 'n=770', 'n=1000'], [['勝率 50% 的 95% 信賴區間 ±pp', ci(0.5, 300), ci(0.5, 770), ci(0.5, 1000)], ['勝率 80%', ci(0.8, 300), ci(0.8, 770), ci(0.8, 1000)]]);
-    say(`兩組獨立樣本測出 5pp 差（p=0.5）每組要 ${nd(0.5, 0.05)} 場；10pp 要 ${nd(0.5, 0.1)} 場；p=0.8 測 5pp 要 ${nd(0.8, 0.05)} 場。`); say(''); }
+    say(`兩組獨立樣本測出 5pp 差（p=0.5）每組要 ${nd(0.5, 0.05)} 場；10pp 要 ${nd(0.5, 0.1)} 場；p=0.8 測 5pp 要 ${nd(0.8, 0.05)} 場。`); say(''); },
+  calib(p) { say('## calib：用真實名單校準（需要 --real）');
+    if (!p.real) { say('沒有 --real，略過。'); say(''); return; }
+    const mid = a => { const s = [...a].sort((x, y) => x - y), n = s.length; return n ? (n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2) : NaN; };
+    const pq = (a, f) => { const s = [...a].sort((x, y) => x - y), i = (s.length - 1) * f, l = Math.floor(i), h = Math.ceil(i); return s[l] + (s[h] - s[l]) * (i - l); };
+    // ① 層級：真實層級跟「手速 × tutRatio 對 tierCut」吻合多少（只看有層級、有 bestWpm 的人）
+    const K = p.real.filter(r => r.tierKnown), TC = p.tierCut, tk = (v, r) => { const t = v * r; return t < TC[0] ? 'A' : t < TC[1] ? 'B' : t < TC[2] ? 'C' : 'D'; };
+    say(`① 層級換算（有層級的 ${K.length} 人；真實 A/B/C/D＝${['A', 'B', 'C', 'D'].map(t => K.filter(r => r.tier === t).length).join('/')}）：`);
+    table(['教學量到＝最高 × ', '吻合', '模型 A/B/C/D 人數', '差 ≥2 層'], [0.6, 0.75, 0.9, 1.0, 1.2].map(rr => [rr, pc(K.filter(r => tk(r.wpm, rr) === r.tier).length / K.length) + '%', ['A', 'B', 'C', 'D'].map(t => K.filter(r => tk(r.wpm, rr) === t).length).join('/'), K.filter(r => Math.abs('ABCD'.indexOf(tk(r.wpm, rr)) - 'ABCD'.indexOf(r.tier)) >= 2).length]));
+    const nt = p.real.filter(r => !r.tierKnown), ntM = t => nt.filter(r => tk(r.wpm, p.tutRatio) === t).length;
+    say(`沒有層級的 ${nt.length} 人（新世界會當 B）：若照手速回推（×${p.tutRatio}）會是 A/B/C/D＝${['A', 'B', 'C', 'D'].map(ntM).join('/')}，也就是 ${nt.filter(r => tk(r.wpm, p.tutRatio) !== 'B').length} 人層級跟設計不同。`); say('');
+    // ② 新世界戰績
+    const H = p.real.filter(r => r.nw && r.nw.wins > 0 && Object.keys(r.nw.fastest || {}).length && r.wpm > 0);
+    if (!H.length) { say('名單裡沒有新世界戰績（nw 欄），②③ 略過。'); say(''); return; }
+    const tierR = r => p.tierSrc === 'real' ? (r.tier || 'B') : tierOf(r.wpm, p);
+    const weaponOf = r => { const w = r.nw.wwin || {}, tot = Object.values(w).reduce((s, x) => s + x, 0), top = Object.entries(w).sort((a, b) => b[1] - a[1])[0]; return top && top[1] / tot >= 0.7 ? top[0] : 'mean'; };
+    const cands = (r, rk) => REGIONS[rk].mons.filter(m => !Object.keys(r.nw.dex || {}).length || r.nw.dex[m]);
+    const pred = (r, rk, star, q) => Math.min(...cands(r, rk).map(m => battle(r.wpm, p.calibAcc, rk, m, star, NOGEAR, { ...q, weapon: weaponOf(r) }, tierR(r)).T));
+    const obs = [];   // { r, rk, star, secs }
+    H.forEach((r, i) => { for (const [k, secs] of Object.entries(r.nw.fastest)) { const [rk, st] = k.split(':'); if (REGIONS[rk]) obs.push({ i, r, rk, star: +st, secs }); } });
+    say(`② 新世界打贏的人 ${H.length} 人、${obs.length} 筆「區域:星級最快秒數」。模型用 α=${p.alpha}、逐字正確率 ${p.calibAcc}、無裝備、該人真實層級與慣用武器（贏的場 ≥70% 同一把才算，否則四把平均）；魔物不知道時取模型預測最快的那隻（因為「最快」本來就是最小值）：`);
+    const keys = [...new Set(obs.map(o => o.rk + ':' + o.star))].sort();
+    table(['區域:星', '人數', '實際最快（中位秒）', '模型（同一批人，中位秒）', '實際 ÷ 模型（中位）'], keys.map(k => { const os = obs.filter(o => o.rk + ':' + o.star === k), pr = os.map(o => pred(o.r, o.rk, o.star, p));
+      return [k, os.length, r1(mid(os.map(o => o.secs))), r1(mid(pr)), r2(mid(os.map((o, j) => o.secs / pr[j])))]; }));
+    const ratio = obs.map(o => o.secs / pred(o.r, o.rk, o.star, p));
+    say(`全部 ${obs.length} 筆：實際 ÷ 模型 中位 ${r2(mid(ratio))}（p25 ${r2(pq(ratio, 0.25))}、p75 ${r2(pq(ratio, 0.75))}）。<1＝真實比模型快。`); say('');
+    // 反推 α：每筆解「模型時間＝實際最快」的 α，每人取中位，再跨人取中位
+    const solve = (r, rk, star, secs) => Math.min(...cands(r, rk).map(m => { let lo = 0.02, hi = 6;
+      for (let it = 0; it < 40; it++) { const mdl = Math.sqrt(lo * hi); (battle(r.wpm, p.calibAcc, rk, m, star, NOGEAR, { ...p, alpha: mdl, weapon: weaponOf(r) }, tierR(r)).T > secs) ? lo = mdl : hi = mdl; } return hi; }));
+    const Ek = k => [0, 0, 0.564, 0.846, 1.029, 1.163, 1.267, 1.352, 1.424, 1.485, 1.539][Math.min(10, Math.max(1, k))];   // k 個常態取最大的期望值
+    const perP = H.map((r, i) => { const os = obs.filter(o => o.i === i); if (!os.length) return null; const kEff = Math.max(1, Math.round(r.nw.wins / os.length)), al = os.map(o => solve(r, o.rk, o.star, o.secs));
+      return { r, a: mid(al), ac: mid(al) * Math.exp(-p.sigmaB * Ek(kEff)), w: weaponOf(r) }; }).filter(Boolean);
+    const R = rng(p.seed), ci = a => { const bs = Array.from({ length: 2000 }, () => mid(a.map(() => a[Math.floor(R() * a.length)]))); return `${r2(mid(a))}（${r2(pq(bs, 0.025))}～${r2(pq(bs, 0.975))}）`; };
+    const row = (name, ps) => ps.length < 3 ? [name, ps.length, '—', '—'] : [name, ps.length, ci(ps.map(x => x.a)), ci(ps.map(x => x.ac))];
+    say(`③ 反推戰鬥中速度係數 α（每人一個值＝他各區:星反推值的中位；括號是 bootstrap 95% 信賴區間）。「修正後」把「最快＝k 場取最小」的偏快拿掉（σ_b=${p.sigmaB}，k＝總勝場÷有紀錄的區:星數）：`);
+    table(['分組', '人數', 'α（最快直接反推）', 'α（修正偏快後）'], [row('全部', perP), row('最高 ≤20 字/分', perP.filter(x => x.r.wpm <= 20)), row('最高 >20 字/分', perP.filter(x => x.r.wpm > 20)), row('雙刀為主', perP.filter(x => x.w === 'dagger')), row('法杖為主', perP.filter(x => x.w === 'staff'))]);
+    say('');
+    // ④ 勝率
+    const NWP = p.real.filter(r => r.nw && r.nw.wins + r.nw.fails > 0), W = NWP.reduce((s, r) => s + r.nw.wins, 0), F = NWP.reduce((s, r) => s + r.nw.fails, 0), n = W + F, ph = W / n, z = 1.96, ctr = (ph + z * z / (2 * n)) / (1 + z * z / n), hw = z * Math.sqrt(ph * (1 - ph) / n + z * z / (4 * n * n)) / (1 + z * z / n);
+    const cleared = [], frontier = [];
+    H.forEach((r, i) => { const os = obs.filter(o => o.i === i); for (const o of os) cleared.push(cands(r, o.rk).reduce((s, m) => s + winP(r.wpm, p.calibAcc, o.rk, m, o.star, NOGEAR, p, tierR(r)).win, 0) / cands(r, o.rk).length);
+      for (const rk of ['grass', 'forest']) { const st = os.filter(o => o.rk === rk).map(o => o.star); if (!st.length) continue; const s1 = Math.min(5, Math.max(...st) + 1); frontier.push(REGIONS[rk].mons.reduce((s, m) => s + winP(r.wpm, p.calibAcc, rk, m, s1, NOGEAR, p, tierR(r)).win, 0) / REGIONS[rk].mons.length); } });
+    const avg = a => a.reduce((s, x) => s + x, 0) / a.length;
+    const p1 = x => r1(x * 100);
+    say(`④ 勝率：名單裡有速度的 ${NWP.length} 人，實際 ${W} 勝 ${F} 敗 ＝ ${p1(ph)}%（Wilson 95%：${p1(ctr - hw)}～${p1(ctr + hw)}%，但只有 ${NWP.filter(r => r.nw.fails > 0).length} 人輸過、場次不獨立，實際不確定性更大）。`
+      + `模型對同一批贏過的人（${H.length} 人）：他們打贏過的那些星級平均勝率 ${p1(avg(cleared))}%；「最高過關星＋1」（最可能輸的那一關）平均 ${p1(avg(frontier))}%。模型只算速度與三線，不含新手操作失誤。`);
+    const da = NWP.reduce((s, r) => [s[0] + (r.nw.dodgeOk || 0), s[1] + (r.nw.dodgeAll || 0), s[2] + (r.nw.defOk || 0), s[3] + (r.nw.defAll || 0)], [0, 0, 0, 0]);
+    /* 遊戲記的「成功」＝這一招沒被打中，站著不動也算（單線 2/3、夾擊 1/3），所以要拿模型的「沒被打中機率」比，不是「來得及反應」 */
+    const sd = (k, q, t = 'B', st = 1) => { const ks = ['single', 'pair', ...(st >= 3 ? ['sweep'] : [])]; return k === 'dodge' ? 1 - ks.reduce((s, x) => s + strikeModel(x, t, NOGEAR, q, st).hitP, 0) / ks.length : 1 - strikeModel('slam', t, NOGEAR, q, st).hitP; };
+    say(`⑤ 三線動作：真實閃避成功 ${da[0]}／${da[1]} ＝ ${da[1] ? pc(da[0] / da[1]) : '—'}%、防禦成功 ${da[2]}／${da[3]} ＝ ${da[3] ? pc(da[2] / da[3]) : '—'}%（成功＝沒被打中，站著不動也算；星級與層級不明，下表用 B 層）。模型在不同反應時間下的預測：`);
+    table(['反應時間平均（秒）', '閃避成功 ★1～2', '閃避成功 ★3～4', '防禦（重壓）成功 ★3'], [...new Set([99, 3, 2.5, 2, 1.5, 1, p.react[0]])].map(mu => { const q = { ...p, react: [mu, mu] }; return [mu === 99 ? '不動（純運氣）' : mu === p.react[0] ? `${mu}（現行假設）` : mu, pc(sd('dodge', q)) + '%', pc(sd('dodge', q, 'B', 3)) + '%', pc(sd('slam', q, 'B', 3)) + '%']; }));
+say(''); },
 };
 
 /* 建議案（BALANCE-CURVES.md §7）：--preset proposal */
 export const PROPOSAL = { unlockNeed: 2, hpTier: { A: 0.30, B: 0.5, C: 0.8, D: 1.7 } };
+/* 校準案（docs/research/BALANCE-CALIBRATION.md §8）：2026-11-20 匯出的 284 人速度、167 人的層級、15 人的最快秒數。
+   速度分布直接寫死，所以不用私人資料也能重現；跟 --real 併用時，--real 在後面就以名單為準。
+   tutRatio、react 只是模型假設（遊戲程式裡沒有這兩個常數）；hpTier、unlockNeed 才是 nw-data.js 的常數。 */
+export const CALIBRATED = { median: 11, sigma: 0.70, persona: { slow: 7, mid: 11, fast: 26 }, veryFast: 53, tutRatio: 0.9, react: [3.0, 2.0],
+  unlockNeed: 2, hpTier: { A: 0.30, B: 0.5, C: 0.75, D: 1.7 } };
 
 /* ───────── 命令列 ───────── */
 if (import.meta.url === `file://${process.argv[1]}`) {
@@ -439,11 +508,12 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--set') { const [k, v] = args[++i].split('='); const path = k.split('.'); let o = p; while (path.length > 1) { const k0 = path.shift(); if (o[k0] == null) o[k0] = {}; o = o[k0]; } o[path[0]] = isNaN(+v) ? (v === 'true' ? true : v === 'false' ? false : v) : +v; }
     else if (args[i] === '--real') { p.real = JSON.parse(readFileSync(args[++i], 'utf8')); const w = p.real.map(r => r.wpm).sort((a, b) => a - b), q = f => w[Math.min(w.length - 1, Math.floor(f * w.length))];
-      p.median = q(0.5); p.sigma = (Math.log(q(0.75)) - Math.log(q(0.25))) / 1.349; p.persona = { slow: q(0.25), mid: q(0.5), fast: q(0.9) }; p.veryFast = w[w.length - 1]; }
-    else if (args[i] === '--preset') { const k = args[++i]; if (k !== 'proposal') { console.error('只有 --preset proposal'); process.exit(1); } Object.assign(p, structuredClone(PROPOSAL)); }
+      p.median = q(0.5); p.sigma = (Math.log(q(0.75)) - Math.log(q(0.25))) / 1.349; p.persona = { slow: q(0.25), mid: q(0.5), fast: q(0.9) }; p.veryFast = q(0.97); }
+    else if (args[i] === '--preset') { const k = args[++i], PS = { proposal: PROPOSAL, calibrated: CALIBRATED }; if (!PS[k]) { console.error('只有 --preset proposal | calibrated'); process.exit(1); } Object.assign(p, structuredClone(PS[k])); }
     else if (args[i] === '--json') p.json = true;
     else want.push(args[i]);
   }
+  if (p.tierSrc == null) p.tierSrc = p.real ? 'real' : 'model';
   for (const k of (want.length ? want : Object.keys(SECTIONS))) { if (!SECTIONS[k]) { console.error('沒有這一節：' + k); process.exit(1); } SECTIONS[k](p); }
   if (p.json) console.log(JSON.stringify({ P: { ...p, real: undefined }, lines: out.lines })); else console.log(out.lines.join('\n'));
 }
