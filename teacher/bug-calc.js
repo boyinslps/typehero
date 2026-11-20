@@ -44,3 +44,42 @@ export function putReport(reports, entry) {
   return rs;
 }
 export const dropReport = (reports, id) => (reports || []).filter(r => r && r.id !== id);
+
+/* 「全部採用 Claude 的建議」之前先算好：哪些會處理、哪些略過、每個學生的分數從多少變多少。
+   items＝[{ flagId, verdict, sev, dupOf（flag 文件 ID）, reply }]；board＝loadBoard() 的 { 學生 → { reports, bonus, notes } }。
+   這裡只算不寫；真正寫入還是一則一則走審核的同一套（確認／重複／不採用），所以分數與信的規則不會分岔。
+   「重複」的對象如果是不採用或重複，等於把功勞給一個不算分的回報，不自動處理，請老師個別看。 */
+export function planBulk(items, flags, board, rewardMax) {
+  const ST = ['pending', 'approved', 'rejected', 'dup'], byId = new Map((flags || []).map(f => [f.id, f])), st = f => (ST.includes(f.status) ? f.status : 'pending');
+  const sug = new Map((items || []).map(i => [i.flagId, i]));
+  const skips = [], ok = [];
+  (items || []).forEach(it => {
+    const f = byId.get(it.flagId), bad = reason => skips.push({ flagId: it.flagId, reason });
+    if (!f) return bad('找不到這則回報');
+    if (!f.docId) return bad('沒有學生代號，不能處理');
+    if (st(f) !== 'pending') return bad('已經審核過了');
+    if (it.verdict === 'dup') {
+      const t = byId.get(it.dupOf), ts = sug.get(it.dupOf);
+      if (!t || it.dupOf === it.flagId) return bad('找不到「跟哪一則一樣」的那則');
+      if (st(t) === 'rejected' || st(t) === 'dup' || (st(t) === 'pending' && ts && ts.verdict !== 'approve')) return bad('「跟哪一則一樣」的那則是不採用或重複，請個別處理');
+    }
+    ok.push(it);
+  });
+  /* 同一位學生有好幾則時，前 rewardMax 個確認才有字元，所以要照送出時間先後算 */
+  ok.sort((a, b) => (byId.get(a.flagId).t || 0) - (byId.get(b.flagId).t || 0) || (a.flagId < b.flagId ? -1 : 1));
+  const proj = {}, counts = { approve: 0, dup: 0, reject: 0 };
+  let coinMails = 0, thanksMails = 0, replyMails = 0;
+  const stu = id => proj[id] || (proj[id] = (() => { const d = (board && board[id]) || {}, rs = Array.isArray(d.reports) ? d.reports.slice() : []; return { rs, bonus: d.bonus, notes: d.notes, from: boardCalc(rs, d.bonus, d.notes).score }; })());
+  ok.forEach(it => {
+    const f = byId.get(it.flagId), s = stu(f.docId), e = { id: f.id, t: f.t || 0 };
+    if (it.verdict === 'approve') {
+      const sev = clampSev(it.sev), coins = approvedCount(s.rs.filter(r => r.id !== f.id)) < rewardMax;
+      s.rs = putReport(s.rs, Object.assign(e, { st: 'approved', sev, reply: it.reply || '' }));
+      counts.approve++; if (coins) coinMails++; else thanksMails++;
+      it.coins = coins;
+    } else if (it.verdict === 'dup') { s.rs = putReport(s.rs, Object.assign(e, { st: 'dup', sev: 0, reply: '' })); counts.dup++; thanksMails++; }
+    else { s.rs = putReport(s.rs, Object.assign(e, { st: 'rejected', sev: 0, reply: it.reply || '' })); counts.reject++; if (it.reply) replyMails++; }
+  });
+  const students = Object.keys(proj).map(docId => { const s = proj[docId]; return { docId, from: s.from, to: boardCalc(s.rs, s.bonus, s.notes).score }; });
+  return { items: ok, skips, students, delta: students.reduce((a, s) => a + (s.to - s.from), 0), counts, coinMails, thanksMails, replyMails };
+}

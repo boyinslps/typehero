@@ -7,11 +7,15 @@
    資料放哪裡（學生讀得到 mg_bugboard，所以老師打的字與真名不能放那裡）：
    - mg_bugboard/{id}：分數、確認件數、firstAt、隱藏暱稱、bonus（只有數字）、reports（id、狀態、嚴重度、送出時間、老師回覆）。
    - mg_bugboard_private/{id}（只有老師讀得到）：手動加分的理由 notes、老師核可的真名 nameOk。
-   老師回覆 reply 還是放在 reports（學生要在「我的回報」看到），但同時寄一封信給本人當主要管道；輸入處提醒不要寫姓名。 */
+   老師回覆 reply 還是放在 reports（學生要在「我的回報」看到），但同時寄一封信給本人當主要管道；輸入處提醒不要寫姓名。
+
+   Claude 的建議（export-bugs.js 匯入）只放在這個分頁的記憶體／sessionStorage，在回報卡旁邊顯示。
+   「採用」只是把確認／重複／不採用的視窗預填好，老師按視窗裡的按鈕才寫入；一則一則寫與「全部採用」走同一組 commit 函式，規則不會分岔。 */
 import { db, doc, getDoc, writeBatch, deleteField } from './fb.js';
 import { loadScores, loadBoard, loadFlags, invalidate } from './data.js';
 import { clsShort, toMs, bugCmp, BUG_COINS, BUG_REWARD_MAX } from './nw.js';
-import { boardCalc, approvedCount, bugText, putReport, dropReport, publicBoard, SEV_NAME, clampSev } from './bug-calc.js';
+import { boardCalc, approvedCount, bugText, putReport, dropReport, publicBoard, SEV_NAME, clampSev, planBulk } from './bug-calc.js';
+import { mountBugExport, loadSugg, saveSugg, dropSugg, clearSugg, VERDICT_NAME } from './export-bugs.js';
 import { MAIL_BUG_TITLE, MAIL_AWARD_TITLE } from './migrate.js';
 import { idParts } from './ids.js';
 import { $, esc, fmtT, log, ask, modal, toast, errText, previewMail, matchStudent, helpBox } from './util.js';
@@ -31,11 +35,23 @@ export default async function mount(el, ctx) {
   const refresh = async () => { invalidate('flags', 'board', 'scores', 'mails'); [scores, flags, board] = await Promise.all([loadScores(true), loadFlags(true), loadBoard(true)]); };
 
   el.innerHTML = `<h2>🐛 回報與抓蟲榜</h2>
-    ${helpBox(['學生在遊戲裡回報的問題，會先放在「待審核」。看過內容後按「確認」（要選嚴重度）、「重複」或「不採用」。', '確認的話，學生會收到獎勵信，抓蟲榜的分數也會自動算好。', '沒有在遊戲裡回報、但老師知道他抓過蟲：用「手動加分」，可以一次選好幾位同學。', '回覆那一格，所有同學都可能看得到，所以不要寫名字。'])}
+    ${helpBox(['學生在遊戲裡回報的問題，會先放在「待審核」。看過內容後按「確認」（要選嚴重度）、「重複」或「不採用」。', '確認的話，學生會收到獎勵信，抓蟲榜的分數也會自動算好。', '沒有在遊戲裡回報、但老師知道他抓過蟲：用「手動加分」，可以一次選好幾位同學。', '回覆那一格，所有同學都可能看得到，所以不要寫名字。', '想先請 Claude 幫忙看一遍：用下面「請 Claude 檢查待審回報」匯出（姓名座號都不會帶出去），把 Claude 的建議貼回來，會顯示在每則回報旁邊，你確認了才算數。'])}
+    <h3>🤖 請 Claude 檢查待審回報</h3><div data-bugexp></div>
     <h3>問題回報</h3><div class="row" data-zones></div><div data-reports style="margin-top:8px"></div>
     <h3>抓蟲榜</h3><div data-board></div>`;
 
   /* ── 回報清單 ── */
+  let sugg = loadSugg();
+  /* 建議只在待審的回報上顯示；已經審過的就算還留著也不顯示 */
+  function suggHtml(f, canAct) {
+    const s = sugg[f.id]; if (!s || zoneOf(f) !== 'pending') return '';
+    const to = s.verdict === 'dup' ? flags.find(x => x.id === s.dupOf) : null;
+    const head = s.verdict === 'approve' ? `確認・${SEV_NAME[clampSev(s.sev)]}（${clampSev(s.sev)} 分）` : s.verdict === 'dup' ? `重複（跟「${to ? esc(flagWho(to)) + '：' + esc(clipS(bugText(to).did, 16)) : '找不到的那則'}」一樣）` : '不採用';
+    return `<div class="note" data-sugg="${esc(f.id)}" style="margin:8px 0 0"><b data-sugg-head>🤖 建議：${head}</b>
+      ${s.note ? `<div data-sugg-note style="overflow-wrap:anywhere">${esc(s.note)}</div>` : ''}
+      ${s.reply ? `<div class="dim" data-sugg-reply style="overflow-wrap:anywhere">建議回覆：${esc(s.reply)}<br>回覆所有同學都可能看到，用之前看一下有沒有名字。</div>` : ''}
+      <div class="row" style="margin-top:6px"><button class="px-btn sm gold" data-usesugg="${esc(f.id)}" ${canAct && (s.verdict !== 'dup' || to) ? '' : 'disabled'}>採用這個建議</button><button class="px-btn sm" data-dropsugg="${esc(f.id)}">不管這個建議</button></div></div>`;
+  }
   function reportCard(f) {
     const z = zoneOf(f), t = bugText(f), canAct = !!f.docId;
     const orig = z === 'dup' && f.dupOf ? flags.find(x => x.id === f.dupOf) : null;
@@ -45,6 +61,7 @@ export default async function mount(el, ctx) {
       <div class="kv" style="margin-top:6px"><b>做了什麼</b><span style="overflow-wrap:anywhere" data-did>${nl(t.did) || '<span class="dim">（沒寫）</span>'}</span>
         <b>錯誤狀況</b><span style="overflow-wrap:anywhere" data-what>${nl(t.what) || '<span class="dim">（沒寫）</span>'}</span>
         ${f.reply ? `<b>你的回覆</b><span>${nl(f.reply)}</span>` : ''}${orig ? `<b>跟哪一則一樣</b><span>${esc(flagWho(orig))}：${esc(clipS(bugText(orig).did, 30))}</span>` : ''}</div>
+      ${suggHtml(f, canAct)}
       <div class="row" style="margin-top:8px">${z === 'pending'
         ? `<button class="px-btn gold sm" data-confirm="${esc(f.id)}" ${canAct ? '' : 'disabled'}>確認</button><button class="px-btn sm" data-dup="${esc(f.id)}" ${canAct ? '' : 'disabled'}>重複</button><button class="px-btn sm danger" data-reject="${esc(f.id)}" ${canAct ? '' : 'disabled'}>不採用</button>`
         : `<button class="px-btn sm" data-undo="${esc(f.id)}" ${canAct ? '' : 'disabled'}>${z === 'approved' ? '撤銷確認' : '退回待審核'}</button>`}
@@ -74,22 +91,14 @@ export default async function mount(el, ctx) {
   const mailDoc = (f, title, body, items) => { const now = Date.now(); return { aud: ['id:' + f.docId], title, body: clipS(body, 200), items, from: '老師', sendAt: now, expireAt: 0, t: now, src: 'bug' }; };
   const replyLine = r => r ? `\n老師說：${r}` : '';
 
-  const doConfirm = guard(async id => {
-    const f = flags.find(x => x.id === id); if (!f) return;
+  /* commit* 只負責寫（flag＋bugboard＋信，同一個 batch），不跳視窗、不重畫：
+     單則審核（視窗按確認之後）與「全部採用建議」都呼叫它們。已經算過的回報在這裡「用剛讀到的最新資料」判斷，重按不會重複加分 */
+  const commitConfirm = async (f, sevIn, replyIn) => {
     const cur = await freshBoard(f.docId), rs0 = Array.isArray(cur.reports) ? cur.reports : [], notes = (await freshPriv(f.docId)).notes;
     const already = rs0.find(r => r && r.id === f.id && r.st === 'approved');
     const before = approvedCount(rs0.filter(r => r.id !== f.id)), coins = before < BUG_REWARD_MAX;
-    let box;
-    const r = await modal({ title: `確認這則回報（${flagWho(f)}）`, sticky: true, buttons: [{ id: 'no', label: '取消' }, { id: 'ok', label: '確認並寄獎勵', cls: 'gold' }], onOpen: b => { box = b; },
-      html: `<div class="kv"><b>做了什麼</b><span>${nl(bugText(f).did)}</span><b>錯誤狀況</b><span>${nl(bugText(f).what)}</span></div>
-        ${already ? '<div class="note bad">這則已經確認過、分數算過了。按確認只會補寫回報狀態，分數和信都不會動。</div>' : ''}
-        <div style="margin-top:8px"><b>嚴重度</b><div class="row" data-sev>${[1, 2, 3].map(v => `<label class="chk"><input type="radio" name="sev" value="${v}" ${v === clampSev(already ? already.sev : 1) ? 'checked' : ''}> ${SEV_NAME[v]}（${v} 分）</label>`).join('')}</div></div>
-        <div style="margin-top:8px"><b>回覆（可以不寫）</b><input class="inp" data-reply maxlength="60" style="width:100%" placeholder="一句話，例如：謝謝你，這個問題我修好了">
-          <div class="warn" data-replywarn style="font-size:.9em">回覆所有同學都可能看到，不要寫名字。（另外會寄一封信給他本人。）</div></div>
-        <div class="note" data-mailinfo>${already ? '' : coins ? `會寄信：🪙 字元 ×${BUG_COINS}（這位學生的第 ${before + 1} 個，前 ${BUG_REWARD_MAX} 個有字元）` : `會寄感謝信，沒有字元（這位學生已經有 ${before} 個被確認，超過 ${BUG_REWARD_MAX} 個只寄感謝）`}</div>` });
-    if (r !== 'ok') return;
-    /* 已經算過的回報（兩個分頁同時按、畫面沒更新）：只補寫 flag 的狀態，分數、信都不動，所以重按不會重複加分 */
-    const sev = already ? clampSev(already.sev) : clampSev($('input[name="sev"]:checked', box).value), reply = already ? String(already.reply || '') : $('[data-reply]', box).value.trim();
+    /* 已經算過的回報（兩個分頁同時按、畫面沒更新）：只補寫 flag 的狀態，分數、信都不動 */
+    const sev = already ? clampSev(already.sev) : clampSev(sevIn), reply = already ? String(already.reply || '') : replyIn;
     const b = writeBatch(db);
     flagWrite(b, f, { status: 'approved', sev, reply, dupOf: deleteField() });
     if (!already) {
@@ -100,20 +109,11 @@ export default async function mount(el, ctx) {
     }
     await log('確認回報', f.id, `${flagWho(f)}：嚴重度${SEV_NAME[sev]}${already ? '（補寫，沒有重複加分）' : coins ? `，寄 ${BUG_COINS} 字元` : '，只寄感謝'}`, b);
     await b.commit();
-    await refresh(); paintAll(); toast(already ? '已補寫（沒有重複加分）' : `已確認，加 ${sev} 分，獎勵信寄出了`);
-  });
-
-  const doDup = guard(async id => {
-    const f = flags.find(x => x.id === id); if (!f) return;
-    const others = bugs().filter(x => x.id !== f.id).sort((a, b) => (zoneOf(a) === 'approved' ? 0 : 1) - (zoneOf(b) === 'approved' ? 0 : 1) || (a.t || 0) - (b.t || 0));
-    if (!others.length) { toast('沒有其他回報可以比對', true); return; }
-    let box;
-    const r = await modal({ title: `標成重複（${flagWho(f)}）`, sticky: true, buttons: [{ id: 'no', label: '取消' }, { id: 'ok', label: '標成重複', cls: 'gold' }], onOpen: b => { box = b; },
-      html: `<div class="kv"><b>這則</b><span>${esc(clipS(bugText(f).did, 40))}／${esc(clipS(bugText(f).what, 40))}</span></div>
-        <div style="margin-top:8px"><b>跟哪一則一樣？</b><select class="inp" data-dupof style="width:100%">${others.map(o => `<option value="${esc(o.id)}">${zoneOf(o) === 'approved' ? '✓ ' : ''}${esc(flagWho(o))}：${esc(clipS(bugText(o).did, 24))}</option>`).join('')}</select></div>
-        <div class="note">不加分，但會寄一封<b>感謝信</b>（沒有字元）。第一個回報的人才算分。</div>` });
-    if (r !== 'ok') return;
-    const dupOf = $('[data-dupof]', box).value, cur = await freshBoard(f.docId), rs0 = Array.isArray(cur.reports) ? cur.reports : [], notes = (await freshPriv(f.docId)).notes;
+    dropSugg(f.id); sugg = loadSugg();
+    return { already: !!already, sev };
+  };
+  const commitDup = async (f, dupOf) => {
+    const cur = await freshBoard(f.docId), rs0 = Array.isArray(cur.reports) ? cur.reports : [], notes = (await freshPriv(f.docId)).notes;
     const entry = { id: f.id, st: 'dup', sev: 0, reply: '', t: f.t || 0 };
     const b = writeBatch(db);
     flagWrite(b, f, { status: 'dup', dupOf, sev: deleteField() });
@@ -121,18 +121,10 @@ export default async function mount(el, ctx) {
     if (!(await mailExists('bug_' + f.id))) b.set(doc(db, 'mg_mail', 'bug_' + f.id), mailDoc(f, MAIL_BUG_TITLE, '你發現的問題，已經有同學先回報了。謝謝你也發現它！', []));
     await log('回報標成重複', f.id, `${flagWho(f)}：跟 ${dupOf} 一樣，不加分，寄感謝信`, b);
     await b.commit();
-    await refresh(); paintAll(); toast('已標成重複，寄了感謝信');
-  });
-
-  const doReject = guard(async id => {
-    const f = flags.find(x => x.id === id); if (!f) return;
-    let box;
-    const r = await modal({ title: `不採用這則回報（${flagWho(f)}）`, sticky: true, buttons: [{ id: 'no', label: '取消' }, { id: 'ok', label: '不採用', cls: 'danger' }], onOpen: b => { box = b; },
-      html: `<div class="kv"><b>做了什麼</b><span>${nl(bugText(f).did)}</span><b>錯誤狀況</b><span>${nl(bugText(f).what)}</span></div>
-        <div style="margin-top:8px"><b>回覆（學生在「我的回報」會看到）</b><input class="inp" data-reply maxlength="60" style="width:100%" placeholder="一句話，例如：這是設計成這樣的">
-          <div class="warn" data-replywarn style="font-size:.9em">回覆所有同學都可能看到，不要寫名字。有寫回覆的話，也會寄一封信給他本人。</div></div>` });
-    if (r !== 'ok') return;
-    const reply = $('[data-reply]', box).value.trim(), cur = await freshBoard(f.docId), rs0 = Array.isArray(cur.reports) ? cur.reports : [], notes = (await freshPriv(f.docId)).notes;
+    dropSugg(f.id); sugg = loadSugg();
+  };
+  const commitReject = async (f, reply) => {
+    const cur = await freshBoard(f.docId), rs0 = Array.isArray(cur.reports) ? cur.reports : [], notes = (await freshPriv(f.docId)).notes;
     const b = writeBatch(db);
     flagWrite(b, f, { status: 'rejected', reply, sev: deleteField(), dupOf: deleteField() });
     b.set(doc(db, 'mg_bugboard', f.docId), boardPatch(f.docId, f, cur, putReport(rs0, { id: f.id, st: 'rejected', sev: 0, reply, t: f.t || 0 }), null, notes), { merge: true });
@@ -140,7 +132,90 @@ export default async function mount(el, ctx) {
     if (reply && !(await mailExists('bugr_' + f.id))) b.set(doc(db, 'mg_mail', 'bugr_' + f.id), mailDoc(f, MAIL_BUG_TITLE, '這次沒有採用，謝謝你回報。' + replyLine(reply), []));
     await log('不採用回報', f.id, `${flagWho(f)}${reply ? '：' + reply : ''}`, b);
     await b.commit();
+    dropSugg(f.id); sugg = loadSugg();
+  };
+  const preNote = pre => pre ? '<div class="note" data-prefilled style="margin:0 0 8px">🤖 已經照 Claude 的建議填好了，不一定對，可以改。按下面的按鈕才會真的寫入。</div>' : '';
+
+  /* pre＝Claude 的建議（可省略）：只預填，不寫入 */
+  const doConfirm = guard(async (id, pre) => {
+    const f = flags.find(x => x.id === id); if (!f) return;
+    const cur = await freshBoard(f.docId), rs0 = Array.isArray(cur.reports) ? cur.reports : [];
+    const already = rs0.find(r => r && r.id === f.id && r.st === 'approved');
+    const before = approvedCount(rs0.filter(r => r.id !== f.id)), coins = before < BUG_REWARD_MAX;
+    let box;
+    const r = await modal({ title: `確認這則回報（${flagWho(f)}）`, sticky: true, buttons: [{ id: 'no', label: '取消' }, { id: 'ok', label: '確認並寄獎勵', cls: 'gold' }], onOpen: b => { box = b; },
+      html: `${preNote(pre)}<div class="kv"><b>做了什麼</b><span>${nl(bugText(f).did)}</span><b>錯誤狀況</b><span>${nl(bugText(f).what)}</span></div>
+        ${already ? '<div class="note bad">這則已經確認過、分數算過了。按確認只會補寫回報狀態，分數和信都不會動。</div>' : ''}
+        <div style="margin-top:8px"><b>嚴重度</b><div class="row" data-sev>${[1, 2, 3].map(v => `<label class="chk"><input type="radio" name="sev" value="${v}" ${v === clampSev(already ? already.sev : pre ? pre.sev : 1) ? 'checked' : ''}> ${SEV_NAME[v]}（${v} 分）</label>`).join('')}</div></div>
+        <div style="margin-top:8px"><b>回覆（可以不寫）</b><input class="inp" data-reply maxlength="60" style="width:100%" value="${esc(pre && pre.reply || '')}" placeholder="一句話，例如：謝謝你，這個問題我修好了">
+          <div class="warn" data-replywarn style="font-size:.9em">回覆所有同學都可能看到，不要寫名字。（另外會寄一封信給他本人。）</div></div>
+        <div class="note" data-mailinfo>${already ? '' : coins ? `會寄信：🪙 字元 ×${BUG_COINS}（這位學生的第 ${before + 1} 個，前 ${BUG_REWARD_MAX} 個有字元）` : `會寄感謝信，沒有字元（這位學生已經有 ${before} 個被確認，超過 ${BUG_REWARD_MAX} 個只寄感謝）`}</div>` });
+    if (r !== 'ok') return;
+    const res = await commitConfirm(f, $('input[name="sev"]:checked', box).value, $('[data-reply]', box).value.trim());
+    await refresh(); paintAll(); toast(res.already ? '已補寫（沒有重複加分）' : `已確認，加 ${res.sev} 分，獎勵信寄出了`);
+  });
+
+  const doDup = guard(async (id, pre) => {
+    const f = flags.find(x => x.id === id); if (!f) return;
+    const others = bugs().filter(x => x.id !== f.id).sort((a, b) => (zoneOf(a) === 'approved' ? 0 : 1) - (zoneOf(b) === 'approved' ? 0 : 1) || (a.t || 0) - (b.t || 0));
+    if (!others.length) { toast('沒有其他回報可以比對', true); return; }
+    let box;
+    const r = await modal({ title: `標成重複（${flagWho(f)}）`, sticky: true, buttons: [{ id: 'no', label: '取消' }, { id: 'ok', label: '標成重複', cls: 'gold' }], onOpen: b => { box = b; },
+      html: `${preNote(pre)}<div class="kv"><b>這則</b><span>${esc(clipS(bugText(f).did, 40))}／${esc(clipS(bugText(f).what, 40))}</span></div>
+        <div style="margin-top:8px"><b>跟哪一則一樣？</b><select class="inp" data-dupof style="width:100%">${others.map(o => `<option value="${esc(o.id)}" ${pre && pre.dupOf === o.id ? 'selected' : ''}>${zoneOf(o) === 'approved' ? '✓ ' : ''}${esc(flagWho(o))}：${esc(clipS(bugText(o).did, 24))}</option>`).join('')}</select></div>
+        <div class="note">不加分，但會寄一封<b>感謝信</b>（沒有字元）。第一個回報的人才算分。</div>` });
+    if (r !== 'ok') return;
+    await commitDup(f, $('[data-dupof]', box).value);
+    await refresh(); paintAll(); toast('已標成重複，寄了感謝信');
+  });
+
+  const doReject = guard(async (id, pre) => {
+    const f = flags.find(x => x.id === id); if (!f) return;
+    let box;
+    const r = await modal({ title: `不採用這則回報（${flagWho(f)}）`, sticky: true, buttons: [{ id: 'no', label: '取消' }, { id: 'ok', label: '不採用', cls: 'danger' }], onOpen: b => { box = b; },
+      html: `${preNote(pre)}<div class="kv"><b>做了什麼</b><span>${nl(bugText(f).did)}</span><b>錯誤狀況</b><span>${nl(bugText(f).what)}</span></div>
+        <div style="margin-top:8px"><b>回覆（學生在「我的回報」會看到）</b><input class="inp" data-reply maxlength="60" style="width:100%" value="${esc(pre && pre.reply || '')}" placeholder="一句話，例如：這是設計成這樣的">
+          <div class="warn" data-replywarn style="font-size:.9em">回覆所有同學都可能看到，不要寫名字。有寫回覆的話，也會寄一封信給他本人。</div></div>` });
+    if (r !== 'ok') return;
+    await commitReject(f, $('[data-reply]', box).value.trim());
     await refresh(); paintAll(); toast('已標成不採用');
+  });
+
+  /* ── Claude 的建議：採用（預填視窗）與全部採用 ── */
+  const useSugg = id => {
+    const s = sugg[id]; if (!s) return;
+    return s.verdict === 'approve' ? doConfirm(id, s) : s.verdict === 'dup' ? doDup(id, s) : doReject(id, s);
+  };
+  const doApplyAll = guard(async () => {
+    await refresh(); sugg = loadSugg();   // 先讀最新的狀態：別的分頁已經審過的就不要再動
+    const plan = planBulk(Object.keys(sugg).map(k => Object.assign({ flagId: k }, sugg[k])), flags, board, BUG_REWARD_MAX);
+    paintAll();
+    if (!plan.items.length) { toast('沒有可以採用的建議（都已經審過，或對象有問題）', true); return; }
+    const c = plan.counts, who = id => { const f = flags.find(x => x.id === id); return f ? flagWho(f) : id; };
+    const stu = plan.students.filter(s => s.to !== s.from).sort((a, b) => (b.to - b.from) - (a.to - a.from));
+    const replies = plan.items.filter(i => i.verdict !== 'dup' && i.reply);
+    const ok = await ask('全部採用 Claude 的建議？', `<p>會一次處理 <b>${plan.items.length}</b> 則待審回報：確認 ${c.approve}、重複 ${c.dup}、不採用 ${c.reject}。</p>
+      <div class="note" data-bulk-sum><b>抓蟲分總共 ${plan.delta >= 0 ? '+' : ''}${plan.delta} 分</b>，涉及 ${plan.students.length} 位同學。會寄信：有字元的獎勵信 ${plan.coinMails} 封、只有感謝的 ${plan.thanksMails} 封、不採用附回覆的 ${plan.replyMails} 封。</div>
+      ${stu.length ? `<ul data-bulk-stu style="margin:4px 0;padding-left:1.2em">${stu.slice(0, 8).map(s => `<li>${esc(label(s.docId))}：${s.from} → ${s.to} 分（${s.to - s.from >= 0 ? '+' : ''}${s.to - s.from}）</li>`).join('')}${stu.length > 8 ? `<li class="dim">還有 ${stu.length - 8} 位…</li>` : ''}</ul>` : ''}
+      ${replies.length ? `<details data-bulk-replies><summary>要寫給學生的回覆（${replies.length} 則，所有同學都可能看到）</summary><ul style="margin:4px 0;padding-left:1.2em">${replies.slice(0, 20).map(i => `<li>${esc(i.reply)}</li>`).join('')}</ul></details>` : ''}
+      ${plan.skips.length ? `<p class="warn" data-bulk-skip>略過 ${plan.skips.length} 則（請個別處理）：${plan.skips.slice(0, 5).map(s => esc(who(s.flagId) + '：' + s.reason)).join('；')}</p>` : ''}
+      <p class="warn">寄出的信不能收回。回覆是 Claude 建議的話，請確認裡面沒有名字。</p>`, '全部採用並寫入', '先不要', true);
+    if (!ok) return;
+    let done = 0;
+    try {
+      for (const it of plan.items) {
+        const f = flags.find(x => x.id === it.flagId);
+        if (it.verdict === 'approve') await commitConfirm(f, it.sev, it.reply || '');
+        else if (it.verdict === 'dup') await commitDup(f, it.dupOf);
+        else await commitReject(f, it.reply || '');
+        done++;
+      }
+    } catch (e) {
+      /* 中途斷掉：已經寫完的不會重複（每則是固定 ID、分數重算），重新按一次會從沒處理的接著做 */
+      await refresh(); paintAll(); toast(`做到一半停了（已完成 ${done} 則，還有 ${plan.items.length - done} 則沒處理）：${errText(e)}`, true); console.error(e); return;
+    }
+    await log('採用建議', 'bugs', `全部採用 Claude 的建議 ${done} 則：確認 ${c.approve}、重複 ${c.dup}、不採用 ${c.reject}；抓蟲分 ${plan.delta >= 0 ? '+' : ''}${plan.delta}`);
+    await refresh(); paintAll(); toast(`已處理 ${done} 則，抓蟲分 ${plan.delta >= 0 ? '+' : ''}${plan.delta}`);
   });
 
   const doUndo = guard(async id => {
@@ -269,6 +344,8 @@ export default async function mount(el, ctx) {
     if ((b = q('[data-dup]'))) return doDup(b.dataset.dup);
     if ((b = q('[data-reject]'))) return doReject(b.dataset.reject);
     if ((b = q('[data-undo]'))) return doUndo(b.dataset.undo);
+    if ((b = q('[data-usesugg]'))) return useSugg(b.dataset.usesugg);
+    if ((b = q('[data-dropsugg]'))) { dropSugg(b.dataset.dropsugg); sugg = loadSugg(); paintAll(); return; }
     if ((b = q('[data-detail]'))) { openId = openId === b.dataset.detail ? '' : b.dataset.detail; paintBoard(); return; }
     if ((b = q('[data-hide]'))) return doHide(b.dataset.hide);
     if ((b = q('[data-king]'))) return doKing(b.dataset.king);
@@ -280,6 +357,20 @@ export default async function mount(el, ctx) {
       ctx.go('mail', { aud: top.map(r => 'id:' + r.id), title: '抓蟲大作戰獎勵', body: '謝謝你幫忙抓蟲，你是抓蟲榜前幾名！', items: [] });
     }
   });
-  const paintAll = () => { paintReports(); paintBoard(); };
+  const paintAll = () => { paintReports(); paintBoard(); exp.repaint(); };
+  /* 狀態一律用「現在讀到的 flags」判斷，不是匯出當時的：匯出之後別的分頁審過的，建議就不收 */
+  const exp = mountBugExport($('[data-bugexp]', el), {
+    esc, ask, log, toast, getFlags: () => flags, getBoard: () => board,
+    getNames: () => scores.map(s => s.name).filter(Boolean),
+    statusOf: id => { const f = flags.find(x => x.id === id); return f && f.type === 'bug' ? zoneOf(f) : null; },
+    pendingSuggCount: () => bugs().filter(f => zoneOf(f) === 'pending' && sugg[f.id]).length,
+    onImport: acc => { const cur = Object.assign({}, loadSugg()); acc.forEach(a => { cur[a.flagId] = { rid: a.rid, verdict: a.verdict, sev: a.sev, dupOf: a.dupOf, note: a.note, reply: a.reply }; }); saveSugg(cur); sugg = cur; paintReports(); },
+    onClear: () => { clearSugg(); sugg = {}; paintReports(); },
+    applyAll: doApplyAll,
+    appVersion: () => appVersion
+  });
+  /* 版本號在遊戲本體 index.html，抓不到就寫「?」不擋匯出 */
+  let appVersion = '?';
+  fetch('index.html').then(r => r.text()).then(t => { const m = /const APP_VERSION\s*=\s*'([^']+)'/.exec(t); if (m) appVersion = m[1]; }).catch(() => {});
   paintAll();
 }
