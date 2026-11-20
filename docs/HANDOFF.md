@@ -1,12 +1,14 @@
 # 交接：目前進度與下一步
 
-> 更新：2026-11-19　開發分支：`claude/gracious-pasteur-773n2t`（v3.14.1：暱稱改成登入名字，見 CHANGELOG；v3.14.0 已上線）
+> 更新：2026-11-20　開發分支：`claude/gracious-pasteur-773n2t`（v3.14.2：活動詳情頁、常駐抓蟲大作戰、排行榜模板、老師頁頒稱號與匯出，見 CHANGELOG；v3.14.0、v3.14.1 已上線）
 > **分段開放表在 [`RELEASE-STAGES.md`](RELEASE-STAGES.md)**：現在只開討伐看板、武器背包、稱號（榮譽碑等到防作弊做完才開）。
 > `main` 在 `9df6109`（委託板、房間、國字判定、姿態條都已合併）；之後的「稱號＋榮譽碑排行」在分支上，**還沒合併到 main，要老師點頭**。
 
 ## 現在在哪裡
 
 > **2026-11-17：v3.14.0（教師管理頁、信箱、暱稱與改名卡、活動、佈告欄與抓蟲榜、村莊延伸、正式 Firestore 規則）程式與測試都做好了，在分支 `claude/gracious-pasteur-773n2t`，等老師照 [`LAUNCH-TEACHER.md`](LAUNCH-TEACHER.md) 一次上線**。規格 [`SPEC-TEACHER-ADMIN.md`](SPEC-TEACHER-ADMIN.md)（已實作，§13 記了跟規格不同的地方）、完整紀錄 [`../CHANGELOG.md`](../CHANGELOG.md)。下面「v3.14.0 各系統怎麼接」是接手必讀。
+
+> **2026-11-20：v3.14.2 在分支上準備好了（等老師推上 main）**：活動詳情頁、常駐「🐛 抓蟲大作戰」、通用排行榜模板、信箱禮物改 `REWARD` 表、老師頁「頒稱號」「給東西」「匯出打字速度（匿名）」。**第 2 段（榮譽碑、鐵匠鋪＋倉庫）的規格已寫好（[`SPEC-STAGE2.md`](SPEC-STAGE2.md) v2），還沒實作**，等老師決定 §8 的 6 個問題。下面「v3.14.2 各系統怎麼接」是接手必讀。
 
 > 想加入的內容（寵物、轉蛋、造型衣服等）見 [`IDEAS-FUTURE.md`](IDEAS-FUTURE.md)；那只是點子池，沒有一項是承諾。
 
@@ -17,6 +19,40 @@
 | 第 0 段：戰績分防亂打、天賦發亮 | **完成，v3.3.0** | `index.html`，見 [`../CHANGELOG.md`](../CHANGELOG.md) |
 | 新世界預告＋提名投票頁 | **完成，v3.6.0（11 個關鍵字、16 頁、不捲動；投票有三步驟說明）** | `nw-preview.js`（頁面資料、投票）、`index.html` 的 `#nw-modal` 與 `.nwp-*` 樣式，見 [`../CHANGELOG.md`](../CHANGELOG.md) |
 | 第 1 段：獵人村開幕 | **大部分完成（搶先體驗中，用通關密語進）**：獵人村、造型、4 把初心武器、委託板、房間（只能開、不能加入）、戰鬥、HR、稱號、榮譽碑排行 | `newworld.js`、`nw-*.js`、`pixel.js` |
+
+## v3.14.2 各系統怎麼接（2026-11-20）
+
+### 通用排行榜模板 `nw-rankboard.js`
+以後有「排名」的畫面（榮譽碑、活動、抓蟲榜…）一律用它畫，不要自己拼榜單的 HTML。`rankBoardHtml(spec)` 是純畫面；`mountRankBoard(容器, { load, toSpec, shell })` 接雲端（載入中、讀取失敗、重新整理）。**新增一種榜單要做的四件事**（檔頭有完整欄位說明）：
+1. **資料層**：寫 `load(force)`，回傳排好、已濾掉不合理分數、不含真名的列；`force` 要能略過快取。
+2. **`toSpec(data)`**：把資料對到 spec 欄位。`label` 用「班級短碼・座號」，`nick` 用榜上的名字；自己不在榜上就給 `outText`（「再快 3 秒就上榜」），**不要給名次**。
+3. **放容器**：畫面上放一個容器，呼叫 `mountRankBoard(...)` 再 `run(false)`。
+4. **測試**：有資料、空、載入中、讀取失敗四種畫面，榜外沒有名次文字，手機 390 寬不橫向捲動（照 `nw11.test.js` 的「模板」那幾段抄）。
+
+### 活動詳情頁與常駐抓蟲大作戰
+- 活動卡片點進詳情：規則（`ruleLines`）、獎勵（`awardList`）、我的進度、目前排名（前 10＋自己）；剛結束的顯示 `finalRows` 的最後榜單。純函式在 `nw-events.js`，教師頁預覽也用（`teacher/nw.js` 轉出）。
+- 「🐛 抓蟲大作戰」不是 `mg_events` 的文件，是程式固定放在活動分頁最上面；內容與「🐛 抓蟲榜」分頁同一份。徽章門檻 `BUG_MILESTONES` 在 `nw-notice.js`，要跟 `WORDS` 的 `bug1／3／5／10` 一起改。
+
+### 禮物清單怎麼擴充
+學生端 `newworld.js` 的 `REWARD` 表是唯一來源（`itemKnown`／`applyReward`／`itemLabel`）。新增禮物種類：
+1. `REWARD` 加一列（怎麼檢查欄位、怎麼領、標籤）。
+2. `teacher/gifts.js` 的 `GIFT_TYPES` 加一列（label 要跟學生端一樣；可帶 `big`／`bigNorm` 當「要再確認」的門檻）。
+3. 清單內容（稱號、武器、道具、材料、圖紙…）由資料表（`WORDS`、`GIFT_WEAPONS`、`ITEM_DEFS`、`MAT_INFO`…）自動產生，加資料就會出現，不用另外登記。
+4. 補測試：`t5.test.js` 會動態塞假資料進資料表，確認清單自動長出來。
+刻意不做的項目與原因見 [`research/TEACHER-GIVE-AUDIT.md`](research/TEACHER-GIVE-AUDIT.md)。
+
+### 匯出打字速度（匿名）與 `data-private/`
+- 教師頁 ⚙ 設定 →「📊 匯出打字速度（匿名）」（`teacher/export-speed.js`）：預覽 → 確認 → 下載 JSON／CSV。去識別化用**白名單**，不讀姓名、座號、班級名稱、docId、暱稱；改這支時不要改成黑名單。操作紀錄只寫人數。
+- 下載的檔案放 **`/data-private/`**（已在 `.gitignore`，**真實資料絕對不進 repo**）。轉成模擬器格式：`node tools/nw-sim/load-real.mjs data-private/typehero-speed-YYYYMMDD.json --out data-private/profiles.json`，再 `node tools/nw-sim/run.mjs data-private/profiles.json`（年級不明的人可加 `--unknown-as 五年級`）。測試只用假資料。
+
+### 平衡曲線與第 2 段規格（都還沒實作）
+| 文件 | 狀態 |
+|---|---|
+| [`BALANCE-CURVES.md`](BALANCE-CURVES.md) | **設計提案，還沒改程式**。曲線來源 `tools/nw-sim/curves.mjs`（`--real` 可換真實速度）。真實速度分布還沒拿到，匯出後重算；它的勝率不能和 SPEC-STAGE2 §3.4 的粗跑表直接比 |
+| [`SPEC-STAGE2.md`](SPEC-STAGE2.md) | **v2，待老師決定 §8 的 6 個問題，還沒開始寫程式**。2a 榮譽碑要等 2b 上線至少 4 週；防作弊先做 `keys`／`fast`／`sum`／`jump` |
+| [`research/BALANCE-REFS.md`](research/BALANCE-REFS.md) | 參考資料；來源只讀得到搜尋摘要，文中逐條標示 |
+
+開工第 2 段前，先把 BALANCE-CURVES §7 的對 SPEC-STAGE2 的修改建議與老師的決定合併回 SPEC-STAGE2。
 
 ## v3.14.0 各系統怎麼接（2026-11-17）
 

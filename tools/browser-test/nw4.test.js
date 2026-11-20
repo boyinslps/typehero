@@ -4,6 +4,7 @@ const path = require('path'); const M = path.join(__dirname, 'mock') + '/'; cons
 const css = require('./tw.js')(OUT);
 /* 最新一則改版公告的 id：發新公告時不用回來改測試（「已讀」的種子資料要等於它，不然會跳公告、冒「！」） */
 const NOTICE_ID = /export const NOTICES = \[\s*\{ id: '([^']+)'/.exec(fs.readFileSync(path.join(__dirname, '../../nw-data.js'), 'utf8'))[1];
+const NOTICE_TITLE = /export const NOTICES = \[\s*\{ id: '[^']+', date: '[^']+', title: '([^']+)'/.exec(fs.readFileSync(path.join(__dirname, '../../nw-data.js'), 'utf8'))[1];
 let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++; };
 const ID = '五年級3班_5號';
 
@@ -264,7 +265,7 @@ async function winHunt(p, rk, mk, star) {
   {
     const p = await open(b, { intro: true, lobby: true, nw: { nick: ['a_brave', 'b_slime'], nameSet: 1, quest: { done: ['1-0'] }, hunts: 3, intro: { hub: 1 } } });
     await p.click('#nw-door'); await p.waitForSelector('#nw-notice', { timeout: 6000 });
-    ok((await p.textContent('#nw-notice')).includes('名字固定了') && (await p.textContent('#nw-notice')).includes('只會跳一次') && (await p.textContent('#nw-notice')).includes('佈告欄'), '老玩家進新世界：跳出改版公告，說明只跳一次、想再看去佈告欄');
+    ok((await p.textContent('#nw-notice')).includes(NOTICE_TITLE) && (await p.textContent('#nw-notice')).includes('只會跳一次') && (await p.textContent('#nw-notice')).includes('佈告欄'), '老玩家進新世界：跳出改版公告，說明只跳一次、想再看去佈告欄');
     await p.screenshot({ path: OUT + '/nw4-notice.png' });
     await p.click('#nw-notice [data-close]'); await p.waitForTimeout(400);
     await p.click('[data-act="leave"]'); await p.waitForTimeout(600);
