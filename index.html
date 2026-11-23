@@ -7441,6 +7441,9 @@ function wireEvents() {
     $, show, toast, escHtml, ME, db, doc, getDoc, setDoc, deleteDoc, collection, getDocs, query, where, documentId, increment, REF, withTimeout, gotoLobby,
     orderBy, limit, getCountFromServer, serverTimestamp, adminDb: ensureAdmin,
     online: () => ONLINE,
+    /* 每場紀錄（mg_nw_runs）要帶匿名登入的 uid 與程式版本 */
+    uid: () => (auth.currentUser && auth.currentUser.uid) || '',
+    appVersion: APP_VERSION,
     /* 用改名卡改名後：登入畫面下次帶出新名字，本機成績也跟著改 */
     onRename: n => {
       try { const m = JSON.parse(localStorage.getItem('mg_me') || '{}'); m.name = n; localStorage.setItem('mg_me', JSON.stringify(m)); } catch (e) {}

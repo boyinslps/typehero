@@ -89,21 +89,43 @@ service cloud.firestore {
       }
     }
 
-    // ── 排行的場次紀錄：學生只能新增，老師全部 ──
+    // ── 狩獵的場次紀錄（2b 開始寫，2a 榮譽碑才讀；docs/SPEC-STAGE2.md §2.6）──
+    // 每場一筆，ID＝「文件ID_毫秒」。學生只能新增：
+    //  · 不能 update／delete：不然可以把舊紀錄的 ts 刷成最近、灌進步榜。同一個 ID 重送會被擋（permission-denied），
+    //    程式把它當成「已經寫進去了」。
+    //  · 不能讀：每題的時間不必讓同學看到；榜單由老師端彙總成 mg_nw_board 給學生讀。
+    //  · ts 必須是伺服器時間；分週、分「兩週以前／最近兩週」一律用它，改電腦時間塞不了舊紀錄。
     match /mg_nw_runs/{run} {
-      allow read: if signedIn();
-      allow create: if signedIn();
+      allow read: if isTeacher();
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['id', 'cls', 'seat', 'uid', 't', 'ts', 'v', 'app', 'mk', 'rk', 'star', 'lv', 'qb', 'res',
+             'secs', 'acc', 'ans', 'cor', 'typ', 'keys', 'nokey', 'act', 'cpm', 'fl', 'sus', 'w', 'atk', 'pw', 'tier', 'q'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.ts == request.time
+        && run.matches(request.resource.data.id + '_[0-9]+')
+        && request.resource.data.secs is number && request.resource.data.secs >= 0 && request.resource.data.secs <= 310
+        && request.resource.data.acc is number && request.resource.data.acc >= 0 && request.resource.data.acc <= 1
+        && request.resource.data.star is int && request.resource.data.star >= 1 && request.resource.data.star <= 5
+        // q 是平的數字陣列，每 4 個一題 [字數, 按鍵, 毫秒, 打對]，最多 120 題（Firestore 不能存陣列裡的陣列）
+        && request.resource.data.q is list && request.resource.data.q.size() <= 480 && request.resource.data.q.size() % 4 == 0
+        && request.resource.data.sus is list && request.resource.data.sus.size() <= 4;
       allow update, delete: if isTeacher();
     }
+
+    // ── 榮譽碑榜單（2a）：老師端彙總後寫，學生只讀；累積狀態與「先不上榜」名單只有老師看得到 ──
+    match /mg_nw_board/{doc} { allow read: if signedIn(); allow write: if isTeacher(); }
+    match /mg_nw_board_private/{doc} { allow read, write: if isTeacher(); }
 
     // ── 回報、回饋、換名紀錄：裡面有學生真名，只有老師能讀 ──
     match /mg_nw_flags/{flag} {
       // 老師頒獎、搬移舊資料也要能 create，所以老師不受下面的欄位限制
       allow create: if isTeacher() || (request.auth != null
-        && request.resource.data.type in ['bug', 'feedback', 'namechg']
+        && request.resource.data.type in ['bug', 'feedback', 'namechg', 'run']
         && request.resource.data.get('status', 'pending') == 'pending'
         && request.resource.data.keys().hasOnly(['type', 'status', 'docId', 'cat', 'text', 'did', 'what', 'view',
-             'mk', 'mon', 'star', 'rate', 'cls', 'seat', 'name', 'oldName', 't'])
+             'mk', 'mon', 'star', 'rate', 'cls', 'seat', 'name', 'oldName', 't', 'runId', 'why'])
+        && request.resource.data.get('runId', '').size() <= 80
+        && request.resource.data.get('why', []).size() <= 4
         && request.resource.data.get('text', '').size() <= 400
         && request.resource.data.get('did', '').size() <= 200
         && request.resource.data.get('what', '').size() <= 200);

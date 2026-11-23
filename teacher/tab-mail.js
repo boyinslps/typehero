@@ -4,7 +4,7 @@
 import { db, doc, setDoc, deleteDoc } from './fb.js';
 import { loadScores, loadMails, invalidate, audRecipients, audText } from './data.js';
 import { clsShort, toMs } from './nw.js';
-import { GIFT_TYPES, giftType, newItem, itemLabel, itemError, optionsHtml, filterOpts, hintText } from './gifts.js';
+import { GIFT_TYPES, giftType, newItem, itemLabel, itemError, optionsHtml, filterOpts, hintText, fixGear, gearFieldsHtml } from './gifts.js';
 import { $, $$, esc, uid, fmtT, fromInput, log, modal, ask, toast, errText, confirmBig, previewMail, mailCardHtml, mailSummary, matchStudent, helpBox } from './util.js';
 
 const SRC = [['', '全部來源'], ['manual', '手動寄的'], ['event', '活動獎勵'], ['bug', '回報獎勵'], ['award', '頒獎']];
@@ -74,7 +74,7 @@ export default async function mount(el, ctx, params) {
       const q = gq[i] || '', opts = filterOpts(all, q), cur = all.find(o => o.value === it.key);
       /* 搜尋後沒有目前選的那個，也要留著它，不然下拉會偷偷換成別的 */
       const shown = cur && !opts.includes(cur) ? [cur].concat(opts) : opts;
-      sel = `${g.search && all.length > 6 ? `<input class="inp" type="search" data-gq="${i}" value="${esc(q)}" placeholder="搜尋…" style="width:120px" aria-label="搜尋${esc(g.label)}">` : ''}<select class="inp" data-key="${i}">${optionsHtml(g, shown, it.key, esc)}</select>`;
+      sel = `${g.search && all.length > 6 ? `<input class="inp" type="search" data-gq="${i}" value="${esc(q)}" placeholder="搜尋…" style="width:120px" aria-label="搜尋${esc(g.label)}">` : ''}<select class="inp" data-key="${i}">${optionsHtml(g, shown, it.key, esc)}</select>${g.gear ? gearFieldsHtml(it, i, 'data-gc', 'data-gp', esc) : ''}`;
     }
     const hint = hintText(it);
     return `<div class="gift-row" data-grow="${i}"><select class="inp" data-type="${i}">${GIFT_TYPES.map(x => `<option value="${x.type}" ${x.type === it.type ? 'selected' : ''}>${x.label}</option>`).join('')}</select>${sel}
@@ -125,7 +125,9 @@ export default async function mount(el, ctx, params) {
     else if (t.matches('[data-cls]')) { t.checked ? st.cls.add(t.dataset.cls) : st.cls.delete(t.dataset.cls); }
     else if (t.matches('[data-addgift]')) { if (t.value) { st.items.push(newItem(t.value)); paintForm(); } }
     else if (t.matches('[data-type]')) { const i = +t.dataset.type; st.items[i] = newItem(t.value); delete gq[i]; paintForm(); }
-    else if (t.matches('[data-key]')) { const i = +t.dataset.key; st.items[i].key = t.value; const h = $(`[data-hint="${i}"]`, el); if (h) h.textContent = hintText(st.items[i]); }
+    else if (t.matches('[data-key]')) { const i = +t.dataset.key; st.items[i].key = t.value; if (st.items[i].type === 'gear') { fixGear(st.items[i]); paintForm(); } const h = $(`[data-hint="${i}"]`, el); if (h) h.textContent = hintText(st.items[i]); }
+    else if (t.matches('[data-gc]')) st.items[+t.dataset.gc].c = t.value;
+    else if (t.matches('[data-gp]')) st.items[+t.dataset.gp].p = +t.value;
     else if (t.matches('[data-src]')) { srcFilter = t.value; paintSent(); return; }
     else return;
     paintPreview();

@@ -1,4 +1,4 @@
-import { BAL, TIERS, MONSTERS, GIFT_WEAPONS, weaponBase, curWeapon, hpPlayersMul, ATTACKS_OPEN, MAX_CHARS, CHANT_MAX, SHORT_CHANTS, regionLv, monMaxHp, monDmg, atkInterval, castTime, STATUS } from './nw-data.js';
+import { BAL, TIERS, MONSTERS, GIFT_WEAPONS, weaponBase, curWeapon, hpPlayersMul, ATTACKS_OPEN, LANE_W, gearStats, gearMul, RANK_MIN_ACC, SUS, qBand, MAX_CHARS, CHANT_MAX, SHORT_CHANTS, regionLv, monMaxHp, monDmg, atkInterval, castTime, STATUS } from './nw-data.js';
 
 const CSS = `
 #nwb-root{position:fixed;inset:0;z-index:70;display:flex;flex-direction:column;background:#000;color:var(--ink);font-size:clamp(13px,1.5vmin + 7px,21px);font-weight:700}
@@ -51,7 +51,6 @@ const CSS = `
 
 const TIER_KEYS = ['normal', 'fine', 'epic', 'legend'];
 const LANE_C = [27, 80, 133];
-const LANE_W = { A: 3.0, B: 2.5, C: 2.2, D: 2.0 };
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const rnd = arr => arr[Math.floor(Math.random() * arr.length)];
 
@@ -62,6 +61,8 @@ export function startBattle(env, cfg, done) {
   const lv = regionLv(cfg.rk, cfg.star);
   const tier = env.tier();
   const wkey = curWeapon(NW) || 'staff', weapon = weaponBase(wkey), wmod = GIFT_WEAPONS[wkey] || null, CE = (wmod && wmod.chantEvery) || BAL.chantEvery;
+  /* 裝備（2b）：攻擊力、屬性、生命、減傷、舉盾秒數、紅線預警。測試在 localhost 可以用 window.__NW_GEAR__ 直接指定（gearStats 的格式） */
+  const GS = (location.hostname === 'localhost' && window.__NW_GEAR__) || gearStats(NW);
   const mode = 'hanzi';
   const enabled = (location.hostname === 'localhost' && window.__NW_ATTACKS__) || ATTACKS_OPEN[cfg.mk] || [];
   const nowS = () => performance.now() / 1000;
@@ -133,11 +134,12 @@ export function startBattle(env, cfg, done) {
   const T0 = nowS();
   const S = {
     over: false, T0, mon: { hp: monMaxHp(cfg.mk, lv, tier, cfg.players || 1), max: monMaxHp(cfg.mk, lv, undefined, cfg.players || 1), angry: false, flashUntil: 0, lungeAt: -9 },
-    me: { hp: BAL.playerHp, max: BAL.playerHp, down: false, downUntil: 0, downs: 0, hitAt: -9, x: 0, atkAt: -9 },
+    me: { hp: BAL.playerHp + GS.hp, max: BAL.playerHp + GS.hp, down: false, downUntil: 0, downs: 0, hitAt: -9, x: 0, atkAt: -9 },
     st: { burn: 0, poison: [], ice: 0, lastTick: T0 },
     cast: null, nextCast: T0 + 6, lane: 1, hx: LANE_C[1] - 2, shieldUntil: 0, laneFlash: [],
     q: null, units: [], qAt: 0, qCount: 0, lastT: '', composing: false, committed: '',
     combo: 0, maxCombo: 0, typed: 0, correct: 0, answered: 0, perfect: 0,
+    keys: 0, qKeys: 0, qLog: [],
     gauge: 0, sharp: 0, mag: 0,
     dodgeOk: 0, dodgeAll: 0, defOk: 0, defAll: 0,
     flags: { fast: 0, paste: 0, wrong: 0 }, fx: [], hits: [], volley: null, bubUntil: 0, sporeUntil: 0, lastUi: 0
@@ -187,7 +189,7 @@ export function startBattle(env, cfg, done) {
     S.units = C.q.questionUnits(S.q, mode);
     renderUnits();
     S.qAt = nowS();
-    inp.value = ''; S.committed = '';
+    inp.value = ''; S.committed = ''; S.qKeys = 0;
     inp.style.fontSize = clamp(Math.floor(((inp.clientWidth || 600) - 40) / Math.max(1, S.units.length)), 16, 30) + 'px';
     if (S.q.sp === 'chant') banner('✨ 詠唱！全部打對傷害變 3 倍', '#c9a6ff', true);
     if (S.q.sp === 'flurry') banner('🗡 連環斬！越快越痛', '#ffd24a', true);
@@ -256,7 +258,8 @@ export function startBattle(env, cfg, done) {
   }
   function hitMonster(dmg, note, color, small) {
     if (dmg <= 0 || S.over) return;
-    if (wmod && wmod.dmgMul) dmg = Math.max(1, Math.round(dmg * wmod.dmgMul));
+    /* 裝備攻擊力 × 屬性：只放大打對的字（dmg 已經是打對的字算出來的，打錯是 0）。測試者之刃的 ×1.12 現在是攻擊力 112 */
+    dmg = Math.max(1, Math.round(dmg * gearMul(GS, cfg.mk)));
     if (wmod && wmod.dark) darkBurst();
     S.mon.hp = Math.max(0, S.mon.hp - dmg);
     S.mon.flashUntil = nowS() + .15;
@@ -283,6 +286,8 @@ export function startBattle(env, cfg, done) {
     if (T - S.qAt < BAL.minShow) { S.flags.fast++; inp.value = ''; paintProgress(); toast('太快了，這題不算！'); return; }
     const res = C.q.judge(S.units, val);
     S.typed += res.total; S.correct += res.correct; S.answered++;
+    /* 每題摘要（SPEC §2.5）：[字數, 按鍵數, 毫秒, 打對幾字]，最多 120 題；老師端用它重算「可疑」 */
+    if (S.qLog.length < SUS.qMax) S.qLog.push([[...S.q.t].length, S.qKeys, Math.round((T - S.qAt) * 1000), res.correct]);
     if (res.wrong >= S.units.length * BAL.wrongRatio) {
       S.flags.wrong++; S.combo = 0;
       hurt(BAL.wrongHit, null, '亂打被反擊！');
@@ -389,15 +394,15 @@ export function startBattle(env, cfg, done) {
     return rnd(pool.length ? pool : enabled.filter(k => k !== 'slam'));
   }
   function buildStrikes(atk, H) {
-    const W = LANE_W[tier] || 2.5, rl = () => Math.floor(Math.random() * 3);
+    const W = LANE_W[tier] || 2.5, B = GS.warn, rl = () => Math.floor(Math.random() * 3);
     const forced = location.hostname === 'localhost' && window.__NW_PATTERN__;
     const kind = forced || (atk.type === 'defend' ? 'slam' : pickPattern());
     let strikes = [];
-    if (kind === 'slam') strikes = [0, 1, 2].map(l => ({ lane: l, warn: H - W * 1.1, hit: H, slam: true, mul: 1 }));
-    else if (kind === 'single') strikes = [{ lane: rl(), warn: H - W, hit: H, mul: 1 }];
-    else if (kind === 'pair') { const safe = rl(); strikes = [0, 1, 2].filter(l => l !== safe).map(l => ({ lane: l, warn: H - W, hit: H, mul: 1 })); }
-    else if (kind === 'sweep') { const o = Math.random() < .5 ? [0, 1, 2] : [2, 1, 0]; strikes = o.map((l, i) => ({ lane: l, warn: H + i * .7 - W * .8, hit: H + i * .7, mul: .5 })); }
-    else { const a = rl(), b = (a + 1 + Math.floor(Math.random() * 2)) % 3; strikes = [{ lane: a, warn: H - W, hit: H, cancel: H - W * .5, mul: 1 }, { lane: b, warn: H - W * .5, hit: H + .4, mul: 1 }]; }
+    if (kind === 'slam') strikes = [0, 1, 2].map(l => ({ lane: l, warn: H - W * 1.1 - B, hit: H, slam: true, mul: 1 }));
+    else if (kind === 'single') strikes = [{ lane: rl(), warn: H - W - B, hit: H, mul: 1 }];
+    else if (kind === 'pair') { const safe = rl(); strikes = [0, 1, 2].filter(l => l !== safe).map(l => ({ lane: l, warn: H - W - B, hit: H, mul: 1 })); }
+    else if (kind === 'sweep') { const o = Math.random() < .5 ? [0, 1, 2] : [2, 1, 0]; strikes = o.map((l, i) => ({ lane: l, warn: H + i * .7 - W * .8 - B, hit: H + i * .7, mul: .5 })); }
+    else { const a = rl(), b = (a + 1 + Math.floor(Math.random() * 2)) % 3; strikes = [{ lane: a, warn: H - W - B, hit: H, cancel: H - W * .5, mul: 1 }, { lane: b, warn: H - W * .5 - B, hit: H + .4, mul: 1 }]; }
     return { kind, strikes, base: monDmg(lv, atk.mul), hurt: false };
   }
   function castStart(T) {
@@ -428,6 +433,7 @@ export function startBattle(env, cfg, done) {
     if (S.me.down) return;
     const shielded = S.shieldUntil > T;
     let dmg = Math.max(1, Math.round(c.base * st.mul));
+    if (GS.cut) dmg = Math.max(1, Math.round(dmg * (1 - GS.cut)));   // 盔甲只減魔物招式，亂打反擊、燃燒、中毒不減
     if (st.slam) { if (shielded) return; }
     else if (S.lane !== st.lane) return;
     else if (shielded) { dmg = Math.ceil(dmg / 2); banner('盾只擋了一部分…', '#ffd24a', true); }
@@ -584,14 +590,17 @@ export function startBattle(env, cfg, done) {
   }
 
   function onInput() { paintProgress(); }
+  /* 按鍵數：一般字鍵、Backspace，加上注音輸入法組字時瀏覽器送的 Process／Unidentified／keyCode 229；不算 Enter、Esc、Ctrl、Alt、Shift */
+  const countKey = e => !e.ctrlKey && !e.altKey && !e.metaKey && (e.key.length === 1 || e.key === 'Backspace' || e.key === 'Process' || e.key === 'Unidentified' || e.keyCode === 229);
   const onKey = e => {
+    if (countKey(e)) { S.keys++; S.qKeys++; }
     if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); submit(); }
     else if (e.key === 'Escape') { e.preventDefault(); skip(); }
   };
   const laneKey = e => {
     if (S.over) return;
     const alt = e.code === 'AltLeft' || e.code === 'AltRight';
-    if (alt) { e.preventDefault(); if (!S.me.down) S.shieldUntil = Math.max(S.shieldUntil, nowS() + 1.5); return; }
+    if (alt) { e.preventDefault(); if (!S.me.down) S.shieldUntil = Math.max(S.shieldUntil, nowS() + 1.5 + GS.shield); return; }
     if (S.me.down || e.repeat) return;
     if (e.code === 'ControlLeft') S.lane = Math.max(0, S.lane - 1);
     else if (e.code === 'ControlRight') S.lane = Math.min(2, S.lane + 1);
@@ -618,11 +627,16 @@ export function startBattle(env, cfg, done) {
     banner(win ? '🎉 討伐成功！' : result === 'fail' ? '狩獵失敗…' : '撤退', win ? '#ffd24a' : '#e5705f');
     updateUi(true); draw(nowS());
     const acc = S.typed ? S.correct / S.typed : 0;
+    const act = S.qLog.reduce((a, x) => a + x[2], 0) / 1000;   // 各題作答時間加總（秒）；cpm＝打對的字 ÷ act × 60
     const res = {
       rk: cfg.rk, mk: cfg.mk, star: cfg.star, result, secs, accuracy: acc, answered: S.answered,
       dodgeOk: S.dodgeOk, dodgeAll: S.dodgeAll, defOk: S.defOk, defAll: S.defAll,
-      maxCombo: S.maxCombo, flags: S.flags, tier, weapon,
-      valid: win || S.answered >= 3, lvAcc: true
+      maxCombo: S.maxCombo, flags: S.flags, tier, weapon, wk: wkey, atk: GS.atk, pw: GS.pw,
+      valid: win || S.answered >= 3,
+      /* 這場正確率夠不夠算進「精準」（>= 90%）。以前寫死 true，等於沒擋（SPEC F2） */
+      lvAcc: acc >= RANK_MIN_ACC,
+      lv, qb: qBand(cfg.star, lv), ans: S.answered, cor: S.correct, typ: S.typed, keys: S.keys, nokey: S.keys === 0 && S.answered > 0 ? 1 : 0,
+      act: Math.round(act * 10) / 10, cpm: act > 0 ? Math.round(S.correct / act * 600) / 10 : 0, q: S.qLog
     };
     if (!res.valid) res.invalidWhy = '還沒打幾題就結束了，這場不算數。';
     setTimeout(() => { root.remove(); done(res); }, 1500);

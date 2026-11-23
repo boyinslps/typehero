@@ -7,6 +7,7 @@ export {
   MAIN_QUESTS, currentQuest, normalizeNw, curWeapon, weaponInfo,
   BUG_COINS, bugCoins, BUG_REWARD_MAX, NOTICES
 } from '../nw-data.js';
+export { gearPower, gearDef, GEAR_DEFS, GEAR_SLOTS, GEAR_MAX_P, itemName, itemText, gearItem, defColors } from '../nw-data.js';
 export { toMs, normalizeEvent, phaseOf, GRACE_MS, timeText, scoreText, sortDir, saneScore, saneFloor, clsMatch, pctOf, classReached, awardTierOf, ruleLines, finalRows, awardList, dateText, METRIC_NAME, METRIC_UNIT, runsNeed } from '../nw-events.js';
 export { rankBoardHtml } from '../nw-rankboard.js';
 export { normalizeNews, sortNews, bugCmp } from '../nw-notice.js';

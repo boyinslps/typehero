@@ -114,7 +114,7 @@ async function playUntil(p, pred, max = 80) {
     await p.keyboard.press('b'); await p.waitForTimeout(200);
     ok((await p.$$('.bp-slot')).length === 5 && await p.$('[data-hero]') !== null, '背包左側：人物＋五個裝備格');
     ok((await p.textContent('[data-card]')).includes('小明') && (await p.textContent('[data-card]')).includes('還沒有稱號'), '人物上方顯示名字與稱號');
-    ok(await p.$('.bp-slot[data-slot="weapon"].on') !== null && (await p.$$('.bp-cell')).length === 16, '武器穿在武器格；右側是裝備背包格子');
+    ok(await p.$('.bp-slot[data-slot="weapon"].on') !== null && (await p.$$('#nw-bag .fg-cell[data-equip]')).length === 1, '武器穿在武器格；右側是裝備背包格子（只有一把初心武器）');
     await p.click('[data-title-edit]'); await p.waitForSelector('#nw-title');
     const et = await p.textContent('#nw-title');
     ok((await p.$$('#nw-title svg')).length >= 1, '稱號圖示是 SVG 像素徽章');

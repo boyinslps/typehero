@@ -2,7 +2,7 @@
    跟信箱分頁的禮物列同一套種類（gifts.js），信箱那邊有自己的重畫邏輯所以沒有共用。
    事件掛在 el 上：呼叫端每次重畫整個畫面時換新的 el，舊的監聽跟著丟掉。
    活動獎勵不放 mailOnly 的種類（補發用的等級、區域、圖鑑、教學課）：活動是發給一群人的，補發只該寄給特定學生。 */
-import { GIFT_TYPES, giftType, newItem, optionsHtml, filterOpts, hintText } from './gifts.js';
+import { GIFT_TYPES, giftType, newItem, optionsHtml, filterOpts, hintText, fixGear, gearFieldsHtml } from './gifts.js';
 import { esc } from './util.js';
 
 const eventTypes = () => GIFT_TYPES.filter(x => !x.mailOnly);
@@ -10,7 +10,7 @@ function rowHtml(it, i, q) {
   const g = giftType(it.type), all = g.pick ? g.pick() : null, opts = all ? filterOpts(all, q) : null;
   /* 搜尋後沒有目前選的那個，還是要留著它，不然下拉會偷偷換成別的 */
   const shown = opts && all.find(o => o.value === it.key) && !opts.some(o => o.value === it.key) ? [all.find(o => o.value === it.key)].concat(opts) : opts;
-  const sel = shown ? `${g.search && all.length > 6 ? `<input class="inp" type="search" data-gq="${i}" value="${esc(q || '')}" placeholder="搜尋…" style="width:120px" aria-label="搜尋${esc(g.label)}">` : ''}<select class="inp" data-gkey="${i}">${optionsHtml(g, shown, it.key, esc)}</select>` : '';
+  const sel = shown ? `${g.search && all.length > 6 ? `<input class="inp" type="search" data-gq="${i}" value="${esc(q || '')}" placeholder="搜尋…" style="width:120px" aria-label="搜尋${esc(g.label)}">` : ''}<select class="inp" data-gkey="${i}">${optionsHtml(g, shown, it.key, esc)}</select>${g.gear ? gearFieldsHtml(it, i, 'data-ggc', 'data-ggp', esc) : ''}` : '';
   const hint = hintText(it);
   return `<div class="gift-row" data-grow="${i}"><select class="inp" data-gtype="${i}" aria-label="禮物種類">${eventTypes().map(x => `<option value="${x.type}" ${x.type === it.type ? 'selected' : ''}>${x.label}</option>`).join('')}</select>${sel}
     ${g.qty ? `${g.unit ? `<span class="dim">${esc(g.unit)}</span>` : ''}<input class="inp" type="number" min="${g.min || 1}" ${g.max ? `max="${g.max}"` : ''} step="1" data-gn="${i}" value="${it.n === undefined || Number.isNaN(it.n) ? '' : it.n}" style="width:90px" aria-label="數量">` : ''}
@@ -27,7 +27,9 @@ export function mountItems(el, items, onChange = () => {}, { disabled = false } 
     const t = e.target;
     if (t.matches('[data-gadd]')) { if (t.value) { items.push(newItem(t.value)); paint(); onChange(); } }
     else if (t.matches('[data-gtype]')) { const i = +t.dataset.gtype; items[i] = newItem(t.value); qs[i] = ''; paint(); onChange(); }
-    else if (t.matches('[data-gkey]')) { items[+t.dataset.gkey].key = t.value; paint(); onChange(); }
+    else if (t.matches('[data-gkey]')) { fixGear(Object.assign(items[+t.dataset.gkey], { key: t.value })); paint(); onChange(); }
+    else if (t.matches('[data-ggc]')) { items[+t.dataset.ggc].c = t.value; onChange(); }
+    else if (t.matches('[data-ggp]')) { items[+t.dataset.ggp].p = +t.value; onChange(); }
   });
   el.addEventListener('input', e => {
     const t = e.target;

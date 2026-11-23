@@ -2,7 +2,7 @@
    畫法跟學生背包左邊的人物卡共用（nw-card.js），老師看到的角色、武器、稱號徽章跟學生自己看到的一樣。
    這支只負責畫與切換；寄信、隱藏暱稱、名字沒問題這些會寫資料的動作由 tab-students.js 傳進來（act），
    這裡不直接碰資料庫。 */
-import { clsShort, curWeapon, weaponInfo, PX, heroLook, EQUIP_LEFT, EQUIP_RIGHT, heroOf, ownedWeapons, hrProgress, titleBadgeHtml, equipSlotHtml, mountSprites, CARD_CSS } from './nw.js';
+import { gearPower, clsShort, curWeapon, weaponInfo, PX, heroLook, EQUIP_LEFT, EQUIP_RIGHT, heroOf, ownedWeapons, hrProgress, titleBadgeHtml, equipSlotHtml, mountSprites, CARD_CSS } from './nw.js';
 import { $, esc, relT, modal } from './util.js';
 import { nameChanged } from './data.js';
 import { ownedSummary } from './gifts.js';
@@ -57,7 +57,7 @@ function ownHtml(nw) {
   const o = ownedSummary(nw); if (!o) return '';
   const line = (k, label, text) => `<b>${label}</b><span data-pc-own="${k}" class="${text ? '' : 'none'}">${text ? esc(text) : '—'}</span>`;
   const words = o.words.filter(g => g.names.length).map(g => `${g.g}：${g.names.join('、')}`).join('　');
-  return `<div class="px-panel in pc-own" data-pc-ownbox>${line('words', `🏅 稱號詞條 ${o.wordN}`, words)}${line('mats', '📦 材料', o.mats.join('、'))}${line('bps', '📜 圖紙', o.bps.join('、'))}${line('items', '🎴 道具', o.items.join('、'))}${line('weapons', '🗡 武器', o.weapons.join('、'))}</div>`;
+  return `<div class="px-panel in pc-own" data-pc-ownbox>${line('words', `🏅 稱號詞條 ${o.wordN}`, words)}${line('mats', '📦 材料', o.mats.join('、'))}${line('bps', '📜 圖紙', o.bps.join('、'))}${line('items', '🎴 道具', o.items.join('、'))}${line('weapons', '🗡 武器', o.weapons.join('、'))}${line('gears', '🛡 裝備', o.gears.join('、'))}</div>`;
 }
 
 /* 單張卡的 HTML 與要掛上去的圖。s 是 loadScores 整理過的學生列，b 是他在 mg_bugboard 的資料 */
@@ -73,6 +73,7 @@ function cardHtml(s, b, pos, total) {
   }
   chips.push(chip(`最後上線 ${s.last ? relT(s.last) : '—'}`, '#aab0d8'), chip(`🐛 抓蟲 ${b.score || 0} 分`, '#6aa84f'));
   if (nw) chips.push(chip(`⚔ 武器 ${ownedWeapons(nw).length} 把`, '#3f9be0'));
+  if (nw) chips.push(chip(`⚒ 戰力 ${gearPower(nw)}｜做過 ${(nw.forge || {}).made || 0} 件｜最高 +${Math.max(0, ...(nw.gear || []).map(g => g.p || 0))}`, '#e8b64c').replace('<span ', '<span data-pc-power '));
   return `<div class="pc" data-pc-card data-id="${esc(s.id)}">
     <div class="pc-nav"><button class="px-btn" data-pc-nav="-1" aria-label="上一位" ${pos <= 0 ? 'disabled' : ''}>◀</button>
       <span class="dim mono" data-pc-pos>${pos + 1} / ${total}</span>

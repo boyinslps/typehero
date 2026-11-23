@@ -119,15 +119,63 @@ describe('正式規則 firestore-rules.txt', () => {
     test('成員子集合 → 過', () => assertSucceeds(setDoc(doc(d.stu, `mg_rooms/${ID}/members/m1`), { a: 1 })));
   });
 
+  /* 場次紀錄（SPEC-STAGE2 §2.6）：2b 開始寫。每一條都對應 firestore-rules.txt 的 mg_nw_runs。
+     ⚠ 這份測試要 Java 的 Firebase 模擬器；2026-11-23 寫的時候那台電腦沒有 Java，沒有實際跑過，貼規則前請先 npm test */
   describe('mg_nw_runs', () => {
-    test('學生 create → 過', () => assertSucceeds(setDoc(doc(d.stu, 'mg_nw_runs/r1'), { a: 1 })));
-    test('學生 update 已有的 → 不過', async () => {
-      await seed(te, db => setDoc(doc(db, 'mg_nw_runs/r1'), { a: 1 }));
-      await assertFails(setDoc(doc(d.stu, 'mg_nw_runs/r1'), { a: 2 }));
+    const RID = `${ID}_1763500000000`;
+    const run = (o = {}) => ({ id: ID, cls: '五年級4班', seat: 5, uid: 'stu1', t: 1763500000000, ts: serverTimestamp(), v: 1, app: '3.15.0', mk: 'coo', rk: 'grass', star: 3, lv: 6, qb: '6:0', res: 'win',
+      secs: 84.2, acc: 0.957, ans: 31, cor: 88, typ: 92, keys: 214, nokey: 0, act: 61.3, cpm: 86.1, fl: { fast: 0, paste: 0, wrong: 1 }, sus: [], w: 'dagger', atk: 105, pw: 45, tier: 'B', q: [2, 5, 2100, 2], ...o });
+    const seedRun = () => seed(te, db => setDoc(doc(db, 'mg_nw_runs/' + RID), { ...run(), ts: new Date() }));
+    test('學生 create 一筆正常的 → 過', () => assertSucceeds(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run())));
+    test('uid 不是自己的 → 不過', () => assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ uid: 'stu2' }))));
+    test('ts 不是伺服器時間（自己填的舊日期）→ 不過', () => assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ ts: new Date(2020, 0, 1) }))));
+    test('多一個不在白名單的欄位 → 不過', () => assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ bonus: 9999 }))));
+    test('ID 不是「id_毫秒」→ 不過', () => assertFails(setDoc(doc(d.stu, `mg_nw_runs/${ID}_abc`), run())));
+    test('ID 的前綴對不上紀錄裡的 id → 不過', () => assertFails(setDoc(doc(d.stu, 'mg_nw_runs/五年級4班_6號_1763500000000'), run())));
+    test('secs 超過 310 → 不過', () => assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ secs: 311 }))));
+    test('acc 超過 1 → 不過', () => assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ acc: 1.5 }))));
+    test('star 不是 1～5 → 不過', () => assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ star: 6 }))));
+    test('q 超過 120 題（平的陣列 480 個數字）→ 不過', () => assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ q: Array.from({ length: 121 }, () => [2, 5, 2000, 2]).flat() }))));
+    test('q 不是 4 的倍數 → 不過', () => assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ q: [2, 5, 2100] }))));
+    test('sus 超過 4 個 → 不過', () => assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ sus: ['keys', 'fast', 'sum', 'jump', 'x'] }))));
+    test('未登入 create → 不過', () => assertFails(setDoc(doc(d.anon, 'mg_nw_runs/' + RID), run())));
+    test('學生不能 update 已有的（把舊紀錄的 ts 刷成最近）→ 不過；這就是程式「重送遇到 permission-denied 當成已寫入」的依據', async () => {
+      await seedRun();
+      await assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run()));
+      await assertFails(updateDoc(doc(d.stu, 'mg_nw_runs/' + RID), { ts: serverTimestamp() }));
     });
-    test('老師 update → 過', async () => {
-      await seed(te, db => setDoc(doc(db, 'mg_nw_runs/r1'), { a: 1 }));
-      await assertSucceeds(setDoc(doc(d.teacher, 'mg_nw_runs/r1'), { a: 2 }));
+    test('學生不能 delete → 不過', async () => {
+      await seedRun();
+      await assertFails(deleteDoc(doc(d.stu, 'mg_nw_runs/' + RID)));
+    });
+    test('學生不能讀（自己的也不行）→ 不過', async () => {
+      await seedRun();
+      await assertFails(getDoc(doc(d.stu, 'mg_nw_runs/' + RID)));
+      await assertFails(getDocs(query(collection(d.stu, 'mg_nw_runs'), where('id', '==', ID))));
+    });
+    test('不是老師的登入帳號不能讀 → 不過', async () => {
+      await seedRun();
+      await assertFails(getDoc(doc(d.notTeacher, 'mg_nw_runs/' + RID)));
+    });
+    test('老師讀、改（ok:-1 移除這筆）、刪 → 過', async () => {
+      await seedRun();
+      await assertSucceeds(getDocs(query(collection(d.teacher, 'mg_nw_runs'), where('ts', '>', new Date(2000, 0, 1)))));
+      await assertSucceeds(updateDoc(doc(d.teacher, 'mg_nw_runs/' + RID), { ok: -1 }));
+      await assertSucceeds(deleteDoc(doc(d.teacher, 'mg_nw_runs/' + RID)));
+    });
+  });
+
+  describe('mg_nw_board（榮譽碑榜單，2a 用）', () => {
+    test('學生讀公開榜單 → 過；學生寫 → 不過', async () => {
+      await seed(te, db => setDoc(doc(db, 'mg_nw_board/5'), { t: 1 }));
+      await assertSucceeds(getDoc(doc(d.stu, 'mg_nw_board/5')));
+      await assertFails(setDoc(doc(d.stu, 'mg_nw_board/5'), { t: 2 }));
+    });
+    test('累積狀態 mg_nw_board_private：學生讀、寫都不過；老師過', async () => {
+      await seed(te, db => setDoc(doc(db, 'mg_nw_board_private/5'), { t: 1 }));
+      await assertFails(getDoc(doc(d.stu, 'mg_nw_board_private/5')));
+      await assertFails(setDoc(doc(d.stu, 'mg_nw_board_private/5'), { t: 2 }));
+      await assertSucceeds(setDoc(doc(d.teacher, 'mg_nw_board_private/5'), { t: 2 }));
     });
   });
 
@@ -147,6 +195,9 @@ describe('正式規則 firestore-rules.txt', () => {
     });
     test('學生自己建「已確認」的回報 → 不過', () => assertFails(setDoc(doc(d.stu, 'mg_nw_flags/b2'), { ...bug, status: 'approved' })));
     test('學生塞 sev 欄位（嚴重 3 分）→ 不過', () => assertFails(setDoc(doc(d.stu, 'mg_nw_flags/b2'), { ...bug, sev: 3 })));
+    test('可疑場次標記 run（2b-9）→ 過', () => assertSucceeds(setDoc(doc(d.stu, 'mg_nw_flags/run_' + ID + '_1763500000000'), { type: 'run', status: 'pending', docId: ID, cls: '五年級4班', seat: 5, name: '甲', runId: ID + '_1763500000000', why: ['keys', 'fast'], mk: 'coo', star: 3, t: 1763500000000 })));
+    test('run 標記的 why 超過 4 個 → 不過', () => assertFails(setDoc(doc(d.stu, 'mg_nw_flags/run_x'), { type: 'run', status: 'pending', docId: ID, runId: 'x', why: ['a', 'b', 'c', 'd', 'e'] })));
+    test('run 標記自己填「已確認」→ 不過', () => assertFails(setDoc(doc(d.stu, 'mg_nw_flags/run_x'), { type: 'run', status: 'approved', docId: ID, runId: 'x', why: [] })));
     test('type 是 award → 不過', () => assertFails(setDoc(doc(d.stu, 'mg_nw_flags/a1'), { type: 'award', status: 'approved', award: 'bugking', docId: ID })));
     test('text 超過 400 字 → 不過', () => assertFails(setDoc(doc(d.stu, 'mg_nw_flags/b3'), { ...bug, text: 'x'.repeat(401) })));
     test('did 超過 200 字 → 不過', () => assertFails(setDoc(doc(d.stu, 'mg_nw_flags/b3'), { ...bug, did: 'x'.repeat(201) })));

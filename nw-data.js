@@ -14,12 +14,14 @@ export const DEFAULT_LOOK = { style: 0, hair: 0, skin: 1 };
 
 export function heroLook(look, weapon, gear) {
   const l = Object.assign({}, DEFAULT_LOOK, look || {});
+  /* 炎牙刀畫成雙刀、刀身多一道橘紅（wfx）；其他武器種類照原樣 */
+  const w = weapon === 'flame_dagger' ? 'dagger' : (weapon || 'staff');
   return Object.assign({
     style: LOOK.styles[l.style] ? LOOK.styles[l.style][0] : 'short',
     hair: LOOK.hairColors[l.hair] || LOOK.hairColors[0],
     skin: LOOK.skins[l.skin] || LOOK.skins[1],
-    armor: '#8d8d8d', trim: '#b8b8b8', helm: 'none', weapon: weapon || 'staff'
-  }, gear || {});
+    armor: '#8d8d8d', trim: '#b8b8b8', helm: 'none', weapon: w
+  }, weapon === 'flame_dagger' ? { wfx: 'fire' } : {}, gear || {});
 }
 
 export const STARTERS = {
@@ -33,9 +35,16 @@ export const GIFT_WEAPONS = {
   testblade: { name: '測試者之刃', kind: '黑刃', fam: '測試者限定', base: 'dagger', dmgMul: 1.12, chantEvery: 4, dark: true,
     desc: '黑色粒子環繞的雙刀，只送給幫忙測試的人。打中的傷害多 12%，連環斬每 4 題就能砍一次（一般雙刀是 5 題）。' }
 };
-export const weaponInfo = k => STARTERS[k] || GIFT_WEAPONS[k] || null;
-export const weaponBase = k => (GIFT_WEAPONS[k] && GIFT_WEAPONS[k].base) || k;
-export const curWeapon = nw => (nw.equip && (nw.gw || []).includes(nw.equip)) ? nw.equip : nw.starter;
+const hasOwn = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+export const weaponInfo = k => STARTERS[k] || (hasOwn(GIFT_WEAPONS, k) && GIFT_WEAPONS[k]) || (hasOwn(EXTRA_WEAPONS, k) && EXTRA_WEAPONS[k]) || null;
+export const weaponBase = k => (hasOwn(GIFT_WEAPONS, k) && GIFT_WEAPONS[k].base) || (hasOwn(EXTRA_WEAPONS, k) && EXTRA_WEAPONS[k].base) || k;
+/* 現在拿的武器種類（'staff'、'testblade'、'flame_dagger'…）。2b 起看 eq.weapon 那件裝備；
+   還沒轉成裝備格式的存檔（教師頁讀到的舊資料）退回舊的 equip／starter 規則 */
+export const curWeapon = nw => {
+  const it = nw && nw.gearV === 1 ? equippedItem(nw, 'weapon') : null, d = it && gearDef(it.k);
+  if (d && d.wk) return d.wk;
+  return (nw.equip && (nw.gw || []).includes(nw.equip)) ? nw.equip : nw.starter;
+};
 
 export const LOCKED_WEAPONS = [
   ['book', '元素書', 6], ['shield', '劍盾', 2], ['fist', '拳套', 2], ['great', '大劍', 5], ['bell', '召喚鈴', 5]
@@ -67,7 +76,7 @@ export const MONSTERS = {
       { name: '拍翅狂風', type: 'defend', mul: 0.7 }
     ],
     drops: [['coo_feather', '咕咕羽毛', 'gray', 2, 4], ['coo_down', '柔軟絨毛', 'green', 1, 2]],
-    rare: [['bp_coo_hat', '📜 咕咕帽圖紙', 'green']]
+    rare: [['bp_coo_hat', '📜 咕咕帽圖紙', 'green'], ['bp_coo_gloves', '📜 羽毛護手圖紙', 'green']]
   },
   frog: {
     name: '泡泡蛙', elem: 'water', ask: 'word', fear: 'wood', resist: 'fire', lean: '偏防禦',
@@ -77,7 +86,7 @@ export const MONSTERS = {
       { name: '舌頭彈', type: 'dodge', mul: 0.9 }
     ],
     drops: [['frog_slime', '泡泡黏液', 'gray', 2, 4], ['frog_skin', '濕潤蛙皮', 'green', 1, 2]],
-    rare: [['bp_frog_boots', '📜 泡泡靴圖紙', 'green']]
+    rare: [['bp_frog_boots', '📜 泡泡靴圖紙', 'green'], ['bp_frog_vest', '📜 蛙皮背心圖紙', 'green']]
   },
   shroom: {
     name: '跳跳菇', elem: 'wood', ask: 'word', fear: 'fire', resist: 'water', lean: '一半一半',
@@ -98,7 +107,7 @@ export const MONSTERS = {
       { name: '火焰衝擊', type: 'defend', mul: 0.9 }
     ],
     drops: [['wolf_fur', '狼毛', 'green', 2, 3], ['wolf_fang', '炎牙', 'blue', 1, 2]],
-    rare: [['bp_flame_dagger', '📜 炎牙刀圖紙', 'blue']]
+    rare: [['bp_flame_dagger', '📜 炎牙刀圖紙', 'blue'], ['bp_wolf_mail', '📜 炎狼皮甲圖紙', 'blue']]
   }
 };
 
@@ -107,6 +116,8 @@ export const regionLv = (rk, star) => {
   return Math.round(r.lv[0] + (r.lv[1] - r.lv[0]) * (star - 1) / 4);
 };
 
+/* 紅線預警秒數（出手前多久出現）。放在這裡：戰鬥與 tools/nw-sim 共用，護腳的預警也是加在這個數字上 */
+export const LANE_W = { A: 3.0, B: 2.5, C: 2.2, D: 2.0 };
 export const ATTACKS_OPEN = { coo: ['single', 'pair'], frog: ['slam'], shroom: [], wolf: [] };
 export const TEST_TAGS = { coo: '閃避測試', frog: '防禦測試', shroom: '攻擊測試' };
 export const attacksOn = () => Object.values(ATTACKS_OPEN).some(a => a.length > 0);
@@ -220,6 +231,9 @@ export const MAIN_QUESTS = [
   { id: '1-2', ch: 1, target: { mk: 'coo', star: 1 }, t: '討伐咕咕鳥（草原 ★1）', hint: '到委託板，選草原的咕咕鳥', rewardText: '獵人經驗 +30', reward: { hrExp: 30 }, test: nw => (nw.dex.coo || 0) > 0 },
   { id: '1-3', ch: 1, hold: () => !attacksOn(), t: '閃避成功 5 次、防禦成功 5 次', hint: '狩獵時多試試閃避和防禦', rewardText: '稱號詞條「見習」', reward: {}, test: nw => nw.stat.dodgeOk >= 5 && nw.stat.defOk >= 5, prog: nw => `閃避 ${Math.min(5, nw.stat.dodgeOk)}/5　防禦 ${Math.min(5, nw.stat.defOk)}/5` },
   { id: '1-4', ch: 1, target: { rk: 'grass', star: 3 }, t: '討伐草原任何 ★3 的魔物', hint: '先打過 ★1、★2 才會開放 ★3', rewardText: '另外三把初心武器的圖紙', reward: { bp: ['bp_staff', 'bp_bow', 'bp_dagger', 'bp_crossbow'] }, test: nw => (nw.zone.grass || 0) >= 3 },
+  /* 2b 鐵匠鋪開張才會出現（hold）。soft：不擋 1-7，想先打 ★5 也行。獎勵字元不給強化石（2b 沒有強化石，SPEC §3.11） */
+  { id: '1-5', ch: 1, soft: true, building: 'forge', hold: () => !stageOpen('2b'), t: '打造任何一件裝備', hint: '市集的鐵匠鋪：選一張圖紙、材料夠就能做。跟著黃色箭頭走', rewardText: '字元 ×60', reward: { coins: 60 }, test: nw => ((nw.forge && nw.forge.made) || 0) >= 1 },
+  { id: '1-6', ch: 1, soft: true, building: 'forge', hold: () => !stageOpen('2b'), t: '把一件裝備強化到 +1', hint: '鐵匠鋪的「強化」分頁：選一件裝備，按強化。一定會成功', rewardText: '字元 ×100', reward: { coins: 100 }, test: nw => ((nw.forge && nw.forge.ups) || 0) >= 1 },
   { id: '1-7', ch: 1, target: { rk: 'grass', star: 5 }, t: '討伐草原任何 ★5 的魔物', hint: '打倒 ★5 就會開放迷霧森林', rewardText: '開放迷霧森林', reward: {}, test: nw => (nw.zone.grass || 0) >= 5 }
 ];
 
@@ -231,7 +245,8 @@ export const defaultNw = () => ({
   stat: { dodgeOk: 0, dodgeAll: 0, defOk: 0, defAll: 0, accN: 0, accSum: 0, wins: 0, fails: 0 },
   flags: 0, fb: {}, gw: [], equip: '', gifts: [], giftedEarly: false, tm: {}, bugLog: {}, bugs: 0, bugsSent: 0, tut: {}, intro: {}, awards: {}, seenNotice: '', seenNews: 0, seenEv: {}, seenBug: 0,
   name0: '', bugScore: 0, evDone: [], nameFlagged: {},
-  mail: {}, nameLog: [], nameSet: 0, ev: {}, fastMk: {}
+  mail: {}, nameLog: [], nameSet: 0, ev: {}, fastMk: {}, cpmHist: {}, runQ: [],
+  gearV: 0, gear: [], eq: { weapon: null, helm: null, armor: null, gloves: null, boots: null }, bpDry: {}, forge: { made: 0, ups: 0, top: 0, gift: 0 }
 });
 
 export function normalizeNw(d) {
@@ -265,6 +280,10 @@ export function normalizeNw(d) {
   o.fastMk = (d.fastMk && typeof d.fastMk === 'object' && !Array.isArray(d.fastMk)) ? d.fastMk : {};
   /* 村莊座標：posV 不是 2 的是舊地圖（22×15）的座標，在新地圖上可能站在牆裡，一律丟掉回出生點 */
   if (d.posV !== 2 || !Array.isArray(d.pos) || d.pos.length !== 2 || !d.pos.every(Number.isInteger)) { delete o.pos; delete o.posV; }
+  cleanGear(o, d);
+  /* 每場紀錄（2b-9）：cpmHist＝每個題目等級最近 5 場的打字速度（「進步太跳」用）；runQ＝還沒寫進雲端的紀錄（最多 5 筆） */
+  o.cpmHist = (d.cpmHist && typeof d.cpmHist === 'object' && !Array.isArray(d.cpmHist)) ? d.cpmHist : {};
+  o.runQ = Array.isArray(d.runQ) ? d.runQ.filter(x => x && typeof x.rid === 'string' && x.run && typeof x.run === 'object').slice(-5) : [];
   return o;
 }
 
@@ -285,6 +304,363 @@ export const ITEM_DEFS = {
 };
 /* 商店開張時用（現在 OPEN_STAGES 沒有 '3b'，商店還沒開，沒有購買流程；改名卡先由信箱寄） */
 export const SHOP_ITEMS = [{ key: 'renameCard', price: 300 }];
+/* ══ 裝備（第 2 段 2b，docs/SPEC-STAGE2.md §3）══
+   一格一個數字（GDD §2.1）。全部是純函式，戰鬥（nw-battle.js）、人物卡（nw-card.js）、鐵匠鋪（nw-forge.js）、
+   教師頁、tools/nw-sim 共用；存檔欄位：gearV、gear（每件 { id, k, c, p, t }）、eq（五格各指向一件的 id）、forge、bpDry。
+   數值怎麼來的、為什麼比 GDD §14.12 小：docs/SPEC-STAGE2.md §3.2 與 docs/BALANCE-GEAR-2B.md（tools/nw-sim/gear.mjs 的結果）。
+   武器＋屬性合起來最高 ×1.32（120 × 1.1）；防具只對「會攻擊的魔物」有用（attackingMons）。 */
+export const GEAR_SLOTS = [['weapon', '武器'], ['helm', '頭盔'], ['armor', '盔甲'], ['gloves', '護手'], ['boots', '護腳']];
+export const GEAR_MAX = 60;          // 裝備最多幾件（存檔大小的保險；分解要第 3 段才開）
+export const GEAR_MAX_P = 5;
+export const BP_DUP_COINS = 30;     // 老師寄的圖紙已經會了：換成這麼多字元（GDD §12.5）         // 2b 強化最高 +5
+export const GEAR_COLORS = ['gray', 'green', 'blue'];   // 2b 的魔物只掉灰、綠、藍；紫以上第 3 段才有
+export const colorRank = c => GEAR_COLORS.indexOf(c);
+/* 每一格的數字：[灰, 綠, 藍]、每 +1 加多少（SPEC §3.2） */
+export const GEAR_TB = {
+  weapon: { base: [100, 105, 110], per: 2 },
+  helm: { base: [10, 20, 30], per: 2 },
+  armor: { base: [.04, .07, .10], per: .01 },
+  gloves: { base: [.2, .3, .4], per: .04 },
+  boots: { base: [.10, .20, .30], per: .03 }
+};
+const r2 = x => Math.round(x * 100) / 100;
+/* 一件的數字：武器＝攻擊力、頭盔＝生命、盔甲＝受傷少（比例）、護手＝舉盾多幾秒、護腳＝紅線早幾秒 */
+export function slotValue(slot, c, p, fixed) {
+  const t = GEAR_TB[slot], i = Math.max(0, colorRank(c));
+  const base = (fixed != null) ? fixed : t.base[i];
+  return r2(base + t.per * p);
+}
+export const POWER_BASE = { gray: 10, green: 20, blue: 30 };
+export const gearPowerOf = (c, p) => (POWER_BASE[c] || 10) + 2 * p;
+
+const ANY = (c, n, coins) => ({ any: [c, n], coins });
+const MATS = (list, coins) => ({ mats: list, coins });
+/* 每一種裝備一列。ver＝各顏色版本的配方：any＝任意某顏色的材料 n 個；mats＝指定材料；coins＝字元。
+   bp＝圖紙 id（null＝不用圖紙）。look＝穿上去角色外觀。要加新裝備：加一列、圖紙放進某隻魔物的 rare（UI-ART-SPEC §7） */
+export const GEAR_DEFS = {
+  w_staff: { name: '學徒木杖', slot: 'weapon', wk: 'staff', bp: 'bp_staff', ver: { gray: ANY('gray', 4, 40), green: ANY('green', 3, 120) } },
+  w_bow: { name: '獵人短弓', slot: 'weapon', wk: 'bow', bp: 'bp_bow', ver: { gray: ANY('gray', 4, 40), green: ANY('green', 3, 120) } },
+  w_dagger: { name: '鐵製小刀', slot: 'weapon', wk: 'dagger', bp: 'bp_dagger', ver: { gray: ANY('gray', 4, 40), green: ANY('green', 3, 120) } },
+  w_crossbow: { name: '木弩', slot: 'weapon', wk: 'crossbow', bp: 'bp_crossbow', ver: { gray: ANY('gray', 4, 40), green: ANY('green', 3, 120) } },
+  flame_dagger: { name: '炎牙刀', slot: 'weapon', wk: 'flame_dagger', bp: 'bp_flame_dagger', elem: 'fire', ver: { blue: MATS([['wolf_fang', 3], ['wolf_fur', 3]], 250) } },
+  cloth_hat: { name: '布帽', slot: 'helm', bp: 'bp_cloth_hat', ver: { gray: ANY('gray', 3, 30) }, look: { helm: 'cloth', color: '#a08a6a' } },
+  cloth_vest: { name: '布衣', slot: 'armor', bp: 'bp_cloth_vest', ver: { gray: ANY('gray', 4, 30) }, look: { color: '#a08a6a' } },
+  cloth_gloves: { name: '布手套', slot: 'gloves', bp: 'bp_cloth_gloves', ver: { gray: ANY('gray', 3, 30) }, look: { color: '#a08a6a' } },
+  cloth_shoes: { name: '布鞋', slot: 'boots', bp: 'bp_cloth_shoes', ver: { gray: ANY('gray', 3, 30) }, look: { color: '#a08a6a' } },
+  coo_hat: { name: '咕咕帽', slot: 'helm', bp: 'bp_coo_hat', ver: { green: MATS([['coo_down', 3], ['coo_feather', 3]], 120) }, look: { helm: 'coo', color: '#6aa84f' } },
+  coo_gloves: { name: '羽毛護手', slot: 'gloves', bp: 'bp_coo_gloves', ver: { green: MATS([['coo_down', 2], ['coo_feather', 4]], 120) }, look: { color: '#6aa84f' } },
+  frog_boots: { name: '泡泡靴', slot: 'boots', bp: 'bp_frog_boots', ver: { green: MATS([['frog_skin', 3], ['frog_slime', 3]], 120) }, look: { color: '#3e9a96' } },
+  frog_vest: { name: '蛙皮背心', slot: 'armor', bp: 'bp_frog_vest', ver: { green: MATS([['frog_skin', 3], ['frog_slime', 4]], 120) }, look: { color: '#3e9a96' } },
+  shroom_cap: { name: '蘑菇帽', slot: 'helm', bp: 'bp_shroom_cap', ver: { green: MATS([['shroom_spore', 3], ['shroom_cap', 3]], 120) }, look: { helm: 'shroom', color: '#c0392b' } },
+  wolf_mail: { name: '炎狼皮甲', slot: 'armor', bp: 'bp_wolf_mail', ver: { blue: MATS([['wolf_fang', 3], ['wolf_fur', 4]], 250) }, look: { color: '#b8502a' } }
+};
+/* 打造才有的特殊武器（跟 GIFT_WEAPONS 一樣有 name／kind／base／desc；weaponInfo、weaponBase 兩邊都查） */
+export const EXTRA_WEAPONS = {
+  flame_dagger: { name: '炎牙刀', kind: '火焰雙刀', fam: '打造的', base: 'dagger', elem: 'fire',
+    desc: '刀身燒著橘紅色的火。用法跟一般雙刀一樣，打「怕火」的魔物傷害變多、打「不怕火」的變少。' }
+};
+/* 老師送的武器（GIFT_WEAPONS，例：測試者之刃）也是一件裝備：綠色，攻擊力＝100 × dmgMul（測試者之刃 112），可以強化 */
+export function gearDef(k) {
+  if (typeof k !== 'string') return null;
+  if (Object.prototype.hasOwnProperty.call(GEAR_DEFS, k)) return GEAR_DEFS[k];
+  const w = Object.prototype.hasOwnProperty.call(GIFT_WEAPONS, k) ? GIFT_WEAPONS[k] : null;
+  return w ? { name: w.name, slot: 'weapon', wk: k, bp: null, fixed: { c: 'green', atk: Math.round(100 * (w.dmgMul || 1)) }, ver: {}, gift: true } : null;
+}
+export const gearKeys = () => Object.keys(GEAR_DEFS);
+/* 這件能做成哪幾種顏色 */
+export const defColors = d => (d && d.fixed) ? [d.fixed.c] : GEAR_COLORS.filter(c => d && d.ver && d.ver[c]);
+export const defTopColor = d => { const l = defColors(d); return l[l.length - 1] || 'gray'; };
+
+/* ── 一件裝備、一個存檔 ── */
+export const gearItem = (nw, id) => (nw && Array.isArray(nw.gear) && id) ? (nw.gear.find(g => g.id === id) || null) : null;
+export const equippedItem = (nw, slot) => (nw && nw.eq) ? gearItem(nw, nw.eq[slot]) : null;
+export const itemName = it => { const d = gearDef(it.k); return (d ? d.name : '？？？') + (it.p ? ` +${it.p}` : ''); };
+export const itemPower = it => gearPowerOf(it.c, it.p);
+export function itemValue(it) {
+  const d = gearDef(it.k); if (!d) return 0;
+  return slotValue(d.slot, it.c, it.p, d.fixed ? d.fixed.atk : null);
+}
+/* 學生看到的那句數字說明 */
+export function valueText(slot, v) {
+  if (slot === 'weapon') return `攻擊力 ${v}`;
+  if (slot === 'helm') return `生命 +${v}`;
+  if (slot === 'armor') return `受傷少 ${Math.round(v * 100)}%`;
+  if (slot === 'gloves') return `舉盾多 ${v} 秒`;
+  return `紅線早 ${v} 秒出現`;
+}
+export const itemText = it => { const d = gearDef(it.k); return d ? valueText(d.slot, itemValue(it)) : ''; };
+/* 現在會攻擊玩家的魔物（從 ATTACKS_OPEN 算：之後開放更多攻擊，說明文字自動更新）。名字去掉「（閃避測試）」 */
+export const monShortName = k => (MONSTERS[k] ? MONSTERS[k].name.replace(/（.*?）/g, '') : k);
+export const attackingMons = () => Object.keys(ATTACKS_OPEN).filter(k => MONSTERS[k] && ATTACKS_OPEN[k].length);
+/* 防具／武器的一句話說明；防具一律多一行「對會攻擊的魔物才有用」 */
+export function slotNote(slot) {
+  if (slot === 'weapon') return '打對的字，傷害會變多。';
+  const who = attackingMons().map(monShortName).join('、') || '還沒有';
+  return `對會攻擊你的魔物才有用。現在會攻擊的：${who}。`;
+}
+
+/* 五格加總。戰鬥用：atk（傷害 × atk/100）、elem、hp（生命上限加多少）、cut（招式傷害少幾成）、shield（舉盾多幾秒）、warn（紅線早幾秒）；pw＝戰力 */
+export function gearStats(nw) {
+  const s = { atk: 100, elem: null, hp: 0, cut: 0, shield: 0, warn: 0, pw: 0 };
+  for (const [slot] of GEAR_SLOTS) {
+    const it = equippedItem(nw, slot), d = it && gearDef(it.k);
+    if (!d || d.slot !== slot) continue;
+    const v = itemValue(it);
+    s.pw += itemPower(it);
+    if (slot === 'weapon') { s.atk = v; s.elem = d.elem || null; }
+    else if (slot === 'helm') s.hp = v;
+    else if (slot === 'armor') s.cut = v;
+    else if (slot === 'gloves') s.shield = v;
+    else s.warn = v;
+  }
+  return s;
+}
+/* 打到某隻魔物時武器的總倍率（攻擊力 × 屬性） */
+export function elemMulOf(elem, mk) {
+  const m = MONSTERS[mk];
+  if (!elem || !m) return 1;
+  return m.fear === elem ? 1.1 : m.resist === elem ? 0.9 : 1;
+}
+export const gearMul = (gs, mk) => gs.atk / 100 * elemMulOf(gs.elem, mk);
+
+/* 外觀：給 heroLook(look, weapon, gear) 的 gear 參數。沒穿的格子不寫，用 heroLook 的預設（灰盔甲、沒頭盔）。
+   花邊：+0～+2 比主色深一點、+3～+4 稀有度色、+5 金色（SPEC §3.9） */
+const hx = c => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16));
+export function shadeHex(c, f) {
+  const v = hx(c).map(n => f < 0 ? n * (1 + f) : n + (255 - n) * f);
+  return '#' + v.map(n => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0')).join('');
+}
+const trimOf = (it, main) => it.p >= 5 ? '#e8b64c' : it.p >= 3 ? (COLOR_HEX[it.c] || '#e8b64c') : shadeHex(main, -.35);
+export function gearLook(nw) {
+  const L = {};
+  const w = equippedItem(nw, 'weapon'), wd = w && gearDef(w.k);
+  if (wd && wd.elem) L.wfx = wd.elem;
+  const helm = equippedItem(nw, 'helm'), hd = helm && gearDef(helm.k);
+  if (hd && hd.look) { L.helm = hd.look.helm || 'none'; L.helmC = hd.look.color; L.helmTrim = trimOf(helm, hd.look.color); }
+  const armor = equippedItem(nw, 'armor'), ad = armor && gearDef(armor.k);
+  if (ad && ad.look) { L.armor = ad.look.color; L.trim = trimOf(armor, ad.look.color); }
+  const gl = equippedItem(nw, 'gloves'), gd = gl && gearDef(gl.k);
+  if (gd && gd.look) L.hands = gd.look.color;
+  const bt = equippedItem(nw, 'boots'), bd = bt && gearDef(bt.k);
+  if (bd && bd.look) L.boots = bd.look.color;
+  return L;
+}
+
+/* ── 材料：一次扣哪些 ── */
+const matColor = id => (MAT_INFO[id] || [id, 'gray'])[1];
+/* 從背包挑「任意 n 個」：color 是下限（upgrade 時「同色以上」）；exact＝只要那個顏色（打造）。
+   預設先用顏色低的、再用數量多的（灰材料一直堆，強化是它主要的去處）；prefer＝孩子點換的順序，排在最前面 */
+export function pickAny(nw, color, n, { exact = false, prefer = [] } = {}) {
+  const lo = colorRank(color);
+  const cand = Object.entries(nw.mats || {}).filter(([id, c]) => c > 0 && MAT_INFO[id] && !id.startsWith('bp_')
+    && (exact ? matColor(id) === color : colorRank(matColor(id)) >= lo))
+    .map(([id, c]) => ({ id, have: c, color: matColor(id) }));
+  cand.sort((a, b) => {
+    const pa = prefer.indexOf(a.id), pb = prefer.indexOf(b.id);
+    if (pa !== pb) return (pa < 0 ? 99 : pa) - (pb < 0 ? 99 : pb);
+    return colorRank(a.color) - colorRank(b.color) || b.have - a.have || (a.id > b.id ? 1 : -1);
+  });
+  const use = {}; let left = n;
+  for (const c of cand) { if (left <= 0) break; const t = Math.min(c.have, left); use[c.id] = t; left -= t; }
+  const have = cand.reduce((a, c) => a + c.have, 0);
+  return { ok: left <= 0, use, need: n, have, short: Math.max(0, left), cand };
+}
+const usedText = use => Object.entries(use).map(([id, n]) => `${(MAT_INFO[id] || [id])[0]} ×${n}`).join('、');
+export { usedText };
+
+/* 這張圖紙學會了嗎（自己的初心武器免圖紙） */
+export const bpKnown = (nw, d) => !d || !d.bp || (nw.bp || []).includes(d.bp) || (d.slot === 'weapon' && d.wk === nw.starter);
+
+/* 打造前檢查：回 { ok, why, lack:[{what, need, have}], use, coins, rec }。lack 的 what 寫給孩子看：「柔軟絨毛」「字元」 */
+export function craftCheck(nw, key, c, prefer) {
+  const d = Object.prototype.hasOwnProperty.call(GEAR_DEFS, key) ? GEAR_DEFS[key] : null;
+  const rec = d && d.ver[c];
+  const out = { ok: false, why: '', lack: [], use: {}, coins: 0, rec: rec || null, def: d };
+  if (!d || !rec) { out.why = '這個做不出來'; return out; }
+  /* 圖紙沒學、裝備滿了：材料還是照算（畫面要列），但不能做（blocked） */
+  const blocked = !bpKnown(nw, d) ? '還沒學會這張圖紙' : (nw.gear || []).length >= GEAR_MAX ? `裝備已經 ${GEAR_MAX} 件了，之後開放「分解」就能整理` : '';
+  out.coins = rec.coins; out.blocked = !!blocked;
+  if (nw.coins < rec.coins) out.lack.push({ what: '字元', need: rec.coins, have: nw.coins, short: rec.coins - nw.coins });
+  if (rec.mats) {
+    for (const [id, n] of rec.mats) {
+      const have = (nw.mats && nw.mats[id]) || 0; out.use[id] = n;
+      if (have < n) out.lack.push({ what: (MAT_INFO[id] || [id])[0], need: n, have, short: n - have });
+    }
+  }
+  if (rec.any) {
+    const [col, n] = rec.any, pk = pickAny(nw, col, n, { exact: true, prefer });
+    Object.assign(out.use, pk.use); out.any = pk;
+    if (!pk.ok) out.lack.push({ what: `${COLOR_NAME[col]}色材料`, need: n, have: pk.have, short: pk.short });
+  }
+  out.ok = !out.lack.length && !blocked;
+  out.why = blocked || (out.ok ? '' : '材料或字元還不夠');
+  return out;
+}
+export function newGearId(nw) {
+  const used = new Set((nw.gear || []).map(g => g.id));
+  for (let i = 0; i < 50; i++) {
+    const id = 'g' + Math.floor(Math.random() * 36 ** 4).toString(36).padStart(4, '0');
+    if (!used.has(id)) return id;
+  }
+  return 'g' + Date.now().toString(36);
+}
+/* 照 craftCheck 扣材料與字元、放進一件 +0 的新裝備；不夠就回 null、什麼都不動 */
+export function doCraft(nw, key, c, prefer, t) {
+  const ck = craftCheck(nw, key, c, prefer);
+  if (!ck.ok) return null;
+  nw.coins -= ck.coins;
+  for (const [id, n] of Object.entries(ck.use)) { nw.mats[id] -= n; if (nw.mats[id] <= 0) delete nw.mats[id]; }
+  const it = { id: newGearId(nw), k: key, c, p: 0, t: t || Date.now() };
+  nw.gear.push(it);
+  nw.forge.made = (nw.forge.made || 0) + 1;
+  return it;
+}
+/* ── 強化 +1～+5：一定成功、不會壞、不會掉級（SPEC §3.6）── */
+export const UP_COINS = [20, 35, 55, 80, 110];
+export const UP_MATS = [1, 1, 2, 2, 3];
+export const COLOR_MUL = { gray: 1, green: 2, blue: 3 };
+export const upCost = it => it.p >= GEAR_MAX_P ? null : { coins: UP_COINS[it.p] * (COLOR_MUL[it.c] || 1), mats: UP_MATS[it.p] };
+export function upCheck(nw, id, prefer) {
+  const it = gearItem(nw, id), out = { ok: false, why: '', lack: [], use: {}, coins: 0, it, cost: null };
+  if (!it) { out.why = '找不到這件裝備'; return out; }
+  out.cost = upCost(it);
+  if (!out.cost) { out.why = '2b 先強化到 +5，+6 以上要等之後開放'; return out; }
+  out.coins = out.cost.coins;
+  if (nw.coins < out.coins) out.lack.push({ what: '字元', need: out.coins, have: nw.coins, short: out.coins - nw.coins });
+  const pk = pickAny(nw, it.c, out.cost.mats, { prefer });
+  Object.assign(out.use, pk.use); out.any = pk;
+  if (!pk.ok) out.lack.push({ what: `${COLOR_NAME[it.c]}色以上的材料`, need: out.cost.mats, have: pk.have, short: pk.short });
+  out.ok = !out.lack.length;
+  if (!out.ok) out.why = '材料或字元還不夠';
+  return out;
+}
+export function doUpgrade(nw, id, prefer) {
+  const ck = upCheck(nw, id, prefer);
+  if (!ck.ok) return null;
+  nw.coins -= ck.coins;
+  for (const [m, n] of Object.entries(ck.use)) { nw.mats[m] -= n; if (nw.mats[m] <= 0) delete nw.mats[m]; }
+  ck.it.p++;
+  nw.forge.ups = (nw.forge.ups || 0) + 1;
+  nw.forge.top = Math.max(nw.forge.top || 0, ck.it.p);
+  return ck.it;
+}
+/* 穿上：放進它的那一格。回 false＝找不到或格子不對 */
+export function doEquip(nw, id) {
+  const it = gearItem(nw, id), d = it && gearDef(it.k);
+  if (!d) return false;
+  nw.eq[d.slot] = it.id;
+  syncLegacy(nw);
+  return true;
+}
+/* 穿上之後戰力變多少（「穿上」按鈕在比較高時變金色） */
+export const powerGain = (nw, id) => { const it = gearItem(nw, id), d = it && gearDef(it.k); if (!d) return 0; const cur = equippedItem(nw, d.slot); return itemPower(it) - (cur ? itemPower(cur) : 0); };
+/* 這個人的戰力（五格加總）；教師頁表格排序用 */
+export const gearPower = nw => gearStats(nw).pw;
+
+/* 現在材料夠不夠做：回每一件的狀態，「做得出來的排前面」用。cloth 之類只有灰色版的只看灰色版 */
+export function craftList(nw) {
+  const out = [];
+  for (const [key, d] of Object.entries(GEAR_DEFS)) {
+    if (!bpKnown(nw, d)) continue;
+    const vers = defColors(d).map(c => ({ c, ck: craftCheck(nw, key, c) }));
+    out.push({ key, def: d, vers, can: vers.some(v => v.ck.ok) });
+  }
+  return out.sort((a, b) => (b.can ? 1 : 0) - (a.can ? 1 : 0));
+}
+/* 「再 1 個柔軟絨毛就能做咕咕帽」：挑最接近完成的一件，結算畫面用。回 null＝沒什麼可說 */
+export function forgeHint(nw) {
+  const list = craftList(nw), can = list.filter(x => x.can).length;
+  if (can) return { can, text: `現在可以做 ${can} 件！` };
+  let best = null;
+  for (const x of list) for (const v of x.vers) {
+    const ls = v.ck.lack; if (!ls.length) continue;
+    const items = ls.filter(l => l.what !== '字元'), coin = ls.find(l => l.what === '字元');
+    const score = items.reduce((a, l) => a + l.short, 0) + (coin ? 1 : 0);
+    if (!best || score < best.score) best = { score, x, items, coin };
+  }
+  if (!best) return null;
+  const parts = best.items.map(l => `${l.short} 個${l.what}`);
+  if (best.coin) parts.push(`${best.coin.short} 字元`);
+  return { can: 0, text: `再 ${parts.join('、')}就能做${best.x.def.name}` };
+}
+/* 圖紙掉落：每張沒學會的 30%；贏了卻沒掉，保底計數 +1；計數到 5，下一場贏的一定掉一張（GDD §12.6，每隻魔物自己算） */
+export const BP_RATE = 0.3, BP_PITY = 5;
+export function rollBlueprints(nw, mk, rnd = Math.random) {
+  const m = MONSTERS[mk], left = ((m && m.rare) || []).filter(([id]) => !nw.bp.includes(id));
+  if (!left.length) return [];
+  const got = left.filter(() => rnd() < BP_RATE);
+  if (!got.length && (nw.bpDry[mk] || 0) >= BP_PITY) got.push(left[Math.floor(rnd() * left.length)]);
+  nw.bpDry[mk] = got.length ? 0 : (nw.bpDry[mk] || 0) + 1;
+  got.forEach(([id]) => nw.bp.push(id));
+  return got.map(([id, name, color]) => ({ id, name, color }));
+}
+/* 第一次進鐵匠鋪，鐵匠送的布裝圖紙 */
+export const CLOTH_BPS = ['bp_cloth_hat', 'bp_cloth_vest', 'bp_cloth_gloves', 'bp_cloth_shoes'];
+export function giveClothBps(nw) {
+  if (nw.forge.gift) return [];
+  nw.forge.gift = 1;
+  const got = CLOTH_BPS.filter(b => !nw.bp.includes(b));
+  nw.bp.push(...got);
+  return got;
+}
+
+/* ── 舊存檔搬移與整理（normalizeNw 呼叫）──
+   舊格式：starter（初心武器）、gw（老師送的武器）、equip（現在拿哪把，''＝初心武器）。
+   用 gearV 旗標只搬一次：本機舊存檔比雲端新而被選中時，沒有 gear 就搬會把做好的裝備洗掉（SPEC §3.10）。
+   gearV 是 1 卻沒有 gear：不重搬，只放一把初心武器、console.warn，老師可以用信件補。 */
+export function cleanGear(o, d) {
+  const emptyEq = () => ({ weapon: null, helm: null, armor: null, gloves: null, boots: null });
+  o.forge = Object.assign({ made: 0, ups: 0, top: 0, gift: 0 }, (d.forge && typeof d.forge === 'object' && !Array.isArray(d.forge)) ? d.forge : {});
+  o.bpDry = (d.bpDry && typeof d.bpDry === 'object' && !Array.isArray(d.bpDry)) ? d.bpDry : {};
+  const starterItem = () => (STARTERS[o.starter] ? { id: 'g0', k: 'w_' + o.starter, c: 'gray', p: 0, t: 0, s: 1 } : null);
+  if (d.gearV !== 1) {
+    o.gear = []; o.eq = emptyEq();
+    const s = starterItem(); if (s) { o.gear.push(s); o.eq.weapon = s.id; }
+    for (const k of o.gw) {
+      if (!gearDef(k)) continue;
+      const it = { id: 'gw_' + k, k, c: 'green', p: 0, t: 0 }; o.gear.push(it);
+      if (o.equip === k) o.eq.weapon = it.id;
+    }
+    o.gearV = 1;
+  } else {
+    o.gear = Array.isArray(d.gear) ? d.gear.filter(g => g && typeof g.id === 'string' && gearDef(g.k) && GEAR_COLORS.includes(g.c) && Number.isInteger(g.p) && g.p >= 0 && g.p <= GEAR_MAX_P).slice(0, GEAR_MAX) : null;
+    if (!o.gear) {
+      console.warn('裝備資料不見了：只放一把初心武器，老師可以用信件補發');
+      const s = starterItem(); o.gear = s ? [s] : [];
+    }
+    o.eq = Object.assign(emptyEq(), (d.eq && typeof d.eq === 'object') ? d.eq : {});
+    for (const [slot] of GEAR_SLOTS) { const it = gearItem(o, o.eq[slot]), df = it && gearDef(it.k); if (!df || df.slot !== slot) o.eq[slot] = null; }
+    if (!o.eq.weapon) { const s = o.gear.find(g => gearDef(g.k).slot === 'weapon' && g.s) || o.gear.find(g => gearDef(g.k).slot === 'weapon'); if (s) o.eq.weapon = s.id; }
+  }
+  syncLegacy(o);
+}
+/* 舊欄位照寫：還開著舊分頁的學生、教師頁舊程式不會壞。equip＝穿著的老師送的武器（沒有就 ''）；gw＝擁有的老師送的武器 */
+export function syncLegacy(nw) {
+  const w = equippedItem(nw, 'weapon');
+  nw.equip = (w && Object.prototype.hasOwnProperty.call(GIFT_WEAPONS, w.k)) ? w.k : '';
+  const gw = []; (nw.gear || []).forEach(g => { if (Object.prototype.hasOwnProperty.call(GIFT_WEAPONS, g.k) && !gw.includes(g.k)) gw.push(g.k); });
+  nw.gw = gw;
+}
+/* 換初心武器（前 3 場免費）：把那件初心武器的種類換掉；第一次選就放進去並穿上 */
+export function setStarter(nw, wk) {
+  nw.starter = wk;
+  let s = (nw.gear || []).find(g => g.s);
+  if (!s) { s = { id: 'g0', k: 'w_' + wk, c: 'gray', p: 0, t: 0, s: 1 }; if ((nw.gear || []).some(g => g.id === 'g0')) s.id = newGearId(nw); nw.gear.push(s); if (!nw.eq.weapon) nw.eq.weapon = s.id; }
+  else s.k = 'w_' + wk;
+  syncLegacy(nw);
+}
+/* 老師送的裝備（信箱 gear）：顏色不能高於那件做得出的最高色、強化 0～5。滿了回 'full'，不認得回 null */
+export function giveGear(nw, key, c, p, t) {
+  const d = Object.prototype.hasOwnProperty.call(GEAR_DEFS, key) ? GEAR_DEFS[key] : gearDef(key);
+  if (!d) return null;
+  if ((nw.gear || []).length >= GEAR_MAX) return 'full';
+  const cols = defColors(d), col = cols.includes(c) ? c : cols[0];
+  const it = { id: newGearId(nw), k: key, c: col, p: Math.max(0, Math.min(GEAR_MAX_P, p | 0)), t: t || Date.now() };
+  nw.gear.push(it);
+  return it;
+}
+export const giftGearOk = r => !!r && typeof r.key === 'string' && !!gearDef(r.key) && defColors(gearDef(r.key)).includes(r.c) && Number.isInteger(r.p) && r.p >= 0 && r.p <= GEAR_MAX_P;
+
 /* 材料與圖紙的名稱表：{ id: [名稱, 顏色] }。背包、信箱領取、教師頁「給東西」的清單都從這裡來，
    魔物的 drops／rare、初心武器圖紙一加，各處就自動多一項，不用另外登記。 */
 export const MAT_INFO = (() => {
@@ -294,6 +670,8 @@ export const MAT_INFO = (() => {
     (mo.rare || []).forEach(([id, name, color]) => { m[id] = [name.replace('📜 ', ''), color]; });
   });
   Object.entries(STARTERS).forEach(([k, st]) => { m['bp_' + k] = [st.name + '圖紙', 'gray']; });
+  /* 怪物不掉、鐵匠送的圖紙（布裝）：名稱跟顏色照那件最低的版本 */
+  Object.values(GEAR_DEFS).forEach(d => { if (d.bp && !m[d.bp]) m[d.bp] = [d.name + '圖紙', defColors(d)[0] || 'gray']; });
   return m;
 })();
 /* 圖紙的 id 一律 bp_ 開頭；其他是材料。信箱用這兩個擋掉老師打錯的 key（SPEC-STAGE2 F6） */
@@ -303,6 +681,28 @@ export const isMatId = id => typeof id === 'string' && !id.startsWith('bp_') && 
 export const TUT_LESSONS = [['dodge', '閃避'], ['defend', '防禦'], ['attack', '打字']];
 /* 區域進度（NW.zone[區域]＝打贏的最高星級）老師能補到幾星 */
 export const ZONE_STAR_MAX = 5;
+
+/* ── 每場紀錄與可疑偵測（2b-9，docs/SPEC-STAGE2.md §2.5、§2.6）──
+   戰鬥結束時 nw-battle.js 算好每題摘要 q:[[字數, 按鍵, 毫秒, 打對幾字], …]；這裡用同一套函式判斷「可疑」，
+   老師端彙總（2a 的 teacher/rank-calc.js）重算也用它，學生改了自己的程式照樣在老師那邊被抓到。
+   標記只是請老師看一眼：不扣獎勵、不罰，學生看不到「可疑」這個詞。 */
+export const RANK_MIN_ACC = 0.9;            // 合格場次的正確率下限（SPEC §2.4）；結算的 lvAcc 也用它
+export const SUS = { keysRatio: 1.5, keysMinCor: 20, qFastCps: 5, qFastMinChars: 3, cpmSane: 130, jumpMul: 3, jumpNeed: 5, qMax: 120 };
+export const SUS_WHY = { keys: '按鍵太少', fast: '太快', sum: '數字對不起來', jump: '進步太跳' };
+/* 題目等級＝題目字數上限 × 詞庫難度（戰鬥的 tierIdx 不含「生氣」那一階）。同一個等級才比速度（進步榜） */
+export const qBand = (star, lv) => `${MAX_CHARS(star)}:${lv < 10 ? 0 : lv < 20 ? 1 : 2}`;
+const median = a => { const s = a.slice().sort((x, y) => x - y), m = s.length >> 1; return s.length ? (s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2) : 0; };
+/* r：{ cor, keys, ans, secs, cpm, q }；hist：這個題目等級最近的 cpm（最多 5 個）。回代碼清單（可能是空的） */
+export function susCheck(r, hist) {
+  const out = [], q = Array.isArray(r.q) ? r.q : [];
+  /* 注音一個字至少 2 鍵；整場 0 個按鍵不判斷（觸控裝置有些不送 keydown） */
+  if (r.keys > 0 && r.cor >= SUS.keysMinCor && r.cor > r.keys / SUS.keysRatio) out.push('keys');
+  if (q.some(x => x[0] >= SUS.qFastMinChars && x[2] > 0 && x[0] / (x[2] / 1000) > SUS.qFastCps) || r.cpm > SUS.cpmSane) out.push('fast');
+  const sumMs = q.reduce((a, x) => a + (+x[2] || 0), 0), all = r.ans <= SUS.qMax;
+  if ((all && (q.length !== r.ans || q.reduce((a, x) => a + (+x[3] || 0), 0) !== r.cor)) || sumMs / 1000 > r.secs + 1) out.push('sum');
+  if (Array.isArray(hist) && hist.length >= SUS.jumpNeed && r.cpm > SUS.jumpMul * median(hist)) out.push('jump');
+  return out;
+}
 
 /* 台灣時間的「第幾天」：活動剩幾天照日曆日算。固定 +8 小時而不用瀏覽器時區，電腦時區設錯也一樣；時間要用 C.now()（伺服器時間）。 */
 export const TW_OFFSET_MS = 8 * 3600 * 1000;
@@ -349,13 +749,19 @@ export const WORDS = [
   { id: 'bug10', w: '抓蟲大師', g: '成就', how: '抓蟲分到 10 分', test: n => (n.bugScore || 0) >= 10 },
   { id: 'bugking', w: '職業除錯師', g: '成就', how: '抓蟲抓得最多（老師頒發）', test: n => !!(n.awards && n.awards.bugking) },
   { id: 'grad', w: '畢業生', g: '成就', how: '完成教學大樓的三堂課', test: n => !!(n.tut && n.tut.dodge && n.tut.defend && n.tut.attack) },
-  { id: 'exact', w: '一字不差', g: '成就', how: '正確率 100% 打贏 Lv10 以上的魔物', test: n => (n.perfect || 0) > 0 }
+  { id: 'exact', w: '一字不差', g: '成就', how: '正確率 100% 打贏 Lv10 以上的魔物', test: n => (n.perfect || 0) > 0 },
+  /* wip＝哪一段開放才算數：鐵匠鋪沒開時不能拿、背包的稱號選單也不列（不然孩子看到「打造 1 件」卻沒地方打造） */
+  { id: 'smith1', w: '見習鐵匠', g: '成就', wip: '2b', how: '打造 1 件裝備', test: n => ((n.forge && n.forge.made) || 0) >= 1 },
+  { id: 'smith5', w: '鐵匠', g: '成就', wip: '2b', how: '打造 5 件裝備', test: n => ((n.forge && n.forge.made) || 0) >= 5 },
+  { id: 'shiny', w: '閃亮亮', g: '成就', wip: '2b', how: '把一件裝備強化到 +5', test: n => (n.gear || []).some(g => g.p >= GEAR_MAX_P) },
+  { id: 'fullset', w: '全副武裝', g: '成就', wip: '2b', how: '五格裝備都穿上', test: n => GEAR_SLOTS.every(([s]) => n.eq && n.eq[s]) }
 ];
+export const wordOpen = x => !x.wip || stageOpen(x.wip);
 export const wordById = id => WORDS.find(x => x.id === id);
 
 export function checkWords(nw) {
   const got = [];
-  for (const x of WORDS) if (!nw.words.includes(x.id) && x.test(nw)) { nw.words.push(x.id); got.push(x.w); }
+  for (const x of WORDS) if (!nw.words.includes(x.id) && wordOpen(x) && x.test(nw)) { nw.words.push(x.id); got.push(x.w); }
   return got;
 }
 
@@ -427,8 +833,8 @@ export const VILLAGE = {
     { id: 'notice', kind: 'notice', x: 17, y: 13, name: '佈告欄', act: 'notice', text: '活動、老師的公告、抓蟲榜，都貼在這裡。' },
     { id: 'shop', kind: 'shop', x: 24, y: 9, name: '商店', wip: '3b', text: '用字元買回復藥，也可以賣掉用不到的材料。' },
     { id: 'armor', kind: 'armor', x: 28, y: 10, name: '防具店', wip: '3b', text: '頭盔、鎧甲、手套、靴子，穿上就會出現在你身上！' },
-    { id: 'forge', kind: 'forge', x: 24, y: 15, name: '鐵匠鋪', wip: '2b', text: '用打到的材料，打造、強化自己的武器和裝備！' },
-    { id: 'storage', kind: 'storage', x: 28, y: 16, name: '倉庫', wip: '2b', text: '所有材料和圖紙都放在這裡，一目了然。' }
+    { id: 'forge', kind: 'forge', x: 24, y: 15, name: '鐵匠鋪', act: 'forge', wip: '2b', text: '用打到的材料，打造、強化自己的武器和裝備！' },
+    { id: 'storage', kind: 'storage', x: 28, y: 16, name: '倉庫', act: 'storage', wip: '2b', text: '所有材料和圖紙都放在這裡，一目了然。' }
   ],
   /* 郵筒（k:'mailbox'）也寫在 decor：村莊程式用 k 找它。站的位置是它正下方一格 */
   decor: [
@@ -445,7 +851,8 @@ export const VILLAGE = {
   npcs: [
     { id: 'elder', name: '村長', x: 16, y: 10, look: { style: 'short', hair: '#e8e8e8', armor: '#8a4ad8', trim: '#e0c8ff' }, say: ['歡迎來到新世界！西邊的「教學大樓」可以學閃避、防禦和打字，先去學一學吧。', '廣場上的佈告欄會貼活動和公告，記得常常去看！', '按 B 或點右上角的背包，可以看你的東西和任務。', '右下角的小地圖可以點，點到哪棟房子就傳送過去！'] },
     { id: 'kid', name: '小朋友', x: 19, y: 12, look: { style: 'pony', hair: '#ff7aa8', armor: '#e0802a', trim: '#ffe2a8' }, say: ['灰色的店還沒開張，再等一等！', '打倒草原的魔物，就能去迷霧森林囉。'] },
-    { id: 'smith', name: '鐵匠', x: 21, y: 11, look: { style: 'spiky', hair: '#5a3a22', armor: '#6a4a3a', trim: '#b8b8b8' }, say: ['鐵匠鋪還在蓋，快好了！打到的材料先幫你存著。', '東邊過了小橋就是市集。'] }
+    { id: 'smith', name: '鐵匠', x: 21, y: 11, look: { style: 'spiky', hair: '#5a3a22', armor: '#6a4a3a', trim: '#b8b8b8' }, say: ['鐵匠鋪還在蓋，快好了！打到的材料先幫你存著。', '東邊過了小橋就是市集。'],
+      /* 鐵匠鋪開張（2b）以後換這組 */ sayOpen: ['材料夠了，鐵匠鋪的圖紙會發亮！', '強化一定會成功，放心！', '帽子、衣服這些，對會攻擊你的魔物才有用喔。'] }
   ]
 };
 
@@ -488,10 +895,10 @@ export const EVENT_DEFAULTS = {
   ranking: { minRuns: 3 }
 };
 
-/* 最快討伐的「合理下限」（秒）：最快手速（70 字/分、全對、練熟）在 ★1 的最快秒數 ×0.8，
+/* 最快討伐的「合理下限」（秒）：最快手速（70 字/分、全對、練熟）穿最強裝備（藍色炎牙刀 +5 ×1.32 加綠全身 +5）在 ★1 的最快秒數 ×0.8（2b-1，tools/nw-sim/gear.mjs G7；沒穿裝備算出來是 13／12／13／17，取較小的，才不會把穿裝備的人誤標 ⚠），
    星級越高魔物越硬，所以每個星級都能用。比這還快的分數，教師頁標 ⚠（SPEC §4.2b）。
    進步獎超過 IMPROVE_SANE_MAX（%）也標 ⚠。 */
-export const FASTEST_FLOOR = { coo: 14, frog: 13, shroom: 12, wolf: 17 };
+export const FASTEST_FLOOR = { coo: 9, frog: 12, shroom: 12, wolf: 14 };
 export const IMPROVE_SANE_MAX = 60;
 
 /* 教師頁「新增活動」的範本（SPEC §4.4）。days＝從開始算幾天；fields 是 mg_events 文件的其他欄位。

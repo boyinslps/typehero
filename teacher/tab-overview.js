@@ -1,6 +1,6 @@
 /* 📊 總覽（SPEC §2.2）：數字卡、「今天要做的事」、三個捷徑。卡片點下去到對應的分頁（帶篩選）。 */
 import { loadScores, loadBoard, loadFlags, loadEvents, nameChanged, markNameWarn, pendingAwards } from './data.js';
-import { twDay, normalizeEvent, phaseOf } from './nw.js';
+import { twDay, normalizeEvent, phaseOf, clsShort } from './nw.js';
 import { esc, fmtT, helpBox } from './util.js';
 
 const SOON_MS = 48 * 3600 * 1000;   // 「快結束」的意思：兩天內
@@ -20,6 +20,11 @@ export default async function mount(el, ctx) {
   markNameWarn(scores, flags);
   const warn = scores.filter(s => s.played && nameChanged(s, board[s.id])).length;
 
+  /* 各班平均持有字元與戰力：字元越來越多、戰力卻沒長，就是字元花不掉（通脹的早期訊號，SPEC-STAGE2 §3.8） */
+  const byCls = {};
+  scores.filter(s => s.played).forEach(s => { (byCls[s.className] = byCls[s.className] || []).push(s); });
+  const avg = (l, k) => Math.round(l.reduce((a, s) => a + (s[k] || 0), 0) / l.length);
+  const econ = Object.keys(byCls).sort((a, b) => (clsShort(a) < clsShort(b) ? -1 : 1)).map(c => `${esc(clsShort(c))}：🪙 ${avg(byCls[c], 'coins')}・戰力 ${avg(byCls[c], 'power')}`).join('　');
   const card = (key, label, val, go, cls = '', sub = '') =>
     `<button class="card ${cls}" data-card="${key}" data-go="${go}"><span class="dim">${esc(label)}</span><b>${val}</b>${sub ? `<span class="dim" style="font-size:.85em">${sub}</span>` : ''}</button>`;
   /* 今天要做的事：只列真的要動作的；每一行點下去就到那裡 */
@@ -43,6 +48,7 @@ export default async function mount(el, ctx) {
       ${card('unread', '未讀回饋', unread, 'feedback')}
       ${card('warn', '⚠ 換過名字', warn, 'students', warn ? 'alert' : '', '信箱先鎖著，等你按「名字沒問題」')}
     </div>
+    ${econ ? `<p class="dim" data-econ style="margin-top:8px">各班平均持有字元與戰力（通膨的早期訊號）　${econ}</p>` : ''}
     <h3>快速開始</h3>
     <div class="row gap">
       <button class="px-btn gold" data-go="mail">✉ 寄信</button>

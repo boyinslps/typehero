@@ -3,14 +3,14 @@
    與 mg_bugboard_private（老師核可的真名，學生讀不到）。 */
 import { db, doc, setDoc, writeBatch } from './fb.js';
 import { loadScores, loadBoard, loadFlags, loadMails, loadClassSizes, invalidate, nameChanged, markNameWarn, nameBase, byClsSeat } from './data.js';
-import { clsShort, MONSTERS, REGIONS, MAIN_QUESTS, currentQuest, wordById, twDay, normName, sha256Hex } from './nw.js';
+import { clsShort, MONSTERS, REGIONS, MAIN_QUESTS, currentQuest, wordById, twDay, normName, sha256Hex, gearPower } from './nw.js';
 import { ownedSummary } from './gifts.js';
 import { awardTitle } from './title-ui.js';
 import { openPersonCard } from './pc.js';
 import { $, esc, fmtT, relT, log, modal, toast, errText, ask, matchStudent, helpBox } from './util.js';
 
 const COLS = [
-  ['cls', '班級'], ['seat', '座號'], ['name', '姓名'], ['nick', '榜上名字'], ['hr', 'HR'], ['coins', '字元'], ['weapon', '武器'],
+  ['cls', '班級'], ['seat', '座號'], ['name', '姓名'], ['nick', '榜上名字'], ['hr', 'HR'], ['coins', '字元'], ['weapon', '武器'], ['power', '戰力'],
   ['quest', '目前任務'], ['hunts', '場次'], ['wins', '勝／敗'], ['last', '最後上線'], ['rep', '回報（確認／送出）']
 ];
 /* 「現在在線」＝最近 10 分鐘內有存檔（遊戲每打完一場、每幾分鐘就會存一次）。「勝率偏低」是用累積場次估的：
@@ -32,7 +32,7 @@ export default async function mount(el, ctx, params) {
   const bd = s => board[s.id] || {};
   const sortVal = {
     cls: s => clsShort(s.className), seat: s => s.seat, name: s => s.name, nick: s => s.nick, hr: s => s.hr, coins: s => s.coins,
-    weapon: s => s.weapon, quest: s => s.nw ? s.nw.quest.done.length : -1, hunts: s => s.hunts, wins: s => s.wins, last: s => s.last, rep: s => +bd(s).n || 0
+    weapon: s => s.weapon, power: s => s.power, quest: s => s.nw ? s.nw.quest.done.length : -1, hunts: s => s.hunts, wins: s => s.wins, last: s => s.last, rep: s => +bd(s).n || 0
   };
   const quickPass = (s, k, now) => !k || (k === 'online' ? s.last && now - s.last <= ONLINE_MS : k === 'today' ? s.last && twDay(s.last) === twDay(now) : k === 'notToday' ? !(s.last && twDay(s.last) === twDay(now))
     : k === 'unplayed' ? !s.played : k === 'lowwin' ? lowWin(s) : true);
@@ -94,7 +94,7 @@ export default async function mount(el, ctx, params) {
       <td>${esc(clsShort(s.className))}</td><td>${s.seat}</td>
       <td><span class="pc-open" data-pc="${esc(s.id)}" title="看人物卡">${esc(s.name || '（沒有姓名）')}</span>${warn ? ' <span class="chip warn" title="名字跟上次不一樣">⚠ 換過名字</span>' : ''}</td>
       <td>${s.played ? esc(s.nick || '（沒有名字）') : '<span class="dim">—</span>'}${b.hideNick ? ' <span class="chip warn">已隱藏</span>' : ''}</td>
-      <td>${s.played ? s.hr : '—'}</td><td>${s.played ? s.coins : '—'}</td><td>${esc(s.weapon || '—')}</td><td class="wrap" style="min-width:130px">${esc(questText(s))}</td><td>${s.played ? s.hunts : '—'}</td>
+      <td>${s.played ? s.hr : '—'}</td><td>${s.played ? s.coins : '—'}</td><td>${esc(s.weapon || '—')}</td><td data-power>${s.played ? s.power : '—'}</td><td class="wrap" style="min-width:130px">${esc(questText(s))}</td><td>${s.played ? s.hunts : '—'}</td>
       <td>${s.played ? `${s.wins}／${s.fails}` : '—'}${lowWin(s) ? ' <span class="chip warn" title="打 5 場以上、勝率低於 4 成">卡關？</span>' : ''}</td><td title="${esc(fmtT(s.last))}">${esc(relT(s.last))}</td>
       <td>${(+b.n || 0)}／${s.sent}${b.score ? ` <span class="dim">（${b.score} 分）</span>` : ''}</td></tr>`;
   }
@@ -155,6 +155,8 @@ export default async function mount(el, ctx, params) {
           <b>圖鑑</b><span>${Object.keys(nw.dex || {}).map(k => `${esc((MONSTERS[k] || { name: k }).name)}×${nw.dex[k]}`).join('　') || '—'}</span>
           <b>稱號詞條</b><span data-own="words">${own.words.map(g => `${esc(g.g)}：${g.names.length ? esc(g.names.join('、')) : '—'}`).join('<br>')}</span>
           <b>武器</b><span data-own="weapons">${esc(own.weapons.join('、')) || '—'}</span>
+          <b>裝備</b><span data-own="gears">${esc(own.gears.join('、')) || '—'}</span>
+          <b>戰力</b><span data-own="power">${gearPower(nw)}　<span class="dim">做過 ${(nw.forge || {}).made || 0} 件・最高 +${Math.max(0, ...(nw.gear || []).map(g => g.p || 0))}</span></span>
           <b>道具</b><span data-own="items">${esc(own.items.join('　')) || '—'}</span>
           <b>材料</b><span data-own="mats">${esc(own.mats.join('　')) || '—'}</span>
           <b>圖紙</b><span data-own="bps">${esc(own.bps.join('、')) || '—'}</span>
