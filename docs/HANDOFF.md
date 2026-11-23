@@ -20,6 +20,27 @@
 | 新世界預告＋提名投票頁 | **完成，v3.6.0（11 個關鍵字、16 頁、不捲動；投票有三步驟說明）** | `nw-preview.js`（頁面資料、投票）、`index.html` 的 `#nw-modal` 與 `.nwp-*` 樣式，見 [`../CHANGELOG.md`](../CHANGELOG.md) |
 | 第 1 段：獵人村開幕 | **大部分完成（搶先體驗中，用通關密語進）**：獵人村、造型、4 把初心武器、委託板、房間（只能開、不能加入）、戰鬥、HR、稱號、榮譽碑排行 | `newworld.js`、`nw-*.js`、`pixel.js` |
 
+## 第 2 段 2b 鐵匠鋪＋倉庫：怎麼接（2026-11-23，程式做好、沒開放）
+
+> 規格 [`SPEC-STAGE2.md`](SPEC-STAGE2.md)（§3 裝備、§5 實作順序）。**`OPEN_STAGES` 預設仍是 `['1']`，學生看不到。** 老師要做的事見 [`RELEASE-STAGES.md`](RELEASE-STAGES.md)「第 2 段 2b」：先貼 Firestore 規則、決定哪天把 `'2b'` 加進 `OPEN_STAGES`。2a 榮譽碑（`teacher/rank-calc.js`、`tab-rank.js`、`nw-rank.js` 重寫、F3）是**下一輪**，要等 2b 開放 4 週以上。
+
+| 要改什麼 | 在哪 |
+|---|---|
+| 裝備種類、配方、數字（灰 100／綠 105／藍 110、每 +1 加 2…） | `nw-data.js` 的 `GEAR_DEFS`、`GEAR_TB`、`UP_COINS`／`UP_MATS`；改完跑 `node tools/nw-sim/gear.mjs --n 1000` 看 G1～G8（結果 [`BALANCE-GEAR-2B.md`](BALANCE-GEAR-2B.md)） |
+| 加一件新裝備 | ① `GEAR_DEFS` 一列（配方、外觀 `look`）；② 圖紙放進某隻魔物的 `rare`（沒有魔物掉的像布裝，放 `CLOTH_BPS` 由鐵匠送）；③ `pixel.js` 的 `GR.xxx` 16×16 圖示（頭盔還要畫 `hero`／`chibi`）；④ 教師頁清單、信箱標籤自動從表長出來，不用改 |
+| 存檔欄位 | `gearV`（1＝已搬成裝備格式，只搬一次）、`gear:[{id,k,c,p,t,s?}]`、`eq:{weapon,helm,armor,gloves,boots}`（指向 gear 的 id）、`forge:{made,ups,top,gift}`、`bpDry`、`cpmHist`、`runQ`。舊欄位 `starter`／`equip`／`gw` 照寫（`syncLegacy`）。`curWeapon(nw)` 回武器**種類**（`'staff'`、`'testblade'`、`'flame_dagger'`），11 個呼叫點不用改 |
+| 戰鬥怎麼吃裝備 | `nw-battle.js` 開頭 `GS = gearStats(NW)`；測試可用 `window.__NW_GEAR__` 直接指定 |
+| 角色外觀 | `nw-card.js` 的 `heroOf`／`chibiOf`／`equipSlotHtml` ＋ `gearLook(nw)`；`pixel.js` 的 `hero()`／`chibiGrid()` |
+| 鐵匠鋪、背包的裝備／材料／圖紙分頁 | `nw-forge.js`（`openForge`、`gearTab`、`matsTab`、`bpTab`）；`newworld.js` 負責傳 `ctx`（存檔、`sync`＝雙分頁先讀雲端、`after`＝算任務與詞條） |
+| 每場紀錄、可疑偵測 | `nw-battle.js` 結束時算每題摘要、按鍵數；`nw-data.js` 的 `susCheck`／`SUS`／`qBand`；`newworld.js` 的 `queueRun`／`flushRuns`；規則 `firestore-rules.txt` |
+| 開放／退回 | `OPEN_STAGES`；`stageOpen('2b')`。沒開放時：鐵匠鋪、倉庫是施工中、1-5／1-6 與新詞條不出現、材料／圖紙／裝備分頁維持原樣、**不寫** `mg_nw_runs` |
+
+**已知、刻意先不處理**
+- 護腳（預警 +0.1～0.3 秒）在現行攻擊下幾乎看不到效果；護手對重壓有幫助。模擬器假設反應時間 1.0 秒，真實的閃避成功率比假設低很多（見 `BALANCE-GEAR-2B.md`、`tools/nw-sim/calib.mjs`），等 `mg_nw_runs` 與 `dodgeOk` 有資料再校正。
+- 重壓沒擋住時，遊戲目前是三條線各打一次（三倍傷害），因為 `resolveStrike` 對每條線都 `hurt`；盔甲減傷會乘三次。不是這次改的，模擬器照遊戲算。
+- 規則測試（`tools/rules-test/`）的新案例**沒有實際跑過**（那台電腦沒有 Java）；貼規則前請先跑。
+- 測試編號：規格寫的 nw11～nw14 與現有檔衝突（nw11 是榜單），所以 2b 是 nw12（鐵匠鋪）、nw13（舊存檔）、nw14（戰鬥）、nw15（每場紀錄）；2a 之後用 nw16。
+
 ## v3.14.2 各系統怎麼接（2026-11-20）
 
 ### 通用排行榜模板 `nw-rankboard.js`
@@ -48,8 +69,9 @@
 ### 平衡曲線與第 2 段規格（都還沒實作）
 | 文件 | 狀態 |
 |---|---|
-| [`BALANCE-CURVES.md`](BALANCE-CURVES.md) | **設計提案，還沒改程式**。曲線來源 `tools/nw-sim/curves.mjs`（`--real` 可換真實速度）。真實速度分布還沒拿到，匯出後重算；它的勝率不能和 SPEC-STAGE2 §3.4 的粗跑表直接比 |
-| [`SPEC-STAGE2.md`](SPEC-STAGE2.md) | **v2，待老師決定 §8 的 6 個問題，還沒開始寫程式**。2a 榮譽碑要等 2b 上線至少 4 週；防作弊先做 `keys`／`fast`／`sum`／`jump` |
+| [`BALANCE-CURVES.md`](BALANCE-CURVES.md) | **設計提案，數字沒改（老師說平衡先不調；2b 用升級後的模擬器驗過裝備數值）**。曲線來源 `tools/nw-sim/curves.mjs`（`--real` 可換真實速度）。真實速度分布還沒拿到，匯出後重算；它的勝率不能和 SPEC-STAGE2 §3.4 的粗跑表直接比 |
+| [`SPEC-STAGE2.md`](SPEC-STAGE2.md) | §8 的 6 個問題老師照預設。**2b 已實作（2026-11-23，沒開放）**，見上面「第 2 段 2b」；2a 榮譽碑還沒做，要等 2b 上線至少 4 週 |
+| [`BALANCE-GEAR-2B.md`](BALANCE-GEAR-2B.md) | 2b-1 的 G1～G8 驗收結果（模擬器 `tools/nw-sim/gear.mjs` 產生，不要手改） |
 | [`research/BALANCE-REFS.md`](research/BALANCE-REFS.md) | 參考資料；來源只讀得到搜尋摘要，文中逐條標示 |
 
 開工第 2 段前，先把 BALANCE-CURVES §7 的對 SPEC-STAGE2 的修改建議與老師的決定合併回 SPEC-STAGE2。
