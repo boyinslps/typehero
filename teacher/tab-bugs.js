@@ -121,7 +121,7 @@ export default async function mount(el, ctx) {
     const b = writeBatch(db);
     flagWrite(b, f, { status: 'dup', dupOf, sev: deleteField() });
     b.set(doc(db, 'mg_bugboard', f.docId), boardPatch(f.docId, f, cur, putReport(rs0, entry), null, notes), { merge: true });
-    if (!(await mailExists('bug_' + f.id))) b.set(doc(db, 'mg_mail', 'bug_' + f.id), mailDoc(f, MAIL_BUG_TITLE, quoteLine(f) + '已經有同學先回報了。謝謝你也發現它！', []));
+    if (!(await mailExists('bug_' + f.id))) b.set(doc(db, 'mg_mail', 'bug_' + f.id), mailDoc(f, MAIL_BUG_TITLE, quoteLine(f) + '老師已經收到其他同學的回報了，謝謝你也告訴老師！', []));
     await log('回報標成重複', f.id, `${flagWho(f)}：跟 ${dupOf} 一樣，不加分，寄感謝信`, b);
     await b.commit();
     await refresh(); paintAll(); toast('已標成重複，寄了感謝信');

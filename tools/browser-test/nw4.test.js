@@ -221,7 +221,7 @@ async function winHunt(p, rk, mk, star) {
     await p.evaluate(() => { document.querySelectorAll('.nw-sheet').forEach(e => e.remove()); const b = window.__FS['mg_bugboard/五年級3班_5號']; b.reports.push({ id: 'x_dup', st: 'dup', sev: 0, reply: '', t: Date.now() - 1000 }, { id: 'x_rej', st: 'rejected', sev: 0, reply: '這是設計成這樣的', t: Date.now() - 2000 }, { id: 'x_rej2', st: 'rejected', sev: 0, reply: '', t: Date.now() - 3000 }); });
     await p.click('[data-act="book"]'); await p.waitForSelector('[data-reports]', { timeout: 6000 });
     const rep = await p.textContent('[data-reports]');
-    ok(rep.includes('別人先回報了，謝謝你也發現了！') && rep.includes('這次沒有採用，謝謝你') && rep.includes('老師說：這是設計成這樣的') && !rep.includes('老師還沒看'), '「我的回報」：重複顯示「別人先回報了…」、不採用顯示「這次沒有採用，謝謝你」與老師的回覆：' + rep.replace(/\s+/g, ' ').slice(0, 160));
+    ok(rep.includes('老師已經收到其他同學的回報，謝謝你！') && rep.includes('這次沒有採用，謝謝你') && rep.includes('老師說：這是設計成這樣的') && !rep.includes('老師還沒看'), '「我的回報」：重複顯示「別人先回報了…」、不採用顯示「這次沒有採用，謝謝你」與老師的回覆：' + rep.replace(/\s+/g, ' ').slice(0, 160));
     /* 老師的回覆：mg_bugboard 全班讀得到，所以另外寄信給本人；信箱裡有那句就優先用信裡的 */
     await p.evaluate(() => {
       document.querySelectorAll('.nw-sheet').forEach(e => e.remove());
