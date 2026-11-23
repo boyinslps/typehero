@@ -375,6 +375,8 @@ export function initNewWorld(C) {
 
   function viewHub() {
     stopAnims();
+    /* 任務改版前就上完教學課的人、或在別台電腦補到進度的人：存檔裡有進度，但任務沒人替他算，會一直卡在「到教學大樓」。進村時補算一次 */
+    const caught = checkQuests();
     const need = hrNeed(NW.hr), pct = NW.hr >= HR_MAX ? 100 : Math.min(100, NW.hrExp / need * 100);
     const matN = Object.values(NW.mats).reduce((a, b) => a + b, 0);
     const q = currentQuest(NW);
@@ -406,6 +408,7 @@ export function initNewWorld(C) {
         start: NW.posV === POS_V && NW.pos ? NW.pos : VILLAGE.start, scroller: root, fast: FAST, onEnter: enterBuilding, guide: guideBuilding(), mailN: () => mailCount, noticeBang: () => nflags.any
       });
       if (location.hostname === 'localhost') window.__NWV = village;   // 瀏覽器測試用（讀位置、傳送、走路）
+      caught.forEach((q, i) => setTimeout(() => toast(`任務完成：${q.t}　獎勵：${q.rewardText}`, 3600), 600 + i * 3800));
       hubStart();
     });
   }
@@ -1140,6 +1143,8 @@ export function initNewWorld(C) {
     NW.tut[id] = 1; NW.coins += LESSON_COINS; saveNw();
     await showGift({ icon: '🏫', title: `字元 ×${LESSON_COINS}`, note: '學會了新本領！字元是新世界的貨幣，之後可以買東西、打造裝備。' });
     await awardMissions();
+    /* 第三堂課一做完就算主線：以前要等下一場狩獵打完才會算，同學做完了任務卻不跳下一個 */
+    for (const q of checkQuests()) await showGift({ icon: '📌', title: `任務完成：${q.t}`, note: `獎勵：${q.rewardText}。` });
   }
   async function weaponTour() {
     const key = NW.gw[NW.gw.length - 1] || NW.starter;
@@ -1756,7 +1761,8 @@ export function initNewWorld(C) {
       if (sum.win) {
         s.wins++;
         NW.wwin[weaponBase(curWeapon(NW))] = (NW.wwin[weaponBase(curWeapon(NW))] || 0) + 1;
-        if (res.accuracy >= 100 && lv >= 10) NW.perfect = (NW.perfect || 0) + 1;
+        /* accuracy 是 0～1 的小數（畫面才乘 100）；以前寫 >= 100 永遠不成立，「一字不差」從來沒人拿到 */
+        if (res.accuracy >= 1 && lv >= 10) NW.perfect = (NW.perfect || 0) + 1;
         NW.dex[res.mk] = (NW.dex[res.mk] || 0) + 1;
         if (res.star > (NW.zone[res.rk] || 0)) NW.zone[res.rk] = res.star;
         const key = res.rk + ':' + res.star;

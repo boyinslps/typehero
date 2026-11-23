@@ -157,10 +157,15 @@ export function startBattle(env, cfg, done) {
     for (let i = tierIdx(); i >= 0; i--) { const f = fits(C.q.pool('common_' + TIER_KEYS[i])); if (f.length) return f; }
     return C.q.pool('common_normal');
   }
+  /* 只擋「上一題」會一直撞到重複（詞庫約 100 個、一場要打幾十題）：改成近 30 題不重複，
+     池子比 30 小就只擋池子的一半，免得沒題可選 */
   function pickWord() {
     const p = wordPool();
+    S.recent = S.recent || [];
+    const keep = Math.min(30, Math.floor(p.length / 2));
     let q, n = 0;
-    do { q = rnd(p); n++; } while (p.length > 1 && q.t === S.lastT && n < 10);
+    do { q = rnd(p); n++; } while (p.length > 1 && S.recent.includes(q.t) && n < 40);
+    S.recent.push(q.t); if (S.recent.length > keep) S.recent.splice(0, S.recent.length - keep);
     S.lastT = q.t; return { t: q.t, z: q.z, sp: null };
   }
   function pickChant() {

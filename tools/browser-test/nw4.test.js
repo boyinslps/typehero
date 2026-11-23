@@ -263,6 +263,19 @@ async function winHunt(p, rk, mk, star) {
   }
 
   {
+    /* 任務改版前就上完三堂課的存檔：進村要自動補算，不能卡在「到教學大樓」 */
+    const p = await open(b, { lobby: true, nw: { nameSet: 1, quest: { done: ['1-0'] }, tut: { dodge: 1, defend: 1, attack: 1 }, coins: 0, intro: { hub: 1 } } });
+    await p.click('#nw-door'); await p.waitForTimeout(1500);
+    const chip = await p.textContent('[data-act="bagq"]');
+    ok(!chip.includes('教學大樓') && chip.includes('泡泡蛙'), '三堂課早就做完的存檔：進村就跳到下一個任務（泡泡蛙），不卡在教學大樓 → ' + chip.trim());
+    const sv = await p.evaluate(() => JSON.parse(localStorage.getItem('mg_nw_五年級3班_5號')));
+    /* 100＝主線「學會三堂課」，30＝測試員任務「教學大樓畢業」（進村時本來就會補算） */
+    ok(sv.quest.done.includes('1-0a') && sv.coins === 130, '補算時發了教學大樓主線的 100 字元，加上畢業任務 30（共 130，只發一次）');
+    ok(p.errs.length === 0, '沒有 JS 錯誤 ' + p.errs.join(' | '));
+    await p.close();
+  }
+
+  {
     const p = await open(b, { intro: true, lobby: true, nw: { nick: ['a_brave', 'b_slime'], nameSet: 1, quest: { done: ['1-0'] }, hunts: 3, intro: { hub: 1 } } });
     await p.click('#nw-door'); await p.waitForSelector('#nw-notice', { timeout: 6000 });
     ok((await p.textContent('#nw-notice')).includes(NOTICE_TITLE) && (await p.textContent('#nw-notice')).includes('只會跳一次') && (await p.textContent('#nw-notice')).includes('佈告欄'), '老玩家進新世界：跳出改版公告，說明只跳一次、想再看去佈告欄');
