@@ -283,7 +283,7 @@ export const ITEM_DEFS = {
   potion: { name: '回復藥', desc: '要等商店開張才能在戰鬥中使用，先幫你存著。', icon: '🧪' },
   renameCard: { name: '改名卡', desc: '可以改一次名字。', pixel: 'renameCard' }
 };
-/* 商店開張時用（現在 OPEN_STAGE=1，商店還沒開，沒有購買流程；改名卡先由信箱寄） */
+/* 商店開張時用（現在 OPEN_STAGES 沒有 '3b'，商店還沒開，沒有購買流程；改名卡先由信箱寄） */
 export const SHOP_ITEMS = [{ key: 'renameCard', price: 300 }];
 /* 材料與圖紙的名稱表：{ id: [名稱, 顏色] }。背包、信箱領取、教師頁「給東西」的清單都從這裡來，
    魔物的 drops／rare、初心武器圖紙一加，各處就自動多一項，不用另外登記。 */
@@ -383,9 +383,12 @@ export function zoneOpen(nw, rk) {
 }
 export const starOpen = (nw, rk, star) => star <= 1 || (nw.zone[rk] || 0) >= star - 1;
 
-export const OPEN_STAGE = 1;
-export const openStage = () => (typeof location !== 'undefined' && location.hostname === 'localhost' && window.__NW_STAGE__) || OPEN_STAGE;
-export const buildingOpen = b => !!b.act && (!b.wip || parseFloat(b.wip) <= openStage());
+/* 段號是字串，開了哪幾段用清單表示，可以跳著開（2b 鐵匠鋪先開，2a 榮譽碑 4 週後再開；SPEC-STAGE2 §1）。
+   收回：從清單拿掉、重新發版，學生資料不刪。測試在 localhost 用 window.__NW_STAGES__ 覆寫 */
+export const OPEN_STAGES = ['1'];
+export const openStages = () => (typeof location !== 'undefined' && location.hostname === 'localhost' && window.__NW_STAGES__) || OPEN_STAGES;
+export const stageOpen = s => openStages().includes(String(s));
+export const buildingOpen = b => !!b.act && (!b.wip || stageOpen(b.wip));
 
 /* 村莊 32×22 格（docs/SPEC-TEACHER-ADMIN.md §9.2）。座標單位都是「格」，一格 16 像素。
    分區：高台（北）、學習區（西）、中央廣場（中央偏南，出生點）、市集（東，隔著小溪、小橋連過去）、傳送門（正南）。
@@ -417,15 +420,15 @@ export const VILLAGE = {
   ],
   buildings: [
     { id: 'rooms', kind: 'rooms', x: 5, y: 2, name: '組隊酒館', wip: '3a', text: '開房間或加入同學的房間，最多 4 個人一起打大魔物。' },
-    { id: 'star', kind: 'star', x: 15, y: 2, name: '星圖台', wip: 5, text: '升級拿到的星星，可以在這裡點亮，讓閃避和防禦變得更強。' },
-    { id: 'rank', kind: 'rank', x: 25, y: 2, name: '榮譽碑', act: 'rank', wip: 2, text: '看看誰是最強獵人。' },
+    { id: 'star', kind: 'star', x: 15, y: 2, name: '星圖台', wip: '5', text: '升級拿到的星星，可以在這裡點亮，讓閃避和防禦變得更強。' },
+    { id: 'rank', kind: 'rank', x: 25, y: 2, name: '榮譽碑', act: 'rank', wip: '2a', text: '看看誰是最強獵人。' },
     { id: 'academy', kind: 'academy', x: 3, y: 12, name: '教學大樓', act: 'academy', text: '閃避、防禦、攻擊的教學都在這裡，跟著做一遍就會了！' },
     { id: 'board', kind: 'board', x: 11, y: 13, name: '委託板', act: 'map', text: '選地方、選魔物，出發狩獵！' },
     { id: 'notice', kind: 'notice', x: 17, y: 13, name: '佈告欄', act: 'notice', text: '活動、老師的公告、抓蟲榜，都貼在這裡。' },
-    { id: 'shop', kind: 'shop', x: 24, y: 9, name: '商店', wip: 3, text: '用字元買回復藥，也可以賣掉用不到的材料。' },
-    { id: 'armor', kind: 'armor', x: 28, y: 10, name: '防具店', wip: 3, text: '頭盔、鎧甲、手套、靴子，穿上就會出現在你身上！' },
-    { id: 'forge', kind: 'forge', x: 24, y: 15, name: '鐵匠鋪', wip: 2, text: '用打到的材料，打造、強化自己的武器和裝備！' },
-    { id: 'storage', kind: 'storage', x: 28, y: 16, name: '倉庫', wip: 2, text: '所有材料和圖紙都放在這裡，一目了然。' }
+    { id: 'shop', kind: 'shop', x: 24, y: 9, name: '商店', wip: '3b', text: '用字元買回復藥，也可以賣掉用不到的材料。' },
+    { id: 'armor', kind: 'armor', x: 28, y: 10, name: '防具店', wip: '3b', text: '頭盔、鎧甲、手套、靴子，穿上就會出現在你身上！' },
+    { id: 'forge', kind: 'forge', x: 24, y: 15, name: '鐵匠鋪', wip: '2b', text: '用打到的材料，打造、強化自己的武器和裝備！' },
+    { id: 'storage', kind: 'storage', x: 28, y: 16, name: '倉庫', wip: '2b', text: '所有材料和圖紙都放在這裡，一目了然。' }
   ],
   /* 郵筒（k:'mailbox'）也寫在 decor：村莊程式用 k 找它。站的位置是它正下方一格 */
   decor: [

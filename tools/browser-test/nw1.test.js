@@ -131,7 +131,7 @@ const seed = {
     window.__FS['mg_scores/a'] = mk('小華', 7, { coo: 2, frog: 1 }, 41.5, 12, 1080);
     window.__FS['mg_scores/b'] = mk('小美', 4, { coo: 1 }, 30.2, 3, 300);
   });
-  await p.evaluate(() => { window.__NW_STAGE__ = 2; });
+  await p.evaluate(() => { window.__NW_STAGES__ = ['1', '2a']; });
   await p.click('[data-act="hub"]'); await p.waitForTimeout(900);
   ok(!(await p.$eval('.vb[data-bld="rank"]', e => e.textContent.includes('第 2 段'))) , '階段 2 開了以後榮譽碑不再灰');
   await p.click('.vb[data-bld="rank"]'); await p.waitForSelector('#nw-rank', { timeout: 4000 }); await p.waitForTimeout(500);
