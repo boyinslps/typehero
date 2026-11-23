@@ -114,6 +114,8 @@ export const MAX_CHARS = star => (star <= 2 ? 4 : star <= 4 ? 6 : 8);
 export const CHANT_MAX = 6;
 export const FB_COINS = 30;
 export const BUG_COINS = 15;
+/* 字元照嚴重度給：小 1×、中 2×、大 3×（老師 2026-11-23 決定）。前 BUG_REWARD_MAX 個被確認的回報才有 */
+export const bugCoins = sev => BUG_COINS * Math.min(3, Math.max(1, Math.floor(+sev) || 1));
 export const LESSON_COINS = 200;
 export const BUG_REWARD_MAX = 5;
 export const TESTER_MISSIONS = [
@@ -227,7 +229,7 @@ export const defaultNw = () => ({
   zone: { grass: 0, forest: 0 }, dex: {}, fastest: {},
   quest: { done: [] }, title: '', titleParts: [], words: [], used: {}, wwin: {},
   stat: { dodgeOk: 0, dodgeAll: 0, defOk: 0, defAll: 0, accN: 0, accSum: 0, wins: 0, fails: 0 },
-  flags: 0, fb: {}, gw: [], equip: '', gifts: [], giftedEarly: false, tm: {}, bugs: 0, bugsSent: 0, tut: {}, intro: {}, awards: {}, seenNotice: '', seenNews: 0, seenEv: {}, seenBug: 0,
+  flags: 0, fb: {}, gw: [], equip: '', gifts: [], giftedEarly: false, tm: {}, bugLog: {}, bugs: 0, bugsSent: 0, tut: {}, intro: {}, awards: {}, seenNotice: '', seenNews: 0, seenEv: {}, seenBug: 0,
   name0: '', bugScore: 0, evDone: [], nameFlagged: {},
   mail: {}, nameLog: [], nameSet: 0, ev: {}, fastMk: {}
 });
@@ -246,7 +248,7 @@ export function normalizeNw(d) {
   o.titleParts = Array.isArray(d.titleParts) ? d.titleParts : [];
   o.used = d.used || {}; o.wwin = d.wwin || {}; o.fb = d.fb || {};
   o.gw = Array.isArray(d.gw) ? d.gw : []; o.gifts = Array.isArray(d.gifts) ? d.gifts : [];
-  o.tm = d.tm || {}; o.tut = d.tut || {}; o.bugs = d.bugs || 0; o.bugsSent = d.bugsSent || 0; o.intro = d.intro || {}; o.awards = d.awards || {}; o.seenNotice = d.seenNotice || '';
+  o.tm = d.tm || {}; o.bugLog = (d.bugLog && typeof d.bugLog === 'object' && !Array.isArray(d.bugLog)) ? d.bugLog : {}; o.tut = d.tut || {}; o.bugs = d.bugs || 0; o.bugsSent = d.bugsSent || 0; o.intro = d.intro || {}; o.awards = d.awards || {}; o.seenNotice = d.seenNotice || '';
   o.seenNews = +d.seenNews || 0; o.seenBug = +d.seenBug || 0;
   o.seenEv = (d.seenEv && typeof d.seenEv === 'object' && !Array.isArray(d.seenEv)) ? d.seenEv : {};
   o.name0 = typeof d.name0 === 'string' ? d.name0 : ''; o.bugScore = +d.bugScore || 0;
@@ -509,6 +511,11 @@ export const EVENT_TEMPLATES = [
 /* 改版公告（新的放最前面；寫法照 docs/ANNOUNCEMENT-GUIDE.md）。
    放在這裡而不放 newworld.js：教師頁「公告」分頁要唯讀列出最近 3 則，newworld.js 是學生端程式、不能被教師頁 import。 */
 export const NOTICES = [
+  { id: '2026-11-23-2', date: '11 月 23 日', title: '回報字元照大小給', items: [
+    '🪙 回報被老師確認，字元照問題大小給：小問題 15、中問題 30、大問題 45。前 5 個有字元。',
+    '✉ 老師回信時，會寫出你回報的內容，你就知道老師在說哪一個。',
+    '📓 「測試員手冊」的「我的回報」，看得到你自己寫了什麼。'
+  ] },
   { id: '2026-11-23', date: '11 月 23 日', title: '修好了幾個問題', items: [
     '🏅 「一字不差」稱號修好了，Lv10 以上打出 100% 就拿得到。感謝 5 年級 9 班 11 號回報！',
     '🔁 打怪的題目不會一直重複了。重置天賦，退回的點數也對了。感謝 5 年級 9 班 11 號回報。',

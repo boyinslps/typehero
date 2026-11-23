@@ -2,7 +2,7 @@ import { PX } from './pixel.js';
 import {
   LOOK, DEFAULT_LOOK, heroLook, STARTERS, LOCKED_WEAPONS, REGIONS, MAP_POS, ELEM, STATUS, MONSTERS,
   regionLv, MAIN_QUESTS, normalizeNw, currentQuest, zoneOpen, starOpen, addHrExp, hrNeed, huntExp, huntCoins,
-  COLOR_NAME, COLOR_HEX, HR_MAX, VILLAGE, doorTile, buildingOpen, goalOf, TEST_TAGS, FB_COINS, FB_MINLEN, BUG_COINS, BUG_REWARD_MAX, LESSON_COINS, TESTER_MISSIONS, checkMissions, GIFT_WEAPONS, weaponInfo, weaponBase, curWeapon, WORDS, WORD_GROUPS, checkWords, setTitleParts, wordById, normName, ITEM_DEFS, displayName, NOTICES, MAT_INFO, isBpId, isMatId, TUT_LESSONS, ZONE_STAR_MAX
+  COLOR_NAME, COLOR_HEX, HR_MAX, VILLAGE, doorTile, buildingOpen, goalOf, TEST_TAGS, FB_COINS, FB_MINLEN, BUG_COINS, bugCoins, BUG_REWARD_MAX, LESSON_COINS, TESTER_MISSIONS, checkMissions, GIFT_WEAPONS, weaponInfo, weaponBase, curWeapon, WORDS, WORD_GROUPS, checkWords, setTitleParts, wordById, normName, ITEM_DEFS, displayName, NOTICES, MAT_INFO, isBpId, isMatId, TUT_LESSONS, ZONE_STAR_MAX
 } from './nw-data.js';
 import { injectUi } from './nw-ui.js';
 import { tierOf, EQUIP_LEFT, EQUIP_RIGHT, heroOf, titleBadgeHtml, darkDots, equipSlotHtml, mountSprites as mountSpritesPx, CARD_CSS } from './nw-card.js';
@@ -1188,7 +1188,7 @@ export function initNewWorld(C) {
       <textarea data-did maxlength="150" rows="2" placeholder="例：我在背包裡很快連點 3 次「裝備背包」" class="w-full mt-1 p-3 px-panel in" style="color:#fff"></textarea>
       <div class="px-text text-sm mt-2" style="font-weight:900">② 出現什麼錯誤狀況？</div>
       <textarea data-what maxlength="150" rows="2" placeholder="例：背包整個黑掉，按什麼都沒有反應" class="w-full mt-1 p-3 px-panel in" style="color:#fff"></textarea>
-      <p class="text-xs mt-1" style="color:#ffd98a">送出後，要等<b>老師看過、確認</b>，才會有獎勵：前 ${BUG_REWARD_MAX} 個被確認的回報，每個送 🪙 ${BUG_COINS} 字元，並解鎖「除蟲員」。亂寫的不會被確認喔。</p>
+      <p class="text-xs mt-1" style="color:#ffd98a">送出後，要等<b>老師看過、確認</b>，才會有獎勵：前 ${BUG_REWARD_MAX} 個被確認的回報有字元：小問題 🪙 ${bugCoins(1)}、中 ${bugCoins(2)}、大 ${bugCoins(3)}，並解鎖「除蟲員」。亂寫的不會被確認喔。</p>
       <div data-err class="text-sm mt-1" style="color:#e5705f;min-height:1.2em"></div>
       <div class="flex gap-2 justify-end mt-2"><button class="px-btn" data-close>取消</button><button class="px-btn gold" data-send style="padding:8px 22px">送出</button></div></div>`;
     let cat = '';
@@ -1203,10 +1203,14 @@ export function initNewWorld(C) {
       const text = `【我做了什麼】${did}\n【錯誤狀況】${what}`;
       if (!C.online()) { err.textContent = '現在連不上網路'; return; }
       if (Date.now() - (openBugReport.last || 0) < 20000) { err.textContent = '剛剛才送過，等一下再送下一個'; return; }
+      const fid = `bug_${ME.docId}_${Date.now()}`;
       try {
-        await C.withTimeout(C.setDoc(C.doc(C.db, 'mg_nw_flags', `bug_${ME.docId}_${Date.now()}`), { type: 'bug', status: 'pending', docId: ME.docId, cat, text, did, what, view, cls: ME.className, seat: ME.seat, name: ME.name, t: Date.now() }), 6000, 'nw-bug');
+        await C.withTimeout(C.setDoc(C.doc(C.db, 'mg_nw_flags', fid), { type: 'bug', status: 'pending', docId: ME.docId, cat, text, did, what, view, cls: ME.className, seat: ME.seat, name: ME.name, t: Date.now() }), 6000, 'nw-bug');
       } catch (er) { err.textContent = '送出失敗，再試一次'; return; }
       openBugReport.last = Date.now();
+      /* 老師頁的回報代號就是這個 ID。mg_bugboard 大家都讀得到，不能放內文，所以「我的回報」要看得到自己寫了什麼，只能留在自己的存檔 */
+      NW.bugLog = NW.bugLog || {}; NW.bugLog[fid] = `${did.slice(0, 24)}／${what.slice(0, 24)}`;
+      Object.keys(NW.bugLog).sort().slice(0, -20).forEach(k => delete NW.bugLog[k]);
       NW.bugsSent = (NW.bugsSent || 0) + 1; saveNw(); sheet.remove();
       await showGift({ icon: '🐛', title: '回報收到了！', note: '老師看過、確認以後，獎勵（字元和「除蟲員」）會在你下次進新世界時寄給你。' });
       if (view === 'hub') viewHub();
@@ -1221,6 +1225,12 @@ export function initNewWorld(C) {
     const r = m && /老師說：([\s\S]*)$/.exec(String(m.body || ''));
     return r ? r[1].trim() : null;
   };
+  /* 老師的信會引用他回報的內容（「你回報的：…」）：沒存在自己存檔裡的舊回報，就用信裡那句 */
+  const mailQuote = id => {
+    const m = mailList.find(x => x.id === 'bug_' + id) || mailList.find(x => x.id === 'bugr_' + id);
+    const r = m && /你回報的：([^\r\n]*)/.exec(String(m.body || ''));
+    return r ? r[1].trim() : '';
+  };
   function myReportsHtml() {
     const rs = (board && Array.isArray(board.reports)) ? board.reports.slice().sort((a, b) => (b.t || 0) - (a.t || 0)).slice(0, 8) : [];
     const score = NW.bugScore > 0 ? `<span class="px-chip" style="color:#8ec96b">抓蟲分 ${NW.bugScore}</span>` : '';
@@ -1231,7 +1241,7 @@ export function initNewWorld(C) {
       : r.st === 'dup' ? '<span style="color:#9ec9ff">別人先回報了，謝謝你也發現了！</span>'
       : r.st === 'rejected' ? '<span style="color:#e5705f">這次沒有採用，謝謝你</span>' : '<span style="color:#ffd98a">老師還沒看</span>';
     return `<div class="px-text mt-3" style="font-weight:900;color:#ffd98a">我的回報 ${score}</div>
-      <div class="flex flex-col gap-1 mt-1" data-reports>${rs.map(r => `<div class="px-panel in text-sm" style="padding:6px 10px">${r.t ? new Date(r.t).toLocaleDateString('zh-TW') + '　' : ''}${st(r)}${r.sev ? `　嚴重度 ${'★'.repeat(Math.min(3, +r.sev || 0))}` : ''}${replyOf(r) ? `<div style="color:#aab0d8">老師說：${escHtml(String(replyOf(r)).slice(0, 80))}</div>` : ''}</div>`).join('')}</div>`;
+      <div class="flex flex-col gap-1 mt-1" data-reports>${rs.map(r => `<div class="px-panel in text-sm" style="padding:6px 10px">${r.t ? new Date(r.t).toLocaleDateString('zh-TW') + '　' : ''}${st(r)}${(NW.bugLog || {})[r.id] || mailQuote(r.id) ? `<div style="color:#dfe3ff;overflow-wrap:anywhere">你寫的：${escHtml((NW.bugLog || {})[r.id] || mailQuote(r.id))}</div>` : ''}${r.sev ? `　嚴重度 ${'★'.repeat(Math.min(3, +r.sev || 0))}` : ''}${replyOf(r) ? `<div style="color:#aab0d8">老師說：${escHtml(String(replyOf(r)).slice(0, 80))}</div>` : ''}</div>`).join('')}</div>`;
   }
 
   async function openTesterBook() {

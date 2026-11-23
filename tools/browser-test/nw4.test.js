@@ -200,6 +200,7 @@ async function winHunt(p, rk, mk, star) {
     await p.click('#nw-gift [data-ok]'); await p.waitForTimeout(400);
     let nw0 = await p.evaluate(() => JSON.parse(localStorage.getItem('mg_nw_五年級3班_5號')));
     ok(nw0.bugs === 0 && nw0.bugsSent === 1 && nw0.coins === 0 && !nw0.words.includes('bughunter'), '老師還沒確認：沒有字元、沒有除蟲員');
+    ok(Object.keys(nw0.bugLog || {}).length === 1 && Object.values(nw0.bugLog)[0].includes('／') && Object.keys(nw0.bugLog)[0].startsWith('bug_'), '回報內容留在自己的存檔（「我的回報」才看得到自己寫了什麼）：' + JSON.stringify(nw0.bugLog));
     const bug = await p.evaluate(() => Object.entries(window.__FS).filter(([, v]) => v && v.type === 'bug'));
     ok(bug.length === 1 && bug[0][1].status === 'pending' && bug[0][1].cat === '按鍵／操作' && bug[0][1].text.includes('【我做了什麼】') && bug[0][1].text.includes('【錯誤狀況】') && bug[0][1].did.includes('左 Ctrl') && bug[0][1].what.includes('沒有動'), '回報存進 mg_nw_flags（type: bug、待確認），老師看得到');
     ok(!('claimed' in bug[0][1]), '送出的回報不帶 claimed（新規則的欄位清單沒有它，帶了會被擋）');

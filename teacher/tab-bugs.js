@@ -10,7 +10,7 @@
    老師回覆 reply 還是放在 reports（學生要在「我的回報」看到），但同時寄一封信給本人當主要管道；輸入處提醒不要寫姓名。 */
 import { db, doc, getDoc, writeBatch, deleteField } from './fb.js';
 import { loadScores, loadBoard, loadFlags, invalidate } from './data.js';
-import { clsShort, toMs, bugCmp, BUG_COINS, BUG_REWARD_MAX } from './nw.js';
+import { clsShort, toMs, bugCmp, BUG_COINS, bugCoins, BUG_REWARD_MAX } from './nw.js';
 import { boardCalc, approvedCount, bugText, putReport, dropReport, publicBoard, SEV_NAME, clampSev } from './bug-calc.js';
 import { MAIL_BUG_TITLE, MAIL_AWARD_TITLE } from './migrate.js';
 import { idParts } from './ids.js';
@@ -73,6 +73,9 @@ export default async function mount(el, ctx) {
   const flagWrite = (b, f, data) => b.set(doc(db, 'mg_nw_flags', f.id), data, { merge: true });
   const mailDoc = (f, title, body, items) => { const now = Date.now(); return { aud: ['id:' + f.docId], title, body: clipS(body, 200), items, from: '老師', sendAt: now, expireAt: 0, t: now, src: 'bug' }; };
   const replyLine = r => r ? `\n老師說：${r}` : '';
+  /* 信裡先引用他回報的內容：學生才知道老師講的是哪一則（信 200 字上限，引用最多 44 字） */
+  const quoteLine = f => { const t = bugText(f); return `你回報的：${clipS(t.did, 20)}／${clipS(t.what, 20)}\n`; };
+  const DEFAULT_REPLY = '收到你的回報，確認是 bug，已經發獎勵了。';
 
   const doConfirm = guard(async id => {
     const f = flags.find(x => x.id === id); if (!f) return;
@@ -84,21 +87,21 @@ export default async function mount(el, ctx) {
       html: `<div class="kv"><b>做了什麼</b><span>${nl(bugText(f).did)}</span><b>錯誤狀況</b><span>${nl(bugText(f).what)}</span></div>
         ${already ? '<div class="note bad">這則已經確認過、分數算過了。按確認只會補寫回報狀態，分數和信都不會動。</div>' : ''}
         <div style="margin-top:8px"><b>嚴重度</b><div class="row" data-sev>${[1, 2, 3].map(v => `<label class="chk"><input type="radio" name="sev" value="${v}" ${v === clampSev(already ? already.sev : 1) ? 'checked' : ''}> ${SEV_NAME[v]}（${v} 分）</label>`).join('')}</div></div>
-        <div style="margin-top:8px"><b>回覆（可以不寫）</b><input class="inp" data-reply maxlength="60" style="width:100%" placeholder="一句話，例如：謝謝你，這個問題我修好了">
-          <div class="warn" data-replywarn style="font-size:.9em">回覆所有同學都可能看到，不要寫名字。（另外會寄一封信給他本人。）</div></div>
-        <div class="note" data-mailinfo>${already ? '' : coins ? `會寄信：🪙 字元 ×${BUG_COINS}（這位學生的第 ${before + 1} 個，前 ${BUG_REWARD_MAX} 個有字元）` : `會寄感謝信，沒有字元（這位學生已經有 ${before} 個被確認，超過 ${BUG_REWARD_MAX} 個只寄感謝）`}</div>` });
+        <div style="margin-top:8px"><b>回覆（可以不寫）</b><input class="inp" data-reply maxlength="60" value="${esc(DEFAULT_REPLY)}" style="width:100%" placeholder="一句話，例如：謝謝你，這個問題我修好了">
+          <div class="warn" data-replywarn style="font-size:.9em">回覆所有同學都可能看到，不要寫名字。（另外會寄一封信給他本人，信裡會引用他寫的內容。）</div></div>
+        <div class="note" data-mailinfo>${already ? '' : coins ? `會寄信：🪙 字元（小 ${bugCoins(1)}／中 ${bugCoins(2)}／大 ${bugCoins(3)}，照你選的嚴重度；這位學生的第 ${before + 1} 個，前 ${BUG_REWARD_MAX} 個有字元）` : `會寄感謝信，沒有字元（這位學生已經有 ${before} 個被確認，超過 ${BUG_REWARD_MAX} 個只寄感謝）`}</div>` });
     if (r !== 'ok') return;
     /* 已經算過的回報（兩個分頁同時按、畫面沒更新）：只補寫 flag 的狀態，分數、信都不動，所以重按不會重複加分 */
     const sev = already ? clampSev(already.sev) : clampSev($('input[name="sev"]:checked', box).value), reply = already ? String(already.reply || '') : $('[data-reply]', box).value.trim();
-    const b = writeBatch(db);
+    const b = writeBatch(db), n = bugCoins(sev);
     flagWrite(b, f, { status: 'approved', sev, reply, dupOf: deleteField() });
     if (!already) {
       b.set(doc(db, 'mg_bugboard', f.docId), boardPatch(f.docId, f, cur, putReport(rs0, { id: f.id, st: 'approved', sev, reply, t: f.t || 0 }), null, notes), { merge: true });
       if (!(await mailExists('bug_' + f.id))) b.set(doc(db, 'mg_mail', 'bug_' + f.id), mailDoc(f, MAIL_BUG_TITLE,
-        (coins ? `老師確認了你回報的問題，幫了大忙！送你 ${BUG_COINS} 字元。` : '老師確認了你回報的問題，幫了大忙，謝謝你！') + replyLine(reply),
-        coins ? [{ type: 'coins', n: BUG_COINS }] : []));
+        quoteLine(f) + (coins ? `老師確認了，幫了大忙！依問題大小，送你 ${n} 字元。` : '老師確認了，幫了大忙，謝謝你！') + replyLine(reply),
+        coins ? [{ type: 'coins', n }] : []));
     }
-    await log('確認回報', f.id, `${flagWho(f)}：嚴重度${SEV_NAME[sev]}${already ? '（補寫，沒有重複加分）' : coins ? `，寄 ${BUG_COINS} 字元` : '，只寄感謝'}`, b);
+    await log('確認回報', f.id, `${flagWho(f)}：嚴重度${SEV_NAME[sev]}${already ? '（補寫，沒有重複加分）' : coins ? `，寄 ${n} 字元` : '，只寄感謝'}`, b);
     await b.commit();
     await refresh(); paintAll(); toast(already ? '已補寫（沒有重複加分）' : `已確認，加 ${sev} 分，獎勵信寄出了`);
   });
@@ -118,7 +121,7 @@ export default async function mount(el, ctx) {
     const b = writeBatch(db);
     flagWrite(b, f, { status: 'dup', dupOf, sev: deleteField() });
     b.set(doc(db, 'mg_bugboard', f.docId), boardPatch(f.docId, f, cur, putReport(rs0, entry), null, notes), { merge: true });
-    if (!(await mailExists('bug_' + f.id))) b.set(doc(db, 'mg_mail', 'bug_' + f.id), mailDoc(f, MAIL_BUG_TITLE, '你發現的問題，已經有同學先回報了。謝謝你也發現它！', []));
+    if (!(await mailExists('bug_' + f.id))) b.set(doc(db, 'mg_mail', 'bug_' + f.id), mailDoc(f, MAIL_BUG_TITLE, quoteLine(f) + '已經有同學先回報了。謝謝你也發現它！', []));
     await log('回報標成重複', f.id, `${flagWho(f)}：跟 ${dupOf} 一樣，不加分，寄感謝信`, b);
     await b.commit();
     await refresh(); paintAll(); toast('已標成重複，寄了感謝信');
@@ -137,7 +140,7 @@ export default async function mount(el, ctx) {
     flagWrite(b, f, { status: 'rejected', reply, sev: deleteField(), dupOf: deleteField() });
     b.set(doc(db, 'mg_bugboard', f.docId), boardPatch(f.docId, f, cur, putReport(rs0, { id: f.id, st: 'rejected', sev: 0, reply, t: f.t || 0 }), null, notes), { merge: true });
     /* 有寫回覆才寄信（本人的主要管道）。用 bugr_ 而不是 bug_：之後要是改成確認，bug_ 那封獎勵信才寄得出去 */
-    if (reply && !(await mailExists('bugr_' + f.id))) b.set(doc(db, 'mg_mail', 'bugr_' + f.id), mailDoc(f, MAIL_BUG_TITLE, '這次沒有採用，謝謝你回報。' + replyLine(reply), []));
+    if (reply && !(await mailExists('bugr_' + f.id))) b.set(doc(db, 'mg_mail', 'bugr_' + f.id), mailDoc(f, MAIL_BUG_TITLE, quoteLine(f) + '這次沒有採用，謝謝你回報。' + replyLine(reply), []));
     await log('不採用回報', f.id, `${flagWho(f)}${reply ? '：' + reply : ''}`, b);
     await b.commit();
     await refresh(); paintAll(); toast('已標成不採用');
