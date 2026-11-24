@@ -13,6 +13,8 @@
      node tools/nw-sim/curves.mjs --preset calibrated  2026-11 真實資料校準後的建議參數（不需要私人資料；--preset proposal＝校準前的提案）
      node tools/nw-sim/curves.mjs --real <檔> calib   用真實「最快秒數」反推 α、驗證模型時長與勝率、檢查層級換算
      node tools/nw-sim/curves.mjs --json             輸出 JSON（給試算表或其他腳本）
+     node tools/nw-sim/curves.mjs --preset v2 v2     新世界拿掉層級後的模型（docs/SPEC-BALANCE-V2.md；不在預設的「全部章節」裡，要指名）
+                                                     加 --real <檔> 換真實速度；--set v2.k=0.6、--set v2.flows.guard.rho=0.04 改 V2 參數
 
    數字的來源：魔物、傷害、等級、價格公式直接 import nw-data.js（現行程式），所以程式改了這裡跟著變；
    P 裡的是模型假設（速度分布、反應時間、題長…），每一項在 BALANCE-CURVES.md §1 寫了出處或「設計決定」。
@@ -57,7 +59,29 @@ export const P = {
   grayCap: 1,                                        // 灰色裝備最多強化到幾（之後存錢做綠的；學生策略假設）
   tierSrc: null,                                     // 母體用哪個層級：'real'＝名單裡的 tier（沒有的人 B，遊戲就是這樣）、'model'＝由手速回推；null＝有 --real 用 real
   calibAcc: 0.98,                                    // calib：打贏的那幾場的逐字正確率（假設；贏的場通常比平均準）
-  N: 200, seed: 2026
+  N: 200, seed: 2026,
+  /* V2：新世界拿掉層級（docs/SPEC-BALANCE-V2.md）。只有 v2 一節會讀；其他章節照舊。 */
+  v2: {
+    k: 0.5,                 // 單一血量倍率，取代 HP_TIER（＝現行 B）
+    cap: 480,               // 8 分鐘：魔物逃走（不算輸，照打掉的血給獎勵）
+    laneW: 3.0,             // 單一紅線預警（現行 A 層的值；真實反應 2.5～3 秒）
+    attacks: { coo: ['single', 'pair'], frog: ['slam', 'single'], shroom: ['single', 'slam'], wolf: ['single', 'pair', 'sweep', 'fake', 'slam'] },
+    shroomFrom: 2,          // 跳跳菇從 ★2 開始攻擊（★1 留給完全不想被打的人）
+    dmgMul: { coo: 1, frog: 1, shroom: 1, wolf: 0.7 },   // 狼的招式 ×0.7：時間到不再輸，倒下 3 次是唯一的輸法；「完全不換線」壓力測試下 ×1 會讓中位學生狼★5 輸 84%
+    flows: {                // 流派（出發前選，免費換）
+      none: {},
+      steady: { tau: 25, max: 1.6, noWrongHit: true },          // 穩打：全對的題目蓄力＝1＋（這題每個字平均花的秒數 ÷25），最多 ×1.6，取代連擊；亂打不被反擊
+      guard: { rho: 0.05, typeMul: 0.8, shield: 0.5 },           // 守護：真的躲開／擋下一次 → 反擊 5% 魔物血量×攻擊倍率；打字傷害 ×0.8；舉盾 +0.5 秒
+      vine: { rho: 0.005, n: 4, every: 10, typeMul: 0.85 }       // 藤蔓：每題全對種 1 根（最多 4 根），每根每 10 秒扣 0.5% 魔物血量×攻擊倍率；打字傷害 ×0.85
+    },
+    play: 900, over: 180, startPad: 60,   // 一節課新世界約 15 分鐘；每場前後（委託板、結算、鐵匠鋪）3 分鐘；剩下的時間 < 預計時長+60 秒就不開新的一場
+    dayFull: 4,             // 一天前 4 場拿完整材料；第 5 場起材料減半、沒有快手獎勵
+    failBase: 0.3,          // 倒下 3 次／魔物逃走：獎勵 ×(0.3＋0.7×打掉的血比例)
+    parV: 11, parAcc: 0.97, // 標準時間＝中位學生（11 字/分）無裝備、不用流派的時間
+    bonusMat: 1,            // 比標準時間快：多 1 個綠材料（快手獎勵，是「額外」的）
+    workEvery: 600, workMax: 2,   // 勤勞獎勵：戰鬥時間每累積 10 分鐘（輸贏都算）多 1 個綠材料，一天最多 2 個——只看花的時間，不看速度
+    dt: 1, N: 40
+  }
 };
 
 /* ───────── 數學小工具 ───────── */
@@ -324,6 +348,148 @@ const gearShort = g => { const c = { gray: '灰', green: '綠', blue: '藍' }; c
   const w = m.weapon ? `武${c[m.weapon.split('+')[0]]}+${m.weapon.split('+')[1]}` : ''; const rest = ['helm', 'armor', 'gloves', 'boots'].filter(k => m[k]).map(k => c[m[k].split('+')[0]] + '+' + m[k].split('+')[1]);
   return w + (rest.length ? ' 防' + rest.join('/') : ''); };
 
+/* ───────── 5. V2：拿掉層級（docs/SPEC-BALANCE-V2.md） ─────────
+   和 battle() 的差別：人人同一條血量、同一個預警與出招節奏（層級 B 的節奏）；
+   時間到不算輸——打到 v2.cap 秒魔物逃走；只有倒下 3 次才輸；
+   流派的傷害按「魔物血量的百分比」算，所以跟打字速度無關、每一星都一樣有用。
+   用逐秒期望值積分（不是逐幀模擬）：打字傷害率、反擊率、藤蔓根數都取期望。 */
+const v2Attacks = (mk, star, V) => (mk === 'shroom' && star < V.shroomFrom) ? [] : (V.attacks[mk] || []);
+export const v2H = (mk, lv, V) => monMaxHp(mk, lv, 'B') * V.k / HP_TIER.B;
+export function battleV2(v, a, rk, mk, star, gear = NOGEAR, p = P, flow = 'none', stopAt = 4000) {
+  const V = p.v2, F = V.flows[flow] || {}, lv = regionLv(rk, star), m = MONSTERS[mk], H = v2H(mk, lv, V);
+  const gr = F.shield ? { ...gear, shield: gear.shield + F.shield } : gear;
+  const g = gMul(gear, mk), c = Math.max(0.3, v * p.alpha), q2 = { ...p, laneW: { ...p.laneW, B: V.laneW } };
+  const phase = angry => {
+    const L = wordLen(lv, star, angry), q = qStats(L, a), om = weaponOmega(p.weapon, L, a, c, star, p), tq = 60 * L / c + p.tau0;
+    const per = F.tau ? q.dmg + q.perfect * Math.round(L) * (Math.min(F.max, 1 + (tq / Math.max(1, L)) / F.tau) - 1) : q.dmg * comboMul(L, a);   // 穩打看「每個字花幾秒」，題目長短不影響
+    return { rate: BAL.perChar * per * om * g * (angry ? BAL.angryTaken : 1) * (F.typeMul || 1) / tq, plant: q.perfect / tq, wrongQ: q.wrongQ / tq };
+  };
+  const P1 = phase(false), P2 = phase(true);
+  const en = v2Attacks(mk, star, V), dodge = ['single', 'pair', ...(star >= 3 ? ['sweep'] : []), ...(star >= 5 ? ['fake'] : [])].filter(k => en.includes(k));
+  const usable = m.attacks.filter(x => x.type === 'defend' ? en.includes('slam') : dodge.length > 0);
+  let hitsE = 0, dmgHit = 0, act = 0, succ = 0, okSum = 0;
+  for (const atk of usable) { const ks = atk.type === 'defend' ? ['slam'] : dodge;
+    for (const k of ks) { const w = 1 / usable.length / ks.length, s = strikeModel(k, 'B', gr, q2, star);
+      hitsE += w * s.hitP; dmgHit += w * s.hitP * Math.max(1, Math.round(monDmg(lv, atk.mul) * (k === 'sweep' ? 0.5 : 1))) * (V.dmgMul[mk] ?? 1) * p.dmgMul * (1 - gear.cut) * (k === 'sweep' ? 1.5 : 1);
+      act += w * s.act; okSum += w * (1 - s.hitP);
+      succ += w * (k === 'slam' ? s.ok : s.threat * s.ok); } }   // 反擊只算「真的有危險、而且躲開／擋下」，站著不動剛好沒被打到不算
+  const quick = m.spKey === 'quick', dur = castTime(lv, 'B') * (quick ? 0.75 : 1);
+  const I1 = atkInterval(lv, 'B', false) * (quick ? BAL.quickMul : 1), I2 = atkInterval(lv, 'B', m.spKey === 'rage') * (quick ? BAL.quickMul : 1);
+  // 積分到打倒（活動時間；倒下與換線的時間之後再加）
+  const dt = Math.max(V.dt, H / P1.rate / 400), cum = [0]; let t = 0, d = 0, t1 = null, vines = 0, dType = 0, dFlow = 0;
+  while (d < H && t < stopAt) {
+    const ph = t1 === null ? P1 : P2, I = t1 === null ? I1 : I2;
+    let rf = 0;
+    if (F.n) { vines = Math.min(F.n, vines + ph.plant * dt); rf = vines * F.rho * H * g / F.every; }
+    else if (F.rho && usable.length && t >= 6 + dur) rf = F.rho * H * g * succ / I;
+    d += (ph.rate + rf) * dt; dType += ph.rate * dt; dFlow += rf * dt; t += dt; cum.push(d);
+    if (t1 === null && d >= H * BAL.angryAt) t1 = t;
+  }
+  if (d < H && stopAt < 4000) return { T: Infinity, Tk: Infinity };   // vCapV2 只要知道「超過了」
+  const Tk = t, tA = t1 ?? Tk, wrongRate = F.noWrongHit ? 0 : (P1.wrongQ * tA + P2.wrongQ * (Tk - tA)) / Tk;
+  const hpMax = BAL.playerHp + gear.hp, D = hitsE ? dmgHit / hitsE : 0;
+  let T = Tk, downs = 0, pFail = 0, X = 0, casts = 0, win = Tk;
+  for (let it = 0; it < 5; it++) {
+    win = Math.max(0, Math.min(Tk, V.cap - downs * BAL.downRest - casts * act * p.actCost));   // 逃走前的活動時間
+    const ta1 = Math.min(win, tA), ta2 = Math.max(0, win - tA);
+    casts = usable.length ? Math.max(0, (ta1 - 6 - dur) / I1 + (ta1 > 6 + dur ? 1 : 0)) + ta2 / I2 : 0;
+    const wrongN = wrongRate * win, lo = Math.floor(casts), f = casts - lo;
+    const dist = n => { let e = 0, pf = 0, ex = 0, px = (1 - hitsE) ** n; for (let x = 0; x <= n; x++) { if (x) px *= (n - x + 1) / x * hitsE / Math.max(1e-12, 1 - hitsE); const loss = x * D + wrongN * BAL.wrongHit, dn = Math.floor(loss / hpMax);
+      e += px * Math.min(BAL.downMax, dn); if (dn >= BAL.downMax) pf += px; ex += px * x; } return [e, pf, ex]; };
+    const A = dist(lo), B = dist(lo + 1);
+    downs = lerp(A[0], B[0], f); pFail = lerp(A[1], B[1], f); X = lerp(A[2], B[2], f);
+    T = Tk + (casts * act * p.actCost + downs * BAL.downRest) * (Tk / Math.max(1, win));   // 打到死的總時間（逃走後那段用同樣比例外推）
+  }
+  const fCap = T <= V.cap ? 1 : Math.min(1, (cum[Math.min(cum.length - 1, Math.round(win / dt))] || 0) / H);
+  return { v, a, lv, H, g: r2(g), T, Tk, casts, hits: X, downs, pFail, fCap, flowShare: dFlow / Math.max(1e-9, dType + dFlow), dodgeOk: usable.length ? okSum : null, succ, rate: P1.rate };
+}
+/* 逃走門檻：T(v)=cap 的速度。勝率＝Φ(ln(v/v_cap)/σ_b)×(1−P(倒下 3 次)) */
+export function vCapV2(a, rk, mk, star, gear, p, flow, limit = p.v2.cap) {
+  let lo = 0.2, hi = 400;
+  for (let i = 0; i < 26; i++) { const mid = Math.sqrt(lo * hi); if (battleV2(mid, a, rk, mk, star, gear, p, flow, limit + 1).T > limit) lo = mid; else hi = mid; }
+  return hi;
+}
+export function winV2(v, a, rk, mk, star, gear = NOGEAR, p = P, flow = 'none', vc) {
+  const b = battleV2(v, a, rk, mk, star, gear, p, flow), vcap = vc ?? vCapV2(a, rk, mk, star, gear, p, flow);
+  const pT = Phi(Math.log(v / vcap) / p.sigmaB);
+  return { ...b, vCap: vcap, pTime: pT, win: pT * (1 - b.pFail), escape: (1 - pT) * (1 - b.pFail) };
+}
+export const parV2 = (rk, mk, star, p) => battleV2(p.v2.parV, p.v2.parAcc, rk, mk, star, NOGEAR, p, 'none').T;
+export const FLOWS = ['none', 'steady', 'guard', 'vine'];
+const FLOW_NAME = { none: '一般', steady: '穩打', guard: '守護', vine: '藤蔓', best: '自己挑最好的' };
+
+/* 一學期（V2）：一節課能打幾場由「每場多久」決定；倒下／逃走也照打掉的血給；一天前 4 場拿完整材料；比標準時間快多 1 個綠材料 */
+export function semesterV2(v0, a, p = P, flowPick = 'none') {
+  const V = p.v2, R = rng(p.seed + Math.round(v0 * 100) + 17), rows = Array.from({ length: p.lessons }, () => []);
+  const targets = []; for (const rk of ['grass', 'forest']) for (const mk of REGIONS[rk].mons) for (let s = 1; s <= 5; s++) targets.push({ rk, mk, s, idx: (rk === 'grass' ? 0 : 5) + s });
+  const vcC = new Map(), bC = new Map(), parC = new Map();
+  const par = t => { const k = t.rk + t.mk + t.s; if (!parC.has(k)) parC.set(k, parV2(t.rk, t.mk, t.s, p)); return parC.get(k); };
+  const ev = (v, t, eq, fl) => { const st = gearStats(eq), vg = Math.exp(Math.round(Math.log(v) / 0.03) * 0.03), gk = [t.rk, t.mk, t.s, fl, st.atk, st.elem, st.hp, st.cut, st.shield, st.warn].join('|');
+    if (!vcC.has(gk)) vcC.set(gk, vCapV2(a, t.rk, t.mk, t.s, st, p, fl));
+    const key = gk + '|' + vg; if (!bC.has(key)) bC.set(key, winV2(vg, a, t.rk, t.mk, t.s, st, p, fl, vcC.get(gk))); return bC.get(key); };
+  const pick = (v, t, eq) => { const fls = flowPick === 'best' ? FLOWS : [flowPick]; let best = null;
+    for (const fl of fls) { const b = ev(v, t, eq, fl); if (!best || b.win > best.b.win + 0.02 || (Math.abs(b.win - best.b.win) <= 0.02 && b.T < best.b.T)) best = { fl, b }; } return best; };
+  for (let i = 0; i < V.N; i++) {
+    const S = { coins: p.startCoins, earned: 0, mat: [p.startGray, 0, 0], eq: { weapon: { c: 'gray', n: 0 } }, learned: new Set(), dry: {}, zone: { grass: 0, forest: 0 }, clr: {}, hr: 1, hrExp: 0, wins: 0, games: 0, esc: 0, fails: 0, flowUse: {}, matGot: 0, bonusGot: 0, minutes: 0 };
+    const vPers = v0 * Math.exp(0.1 * Pinv(Math.min(0.999, Math.max(0.001, R()))));
+    const canPay = r => S.coins >= r[0] && S.mat[0] >= r[1] && S.mat[1] >= r[2] && S.mat[2] >= r[3];
+    const pay = r => { S.coins -= r[0]; S.mat[0] -= r[1]; S.mat[1] -= r[2]; S.mat[2] -= r[3]; };
+    const shop = () => { for (let guard = 0; guard < 30; guard++) { let did = false;   // 跟 semester() 同一套購買策略
+      for (const slot of ['weapon', 'armor', 'helm', 'boots', 'gloves']) {
+        const cur = S.eq[slot], best = CK.filter(c => RECIPE[slot][c] && (c === 'gray' || S.learned.has(slot + ':' + c) || (slot === 'weapon' && c === 'green'))).pop();
+        const nv = SLOT[slot][best] * (slot === 'weapon' && best === 'blue' ? 1.1 : 1);
+        if (!best || (cur && (CI[cur.c] >= CI[best] || (cur.n > 2 && nv < slotVal(slot, cur.c, cur.n))))) continue;
+        const r = RECIPE[slot][best]; if (canPay(r)) { pay(r); S.eq[slot] = { c: best, n: 0, elem: slot === 'weapon' && best === 'blue' ? 'fire' : null }; did = true; } }
+      for (const [slot, top] of [['weapon', 5], ['armor', 3], ['helm', 3], ['boots', 3], ['gloves', 3], ['armor', 5], ['helm', 5], ['boots', 5], ['gloves', 5]]) {
+        const it = S.eq[slot]; if (!it || it.n >= (it.c === 'gray' ? Math.min(top, p.grayCap) : top)) continue; const n = it.n + 1, cost = enhanceCost(n, it.c), mn = enhanceMats(n);
+        const ci = CI[it.c], have = S.mat.slice(ci).reduce((x, y) => x + y, 0);
+        if (S.coins >= cost && have >= mn) { S.coins -= cost; let need = mn; for (let k = ci; k < 3 && need; k++) { const u = Math.min(need, S.mat[k]); S.mat[k] -= u; need -= u; } it.n = n; did = true; break; } }
+      if (!did) return; } };
+    for (let l = 0; l < p.lessons; l++) {
+      const v = vPers * (1 + p.growth * l / Math.max(1, p.lessons - 1));
+      let budget = V.play, gi = 0, workDay = 0;
+      for (;;) {
+        shop();
+        const open = targets.filter(t => (t.rk === 'grass' || S.zone.grass >= 5) && t.s <= S.zone[t.rk] + 1);
+        const want = t => BP[t.mk].some(([s, c]) => !S.learned.has(s + ':' + c)) ? 1 : 0;
+        const fresh = t => (S.clr[t.rk + t.s] || new Set()).has(t.mk) ? 0 : 1;
+        const key = (t, w) => (t.idx + 2.5 * want(t)) * 100 + fresh(t) * 10 + w;
+        let best = null, fb = null;
+        for (const t of open) { const c = pick(v, t, S.eq); if (c.b.win >= p.winPick && (!best || key(t, c.b.win) > key(best.t, best.b.win))) best = { t, ...c }; if (!fb || c.b.win > fb.b.win) fb = { t, ...c }; }
+        const ch = best || fb, t = ch.t, b = ch.b, Texp = Math.min(b.T, V.cap);
+        if (gi > 0 && budget < Texp + V.startPad) break;      // 第一場一定打；之後要來得及打完才開
+        const u = R(), win = u < b.win, fail = !win && u < b.win + (1 - b.win - b.escape), lv = regionLv(t.rk, t.s);
+        budget -= (win ? b.T : Texp) + V.over; S.minutes += ((win ? b.T : Texp) + V.over) / 60;
+        S.games++; gi++; if (win) S.wins++; else if (fail) S.fails++; else S.esc++;
+        S.workT = (S.workT || 0) + (win ? b.T : Texp);
+        while (V.workEvery && S.workT >= V.workEvery && workDay < V.workMax) { S.workT -= V.workEvery; workDay++; S.mat[1]++; S.matGot++; S.workGot = (S.workGot || 0) + 1; }
+        if (workDay >= V.workMax) S.workT = Math.min(S.workT, V.workEvery);
+        S.flowUse[ch.fl] = (S.flowUse[ch.fl] || 0) + 1;
+        const fr = win ? 1 : V.failBase + (1 - V.failBase) * b.fCap, full = gi <= V.dayFull;
+        const ex = Math.round(huntExp(lv, true) * fr), co = Math.round(huntCoins(lv, true) * fr); S.coins += co; S.earned += co;
+        S.hrExp += ex; while (S.hr < HR_MAX && S.hrExp >= hrNeed(S.hr)) { S.hrExp -= hrNeed(S.hr); S.hr++; }
+        DROPS[t.mk].forEach((mm, k) => { if (mm) { const got = Math.max(1, mm * fr * (full ? 1 : 0.5)); S.mat[k] += got; S.matGot += got; } });
+        if (win && full && R() < Phi(Math.log(par(t) / b.T) / p.sigmaB)) { S.mat[1] += V.bonusMat; S.matGot += V.bonusMat; S.bonusGot += V.bonusMat; }
+        if (win) { const ck = t.rk + t.s; (S.clr[ck] = S.clr[ck] || new Set()).add(t.mk);
+          if (t.s > S.zone[t.rk] && S.clr[ck].size >= Math.min(p.unlockNeed, REGIONS[t.rk].mons.length)) S.zone[t.rk] = t.s;
+          const left = BP[t.mk].filter(([s, c]) => !S.learned.has(s + ':' + c));
+          if (left.length) { let got = left.filter(() => R() < 0.3); if (!got.length && (S.dry[t.mk] || 0) >= 5) got = [left[0]];
+            if (got.length) { got.forEach(([s, c]) => S.learned.add(s + ':' + c)); S.dry[t.mk] = 0; } else S.dry[t.mk] = (S.dry[t.mk] || 0) + 1; } }
+      }
+      shop();
+      const st = gearStats(S.eq), w5 = pick(v, { rk: 'forest', mk: 'wolf', s: 5 }, S.eq);
+      rows[l].push({ w5: w5.b.win, t5: Math.min(w5.b.T, V.cap), hr: S.hr, top: S.zone.forest ? 5 + S.zone.forest : S.zone.grass, coins: S.coins, earned: S.earned, atk: st.atk, pw: power(S.eq), wins: S.wins, games: S.games, esc: S.esc, fails: S.fails,
+        mat: S.matGot, bonus: S.bonusGot, work: S.workGot || 0, minutes: S.minutes, flow: Object.entries(S.flowUse).sort((x, y) => y[1] - x[1])[0][0], gear: Object.entries(S.eq).map(([k, x]) => `${k}:${x.c}+${x.n}`).sort().join(' ') });
+    }
+  }
+  const med = (arr, f) => { const s = arr.map(f).sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
+  const mode = arr => { const m = new Map(); arr.forEach(x => m.set(x, (m.get(x) || 0) + 1)); return [...m.entries()].sort((x, y) => y[1] - x[1])[0][0]; };
+  const avg = (arr, f) => arr.reduce((s, x) => s + f(x), 0) / arr.length;
+  return rows.map((r, l) => ({ lesson: l + 1, hr: med(r, x => x.hr), top: med(r, x => x.top), earned: med(r, x => x.earned), atk: med(r, x => x.atk), pw: med(r, x => x.pw), games: avg(r, x => x.games),
+    winRate: r.reduce((s, x) => s + x.wins, 0) / r.reduce((s, x) => s + x.games, 0), escRate: r.reduce((s, x) => s + x.esc, 0) / r.reduce((s, x) => s + x.games, 0), failRate: r.reduce((s, x) => s + x.fails, 0) / r.reduce((s, x) => s + x.games, 0),
+    w5: avg(r, x => x.w5), t5: med(r, x => x.t5), mat: avg(r, x => x.mat), bonus: avg(r, x => x.bonus), work: avg(r, x => x.work), minutes: avg(r, x => x.minutes), flow: mode(r.map(x => x.flow)), gear: mode(r.map(x => x.gear)) }));
+}
+
 /* ───────── 輸出 ───────── */
 const out = { lines: [], json: {} };
 const say = s => out.lines.push(s);
@@ -334,7 +500,7 @@ const MN = { coo: '咕咕鳥', frog: '泡泡蛙', shroom: '跳跳菇', wolf: '�
 const sn = ([rk, mk, s]) => `${MN[mk]}★${s}(Lv${regionLv(rk, s)})`;
 
 export const SECTIONS = {
-  params(p) { say('## params：假設'); say('```'); say(JSON.stringify({ ...p, real: p.real ? `${p.real.length} 人` : undefined })); say('```');
+  params(p) { say('## params：假設'); say('```'); say(JSON.stringify({ ...p, v2: undefined, real: p.real ? `${p.real.length} 人` : undefined })); say('```');
     if (p.real) { const l = p.real.map(r => Math.log(r.wpm)), m = l.reduce((s, x) => s + x, 0) / l.length, sd = Math.sqrt(l.reduce((s, x) => s + (x - m) ** 2, 0) / (l.length - 1));
       say(`真實名單 ${p.real.length} 人：ln v 平均 μ=${r2(m)}（中位 ${realQ(p, 0.5)}）、σ 全部標準差 ${r2(sd)}／四分位法 ${r2(p.sigma)}（模型用後者，不受 1～3 字/分的新手尾巴拉大）；`
         + `p10 ${realQ(p, 0.1)}、p25 ${realQ(p, 0.25)}、p75 ${realQ(p, 0.75)}、p90 ${realQ(p, 0.9)}、p99 ${realQ(p, 0.99)}；≥40 字/分 ${p.real.filter(r => r.wpm >= 40).length} 人；`
@@ -492,6 +658,61 @@ export const SECTIONS = {
     say(`⑤ 三線動作：真實閃避成功 ${da[0]}／${da[1]} ＝ ${da[1] ? pc(da[0] / da[1]) : '—'}%、防禦成功 ${da[2]}／${da[3]} ＝ ${da[3] ? pc(da[2] / da[3]) : '—'}%（成功＝沒被打中，站著不動也算；星級與層級不明，下表用 B 層）。模型在不同反應時間下的預測：`);
     table(['反應時間平均（秒）', '閃避成功 ★1～2', '閃避成功 ★3～4', '防禦（重壓）成功 ★3'], [...new Set([99, 3, 2.5, 2, 1.5, 1, p.react[0]])].map(mu => { const q = { ...p, react: [mu, mu] }; return [mu === 99 ? '不動（純運氣）' : mu === p.react[0] ? `${mu}（現行假設）` : mu, pc(sd('dodge', q)) + '%', pc(sd('dodge', q, 'B', 3)) + '%', pc(sd('slam', q, 'B', 3)) + '%']; }));
 say(''); },
+  v2(p) { const V = p.v2;
+    say('## v2：拿掉層級（SPEC-BALANCE-V2）'); say('```'); say(JSON.stringify(V)); say('```');
+    const PV = [['p10', p.real ? realQ(p, 0.1) : r1(quantile(0.1, p)), p.acc.slow], ['p25', p.persona.slow, p.acc.slow], ['p50', p.persona.mid, p.acc.mid], ['p90', p.persona.fast, p.acc.fast], ['p97', p.veryFast, 0.99]];
+    const SC = [['grass', 'coo', 1], ['grass', 'frog', 3], ['grass', 'shroom', 3], ['grass', 'coo', 5], ['grass', 'shroom', 5], ['forest', 'wolf', 1], ['forest', 'wolf', 3], ['forest', 'wolf', 5]];
+    const cell = b => `${pc(b.win)}%／${Math.round(Math.min(b.T, 999))}s${b.escape > 0.005 ? `／逃${pc(b.escape)}%` : ''}${b.downs >= 0.05 ? `／倒${r1(b.downs)}` : ''}`;
+    say(`### ① 單一血量曲線 H＝(440+20·Lv)·hpMul·${V.k}（不看層級）與標準時間（中位 ${V.parV} 字/分、無裝備、一般）`);
+    table(['魔物★', 'Lv', '新血量', '舊 A／B／C／D', '標準時間', '會攻擊'], SC.map(([rk, mk, s]) => { const lv = regionLv(rk, s);
+      return [sn([rk, mk, s]), lv, Math.round(v2H(mk, lv, V)), ['A', 'B', 'C', 'D'].map(t => monMaxHp(mk, lv, t)).join('／'), Math.round(parV2(rk, mk, s, p)) + 's', v2Attacks(mk, s, V).join('、') || '—']; }));
+    say(`### ② 無裝備、一般打法：勝率／打完秒數（>999 記 999）／逃走機率／倒下（時間到不算輸，${V.cap} 秒魔物逃走）`);
+    table(['魔物★', ...PV.map(([n, v]) => `${n}(${v})`)], SC.map(sc => [sn(sc), ...PV.map(([, v, a]) => cell(winV2(v, a, ...sc, NOGEAR, p, 'none')))]));
+    say('### ③ 流派：無裝備時「打完秒數」相對一般打法（<1＝比較快）、勝率');
+    const SC4 = [['grass', 'coo', 1], ['grass', 'shroom', 5], ['forest', 'wolf', 1], ['forest', 'wolf', 5]];
+    for (const fl of ['steady', 'guard', 'vine']) {
+      say(`**${FLOW_NAME[fl]}**（${JSON.stringify(V.flows[fl])}）`);
+      table(['魔物★', ...PV.map(([n]) => n)], SC4.map(sc => [sn(sc), ...PV.map(([, v, a]) => { const b0 = battleV2(v, a, ...sc, NOGEAR, p, 'none'), w = winV2(v, a, ...sc, NOGEAR, p, fl);
+        return `×${r2(w.T / b0.T)}／${pc(w.win)}%／流派占${pc(w.flowShare)}%`; })])); }
+    say('### ④ 堆裝備：慢的孩子（p10、p25）用最適合的流派＋裝備');
+    const G = [['無', NOGEAR], ['灰全身+3', PRESETS['灰全身+3']], ['綠全身+3', PRESETS['綠全身+3']], ['綠全身+5', PRESETS['綠全身+5']], ['藍火刀+5＋綠+5', PRESETS['藍火刀+5＋綠+5']]];
+    const bestF = (v, a, sc, g) => FLOWS.map(fl => ({ fl, ...winV2(v, a, ...sc, g, p, fl) })).sort((x, y) => (y.win - x.win) || (x.T - y.T))[0];
+    for (const [n, v, a] of PV.slice(0, 2)) table([`${n}(${v})`, ...G.map(([k]) => k)], [['grass', 'coo', 5], ['grass', 'shroom', 5], ['forest', 'wolf', 1], ['forest', 'wolf', 3], ['forest', 'wolf', 5]].map(sc => [sn(sc), ...G.map(([, g]) => { const b0 = winV2(v, a, ...sc, g, p, 'none'), b = bestF(v, a, sc, g);
+      return `${pc(b0.win)}%→${FLOW_NAME[b.fl]} ${pc(b.win)}%／${Math.round(Math.min(999, b.T))}s`; })]));
+    say('（格子：一般打法勝率 → 最好的流派 勝率／秒數）');
+    // ⑤ 檢查
+    const T = (v, a, sc, g, fl) => battleV2(v, a, ...sc, g, p, fl).T, rows = [];
+    const [s10, s25, s50, s90, s97] = PV;
+    const top = PRESETS['藍火刀+5＋綠+5'], gf = battleV2(s90[1], s90[2], 'grass', 'coo', 1, top, p, 'none'), gv = battleV2(s97[1], s97[2], 'grass', 'coo', 1, top, p, 'none');
+    rows.push(['V1 戰鬥不被跳過', `p90 滿裝咕咕鳥★1 ${Math.round(gf.T)} 秒、出招 ${r1(gf.casts)}（要 ≥30 秒、≥2 招）；p97 ${Math.round(gv.T)} 秒、${r1(gv.casts)} 招（只參考）`, gf.T >= 30 && gf.casts >= 2 ? '過' : '不過']);
+    let mono = true; for (const fl of FLOWS) for (const sc of SC) { const ts = PV.slice(0, 4).map(([, v, a]) => T(v, a, sc, NOGEAR, fl)); for (let i = 1; i < ts.length; i++) if (ts[i] > ts[i - 1] + 0.5) mono = false; }
+    rows.push(['V2 同一流派快的一定比慢的快', '四個流派 × 8 關 × p10<p25<p50<p90', mono ? '過' : '不過']);
+    const c3 = SC.map(sc => Math.min(...['steady', 'guard', 'vine'].map(fl => T(s10[1], s10[2], sc, NOGEAR, fl))) / T(s50[1], s50[2], sc, NOGEAR, 'none'));
+    const c3b = SC.map(sc => Math.min(...['steady', 'guard', 'vine'].map(fl => T(s25[1], s25[2], sc, NOGEAR, fl))) / T(s50[1], s50[2], sc, NOGEAR, 'none'));
+    rows.push(['V3 慢手流派不超過中位一般', `p10 最好流派 ÷ p50 一般 的秒數：最小 ${r2(Math.min(...c3))}（要 ≥1）；p25：最小 ${r2(Math.min(...c3b))}（參考，要 ≥0.9）`, Math.min(...c3) >= 1 && Math.min(...c3b) >= 0.9 ? '過' : '不過']);
+    const c4 = ['steady', 'guard', 'vine'].map(fl => [fl, Math.max(...SC.map(sc => T(s90[1], s90[2], sc, NOGEAR, fl) / T(s90[1], s90[2], sc, NOGEAR, 'none'))), Math.min(...SC.map(sc => T(s90[1], s90[2], sc, NOGEAR, fl) / T(s90[1], s90[2], sc, NOGEAR, 'none')))]);
+    rows.push(['V4 快手也能玩、但不是快手專用', `p90 用流派的秒數 ÷ 一般：${c4.map(([f, mx, mn]) => `${FLOW_NAME[f]} ${r2(mn)}～${r2(mx)}`).join('、')}（每個要 ≤1.20 而且 ≥0.95）`, c4.every(([, mx, mn]) => mx <= 1.2 && mn >= 0.95) ? '過' : '不過']);
+    const c5a = bestF(s10[1], s10[2], ['forest', 'wolf', 5], PRESETS['綠全身+5']), c5b = bestF(s10[1], s10[2], ['grass', 'shroom', 5], NOGEAR);
+    rows.push(['V5 沒有永遠過不了', `p10 綠全身+5＋${FLOW_NAME[c5a.fl]} 炎牙狼★5：${pc(c5a.win)}%（要 ≥30%）；p10 無裝備＋${FLOW_NAME[c5b.fl]} 跳跳菇★5：${pc(c5b.win)}%（要 ≥50%）`, c5a.win >= 0.3 && c5b.win >= 0.5 ? '過' : '不過']);
+    const c6 = winV2(s50[1], s50[2], 'forest', 'wolf', 5, NOGEAR, p, 'none'), c6b = winV2(s10[1], s10[2], 'forest', 'wolf', 1, NOGEAR, p, 'none');
+    rows.push(['V6 倒下（狼也攻擊）', `p50 無裝備炎牙狼★5 倒下 ${r1(c6.downs)}、輸 ${pc(c6.pFail)}%（要 ≤1.5、≤10%）；p10 炎牙狼★1 倒下 ${r1(c6b.downs)}、輸 ${pc(c6b.pFail)}%`, c6.downs <= 1.5 && c6.pFail <= 0.1 ? '過' : '不過']);
+    const g3 = winV2(s25[1], s25[2], 'forest', 'wolf', 3, NOGEAR, p, 'none'), g3b = winV2(s25[1], s25[2], 'forest', 'wolf', 3, PRESETS['綠全身+3'], p, 'none');
+    rows.push(['V7 防具有用（G3 改）', `p25 炎牙狼★3 綠全身+3：倒下 ${r2(g3.downs)}→${r2(g3b.downs)}、勝率 ${pc(g3.win)}%→${pc(g3b.win)}%（倒下要少 ≥30%）`, g3b.downs <= 0.7 * g3.downs ? '過' : '不過']);
+    table(['#', '結果', '判定'], rows);
+    if (V.semester === false) return;   // --set v2.semester=false 只看單場（快）
+    // ⑥ 一學期
+    const TL = {};
+    for (const [n, v, a] of PV.slice(0, 4)) for (const fp of ['none', 'best']) {
+      const t = semesterV2(v, a, p, fp); TL[n + fp] = t;
+      say(`### ⑥ 一學期：${n}（${v}→${r1(v * (1 + p.growth))} 字/分），流派：${FLOW_NAME[fp]}`);
+      table(['節', '這節打幾場', 'HR', '最高過關', '贏／逃／倒', '狼★5 勝率', '狼★5 秒數', '累計材料（快手獎勵）', '戰力', '攻擊力', '最常用流派', '最常見裝備'],
+        t.filter(r => [1, 2, 3, 4, 6, 8, 10, 12, 14].includes(r.lesson)).map(r => [r.lesson, r1(r.games - (r.lesson > 1 ? t[r.lesson - 2].games : 0)), r.hr, topName(r.top), `${pc(r.winRate)}／${pc(r.escRate)}／${pc(r.failRate)}%`, pc(r.w5) + '%', Math.round(r.t5), `${Math.round(r.mat)}（${Math.round(r.bonus)}）`, r.pw, r.atk, FLOW_NAME[r.flow], gearShort(r.gear)]));
+    }
+    say('### ⑦ 雙軌差距（第 14 節）');
+    const fin = k => TL[k][TL[k].length - 1], first = (k, f) => { const r = TL[k].find(f); return r ? r.lesson : '>14'; };
+    table(['', '場數', '累計材料', '其中快手獎勵', '其中勤勞獎勵', '戰力', '戰力 ÷ p90', '最高過關', '第幾節到森林★5', '第幾節戰力 ≥130（約綠全身+3）'], PV.slice(0, 4).flatMap(([n]) => ['none', 'best'].map(fp => { const r = fin(n + fp);
+      return [`${n}・${FLOW_NAME[fp]}`, r1(r.games), Math.round(r.mat), Math.round(r.bonus), Math.round(r.work), r.pw, r2(r.pw / fin('p90' + fp).pw), topName(r.top), first(n + fp, x => x.top >= 10), first(n + fp, x => x.pw >= 130)]; })));
+  },
 };
 
 /* 建議案（BALANCE-CURVES.md §7）：--preset proposal */
@@ -509,11 +730,11 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     if (args[i] === '--set') { const [k, v] = args[++i].split('='); const path = k.split('.'); let o = p; while (path.length > 1) { const k0 = path.shift(); if (o[k0] == null) o[k0] = {}; o = o[k0]; } o[path[0]] = isNaN(+v) ? (v === 'true' ? true : v === 'false' ? false : v) : +v; }
     else if (args[i] === '--real') { p.real = JSON.parse(readFileSync(args[++i], 'utf8')); const w = p.real.map(r => r.wpm).sort((a, b) => a - b), q = f => w[Math.min(w.length - 1, Math.floor(f * w.length))];
       p.median = q(0.5); p.sigma = (Math.log(q(0.75)) - Math.log(q(0.25))) / 1.349; p.persona = { slow: q(0.25), mid: q(0.5), fast: q(0.9) }; p.veryFast = q(0.97); }
-    else if (args[i] === '--preset') { const k = args[++i], PS = { proposal: PROPOSAL, calibrated: CALIBRATED }; if (!PS[k]) { console.error('只有 --preset proposal | calibrated'); process.exit(1); } Object.assign(p, structuredClone(PS[k])); }
+    else if (args[i] === '--preset') { const k = args[++i], PS = { proposal: PROPOSAL, calibrated: CALIBRATED, v2: CALIBRATED }; if (!PS[k]) { console.error('只有 --preset proposal | calibrated | v2'); process.exit(1); } Object.assign(p, structuredClone(PS[k])); }
     else if (args[i] === '--json') p.json = true;
     else want.push(args[i]);
   }
   if (p.tierSrc == null) p.tierSrc = p.real ? 'real' : 'model';
-  for (const k of (want.length ? want : Object.keys(SECTIONS))) { if (!SECTIONS[k]) { console.error('沒有這一節：' + k); process.exit(1); } SECTIONS[k](p); }
+  for (const k of (want.length ? want : Object.keys(SECTIONS).filter(k => k !== 'v2'))) { if (!SECTIONS[k]) { console.error('沒有這一節：' + k); process.exit(1); } SECTIONS[k](p); }
   if (p.json) console.log(JSON.stringify({ P: { ...p, real: undefined }, lines: out.lines })); else console.log(out.lines.join('\n'));
 }
