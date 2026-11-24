@@ -1,4 +1,4 @@
-import { BAL, MONSTERS, GIFT_WEAPONS, weaponBase, curWeapon, hpPlayersMul, gearStats, gearMul, RANK_MIN_ACC, SUS, qBand, MAX_CHARS, CHANT_MAX, SHORT_CHANTS, regionLv, monMaxHp, monDmg, strikeDamage, atkInterval, castTime, STATUS, NW_V2, v2On, nwMaxHp, nwTier, nwLaneW, stdSecs, attacksFor, attackMul } from './nw-data.js';
+import { BAL, MONSTERS, GIFT_WEAPONS, weaponBase, curWeapon, hpPlayersMul, gearStats, gearMul, RANK_MIN_ACC, SUS, qBand, MAX_CHARS, CHANT_MAX, SHORT_CHANTS, regionLv, monMaxHp, monDmg, strikeDamage, atkInterval, castTime, STATUS, NW_V2, FLOWS, v2On, nwMaxHp, nwTier, nwLaneW, stdSecs, attacksFor, attackMul } from './nw-data.js';
 
 const CSS = `
 #nwb-root{position:fixed;inset:0;z-index:70;display:flex;flex-direction:column;background:#000;color:var(--ink);font-size:clamp(13px,1.5vmin + 7px,21px);font-weight:700}
@@ -66,6 +66,8 @@ export function startBattle(env, cfg, done) {
   /* 會用哪些攻擊：V2 照 ATTACKS_V2＋ATTACK_FROM（跳跳菇 ★1 不攻擊、狼全開、蛙多一個單線），沒開照舊的 ATTACKS_OPEN。測試在 localhost 可以用 window.__NW_ATTACKS__ 直接指定 */
   const enabled = (location.hostname === 'localhost' && window.__NW_ATTACKS__) || attacksFor(cfg.mk, cfg.star, V2);
   const CAP = V2 ? NW_V2.cap : BAL.timeLimit, STD = V2 ? stdSecs(cfg.rk, cfg.mk, cfg.star) : 0;
+  /* 流派（SPEC-BALANCE-V2 §3）：只有 V2 開著、而且出發前選了才生效，其他一律是一般打法 */
+  const flow = V2 && FLOWS[cfg.flow] ? cfg.flow : 'normal', FD = FLOWS[flow] || null;
   const wkey = curWeapon(NW) || 'staff', weapon = weaponBase(wkey), wmod = GIFT_WEAPONS[wkey] || null, CE = (wmod && wmod.chantEvery) || BAL.chantEvery;
   /* 裝備（2b）：攻擊力、屬性、生命、減傷、舉盾秒數、紅線預警。測試在 localhost 可以用 window.__NW_GEAR__ 直接指定（gearStats 的格式） */
   const GS = (location.hostname === 'localhost' && window.__NW_GEAR__) || gearStats(NW);
@@ -111,6 +113,7 @@ export function startBattle(env, cfg, done) {
         </div>
         <input id="nwb-in" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="打字攻擊，按 Enter 送出">
         <div class="nwb3-lbl" style="margin-top:4px" id="nwb-hint"></div>
+        <div class="nwb3-lbl px-text" style="margin-top:2px;display:none" id="nwb-flow"></div>
       </div>
       <div class="nwb3-lbl" id="nwb-side" style="line-height:1.5"></div>
     </div>`;
@@ -150,7 +153,7 @@ export function startBattle(env, cfg, done) {
     /* 遙測與「有在打字」（SPEC-BALANCE-V2 §3.4、§5）：lastCorrectAt＝最近一次打對字的時間，live＝累計「有在打字」的秒數；
        有在打字＝最近 afkWin 秒內打對過 1 個字（onInput 逐字判斷，慢手一題 40～80 秒也不會被當成掛機）而且最近 submitWin 秒內送出過 1 題（擋「每 40 秒打 1 個字、從不送出」）；
        dmgType／dmgFlow＝打字與流派各打掉多少血（輸／逃走時流派只算一半）；guards／vines／dodgeReal／react 給 mg_nw_runs 校準用 */
-    lastCorrectAt: T0, lastSubmitAt: T0, accT: T0, downAt: 0, qOk: 0, live: 0, dmgType: 0, dmgFlow: 0, guards: 0, vines: 0, dodgeReal: 0, react: [],
+    lastCorrectAt: T0, lastSubmitAt: T0, accT: T0, vineT: T0, vineN: 0, vineAcc: 0, firstOk: false, afkHinted: false, downAt: 0, qOk: 0, live: 0, dmgType: 0, dmgFlow: 0, guards: 0, vines: 0, dodgeReal: 0, react: [],
     flags: { fast: 0, paste: 0, wrong: 0 }, fx: [], hits: [], volley: null, bubUntil: 0, sporeUntil: 0, lastUi: 0
   };
   host.dataset.mode = mode;
@@ -265,16 +268,32 @@ export function startBattle(env, cfg, done) {
       g.fillStyle = `rgba(170,100,240,${(1 - k) * .9})`; g.fillRect(x, y, 1, 1);
     });
   }
+  /* 流派的「有在打字」：要真的打對過字（出發就站著不動的 40 秒寬限只給獎勵的 live，不給流派），而且兩個期限都沒過 */
+  const flowActive = T => S.firstOk && !S.me.down && T <= S.lastCorrectAt + NW_V2.afkWin && T <= S.lastSubmitAt + NW_V2.submitWin;
+  /* 藤蔓每秒的傷害（已乘 g）累積到 1 點才扣：只算 [vineT, T] 裡還「有在打字」的那一段，所以打字停了 40 秒藤蔓就停，打對字又接著算。
+     每次改期限前一定先呼叫（advance 會呼叫它），不然停了很久的空檔會被新的打字補成有效 */
+  function vineAdvance(T) {
+    if (flow !== 'vine') return;
+    const until = Math.min(T, S.lastCorrectAt + NW_V2.afkWin, S.lastSubmitAt + NW_V2.submitWin), dt = S.me.down ? 0 : Math.max(0, until - S.vineT);
+    S.vineT = Math.max(S.vineT, T);
+    if (!S.vineN || !dt || S.over) return;
+    S.vineAcc += dt * S.vineN * S.mon.max * FD.rho * gearMul(GS, cfg.mk) / FD.every;
+    const n = Math.floor(S.vineAcc);
+    if (n >= 1) { S.vineAcc -= n; hitMonster(n, '', '#8ec96b', true, true); }
+  }
   /* 把「有在打字」的秒數累加到時間 T：區間 [accT, T] 裡，只有在最後一次打對字＋afkWin、最後一次送出＋submitWin 兩個期限之前的部分算。
      每次事件（逐字打對、送出、倒下、起身、結束）先呼叫它再改期限，所以不靠每幀計時，分頁在背景 rAF 暫停也不會算錯 */
   function advance(T) {
+    vineAdvance(T);
     S.live += Math.max(0, Math.min(T, S.lastCorrectAt + NW_V2.afkWin, S.lastSubmitAt + NW_V2.submitWin) - S.accT);
     S.accT = Math.max(S.accT, T);
   }
+  /* 流派傷害算出來就已經乘過攻擊力 g（呼叫端算），所以 viaFlow 的不再乘一次；而且一場的流派傷害不能超過打字傷害（§3.4：能量來自打字） */
   function hitMonster(dmg, note, color, small, flow) {
     if (dmg <= 0 || S.over) return;
     /* 裝備攻擊力 × 屬性：只放大打對的字（dmg 已經是打對的字算出來的，打錯是 0）。測試者之刃的 ×1.12 現在是攻擊力 112 */
-    dmg = Math.max(1, Math.round(dmg * gearMul(GS, cfg.mk)));
+    if (flow) { dmg = Math.min(dmg, Math.max(0, Math.floor(S.dmgType * NW_V2.flowCap - S.dmgFlow))); if (dmg <= 0) return; }
+    else dmg = Math.max(1, Math.round(dmg * gearMul(GS, cfg.mk)));
     if (wmod && wmod.dark) darkBurst();
     /* 記「真的打掉的血」（最後一下超出的不算），算 f 用；flow 是第 9 步的流派傷害 */
     if (flow) S.dmgFlow += Math.min(dmg, S.mon.hp); else S.dmgType += Math.min(dmg, S.mon.hp);
@@ -312,7 +331,7 @@ export function startBattle(env, cfg, done) {
       S.mon.lungeAt = T;
       nextQuestion(); updateUi(true); return;
     }
-    if (res.correct > 0) { advance(T); S.lastCorrectAt = T; }
+    if (res.correct > 0) { advance(T); S.lastCorrectAt = T; S.firstOk = true; }
     S.combo = res.perfect ? S.combo + 1 : 0;
     S.maxCombo = Math.max(S.maxCombo, S.combo);
     if (res.perfect) S.perfect++;
@@ -342,9 +361,11 @@ export function startBattle(env, cfg, done) {
       mul = BAL.arrowMul; S.mag = Math.min(BAL.magMax, S.mag + Math.round(res.correct * uw)); addFx('arrow', { dur: .25 });
     }
     const comboMul = 1 + Math.min(20, S.combo) * .02;
-    const dmg = Math.round(BAL.perChar * res.correct * uw * mul * comboMul * angryMul());
+    const dmg = Math.round(BAL.perChar * res.correct * uw * mul * comboMul * angryMul() * (FD ? FD.typeMul : 1));
     S.me.atkAt = T;
     hitMonster(dmg, note || (S.combo >= 3 ? `${S.combo} 連擊` : ''));
+    /* 藤蔓：全對才種（打錯一個字就不算），整場都在，最多 FD.n 根 */
+    if (flow === 'vine' && res.perfect && !S.over && S.vineN < FD.n) { S.vineN++; S.vines = S.vineN; floatText(`🌿 藤蔓 ${S.vineN} 根`, 80, 34, '#8ec96b', true); }
     nextQuestion(); updateUi(true);
   }
   function fire() {
@@ -455,9 +476,9 @@ export function startBattle(env, cfg, done) {
     const shielded = S.shieldUntil > T;
     let dmg = strikeDamage(c.base, st.mul, st.slam, GS.cut);   // 盔甲只減魔物招式，亂打反擊、燃燒、中毒不減
     /* 重壓三條線同時閃光，但沒擋住只扣一次（slamHit 記第一條已經扣過） */
-    if (st.slam) { if (shielded || c.slamHit) return; c.slamHit = true; }
+    if (st.slam) { if (shielded) c.blocked = true; if (shielded || c.slamHit) return; c.slamHit = true; }
     else if (S.lane !== st.lane) return;
-    else if (shielded) { dmg = Math.ceil(dmg / 2); banner('盾只擋了一部分…', '#ffd24a', true); }
+    else if (shielded) { c.blocked = true; dmg = Math.ceil(dmg / 2); banner('盾只擋了一部分…', '#ffd24a', true); }
     c.hurt = true;
     hurt(dmg, c.atk.status);
   }
@@ -476,6 +497,12 @@ export function startBattle(env, cfg, done) {
     S.react.push(c.firstKey ? Math.round((c.firstKey - c.w0) * 1000) : -1);   // -1＝這招沒按過任何換線／舉盾鍵
     if (c.kind === 'slam') { S.defAll++; if (!c.hurt) S.defOk++; } else { S.dodgeAll++; if (!c.hurt) { S.dodgeOk++; if (c.real) S.dodgeReal++; } }
     if (!c.hurt) { banner(c.kind === 'slam' ? '🛡 擋下來了！' : '✨ 躲開了！', '#8ec96b'); floatText('成功！', 80, 56, '#8ec96b', true); }
+    /* 守護成功＝擋下重壓、線上攻擊時舉著盾（擋一半）、或真的躲開（預警時站在那條線、出手前換走）；站著不動剛好沒被打到不算（§3.1）。
+       沒在打字（§3.4）就不反擊：只按 Alt 不打字，反擊永遠是 0 */
+    if (flow === 'guard' && (c.blocked || (c.real && !c.hurt))) {
+      if (flowActive(T)) { S.guards++; hitMonster(Math.max(1, Math.round(S.mon.max * FD.rho * gearMul(GS, cfg.mk))), '🛡 反擊！', '#9fd8ff', false, true); }
+      else if (!S.afkHinted) { S.afkHinted = true; toast('守護成功！不過要一直打字才會反擊喔'); }
+    }
   }
   function laneStance(T, stEl, nm, ht, fl, mkr) {
     mkr.style.display = 'none';
@@ -514,6 +541,13 @@ export function startBattle(env, cfg, done) {
     $q('nwb-hp').style.width = (Math.max(0, S.me.hp) / S.me.max * 100) + '%';
     $q('nwb-hpt').textContent = `${Math.max(0, Math.round(S.me.hp))}/${S.me.max}`;
     $q('nwb-combo').textContent = S.combo;
+    if (FD) {
+      const on = flowActive(T), fe = $q('nwb-flow'), wilt = flow === 'vine' && S.vineN > 0 && !on;
+      fe.style.display = 'block'; fe.style.color = wilt || !on ? '#e5a95f' : '#8ec96b';
+      fe.textContent = flow === 'guard' ? `🛡 守護流　反擊 ×${S.guards}${on ? '' : '　（要一直打字才會反擊）'}`
+        : S.vineN ? (wilt ? '🥀 藤蔓枯了　（打對字就恢復）' : `🌿 藤蔓 ${S.vineN} 根　每題全對種一根`) : '🌿 藤蔓流　每題全部打對就種一根藤蔓';
+      root.dataset.flow = flow; root.dataset.guards = S.guards; root.dataset.vines = S.vineN; root.dataset.wilt = wilt ? '1' : '0';
+    }
     const stIcons = [];
     if (S.st.burn > T) stIcons.push('🔥'); if (S.st.poison.some(u => u > T)) stIcons.push('☠'.repeat(S.st.poison.filter(u => u > T).length)); if (S.st.ice > T) stIcons.push('❄');
     $q('nwb-st').textContent = stIcons.join(' ');
@@ -603,12 +637,13 @@ export function startBattle(env, cfg, done) {
     if (S.me.down && T >= S.me.downUntil) {
       S.me.down = false; S.me.hp = S.me.max; inp.disabled = false; inp.focus();
       /* 倒下休息（打不了字）的秒數算「有在打字」，不能因為被打倒就被當成掛機；倒下前期限還沒過的話，期限也往後延同樣的秒數 */
-      const rest = T - S.downAt; S.live += rest; S.accT = T;
+      const rest = T - S.downAt; S.live += rest; S.accT = T; S.vineT = T;   // 倒下休息不種也不扣藤蔓
       if (S.downAt <= S.lastCorrectAt + NW_V2.afkWin) S.lastCorrectAt = Math.min(T, S.lastCorrectAt + rest);
       if (S.downAt <= S.lastSubmitAt + NW_V2.submitWin) S.lastSubmitAt = Math.min(T, S.lastSubmitAt + rest);
       banner('站起來了！', '#8ec96b', true);
     }
     runVolley(T);
+    if (!S.me.down) vineAdvance(T); else S.vineT = T;
     if (enabled.length && !S.cast && T >= S.nextCast && !S.me.down) castStart(T);
     if (S.cast) laneResolve(T);
     if (S.bubUntil && T > S.bubUntil) { S.bubUntil = 0; $q('nwb-bub').style.display = 'none'; host.classList.remove('nwb2-nozy'); }
@@ -632,7 +667,7 @@ export function startBattle(env, cfg, done) {
     const typed = [...(S.composing ? S.committed : inp.value)];
     let n = 0;
     while (n < typed.length && n < S.units.length && C.q.canon(typed[n]) === C.q.canon(S.units[n].want)) n++;
-    if (n > S.qOk) { S.qOk = n; const T = nowS(); advance(T); S.lastCorrectAt = T; }
+    if (n > S.qOk) { S.qOk = n; const T = nowS(); advance(T); S.lastCorrectAt = T; S.firstOk = true; }
     else if (n < S.qOk && typed.length < S.qOk) S.qOk = n;   // 刪掉重打：回到現在對的長度，之後再多對才算
   }
   /* 按鍵數：一般字鍵、Backspace，加上注音輸入法組字時瀏覽器送的 Process／Unidentified／keyCode 229；不算 Enter、Esc、Ctrl、Alt、Shift */
@@ -647,7 +682,7 @@ export function startBattle(env, cfg, done) {
     const alt = e.code === 'AltLeft' || e.code === 'AltRight';
     /* 預警出現後第一次按 Ctrl／Alt 花了多久（只記，校準護腳與預警秒數用） */
     if ((alt || e.code === 'ControlLeft' || e.code === 'ControlRight') && S.cast && !S.cast.firstKey && nowS() >= S.cast.w0) S.cast.firstKey = nowS();
-    if (alt) { e.preventDefault(); if (!S.me.down) S.shieldUntil = Math.max(S.shieldUntil, nowS() + 1.5 + GS.shield); return; }
+    if (alt) { e.preventDefault(); if (!S.me.down) S.shieldUntil = Math.max(S.shieldUntil, nowS() + 1.5 + GS.shield + (flow === 'guard' ? FD.shield : 0)); return; }
     if (S.me.down || e.repeat) return;
     if (e.code === 'ControlLeft') S.lane = Math.max(0, S.lane - 1);
     else if (e.code === 'ControlRight') S.lane = Math.min(2, S.lane + 1);
@@ -690,12 +725,13 @@ export function startBattle(env, cfg, done) {
       /* 以下給 V2 的獎勵比例與 mg_nw_runs 遙測用（沒開 V2 時只是多帶著，不影響結算）。
          live＝有在打字的秒數（最後一次打對後再算 afkWin 秒）；frac＝打掉的血比例；fEff＝折過的 f（流派只算一半，贏＝1） */
       live, idle: Math.max(0, Math.round((secs - live) * 10) / 10), frac: Math.round(frac * 1000) / 1000, fEff: win ? 1 : Math.round(fEff * 1000) / 1000,
-      flow: 'normal', guards: S.guards, vines: S.vines, dodgeReal: S.dodgeReal, react: S.react.slice(0, 40)
+      flow, dmgType: S.dmgType, dmgFlow: S.dmgFlow, guards: S.guards, vines: S.vines, dodgeReal: S.dodgeReal, react: S.react.slice(0, 40)
     };
     if (!res.valid) res.invalidWhy = '還沒打幾題就結束了，這場不算數。';
     setTimeout(() => { root.remove(); done(res); }, 1500);
   }
 
+  if (location.hostname === 'localhost') window.__NWB = { S, flowActive };   // 測試用：直接看／改戰鬥狀態
   nextQuestion();
   updateUi(true);
   raf = requestAnimationFrame(tick);

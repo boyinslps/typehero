@@ -229,12 +229,25 @@ export const NW_V2 = {
   workMax: 2,        // 一天最多 2 個
   bonusMat: 1,       // ⚡ 比標準時間快：多 1 個那隻魔物的綠材料
   afkWin: 40,        // 防掛機：最近 40 秒內打對過 1 個字才算「有在打字」（最慢 p5 每字約 31 秒）
-  flowCap: 1,        // 一場的流派傷害 ≤ 打字傷害（第 9 步才用）
-  escFlow: 0.5,      // 輸／逃走算 f 時，流派打掉的血只算一半（第 9 步才有流派傷害，先留介面）
+  flowCap: 1,        // 一場的流派傷害 ≤ 打字傷害（反擊與藤蔓的能量來自打字，§3.4）
+  escFlow: 0.5,      // 輸／逃走算 f 時，流派打掉的血只算一半
   starsPerDay: 2,    // v2.3（v2.2 是 1）：一天最多開 2 個新星級（打贏過的星級可以一直重打；SPEC-BALANCE-V2 §2.6）
   get on() { return v2On(); }
 };
 export const v2On = () => (typeof location !== 'undefined' && location.hostname === 'localhost' && typeof window !== 'undefined' && typeof window.__NW_V2__ === 'boolean') ? window.__NW_V2__ : stageOpen('2b');
+/* 流派（SPEC-BALANCE-V2 §3，tools/nw-sim/rules-v2.mjs 同名同值）：rho＝魔物最大血量的百分比（再乘攻擊力倍率 g）、typeMul＝打字傷害折扣、
+   shield＝舉盾多幾秒、vine 的 n＝最多幾根、every＝每根每幾秒扣一次 rho。穩打流是第二波，這裡不放 */
+export const FLOWS = {
+  guard: { rho: 0.05, typeMul: 0.85, shield: 0.5 },
+  vine: { rho: 0.005, n: 4, every: 10, typeMul: 0.85 }
+};
+/* 給學生看的名字與一句話（出發前選擇、人物卡、結算提示共用）。不寫「適合打字慢的人」，免得有人覺得被分類（規格 §3.7） */
+export const FLOW_INFO = {
+  guard: { icon: '🛡', name: '守護流', line: '舉盾擋下、或真的躲開魔物，就會自動反擊！', who: '適合想練防禦的人' },
+  vine: { icon: '🌿', name: '藤蔓流', line: '每題全部打對就種一根藤蔓，藤蔓會自己一直打魔物。', who: '適合不想被打斷的人' }
+};
+/* 這個存檔現在用哪個流派：V2 沒開、或沒選＝空字串（一般打法） */
+export const flowOf = (nw, on = v2On()) => (on && nw && FLOWS[nw.flow] ? nw.flow : '');
 /* 魔物招式倍率另乘多少（乘在 atk.mul 上，在 monDmg 的最低 4 點「之前」：SPEC-BALANCE-V2 §1.3。
    v2.2 的 ×0.5：森林狼 Lv10～22 每下 7～14 點，一樣碰不到下限，先乘後乘結果只差四捨五入；放在 monDmg 之前，被打到至少 4 點的保證才不會被打折） */
 export const ATTACK_DMG = { wolf: 0.5 };
@@ -331,7 +344,8 @@ export const defaultNw = () => ({
   flags: 0, fb: {}, gw: [], equip: '', gifts: [], giftedEarly: false, tm: {}, bugLog: {}, bugs: 0, bugsSent: 0, tut: {}, intro: {}, awards: {}, seenNotice: '', seenNews: 0, seenEv: {}, seenBug: 0,
   name0: '', bugScore: 0, evDone: [], nameFlagged: {},
   mail: {}, nameLog: [], nameSet: 0, ev: {}, fastMk: {}, cpmHist: {}, runQ: [],
-  gearV: 0, gear: [], eq: { weapon: null, helm: null, armor: null, gloves: null, boots: null }, bpDry: {}, forge: { made: 0, ups: 0, top: 0, gift: 0 }
+  gearV: 0, gear: [], eq: { weapon: null, helm: null, armor: null, gloves: null, boots: null }, bpDry: {}, forge: { made: 0, ups: 0, top: 0, gift: 0 },
+  flow: '', esc: {}   // 上次選的流派（''＝一般打法）；esc＝「怪物:星級」逃走了幾次（打贏就清掉），結算提示藤蔓流用
 });
 
 export function normalizeNw(d) {
@@ -357,6 +371,8 @@ export function normalizeNw(d) {
   o.mail = (d.mail && typeof d.mail === 'object' && !Array.isArray(d.mail)) ? d.mail : {};
   /* 舊的詞庫暱稱不再使用，丟掉；nameLog＝用改名卡改過的名字（老師在學生卡看得到） */
   delete o.nick; delete o.nickAt;
+  o.flow = FLOWS[d.flow] ? d.flow : '';
+  o.esc = (d.esc && typeof d.esc === 'object' && !Array.isArray(d.esc)) ? d.esc : {};
   o.nameSet = d.nameSet ? 1 : 0;
   o.nameLog = Array.isArray(d.nameLog) ? d.nameLog.filter(x => x && typeof x.to === 'string').slice(-5) : [];
   /* ev＝每個活動的個人進度（SPEC §4.3）；fastMk＝每隻魔物（含星級）自己最快的秒數，給「進步獎」當活動前的紀錄。
