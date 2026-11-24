@@ -20,8 +20,9 @@
    P 裡的是模型假設（速度分布、反應時間、題長…），每一項在 BALANCE-CURVES.md §1 寫了出處或「設計決定」。
    已知近似：每個字獨立打錯、燃燒／中毒／寒冰不算、連擊不算開場爬升、材料只分顏色不分魔物。 */
 import { BAL, TIERS, MONSTERS, REGIONS, regionLv, monMaxHp, monDmg, atkInterval, castTime, HP_TIER,
-  ATTACKS_OPEN, MAX_CHARS, hrNeed, huntExp, huntCoins, HR_MAX } from '../../nw-data.js';
+  ATTACKS_OPEN, MAX_CHARS, hrNeed, huntExp, huntCoins, HR_MAX, LANE_W, GEAR_TB, POWER_BASE } from '../../nw-data.js';
 import { readFileSync } from 'node:fs';
+import { DEFAULT_ASSUME } from './sim.mjs';
 
 /* ───────── 假設（全部可用 --set 改） ───────── */
 export const P = {
@@ -67,11 +68,15 @@ export const P = {
     laneW: 3.0,             // 單一紅線預警（現行 A 層的值；真實反應 2.5～3 秒）
     attacks: { coo: ['single', 'pair'], frog: ['slam', 'single'], shroom: ['single', 'slam'], wolf: ['single', 'pair', 'sweep', 'fake', 'slam'] },
     shroomFrom: 2,          // 跳跳菇從 ★2 開始攻擊（★1 留給完全不想被打的人）
+    attendDodge: 0.11, attendDef: 0.73,   // 真實閃避 53%／防禦 63% 的擬合（BALANCE-2B-ANALYSIS §3.1 的 att）：沒注意＝站著不動；null＝人人都注意
+    slamHits: 3, slamMul: 1,  // 重壓沒擋住打幾下、每下倍率。遊戲現況 3×1（resolveStrike 三條線各 hurt 一次）；V2 建議 1×1.5
+    armorCeil: false,         // 盔甲減傷用無條件進位（每下至少少 1 點）；遊戲現況四捨五入
+    gCap: null,               // 武器×屬性的硬上限（V2 建議 1.32）；null＝不封頂（現況）
     dmgMul: { coo: 1, frog: 1, shroom: 1, wolf: 0.7 },   // 狼的招式 ×0.7：時間到不再輸，倒下 3 次是唯一的輸法；「完全不換線」壓力測試下 ×1 會讓中位學生狼★5 輸 84%
     flows: {                // 流派（出發前選，免費換）
       none: {},
       steady: { tau: 25, max: 1.6, noWrongHit: true },          // 穩打：全對的題目蓄力＝1＋（這題每個字平均花的秒數 ÷25），最多 ×1.6，取代連擊；亂打不被反擊
-      guard: { rho: 0.05, typeMul: 0.8, shield: 0.5 },           // 守護：真的躲開／擋下一次 → 反擊 5% 魔物血量×攻擊倍率；打字傷害 ×0.8；舉盾 +0.5 秒
+      guard: { rho: 0.05, typeMul: 0.85, shield: 0.5 },          // 守護：真的躲開或舉盾擋下（線上的攻擊擋一半）→ 反擊 5% 魔物血量×攻擊倍率；打字傷害 ×0.85；舉盾 +0.5 秒
       vine: { rho: 0.005, n: 4, every: 10, typeMul: 0.85 }       // 藤蔓：每題全對種 1 根（最多 4 根），每根每 10 秒扣 0.5% 魔物血量×攻擊倍率；打字傷害 ×0.85
     },
     play: 900, over: 180, startPad: 60,   // 一節課新世界約 15 分鐘；每場前後（委託板、結算、鐵匠鋪）3 分鐘；剩下的時間 < 預計時長+60 秒就不開新的一場
@@ -254,7 +259,34 @@ export const PRESETS = {
   '無': NOGEAR, '灰全身+0': set('gray', 0), '灰全身+3': set('gray', 3), '綠全身+3': set('green', 3), '綠全身+5': set('green', 5),
   '綠武器+5': gearStats({ weapon: { c: 'green', n: 5 } }), '藍火刀+5＋綠+5': set('green', 5, 'blue', 5, 'fire')
 };
-export const power = eq => Object.values(eq).filter(Boolean).reduce((s, x) => s + ({ gray: 10, green: 20, blue: 30 }[x.c]) + 2 * x.n, 0);
+const POW = { gray: 10, green: 20, blue: 30 };   // 戰力：每件 灰 10／綠 20／藍 30，每 +1 再 +2（nw-data.js POWER_BASE）
+export const power = eq => Object.values(eq).filter(Boolean).reduce((s, x) => s + POW[x.c] + 2 * x.n, 0);
+function buildPresets() { Object.assign(PRESETS, { '無': NOGEAR, '灰全身+0': set('gray', 0), '灰全身+3': set('gray', 3), '綠全身+3': set('green', 3), '綠全身+5': set('green', 5),
+  '綠武器+5': gearStats({ weapon: { c: 'green', n: 5 } }), '藍火刀+5＋綠+5': set('green', 5, 'blue', 5, 'fire') }); }
+/* V2 的裝備數值提案（docs/SPEC-BALANCE-V2.md §9）：[灰, 綠, 藍] 與每 +1。規則：下一色 +0 ＝ 上一色 +5（強化到頂再換顏色不吃虧，換了還能繼續長）；
+   戰力 綠 22／藍 34 讓「綠 +0」嚴格高於「灰 +5」（穿上按鈕會變金色）。武器×屬性另外硬封頂 1.32（v2.gCap）。 */
+export const GEAR_V2 = { weapon: [[100, 110, 120], 2], helm: [[10, 25, 40], 3], armor: [[0.05, 0.10, 0.15], 0.01], gloves: [[0.2, 0.4, 0.6], 0.04], boots: [[0.2, 0.4, 0.6], 0.04],
+  power: { gray: 10, green: 22, blue: 34 }, cap: { warn: 0.8 } };
+/* 只改這個 node 行程裡的表（curves 自己的 SLOT／PRESETS，和 nw-data.js 的 GEAR_TB／POWER_BASE），檔案不動 */
+export function applyGearV2() {
+  for (const [k, v] of Object.entries(GEAR_V2)) { if (!SLOT[k]) continue; const [b, per] = v;
+    Object.assign(SLOT[k], { gray: b[0], green: b[1], blue: b[2], per }); GEAR_TB[k].base = [...b]; GEAR_TB[k].per = per; }
+  Object.assign(POW, GEAR_V2.power); Object.assign(POWER_BASE, GEAR_V2.power); Object.assign(CAP, GEAR_V2.cap); buildPresets();
+}
+/* 新世界拿掉層級＋V2 攻擊表＋8 分鐘逃走，改進 nw-data.js 的表，讓 sim.mjs／bal2b*.mjs／gear.mjs 用 V2 規則跑（同上，只在行程裡）。
+   跳跳菇「★2 起才攻擊」在這裡做不到（ATTACKS_OPEN 不分星級），MC 裡跳跳菇★1 也會攻擊，結果偏保守。 */
+export function applyRulesV2(V = P.v2) {
+  for (const t of ['A', 'C', 'D']) { HP_TIER[t] = HP_TIER.B; Object.assign(TIERS[t], TIERS.B); }
+  for (const t of Object.keys(LANE_W)) LANE_W[t] = V.laneW;
+  BAL.timeLimit = V.cap;
+  for (const [mk, list] of Object.entries(V.attacks)) ATTACKS_OPEN[mk] = [...list];
+  for (const [mk, m] of Object.entries(V.dmgMul)) if (m !== 1) MONSTERS[mk].attacks.forEach(a => { a.mul *= m; });
+}
+/* 重壓沒擋住只打一下、×1.5（sim 的 slamOnce＋把防禦型招式的倍率 ×1.5） */
+export function applySlamV2(mul = 1.5) {
+  DEFAULT_ASSUME.slamOnce = true;
+  for (const m of Object.values(MONSTERS)) m.attacks.forEach(a => { if (a.type === 'defend') a.mul *= mul; });
+}
 
 /* 經驗：現行 hrNeed、huntExp；累計 cum(HR) */
 export const cumExp = hr => { let s = 0; for (let h = 1; h < hr; h++) s += hrNeed(h); return s; };
@@ -358,7 +390,7 @@ export const v2H = (mk, lv, V) => monMaxHp(mk, lv, 'B') * V.k / HP_TIER.B;
 export function battleV2(v, a, rk, mk, star, gear = NOGEAR, p = P, flow = 'none', stopAt = 4000) {
   const V = p.v2, F = V.flows[flow] || {}, lv = regionLv(rk, star), m = MONSTERS[mk], H = v2H(mk, lv, V);
   const gr = F.shield ? { ...gear, shield: gear.shield + F.shield } : gear;
-  const g = gMul(gear, mk), c = Math.max(0.3, v * p.alpha), q2 = { ...p, laneW: { ...p.laneW, B: V.laneW } };
+  const g = Math.min(V.gCap || Infinity, gMul(gear, mk)), c = Math.max(0.3, v * p.alpha), q2 = { ...p, laneW: { ...p.laneW, B: V.laneW } };
   const phase = angry => {
     const L = wordLen(lv, star, angry), q = qStats(L, a), om = weaponOmega(p.weapon, L, a, c, star, p), tq = 60 * L / c + p.tau0;
     const per = F.tau ? q.dmg + q.perfect * Math.round(L) * (Math.min(F.max, 1 + (tq / Math.max(1, L)) / F.tau) - 1) : q.dmg * comboMul(L, a);   // 穩打看「每個字花幾秒」，題目長短不影響
@@ -368,11 +400,21 @@ export function battleV2(v, a, rk, mk, star, gear = NOGEAR, p = P, flow = 'none'
   const en = v2Attacks(mk, star, V), dodge = ['single', 'pair', ...(star >= 3 ? ['sweep'] : []), ...(star >= 5 ? ['fake'] : [])].filter(k => en.includes(k));
   const usable = m.attacks.filter(x => x.type === 'defend' ? en.includes('slam') : dodge.length > 0);
   let hitsE = 0, dmgHit = 0, act = 0, succ = 0, okSum = 0;
+  /* 一下打多少：盔甲四捨五入（現況）或無條件進位（V2 建議） */
+  const perHit = d0 => { const d = Math.max(1, Math.round(d0)); return gear.cut ? Math.max(1, V.armorCeil ? d - Math.ceil(d * gear.cut) : Math.round(d * (1 - gear.cut))) : d; };
+  const aD = V.attendDodge ?? 1, aS = V.attendDef ?? 1;
   for (const atk of usable) { const ks = atk.type === 'defend' ? ['slam'] : dodge;
     for (const k of ks) { const w = 1 / usable.length / ks.length, s = strikeModel(k, 'B', gr, q2, star);
-      hitsE += w * s.hitP; dmgHit += w * s.hitP * Math.max(1, Math.round(monDmg(lv, atk.mul) * (k === 'sweep' ? 0.5 : 1))) * (V.dmgMul[mk] ?? 1) * p.dmgMul * (1 - gear.cut) * (k === 'sweep' ? 1.5 : 1);
-      act += w * s.act; okSum += w * (1 - s.hitP);
-      succ += w * (k === 'slam' ? s.ok : s.threat * s.ok); } }   // 反擊只算「真的有危險、而且躲開／擋下」，站著不動剛好沒被打到不算
+      const base = monDmg(lv, atk.mul) * (V.dmgMul[mk] ?? 1) * p.dmgMul;
+      let hitP, dmg, sc;
+      if (k === 'slam') { const ok = aS * s.ok; hitP = 1 - ok; dmg = V.slamHits * perHit(base * V.slamMul); sc = ok; }
+      else if (flow === 'guard') {   // 守護流：線上的攻擊也可以舉盾（擋一半＋反擊），沒舉盾才換線
+        const pSh = aS * s.ok, dg = aD * s.ok, d1 = perHit(base * (k === 'sweep' ? 0.5 : 1)) * (k === 'sweep' ? 1.5 : 1), hitIf = pSh + (1 - pSh) * (1 - dg);
+        hitP = s.threat * hitIf; dmg = d1 * (pSh * 0.5 + (1 - pSh) * (1 - dg)) / Math.max(1e-9, hitIf); sc = s.threat * (pSh + (1 - pSh) * dg);
+      } else { const dg = aD * s.ok; hitP = s.threat * (1 - dg); dmg = perHit(base * (k === 'sweep' ? 0.5 : 1)) * (k === 'sweep' ? 1.5 : 1); sc = s.threat * dg; }
+      hitsE += w * hitP; dmgHit += w * hitP * dmg;
+      act += w * s.act; okSum += w * (1 - hitP);
+      succ += w * sc; } }   // 反擊只算「真的有危險、而且躲開／擋下」，站著不動剛好沒被打到不算
   const quick = m.spKey === 'quick', dur = castTime(lv, 'B') * (quick ? 0.75 : 1);
   const I1 = atkInterval(lv, 'B', false) * (quick ? BAL.quickMul : 1), I2 = atkInterval(lv, 'B', m.spKey === 'rage') * (quick ? BAL.quickMul : 1);
   // 積分到打倒（活動時間；倒下與換線的時間之後再加）
@@ -723,6 +765,19 @@ export const PROPOSAL = { unlockNeed: 2, hpTier: { A: 0.30, B: 0.5, C: 0.8, D: 1
 export const CALIBRATED = { median: 11, sigma: 0.70, persona: { slow: 7, mid: 11, fast: 26 }, veryFast: 53, tutRatio: 0.9, react: [3.0, 2.0],
   unlockNeed: 2, hpTier: { A: 0.30, B: 0.5, C: 0.75, D: 1.7 } };
 
+/* V2 規格（docs/SPEC-BALANCE-V2.md）：校準後的速度分布＋真實閃避／防禦（att：反應 1.0→0.7 秒、attendDodge 0.11、attendDef 0.73，跟 bal2b 同一套）。
+   v2＝連同 §9 的裝備與重壓提案；v2-now＝現行裝備與重壓（只拿掉層級與時間輸），用來對照 */
+export const V2PRESET = adj => ({ ...CALIBRATED, react: [1.0, 0.7], v2: { ...structuredClone(P.v2), ...(adj ? { slamHits: 1, slamMul: 1.5, armorCeil: true, gCap: 1.32, gear: 'new' } : {}) } });
+
+/* 給別的模擬器用：NW_PATCH=v2,gear,slam node --import ./tools/nw-sim/curves.mjs tools/nw-sim/bal2b.mjs …
+   （v2＝拿掉層級、V2 攻擊表、8 分鐘逃走；gear＝§9 裝備數值；slam＝重壓只打一下 ×1.5） */
+const PATCH = ((typeof process !== 'undefined' && process.env && process.env.NW_PATCH) || '').split(',').filter(Boolean);
+/* 「路徑=值」改 P.v2 的預設再套用，例：NW_PATCH=v2,dmgMul.wolf=0.5 */
+PATCH.filter(t => t.includes('=')).forEach(t => { const [k, v] = t.split('='), path = k.split('.'); let o = P.v2; while (path.length > 1) o = o[path.shift()]; o[path[0]] = +v; });
+if (PATCH.includes('v2')) applyRulesV2(P.v2);
+if (PATCH.includes('gear')) applyGearV2();
+if (PATCH.includes('slam')) applySlamV2();
+
 /* ───────── 命令列 ───────── */
 if (import.meta.url === `file://${process.argv[1]}`) {
   const args = process.argv.slice(2), want = [], p = structuredClone(P);
@@ -730,11 +785,12 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     if (args[i] === '--set') { const [k, v] = args[++i].split('='); const path = k.split('.'); let o = p; while (path.length > 1) { const k0 = path.shift(); if (o[k0] == null) o[k0] = {}; o = o[k0]; } o[path[0]] = isNaN(+v) ? (v === 'true' ? true : v === 'false' ? false : v) : +v; }
     else if (args[i] === '--real') { p.real = JSON.parse(readFileSync(args[++i], 'utf8')); const w = p.real.map(r => r.wpm).sort((a, b) => a - b), q = f => w[Math.min(w.length - 1, Math.floor(f * w.length))];
       p.median = q(0.5); p.sigma = (Math.log(q(0.75)) - Math.log(q(0.25))) / 1.349; p.persona = { slow: q(0.25), mid: q(0.5), fast: q(0.9) }; p.veryFast = q(0.97); }
-    else if (args[i] === '--preset') { const k = args[++i], PS = { proposal: PROPOSAL, calibrated: CALIBRATED, v2: CALIBRATED }; if (!PS[k]) { console.error('只有 --preset proposal | calibrated | v2'); process.exit(1); } Object.assign(p, structuredClone(PS[k])); }
+    else if (args[i] === '--preset') { const k = args[++i], PS = { proposal: PROPOSAL, calibrated: CALIBRATED, v2: V2PRESET(true), 'v2-now': V2PRESET(false) }; if (!PS[k]) { console.error('只有 --preset proposal | calibrated | v2 | v2-now'); process.exit(1); } Object.assign(p, structuredClone(PS[k])); }
     else if (args[i] === '--json') p.json = true;
     else want.push(args[i]);
   }
   if (p.tierSrc == null) p.tierSrc = p.real ? 'real' : 'model';
+  if (p.v2 && p.v2.gear === 'new') applyGearV2();
   for (const k of (want.length ? want : Object.keys(SECTIONS).filter(k => k !== 'v2'))) { if (!SECTIONS[k]) { console.error('沒有這一節：' + k); process.exit(1); } SECTIONS[k](p); }
   if (p.json) console.log(JSON.stringify({ P: { ...p, real: undefined }, lines: out.lines })); else console.log(out.lines.join('\n'));
 }
