@@ -61,10 +61,10 @@ function ruleCheck(db, op, path, data, exists) {
   /* 場次紀錄（firestore-rules.txt）：學生只能新增，欄位白名單、ts 要是伺服器時間、ID＝文件ID_毫秒；不能讀、不能改、不能刪 */
   if (col === 'mg_nw_runs') {
     if (op !== 'create') deny(op, path);
-    const d = data || {}, keys = ['id', 'cls', 'seat', 'uid', 't', 'ts', 'v', 'app', 'mk', 'rk', 'star', 'lv', 'qb', 'res', 'secs', 'acc', 'ans', 'cor', 'typ', 'keys', 'nokey', 'act', 'cpm', 'fl', 'sus', 'w', 'atk', 'pw', 'tier', 'q'];
+    const d = data || {}, keys = ['id', 'cls', 'seat', 'uid', 't', 'ts', 'v', 'app', 'mk', 'rk', 'star', 'lv', 'qb', 'res', 'secs', 'acc', 'ans', 'cor', 'typ', 'keys', 'nokey', 'act', 'cpm', 'fl', 'sus', 'w', 'atk', 'pw', 'tier', 'q', 'frac', 'flow', 'guards', 'vines', 'dodgeReal', 'idle'];
     if (Object.keys(d).some(k => !keys.includes(k)) || !d.ts || d.ts.__op !== 'ts' || typeof d.id !== 'string' || !new RegExp('^' + d.id + '_[0-9]+$').test(id)) deny(op, path);
     if (typeof d.uid !== 'string' || !d.uid || d.uid !== (userOf(db) || {}).uid) deny(op, path);
-    if (!(typeof d.secs === 'number' && d.secs >= 0 && d.secs <= 310) || !(typeof d.acc === 'number' && d.acc >= 0 && d.acc <= 1) || !(Number.isInteger(d.star) && d.star >= 1 && d.star <= 5)) deny(op, path);
+    if (!(typeof d.secs === 'number' && d.secs >= 0 && d.secs <= 490) || !(typeof d.acc === 'number' && d.acc >= 0 && d.acc <= 1) || !(Number.isInteger(d.star) && d.star >= 1 && d.star <= 5)) deny(op, path);
     if (!Array.isArray(d.q) || d.q.length > 480 || d.q.length % 4 !== 0 || d.q.some(x => typeof x !== 'number') || !Array.isArray(d.sus) || d.sus.length > 4) deny(op, path);
     return;
   }

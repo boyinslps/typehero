@@ -132,7 +132,38 @@ describe('正式規則 firestore-rules.txt', () => {
     test('多一個不在白名單的欄位 → 不過', () => assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ bonus: 9999 }))));
     test('ID 不是「id_毫秒」→ 不過', () => assertFails(setDoc(doc(d.stu, `mg_nw_runs/${ID}_abc`), run())));
     test('ID 的前綴對不上紀錄裡的 id → 不過', () => assertFails(setDoc(doc(d.stu, 'mg_nw_runs/五年級4班_6號_1763500000000'), run())));
-    test('secs 超過 310 → 不過', () => assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ secs: 311 }))));
+    test('secs 480（8 分鐘魔物逃走）→ 過', () => assertSucceeds(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ secs: 480 }))));
+    test('secs 剛好 490 → 過；491 → 不過；負數 → 不過', async () => {
+      await assertSucceeds(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ secs: 490 })));
+      await assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID + '1'), run({ secs: 491 })));
+      await assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID + '2'), run({ secs: -1 })));
+    });
+    /* SPEC-BALANCE-V2 §7 第 2 步：新欄位進白名單（frac、flow、guards、vines、dodgeReal、idle），全部可省略，有送就要在範圍內 */
+    const NEW = { frac: 0.41, flow: 'guard', guards: 7, vines: 0, dodgeReal: 3, idle: 12.5 };
+    test('帶全部新欄位（逃走、打掉 41%）→ 過', () => assertSucceeds(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ res: 'escape', secs: 480, ...NEW }))));
+    test('不帶新欄位（舊版程式）→ 過', () => assertSucceeds(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run())));
+    test('flow 用占比數字 0.5 → 過；1.5 → 不過；13 個字的字串 → 不過', async () => {
+      await assertSucceeds(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ flow: 0.5 })));
+      await assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID + '1'), run({ flow: 1.5 })));
+      await assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID + '2'), run({ flow: 'x'.repeat(13) })));
+    });
+    test('frac 超過 1、負數、不是數字 → 不過；剛好 0 與 1 → 過', async () => {
+      await assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ frac: 1.01 })));
+      await assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID + '1'), run({ frac: -0.1 })));
+      await assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID + '2'), run({ frac: '0.5' })));
+      await assertSucceeds(setDoc(doc(d.stu, 'mg_nw_runs/' + RID + '3'), run({ frac: 0 })));
+      await assertSucceeds(setDoc(doc(d.stu, 'mg_nw_runs/' + RID + '4'), run({ frac: 1 })));
+    });
+    test('guards／vines／dodgeReal 超過 999、小數、負數 → 不過', async () => {
+      for (const [i, o] of [{ guards: 1000 }, { vines: 1000 }, { dodgeReal: 1000 }, { guards: 2.5 }, { vines: -1 }, { dodgeReal: '3' }].entries())
+        await assertFails(setDoc(doc(d.stu, `mg_nw_runs/${RID}${i}`), run(o)));
+      await assertSucceeds(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ guards: 999, vines: 999, dodgeReal: 999 })));
+    });
+    test('idle 超過 490、負數 → 不過；剛好 490 → 過', async () => {
+      await assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ idle: 491 })));
+      await assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID + '1'), run({ idle: -1 })));
+      await assertSucceeds(setDoc(doc(d.stu, 'mg_nw_runs/' + RID + '2'), run({ idle: 490 })));
+    });
     test('acc 超過 1 → 不過', () => assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ acc: 1.5 }))));
     test('star 不是 1～5 → 不過', () => assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ star: 6 }))));
     test('q 超過 120 題（平的陣列 480 個數字）→ 不過', () => assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ q: Array.from({ length: 121 }, () => [2, 5, 2000, 2]).flat() }))));

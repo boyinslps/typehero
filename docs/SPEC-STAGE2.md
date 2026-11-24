@@ -817,3 +817,35 @@ nw: {
 | 測試 | `nw17.test.js`：前半純函式（含用 `rank-calc.updateBoards` 真的算一份榜單餵給學生端，確認 `c`＋`s` 認得自己、神秘獵人、武器、神準）；後半瀏覽器 12 組情境（讀取次數、三分頁、榜外、年級、取不到年級、空榜、讀取失敗與重試、離線、壞資料、沒開放、介紹、規則、手機 390）。截圖 `/tmp/rank2a-*.png` | — |
 
 **開放前還要做的**（§2.11 不變）：老師貼 Firestore 規則（`mg_nw_board`、`mg_nw_board_private`）→ 2b 開放累積 4 週 → 老師登入讓背景更新跑過 → 用真資料看三個分頁 → 才把 `'2a'` 加進 `OPEN_STAGES`、發公告與 `TYPEHERO_UPDATES`（草稿 §4）。
+
+### SPEC-BALANCE-V2 第 2 步：測試與規則先對齊新值（2026-11-24）
+
+`OPEN_STAGES` 沒動、2b 沒開放、沒發公告。這一步只讓「8 分鐘逃走」的場次與 V2 的新欄位寫得進去、算得進老師端，遊戲行為不變。**Firestore 規則要老師點頭才貼上線；repo 裡只改了檔案。** `tools/rules-test` 在有 Java 的環境跑過：142 條全過（之前 135，這步 −1＋8）。
+
+**規則改動（`firestore-rules.txt` 的 `mg_nw_runs`，只有這兩處；其他集合沒動）**
+
+```diff
+-             'secs', ..., 'tier', 'q'])
++             'secs', ..., 'tier', 'q',
++             'frac', 'flow', 'guards', 'vines', 'dodgeReal', 'idle'])
+-        && request.resource.data.secs is number && request.resource.data.secs >= 0 && request.resource.data.secs <= 310
++        && request.resource.data.secs is number && request.resource.data.secs >= 0 && request.resource.data.secs <= 490
++        && request.resource.data.get('frac', 0) is number && ... >= 0 && ... <= 1
++        && ((flow 是字串且 size() <= 12) || (flow 是數字且 0～1))
++        && guards／vines／dodgeReal 各是 int，0～999
++        && idle 是 number，0～490
+```
+
+| 欄位 | 意思 | 型別與範圍 | 為什麼 |
+|---|---|---|---|
+| `secs` | 這場花幾秒 | number，0～**490**（原 310） | 8 分鐘逃走是 480 秒，原規則會把它擋掉（對照規則時發現，審查沒提到）；多留 10 秒誤差 |
+| `frac` | 打掉的血比例 | number，0～1 | 逃走／輸的獎勵用 |
+| `flow` | 流派 | **字串 ≤ 12 字，或數字 0～1，兩種都收** | 規格只列名字沒寫型別（是代號還是占比）；兩種都收，第 4 步定案後不用再貼一次規則 |
+| `guards`、`vines`、`dodgeReal` | 守護成功／藤蔓／真的躲開的次數 | int，0～999 | 校準用 |
+| `idle` | 沒在打字的秒數 | number，0～490 | 防掛機校準；不會超過一場的秒數 |
+
+- 六個新欄位**全部可以省略**（用 `get(欄位, 預設值)`）：舊版程式與還沒做第 4 步的現在不會送，照樣寫得進去。
+- 規格 §7 第 4 步提到的「每次出招預警→第一次按鍵毫秒」「開始時間戳」**沒有欄位名**，這次沒放進白名單；第 4 步決定名字時要再改一次規則（老師貼之前先確認）。
+- 同步改的：`teacher/rank-calc.js` 的 `secs > 310` 也改成 `> 490`（不然 480 秒的逃走場次會在老師端被當壞資料丟掉，打字速度算不到）；假資料庫 `tools/browser-test/mock/fs.js` 照規則改。
+- `res: 'escape'`：`rank-calc` 只認 `res === 'win'` 為贏，所以逃走自動不算最快、算打字速度，程式不用改，`nw16.test.js` 補了 5 條證明（收得進來且 `win` 為 false、算進步、答不到 3 題略過、不上最快榜、旁邊打贏的人照常上榜）。
+- 新增的規則測試（`tools/rules-test/rules.test.mjs`）：`secs` 480／490 過、491／負數擋；帶全部新欄位過、不帶過；`frac`、`flow`、`guards`、`vines`、`dodgeReal`、`idle` 超界、型別錯各擋一條。
