@@ -935,3 +935,8 @@ NW_PATCH=v2,slam      node --import ./tools/nw-sim/curves.mjs tools/nw-sim/bal2b
   - `react`、`guards`、`vines`、`flow`：見上表；`guards`／`vines` 要第 9 步才會有值。
 - `escape`：`queueRun` 認得 `res: 'escape'`（原本其他值都當 `retreat`）。
 - 測試：`nw19.test.js`（20 條）：旗標關不寫新欄位、四種結果各一筆（假資料庫照規則擋）、型別範圍、無巢狀陣列／undefined、超界值夾回、真打一場撤退（真的躲開 1 次、react、frac、idle）、真打一場贏（frac＝1、idle≈0）。
+
+#### 第 5 步：拿掉層級
+- V2 開著：魔物血量 `nwMaxHp`（一律 B＝規格 §1.1 的單一曲線）、紅線預警 `nwLaneW`（一律 3.0 秒）、蓄力與出招間隔（`castTime`／`atkInterval` 一律用 B）都不看層級；血條一開始 100%（`hp＝max`）。咕咕鳥★1 蓄力 9 秒、預警 3 秒＝招式出現後 6 秒紅線才出現，A、D 層實測都是 6.0 秒。
+- 沒開：舊行為逐項不變（A 層血條 69.9%、D 層 339%——這是舊程式本來就有的怪現象，沒有順手修）。
+- 跟規格的差別：無。`env.tier()` 與 `res.tier` 還在，只是記錄用。測試 `nw20.test.js`（純函式＋真打：血條、第一下傷害反推最大血量、預警計時，旗標開關各一組）。

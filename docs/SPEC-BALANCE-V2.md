@@ -354,7 +354,7 @@ p90 第 10 節全身綠 +5，之後只進不出；**第 2 段接受**，排水�
 | 2 ✅ | **測試與規則先對齊新值**：①`tools/browser-test/nw12.test.js:132` 的「炎牙刀藍色攻擊力 110」改 120（其他寫死的裝備數字一起找）；②`nw16.test.js` 補「`res: 'escape'` 不算最快、算打字速度」；③`firestore-rules.txt` 白名單加新欄位、`secs ≤ 490`，跑 `tools/rules-test` | 這三處改完，`nw12`～`nw16` 全過；rules-test 全過 |
 | 3 ✅ | **§9 裝備數值**（`nw-data.js` 常數、`resolveStrike` 三行、`gearMul`、`elemMulOf`） | 純函式測試：`slotValue` 對照 §9.1；`gearPowerOf('green',0) > gearPowerOf('gray',5)`；重壓沒擋住只扣一次 ×1.5；5 點攻擊穿灰盔甲 +0 → 4；`ceil(50×0.14 − 1e-9)`＝7；炎牙刀藍 +5 打咕咕鳥 `gearMul`＝1.365 |
 | 4 ✅ | 遙測（第 2 步的欄位寫進 `mg_nw_runs`） | 三種結果都寫對 |
-| 5 | 拿掉層級（`nwMaxHp`、預警 3.0、節奏 B） | A、D 層同一隻魔物血量相同；血條一開始 100% |
+| 5 ✅ | 拿掉層級（`nwMaxHp`、預警 3.0、節奏 B） | A、D 層同一隻魔物血量相同；血條一開始 100% |
 | 6 | 時間：取消時間輸、8 分鐘逃走、右上角、撤退照比例 | 假時鐘到 480 秒 → `escape`、獎勵 0.3a＋0.7f |
 | 7 | 獎勵：一天 4 場、⚡、勤勞（只算活躍時間） | 第 5 場材料減半；勤勞一天 ≤2；掛著不打字 10 分鐘勤勞 0 |
 | 8 | 攻擊表：跳跳菇★2 起、狼全開 ×0.7、泡泡蛙單線 | 跳跳菇★1 不攻擊；狼＝`monDmg(lv, mul×0.7)` |
@@ -366,6 +366,7 @@ p90 第 10 節全身綠 +5，之後只進不出；**第 2 段接受**，排水�
 - ✅ 第 2 步（2026-11-24）：`firestore-rules.txt`（`secs ≤ 490`＋六個新欄位）＋ rules-test 142 條全過、`nw16` 補 `escape` 測試、`rank-calc` 的 `secs` 上限 310→490（規格漏了：不改的話 480 秒的逃走場次在老師端會被當壞資料丟掉）、假資料庫對齊。規則改動說明在 `SPEC-STAGE2.md` §10 最後一節，**規則還沒貼上線，要老師點頭**。`nw12:132` 的 110→120 與其他寫死的裝備數字改成跟第 3 步同一個 commit（期望值先改、程式還是舊值，`nw12` 會變紅；每個 commit 都要全綠）。
 - ✅ 第 3 步（2026-11-24）：§9.1 常數、`strikeDamage`（盔甲 ceil、重壓 ×1.5，`resolveStrike` 呼叫它）、`ELEM_UP`／`ELEM_DOWN`／`GEAR_CAP`；`nw12`、`nw14`、`t4` 的期望值對齊，新增 `nw18.test.js`（純函式 48 條）與 `nw14` 兩條重壓實戰；`NW_PATCH=v2,gear,slam` 的 `curves.mjs`、`bal2b.mjs` 輸出改前改後完全相同。記錄在 `SPEC-STAGE2.md` §10 最後一節。
 - ✅ 第 4 步（2026-11-24）：V2 旗標 `NW_V2`／`v2On()`（2b 開放＝V2 開放，測試用 `window.__NW_V2__`）、`queueRun` 寫 `frac`／`flow`／`guards`／`vines`／`dodgeReal`／`idle`，另補 `react`（預警→第一次按鍵毫秒，平的數字陣列 ≤40）與 `t0`（開始時間戳）兩個欄位進規則白名單與 rules-test（145 條）；`nw19.test.js`。細節與「第 3 步對第 1 段玩家的影響」在 `SPEC-STAGE2.md` §10 最後一節。
+- ✅ 第 5 步（2026-11-24）：`nwMaxHp`／`nwLaneW`／`nwTier`，血量、預警 3.0、節奏 B 都不看層級（只在 V2 開著時；旗標關舊行為不變）；`nw20.test.js`。
 
 ---
 

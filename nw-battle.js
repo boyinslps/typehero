@@ -1,4 +1,4 @@
-import { BAL, TIERS, MONSTERS, GIFT_WEAPONS, weaponBase, curWeapon, hpPlayersMul, ATTACKS_OPEN, LANE_W, gearStats, gearMul, RANK_MIN_ACC, SUS, qBand, MAX_CHARS, CHANT_MAX, SHORT_CHANTS, regionLv, monMaxHp, monDmg, strikeDamage, atkInterval, castTime, STATUS, NW_V2 } from './nw-data.js';
+import { BAL, TIERS, MONSTERS, GIFT_WEAPONS, weaponBase, curWeapon, hpPlayersMul, ATTACKS_OPEN, LANE_W, gearStats, gearMul, RANK_MIN_ACC, SUS, qBand, MAX_CHARS, CHANT_MAX, SHORT_CHANTS, regionLv, monMaxHp, monDmg, strikeDamage, atkInterval, castTime, STATUS, NW_V2, v2On, nwMaxHp, nwTier, nwLaneW } from './nw-data.js';
 
 const CSS = `
 #nwb-root{position:fixed;inset:0;z-index:70;display:flex;flex-direction:column;background:#000;color:var(--ink);font-size:clamp(13px,1.5vmin + 7px,21px);font-weight:700}
@@ -60,6 +60,8 @@ export function startBattle(env, cfg, done) {
   const mon0 = MONSTERS[cfg.mk];
   const lv = regionLv(cfg.rk, cfg.star);
   const tier = env.tier();
+  /* V2：血量、預警秒數、出招節奏都不看層級（SPEC-BALANCE-V2 §1.1）；tier 只剩記進 res。沒開 V2 時 tierE＝tier，行為不變 */
+  const V2 = v2On(), tierE = nwTier(tier, V2);
   const wkey = curWeapon(NW) || 'staff', weapon = weaponBase(wkey), wmod = GIFT_WEAPONS[wkey] || null, CE = (wmod && wmod.chantEvery) || BAL.chantEvery;
   /* 裝備（2b）：攻擊力、屬性、生命、減傷、舉盾秒數、紅線預警。測試在 localhost 可以用 window.__NW_GEAR__ 直接指定（gearStats 的格式） */
   const GS = (location.hostname === 'localhost' && window.__NW_GEAR__) || gearStats(NW);
@@ -133,7 +135,7 @@ export function startBattle(env, cfg, done) {
 
   const T0 = nowS();
   const S = {
-    over: false, T0, mon: { hp: monMaxHp(cfg.mk, lv, tier, cfg.players || 1), max: monMaxHp(cfg.mk, lv, undefined, cfg.players || 1), angry: false, flashUntil: 0, lungeAt: -9 },
+    over: false, T0, mon: { hp: nwMaxHp(cfg.mk, lv, tier, cfg.players || 1, V2), max: monMaxHp(cfg.mk, lv, undefined, cfg.players || 1), angry: false, flashUntil: 0, lungeAt: -9 },
     me: { hp: BAL.playerHp + GS.hp, max: BAL.playerHp + GS.hp, down: false, downUntil: 0, downs: 0, hitAt: -9, x: 0, atkAt: -9 },
     st: { burn: 0, poison: [], ice: 0, lastTick: T0 },
     cast: null, nextCast: T0 + 6, lane: 1, hx: LANE_C[1] - 2, shieldUntil: 0, laneFlash: [],
@@ -403,7 +405,7 @@ export function startBattle(env, cfg, done) {
     return rnd(pool.length ? pool : enabled.filter(k => k !== 'slam'));
   }
   function buildStrikes(atk, H) {
-    const W = LANE_W[tier] || 2.5, B = GS.warn, rl = () => Math.floor(Math.random() * 3);
+    const W = nwLaneW(tier, V2), B = GS.warn, rl = () => Math.floor(Math.random() * 3);
     const forced = location.hostname === 'localhost' && window.__NW_PATTERN__;
     const kind = forced || (atk.type === 'defend' ? 'slam' : pickPattern());
     let strikes = [];
@@ -419,12 +421,12 @@ export function startBattle(env, cfg, done) {
     if (!usable.length) { S.nextCast = T + 8; return; }
     const atk = rnd(usable);
     const quick = mon0.spKey === 'quick';
-    const dur = castTime(lv, tier) * (quick ? .75 : 1);
+    const dur = castTime(lv, tierE) * (quick ? .75 : 1);
     S.cast = { atk, start: T, dur, hitAt: T + dur };
     Object.assign(S.cast, buildStrikes(atk, T + dur)); S.cast.hitAt = Math.max(...S.cast.strikes.map(x => x.hit));
     S.cast.w0 = Math.min(...S.cast.strikes.map(x => x.warn));
     const rage = mon0.spKey === 'rage' && S.mon.angry;
-    S.nextCast = T + atkInterval(lv, tier, rage) * (quick ? BAL.quickMul : 1);
+    S.nextCast = T + atkInterval(lv, tierE, rage) * (quick ? BAL.quickMul : 1);
     const box = $q('nwb-cast');
     box.style.display = 'block'; box.className = 'nwb2-cast ' + atk.type;
     $q('nwb-cast-t').textContent = `⚠ ${mon0.name}要用「${atk.name}」！`;
