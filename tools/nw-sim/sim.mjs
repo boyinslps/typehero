@@ -38,7 +38,8 @@ export function simulate(p, mk, rk, star, exp, seed, A = DEFAULT_ASSUME, overrid
   const gear = Object.assign({}, NOGEAR, overrides.gear || {});
   const enabled = openFor(mk, overrides.attacks);
   const g = gear.atk / 100 * elemMul(gear, mk);
-  const cpm = Math.max(4, p.wpm * A.avgOfBest * A.dual);
+  /* cpmFloor：打字速度的下限（字/分）。預設 4＝wpm 約 6.3 以下的人在模擬裡一樣快，所以最慢的 21% 會被高估；bal2b 用 --floor 看影響 */
+  const cpm = Math.max(A.cpmFloor != null ? A.cpmFloor : 4, p.wpm * A.avgOfBest * A.dual);
   const errRate = clamp(1 - (clamp(p.acc, 80, 100) / 100 - 0.02), 0.01, 0.15);
   const maxChars = MAX_CHARS(star);
 

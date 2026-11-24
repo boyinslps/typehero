@@ -5,7 +5,7 @@
 | 檔 | 做什麼 |
 |---|---|
 | `sim.mjs` | 一場戰鬥的模擬（2b-1 起是**三線戰鬥**：打字、武器特技照 `nw-battle.js`，魔物出招與學生反應在 `lanes.mjs`，裝備 `{ atk, elem, hp, cut, shield, warn }`，題目長度讀 `assets/banks`） |
-| `lanes.mjs` | 魔物出招（單線、夾擊、橫掃、假動作、重壓）與學生反應（換線、舉盾）。反應假設：新手 1.0 → 練熟 0.7 秒、夾擊選對 80% → 95%、太早舉盾會再按 50% → 90%（SPEC-STAGE2 §3.4）；`attend` 旋鈕＝有沒有注意到紅線（預設每次都注意） |
+| `lanes.mjs` | 魔物出招（單線、夾擊、橫掃、假動作、重壓）與學生反應（換線、舉盾）。反應假設：新手 1.0 → 練熟 0.7 秒、夾擊選對 80% → 95%、太早舉盾會再按 50% → 90%（SPEC-STAGE2 §3.4）；`attend` 旋鈕＝有沒有注意到紅線（預設每次都注意），`attendDodge`／`attendDef` 可以分開設，`slamOnce` 只作對照 |
 | `personas.mjs` | 學生樣本：`SPEC6`（規格原本 6 個）、`realPersonas()`（用 `data-private/profiles.json` 的 P25／P50／P90＋極快 45） |
 | `gear.mjs` | **裝備驗收 G1～G8**：`node tools/nw-sim/gear.mjs --n 1000`（加 `--md` 輸出 Markdown，結果存在 `docs/BALANCE-GEAR-2B.md`；`--attend 0.5` 看「很多人沒注意到紅線」） |
 | `calib.mjs` | 用真實匯出的閃避／防禦成功率校正 `attend` |
@@ -13,5 +13,8 @@
 | `events.mjs` | 活動預設值（班級挑戰勝率、`FASTEST_FLOOR`）；含裝備的下限用 `gear.mjs` 的 G7 |
 | `curves.mjs` | 平衡曲線的解析模型（`docs/BALANCE-CURVES.md`），全部重算約 80 秒 |
 | `load-real.mjs` | 把教師頁「匯出打字速度（匿名）」的檔轉成模擬器的學生列表（匯出檔放 `data-private/`，不進 repo） |
+| `bal2b-data.mjs` | 2b 分析：只讀匯出檔的統計（速度分位數、σ、閃避／防禦與信賴區間、層級缺口、裝備上限指標）。報告 `docs/research/BALANCE-2B-ANALYSIS.md` |
+| `bal2b.mjs` | 2b 分析：閃避／防禦假設反推（`fit`）、防具價值、重壓三倍 vs 只打一次、284 個真實學生逐人、層級影響、敏感度。`node tools/nw-sim/bal2b.mjs <fit\|gear\|def\|slam\|real\|quant\|tier\|armor\|sens\|g8\|thr>` |
+| `bal2b-term.mjs` | 2b 分析：一學期（14 節×2 場）逐人逐場的進度預測，用 `nw-data.js` 真正的打造／強化函式 |
 
 裝備數值：`gear.mjs` 的 `statsOf()` 直接用 `nw-data.js` 的 `slotValue()`，改了裝備數字重跑 `gear.mjs` 就會跟著變，不用兩邊同步。

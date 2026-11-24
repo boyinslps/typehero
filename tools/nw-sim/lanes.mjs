@@ -64,10 +64,14 @@ export function respond(r, cast, pl, exp, gear, A = REACT) {
 
   /* attend：這一次有沒有注意到紅線／藍線。真實匯出（2026-11-20，18 位打過的同學，閃避 60/111、防禦 52/86）
      的成功率比「每次都會躲」低很多，所以保留一個旋鈕；SPEC 假設＝每次都注意（預設 undefined） */
-  if (A.attend != null && r() >= A.attend) {
+  /* attendDodge／attendDef：閃避與防禦分開設（真實資料裡兩個成功率要的 attend 差很多，單一旋鈕對不起來，見 docs/research/BALANCE-2B-ANALYSIS.md）；
+     沒設就退回 attend，所以舊腳本的結果不變。slamOnce：只用在「假如重壓只打一次」的對照，遊戲現況是三線各打一次 */
+  const att = cast.kind === 'slam' ? (A.attendDef != null ? A.attendDef : A.attend) : (A.attendDodge != null ? A.attendDodge : A.attend);
+  const slamCut = list => (cast.kind === 'slam' && A.slamOnce) ? list.slice(0, 1) : list;
+  if (att != null && r() >= att) {
     const mine = sorted.filter(s => cast.kind === 'slam' || (s.cancel == null && s.lane === pl.lane));
     out.need = mine.length > 0;
-    if (out.need) { out.ok = false; mine.forEach(s => out.hits.push({ at: s.hit, mul: s.mul })); }
+    if (out.need) { out.ok = false; slamCut(mine).forEach(s => out.hits.push({ at: s.hit, mul: s.mul })); }
     return out;
   }
 
@@ -81,7 +85,7 @@ export function respond(r, cast, pl, exp, gear, A = REACT) {
       if (t1 + dur >= hit) covered = true;
       else if (r() < hold) { out.moves = 2; covered = true; }   // 盾提早沒了：hold 的人會再按（按住 Alt 會一直重新舉盾），所以盾越長，需要再按的人越少
     }
-    if (!covered) { out.ok = false; sorted.forEach(s => out.hits.push({ at: s.hit, mul: s.mul })); }
+    if (!covered) { out.ok = false; slamCut(sorted).forEach(s => out.hits.push({ at: s.hit, mul: s.mul })); }
     return out;
   }
 
