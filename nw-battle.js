@@ -1,4 +1,4 @@
-import { BAL, TIERS, MONSTERS, GIFT_WEAPONS, weaponBase, curWeapon, hpPlayersMul, ATTACKS_OPEN, LANE_W, gearStats, gearMul, RANK_MIN_ACC, SUS, qBand, MAX_CHARS, CHANT_MAX, SHORT_CHANTS, regionLv, monMaxHp, monDmg, strikeDamage, atkInterval, castTime, STATUS, NW_V2, v2On, nwMaxHp, nwTier, nwLaneW } from './nw-data.js';
+import { BAL, TIERS, MONSTERS, GIFT_WEAPONS, weaponBase, curWeapon, hpPlayersMul, ATTACKS_OPEN, LANE_W, gearStats, gearMul, RANK_MIN_ACC, SUS, qBand, MAX_CHARS, CHANT_MAX, SHORT_CHANTS, regionLv, monMaxHp, monDmg, strikeDamage, atkInterval, castTime, STATUS, NW_V2, v2On, nwMaxHp, nwTier, nwLaneW, stdSecs } from './nw-data.js';
 
 const CSS = `
 #nwb-root{position:fixed;inset:0;z-index:70;display:flex;flex-direction:column;background:#000;color:var(--ink);font-size:clamp(13px,1.5vmin + 7px,21px);font-weight:700}
@@ -62,6 +62,8 @@ export function startBattle(env, cfg, done) {
   const tier = env.tier();
   /* V2：血量、預警秒數、出招節奏都不看層級（SPEC-BALANCE-V2 §1.1）；tier 只剩記進 res。沒開 V2 時 tierE＝tier，行為不變 */
   const V2 = v2On(), tierE = nwTier(tier, V2);
+  /* 時間上限：V2 沒有「時間到就輸」，只有倒下 3 次才輸；滿 cap 秒魔物逃走（不算輸，獎勵照打掉的血與有在打字的時間，見 newworld.js finishHunt） */
+  const CAP = V2 ? NW_V2.cap : BAL.timeLimit, STD = V2 ? stdSecs(cfg.rk, cfg.mk, cfg.star) : 0;
   const wkey = curWeapon(NW) || 'staff', weapon = weaponBase(wkey), wmod = GIFT_WEAPONS[wkey] || null, CE = (wmod && wmod.chantEvery) || BAL.chantEvery;
   /* 裝備（2b）：攻擊力、屬性、生命、減傷、舉盾秒數、紅線預警。測試在 localhost 可以用 window.__NW_GEAR__ 直接指定（gearStats 的格式） */
   const GS = (location.hostname === 'localhost' && window.__NW_GEAR__) || gearStats(NW);
@@ -86,7 +88,7 @@ export function startBattle(env, cfg, done) {
         <button id="nwb-quit" class="px-btn" style="font-size:.8em;padding:6px 12px">撤退</button>
         <div class="px-panel nwb3-plate"><div class="flex justify-between gap-2 px-text"><span id="nwb-mname"></span><span id="nwb-mflag"></span></div>
           <div class="px-bar" style="margin-top:4px"><i id="nwb-mhp"></i></div></div>
-        <div class="px-panel nwb3-time"><div class="nwb3-lbl">時間</div><div id="nwb-time" class="mono px-text" style="color:#ffd98a">5:00</div></div>
+        <div class="px-panel nwb3-time"><div class="nwb3-lbl" id="nwb-tl">時間</div><div id="nwb-time" class="mono px-text" style="color:#ffd98a">5:00</div><div class="nwb3-lbl" id="nwb-std" style="display:none"></div></div>
       </div>
       <div class="nwb2-cast" id="nwb-cast"><div id="nwb-cast-t" class="px-text"></div><div class="bar"><i id="nwb-cast-i"></i></div><small id="nwb-cast-h"></small></div>
       <div class="nwb2-down" id="nwb-down"></div>
@@ -491,8 +493,16 @@ export function startBattle(env, cfg, done) {
     const T = nowS();
     if (!force && T - S.lastUi < .08) return;
     S.lastUi = T;
-    const left = Math.max(0, BAL.timeLimit - (T - S.T0));
-    $q('nwb-time').textContent = `${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}`;
+    /* V2 寫「已經打了」往上數、標準時間照著比，不倒數、不變紅（研究：兒童時間壓力；舊的 5:00 倒數維持原樣） */
+    const mmss = x => `${Math.floor(x / 60)}:${String(Math.floor(x % 60)).padStart(2, '0')}`;
+    if (V2) {
+      $q('nwb-tl').textContent = '已經打了'; $q('nwb-time').textContent = mmss(Math.min(CAP, T - S.T0));
+      if (STD) { const sd = $q('nwb-std'); sd.style.display = 'block'; sd.textContent = `⚡ 標準 ${mmss(STD)}`; }
+      if (!S.tired && T - S.T0 >= NW_V2.warnAt && !S.over) { S.tired = true; banner('魔物累了，再 1 分鐘就會逃走', '#ffd98a', true); }
+    } else {
+      const left = Math.max(0, CAP - (T - S.T0));
+      $q('nwb-time').textContent = mmss(left);
+    }
     $q('nwb-mhp').style.width = (S.mon.hp / S.mon.max * 100) + '%';
     $q('nwb-hp').style.width = (Math.max(0, S.me.hp) / S.me.max * 100) + '%';
     $q('nwb-hpt').textContent = `${Math.max(0, Math.round(S.me.hp))}/${S.me.max}`;
@@ -599,7 +609,7 @@ export function startBattle(env, cfg, done) {
       d += S.st.poison.filter(u => u > T).length;
       if (d && !S.me.down) { S.me.hp -= d; floatText(`-${d}`, 80 + S.me.x, 64, '#c08aff'); if (S.me.hp <= 0) goDown(); }
     }
-    if (T - S.T0 >= BAL.timeLimit) { finish('retreat'); return; }
+    if (T - S.T0 >= CAP) { finish(V2 ? 'escape' : 'retreat'); return; }
     draw(T); updateUi(false);
     raf = requestAnimationFrame(tick);
   }
@@ -632,16 +642,16 @@ export function startBattle(env, cfg, done) {
   inp.addEventListener('paste', blockPaste);
   inp.addEventListener('drop', blockPaste);
   root.addEventListener('click', e => { if (!S.me.down && e.target.id !== 'nwb-quit') inp.focus(); });
-  $q('nwb-quit').addEventListener('click', () => { if (confirm('要撤退嗎？現在撤退只能拿到一半的獎勵。')) finish('retreat'); });
+  $q('nwb-quit').addEventListener('click', () => { if (confirm(V2 ? '要撤退嗎？打掉多少血、認真打了多久，就照比例拿獎勵。' : '要撤退嗎？現在撤退只能拿到一半的獎勵。')) finish('retreat'); });
 
   function finish(result) {
     if (S.over) return;
     S.over = true; S.volley = null; S.hits = []; cancelAnimationFrame(raf);
     removeEventListener('keydown', laneKey); removeEventListener('keyup', laneKeyUp);
-    const tEnd = nowS(), secs = Math.min(BAL.timeLimit, tEnd - S.T0);
+    const tEnd = nowS(), secs = Math.min(CAP, tEnd - S.T0);
     inp.disabled = true;
     const win = result === 'win';
-    banner(win ? '🎉 討伐成功！' : result === 'fail' ? '狩獵失敗…' : '撤退', win ? '#ffd24a' : '#e5705f');
+    banner(win ? '🎉 討伐成功！' : result === 'fail' ? '狩獵失敗…' : result === 'escape' ? '魔物累得逃走了…' : '撤退', win ? '#ffd24a' : '#e5705f');
     updateUi(true); draw(nowS());
     const acc = S.typed ? S.correct / S.typed : 0;
     const live = Math.min(secs, Math.round((S.live + Math.min(Math.max(0, tEnd - S.lastCorrectAt), NW_V2.afkWin)) * 10) / 10);

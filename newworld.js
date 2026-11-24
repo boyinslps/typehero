@@ -1833,7 +1833,11 @@ export function initNewWorld(C) {
     NW.hunts++;
     if (NW.starter) NW.used[weaponBase(curWeapon(NW))] = 1;
     s.dodgeOk += res.dodgeOk; s.dodgeAll += res.dodgeAll; s.defOk += res.defOk; s.defAll += res.defAll;
+    const V2 = v2On();
     const sum = { lv, win: res.result === 'win', exp: 0, coins: 0, drops: [], rare: [], ups: 0, quests: [], star: res.star };
+    /* 獎勵比例：舊規則輸／撤退一律一半；V2 贏＝全額，其他照 0.3a＋0.7f（a＝有在打字的時間比例、f＝打掉的血，流派只算一半；SPEC-BALANCE-V2 §1.2） */
+    const ratio = !V2 ? (sum.win ? 1 : 0.5) : rewardRatio(sum.win, res.live, res.secs, res.fEff);
+    sum.ratio = ratio; sum.v2 = V2;
     if (res.valid) {
       /* 活動要在更新「自己最快」之前算：進步獎拿活動前的紀錄當 base */
       const fk = res.mk + ':' + res.star, prevBest = NW.fastMk[fk];
@@ -1849,14 +1853,14 @@ export function initNewWorld(C) {
         if (res.star > (NW.zone[res.rk] || 0)) NW.zone[res.rk] = res.star;
         const key = res.rk + ':' + res.star;
         if (!NW.fastest[key] || res.secs < NW.fastest[key]) NW.fastest[key] = res.secs;
-      } else s.fails++;
+      } else if (!(V2 && res.result === 'escape')) s.fails++;   // 逃走不記輸（§1.2）
       if (res.lvAcc && lv >= 20) { s.accN++; s.accSum += res.accuracy; }
-      sum.exp = Math.round(huntExp(lv, sum.win) * evr.boost.exp);
-      sum.coins = Math.round(huntCoins(lv, sum.win) * evr.boost.coins);
+      sum.exp = Math.round(huntExp(lv, true) * ratio * evr.boost.exp);
+      sum.coins = Math.round(huntCoins(lv, true) * ratio * evr.boost.coins);
       sum.hr0 = NW.hr; sum.exp0 = NW.hrExp;
       sum.ups = addHrExp(NW, sum.exp);
       NW.coins += sum.coins;
-      const rolls = sum.win ? 1 : 0.5;
+      const rolls = ratio;
       m.drops.forEach(([id, name, color, lo, hi]) => {
         const n = Math.max(1, Math.round((lo + Math.floor(Math.random() * (hi - lo + 1))) * rolls));
         NW.mats[id] = (NW.mats[id] || 0) + n; sum.drops.push({ id, name, color, n });
@@ -1931,7 +1935,7 @@ export function initNewWorld(C) {
 
   function showResult(res, sum, done) {
     const m = MONSTERS[res.mk], win = sum.win;
-    const title = win ? '討伐成功！' : (res.result === 'retreat' ? '撤退了' : '狩獵失敗');
+    const title = win ? '討伐成功！' : res.result === 'escape' ? '魔物逃走了' : (res.result === 'retreat' ? '撤退了' : '狩獵失敗');
     const slot = (inner, extra = '') => `<div class="px-panel in" style="min-width:140px;display:flex;gap:6px;align-items:center;${extra}">${inner}</div>`;
     const drops = sum.drops.map(d => slot(`<span style="font-size:1.4em;color:${COLOR_HEX[d.color]}">■</span><span>${d.name}</span><b style="margin-left:auto">×${d.n}</b>`)).join('');
     const rare = sum.rare.map(d => slot(`<span style="font-size:1.3em">📜</span><span style="color:${COLOR_HEX[d.color]}">${d.name}</span><b class="px-cursor" style="margin-left:auto;color:#ffd98a">新！</b>`, 'outline:3px solid #ffd24a')).join('');
@@ -1958,6 +1962,7 @@ export function initNewWorld(C) {
           </div>
         </div>
         ${res.valid ? '' : `<p class="mt-3 px-panel in" style="color:#e5705f">${escHtml(res.invalidWhy || '這場不算數')}</p>`}
+        ${res.valid && sum.v2 && !win ? `<p class="mt-3 px-panel in px-text" data-ratio>${res.result === 'escape' ? '魔物累得逃走了，' : ''}你打掉了牠 <b>${Math.round((res.frac || 0) * 100)}%</b> 的血，所以拿到 <b>${Math.round(sum.ratio * 100)}%</b> 的獎勵。</p>` : ''}
         ${res.valid && sum.boost && sum.boost.text ? `<div class="px-title mt-3 px-cursor" style="font-size:1.1em">${escHtml(sum.boost.text)}</div>` : ''}
         ${res.valid ? `<div class="label mt-4 mb-2">獲得</div>
           <div class="flex gap-2 flex-wrap">${drops}${rare}</div>
