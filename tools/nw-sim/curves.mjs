@@ -565,6 +565,44 @@ export function semesterV2(v0, a, p = P, flowPick = 'none') {
     w5: avg(r, x => x.w5), t5: med(r, x => x.t5), mat: avg(r, x => x.mat), bonus: avg(r, x => x.bonus), work: avg(r, x => x.work), minutes: avg(r, x => x.minutes), flow: mode(r.map(x => x.flow)), gear: mode(r.map(x => x.gear)) }));
 }
 
+/* ───────── 6. V2.2：逐場模擬（sim.mjs＋rules-v2.mjs）的掛機與標準時間 ─────────
+   掛機：跟 v2-afk.mjs 同一套策略（sim.mjs 的 A.afkPlay），另外用 sim 回傳的 act（有在打字的秒數）、f、valid
+   重算 v2.2 的獎勵公式 a×(0.3a＋0.7f)：保底改成按「有在打字的秒數 ÷ 480」給（V22_REWARD）。
+   參數用 NW_V2_SET 改（rules-v2.mjs）。 */
+/* v2.2 的輸／逃走獎勵：保底 0.3 按「有在打字的秒數 ÷ 逃走秒數」給（像勤勞獎勵一樣是時間制），進度 0.7 按打掉的血 f。
+   而且有在打字不到一半時間（4 分鐘）時，進度 0.7×f 也照比例打折：打 4 題長詞就站著（炎牙狼★5 一題 3.75 字）f 可以到 0.55，不打折掛機能拿 45～48% */
+export const V22_REWARD = (r, cap = (P.v2 && P.v2.cap) || 480, fb = (P.v2 && P.v2.failBase) || 0.3) => { const u = Math.min(1, (r.act || 0) / cap);
+  return fb * u + (1 - fb) * r.f * Math.min(1, 2 * u); };   // 有在打字不到一半時間（4 分鐘），進度那 0.7 也照比例打折
+export async function v2McAfk(N = 400, wpm = 11) {
+  const { simulate } = await import('./sim.mjs'), { v2Rules } = await import('./rules-v2.mjs');
+  const W = ['staff', 'bow', 'dagger', 'crossbow'], A0 = { ...DEFAULT_ASSUME, attendDodge: 0.11, attendDef: 0.73, cpmFloor: 0.3, sigmaB: 0.2 };
+  const MON = [['grass', 'shroom', 1], ['grass', 'coo', 5], ['grass', 'frog', 3], ['forest', 'wolf', 1], ['forest', 'wolf', 5]];
+  const ST = [['藤蔓：打 4 題後不動', 'vine', { nQ: 4, alt: false }], ['藤蔓：打 4 題後不動＋按住 Alt', 'vine', { nQ: 4, alt: true }], ['守護：只按 Alt 不打字', 'guard', { nQ: 0, alt: true }],
+    ['守護：打 3 題後只按 Alt', 'guard', { nQ: 3, alt: true }], ['守護：打 4 題後站著不動', 'guard', { nQ: 4, alt: false }]];
+  const rows = []; let worst = [0, 0], ci = 0;
+  for (const gk of ['綠武器+5', '藍火刀+5＋綠+5']) for (const [rk, mk, st] of MON) {
+    const cell = (flow, play) => { let r1 = 0, r2 = 0, n = 0, ans = 0; for (const [wi, weapon] of W.entries()) for (let k = 0; k < N / 4; k++) {
+      const r = simulate({ wpm, acc: 99, weapon }, mk, rk, st, 0.5, ci * 100003 + wi * 9973 + k * 7 + 11, { ...A0, rules: v2Rules({ flow }), ...(play ? { afkPlay: play } : {}) }, { gear: PRESETS[gk] });
+      n++; ans += r.answered; r1 += r.reward; r2 += r.result === 'win' ? 1 : r.valid ? V22_REWARD(r) : 0; } ci++; return [r1 / n, r2 / n, ans / n]; };
+    /* 「實際答題數」大於策略的題數＝sim.mjs 倒下站起來時把下一題時間重設（qEnd），掛機的人又開始打字——是模擬器的副作用，不是掛機的收益，這種格子不算進最高值 */
+    for (const [name, flow, play] of ST) { const [x, y, an] = cell(flow, play), clean = an <= play.nQ + 0.05;
+      if (clean) worst = [Math.max(worst[0], x), Math.max(worst[1], y)];
+      rows.push([gk, name, MN[mk] + '★' + st, pc(x) + '%', pc(y) + '%', r1(an) + (clean ? '' : '（倒下後又打字，不算）')]); }
+  }
+  return { rows, worst };
+}
+/* 標準時間（⚡）改用逐場：中位學生（11 字/分、逐字 0.97）無裝備、一般打法、四種武器各 N/4 場的「打贏時間」中位數（不設逃走） */
+export async function v2McStd(N = 200) {
+  const { simulate } = await import('./sim.mjs'), { v2Rules } = await import('./rules-v2.mjs');
+  const W = ['staff', 'bow', 'dagger', 'crossbow'], A0 = { ...DEFAULT_ASSUME, attendDodge: 0.11, attendDef: 0.73, cpmFloor: 0.3, sigmaB: 0.2 }, out = {};
+  for (const [rk, mks] of [['grass', ['coo', 'frog', 'shroom']], ['forest', ['shroom', 'coo', 'wolf']]]) for (const mk of mks) {
+    out[rk + ':' + mk] = [1, 2, 3, 4, 5].map(st => { const t = []; for (const [wi, weapon] of W.entries()) for (let k = 0; k < N / 4; k++) {
+      const r = simulate({ wpm: 11, acc: 97, weapon }, mk, rk, st, 0.5, st * 7919 + wi * 104729 + k * 13 + 5, { ...A0, rules: v2Rules({ over: { cap: 3000 } }) }, {}); if (r.result === 'win') t.push(r.secs); }
+      t.sort((a, b) => a - b); return Math.round(t[Math.floor(t.length / 2)] || 0); });
+  }
+  return out;
+}
+
 /* ───────── 輸出 ───────── */
 const out = { lines: [], json: {} };
 const say = s => out.lines.push(s);
@@ -733,6 +771,15 @@ export const SECTIONS = {
     say(`⑤ 三線動作：真實閃避成功 ${da[0]}／${da[1]} ＝ ${da[1] ? pc(da[0] / da[1]) : '—'}%、防禦成功 ${da[2]}／${da[3]} ＝ ${da[3] ? pc(da[2] / da[3]) : '—'}%（成功＝沒被打中，站著不動也算；星級與層級不明，下表用 B 層）。模型在不同反應時間下的預測：`);
     table(['反應時間平均（秒）', '閃避成功 ★1～2', '閃避成功 ★3～4', '防禦（重壓）成功 ★3'], [...new Set([99, 3, 2.5, 2, 1.5, 1, p.react[0]])].map(mu => { const q = { ...p, react: [mu, mu] }; return [mu === 99 ? '不動（純運氣）' : mu === p.react[0] ? `${mu}（現行假設）` : mu, pc(sd('dodge', q)) + '%', pc(sd('dodge', q, 'B', 3)) + '%', pc(sd('slam', q, 'B', 3)) + '%']; }));
 say(''); },
+  async v2mc(p) { const { RULE_SOURCE, NW_V2: N2, FLOWS: F2, ATTACK_DMG: AD } = await import('./rules-v2.mjs');
+    applyGearV2();
+    say('## v2mc：逐場模擬的掛機與標準時間（V2.2）'); say('```'); say(JSON.stringify({ NW_V2: N2, FLOWS: F2, ATTACK_DMG: AD, src: RULE_SOURCE })); say('```');
+    const a = await v2McAfk(p.v2mcN || 400);
+    say('### 掛機策略的獎勵比例（中位手速；舊公式 0.3a＋0.7f（a＝打字秒數÷這場秒數）／ v2.2 公式 0.3u＋0.7f×min(1,2u)，u＝打字秒數÷480）');
+    table(['裝備', '策略', '魔物★', '舊公式', 'v2.2 公式', '實際答題數'], a.rows);
+    say(`最高：舊公式 ${pc(a.worst[0])}%、v2.2 公式 ${pc(a.worst[1])}%（目標 ≤40%，最好 ≤30%）`); say('');
+    const st = await v2McStd(p.v2mcN ? Math.max(40, p.v2mcN / 2) : 200);
+    say('### 標準時間（逐場；可直接貼成 nw-data.js 的 STD_SECS）'); say('```js'); say('export const STD_SECS = ' + JSON.stringify(st).replace(/"([a-z]+:[a-z]+)"/g, "'$1'").replace(/],/g, '], ') + ';'); say('```'); },
   v2(p) { const V = p.v2;
     say('## v2：拿掉層級（SPEC-BALANCE-V2）'); say('```'); say(JSON.stringify(V)); say('```');
     const PV = [['p10', p.real ? realQ(p, 0.1) : r1(quantile(0.1, p)), p.acc.slow], ['p25', p.persona.slow, p.acc.slow], ['p50', p.persona.mid, p.acc.mid], ['p90', p.persona.fast, p.acc.fast], ['p97', p.veryFast, 0.99]];
@@ -827,6 +874,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   }
   if (p.tierSrc == null) p.tierSrc = p.real ? 'real' : 'model';
   if (p.v2 && p.v2.gear === 'new') applyGearV2();
-  for (const k of (want.length ? want : Object.keys(SECTIONS).filter(k => k !== 'v2'))) { if (!SECTIONS[k]) { console.error('沒有這一節：' + k); process.exit(1); } SECTIONS[k](p); }
+  for (const k of (want.length ? want : Object.keys(SECTIONS).filter(k => k !== 'v2' && k !== 'v2mc'))) { if (!SECTIONS[k]) { console.error('沒有這一節：' + k); process.exit(1); } await SECTIONS[k](p); }
   if (p.json) console.log(JSON.stringify({ P: { ...p, real: undefined }, lines: out.lines })); else console.log(out.lines.join('\n'));
 }
