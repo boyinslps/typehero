@@ -1860,11 +1860,28 @@ export function initNewWorld(C) {
       sum.hr0 = NW.hr; sum.exp0 = NW.hrExp;
       sum.ups = addHrExp(NW, sum.exp);
       NW.coins += sum.coins;
-      const rolls = ratio;
+      /* V2 的一天帳：前 4 場材料全額，第 5 場起 ×0.5（經驗、字元不減）；⚡ 快手、🔨 勤勞是「額外」的綠材料，不影響基本材料（SPEC-BALANCE-V2 §2.2～§2.4）。
+         一天用台灣時間的日曆日（twDay，伺服器校正過的 now()）；只有有效場（valid）才算一場 */
+      let dayR = null;
+      if (V2) {
+        const std = stdSecs(res.rk, res.mk, res.star);
+        dayR = dayStep(NW.day, twDay(now()), { live: res.live, fastWin: sum.win && std > 0 && res.secs < std });
+        NW.day = dayR.day; sum.full = dayR.full; sum.dayN = dayR.day.n;
+      }
+      const rolls = ratio * (dayR && !dayR.full ? NW_V2.dayHalf : 1);
       m.drops.forEach(([id, name, color, lo, hi]) => {
         const n = Math.max(1, Math.round((lo + Math.floor(Math.random() * (hi - lo + 1))) * rolls));
         NW.mats[id] = (NW.mats[id] || 0) + n; sum.drops.push({ id, name, color, n });
       });
+      if (dayR) {
+        const g = m.drops.find(d => d[2] === 'green');
+        sum.bonus = [];
+        if (g) {
+          const give = (kind, extra) => { NW.mats[g[0]] = (NW.mats[g[0]] || 0) + NW_V2.bonusMat * extra; sum.bonus.push({ kind, id: g[0], name: g[1], color: g[2], n: NW_V2.bonusMat * extra }); };
+          if (dayR.fast) { give('fast', 1); sum.fastBy = Math.round((stdSecs(res.rk, res.mk, res.star) - res.secs)); }
+          if (dayR.work) give('work', dayR.work);
+        }
+      }
       if (sum.win) sum.rare = rollBlueprints(NW, res.mk);
       /* 每場紀錄（2b-9）：算「可疑」、記進步用的速度、排進寫入佇列。2b 開放才開始寫（規則要先貼好，OPEN_STAGES 加 '2b' 就是那個時刻）；
          測試用的假結果沒有每題摘要（q），就略過 */
@@ -1966,6 +1983,8 @@ export function initNewWorld(C) {
         ${res.valid && sum.boost && sum.boost.text ? `<div class="px-title mt-3 px-cursor" style="font-size:1.1em">${escHtml(sum.boost.text)}</div>` : ''}
         ${res.valid ? `<div class="label mt-4 mb-2">獲得</div>
           <div class="flex gap-2 flex-wrap">${drops}${rare}</div>
+          ${(sum.bonus || []).map(x => `<div class="px-panel in px-text mt-2" data-bonus="${x.kind}" style="color:#ffd98a">${x.kind === 'fast' ? `⚡ 比標準時間快 ${sum.fastBy} 秒！多拿 ` : '🔨 認真打字滿 10 分鐘！多拿 '}<span style="color:${COLOR_HEX[x.color]}">■</span> ${x.name} ×${x.n}</div>`).join('')}
+          ${sum.v2 && sum.full === false ? `<p class="text-sm mt-2" data-daily style="color:#aab0d8">今天已經打了 ${sum.dayN - 1} 場，材料先變一半（字元和經驗照拿）。明天再拿滿！</p>` : ''}
           <div class="flex gap-5 mt-3 px-text" style="font-size:1.1em"><span>🪙 字元 +<b data-n="${sum.coins}">0</b></span><span>⭐ 獵人經驗 +<b data-n="${sum.exp}">0</b></span></div>
           <div class="flex items-center gap-2 mt-2"><b class="px-text" style="color:#ffd98a">獵人 Lv ${NW.hr}</b><div class="px-bar xp flex-1"><i data-hr style="width:${p0}%"></i></div></div>
           ${sum.ups ? `<div class="px-title mt-2 px-cursor" style="font-size:1.2em">獵人等級升到 ${NW.hr}！拿到 ${sum.ups} 顆星星（星圖台施工中，先存著）</div>` : ''}

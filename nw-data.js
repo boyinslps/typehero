@@ -361,6 +361,9 @@ export function normalizeNw(d) {
   cleanGear(o, d);
   /* 每場紀錄（2b-9）：cpmHist＝每個題目等級最近 5 場的打字速度（「進步太跳」用）；runQ＝還沒寫進雲端的紀錄（最多 5 筆） */
   o.cpmHist = (d.cpmHist && typeof d.cpmHist === 'object' && !Array.isArray(d.cpmHist)) ? d.cpmHist : {};
+  /* V2 的一天帳（dayStep）：型別不對就丟掉，當作今天第一場 */
+  if (d.day && typeof d.day === 'object' && !Array.isArray(d.day) && [d.day.d, d.day.n, d.day.work, d.day.ws].every(x => Number.isFinite(+x))) o.day = { d: +d.day.d, n: Math.max(0, Math.floor(+d.day.n)), work: Math.max(0, Math.floor(+d.day.work)), ws: Math.max(0, +d.day.ws) };
+  else delete o.day;
   o.runQ = Array.isArray(d.runQ) ? d.runQ.filter(x => x && typeof x.rid === 'string' && x.run && typeof x.run === 'object').slice(-5) : [];
   return o;
 }
