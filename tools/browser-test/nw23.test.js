@@ -345,7 +345,7 @@ const snap = p => S(p, 'S => ({ g: S.guards, f: S.dmgFlow, t: S.dmgType, v: S.vi
     await p.waitForTimeout(1500);
     const tut = await p.evaluate(() => window.__NWG.nw.tut), c1 = await coins(p);
     ok(tut.flow === 1 && !grad.flow, '做完第 4 堂：記成學會了（NW.tut.flow）');
-    ok(c1 - c0 === D.LESSON_COINS, `照現有做法給獎勵：字元 +${c1 - c0}（LESSON_COINS＝${D.LESSON_COINS}）`);
+    ok(c1 - c0 === D.LESSON_COINS_FLOW && D.LESSON_COINS_FLOW === 30 && D.lessonCoins('dodge') === D.LESSON_COINS, `第 4 堂給 30 字元，其他三堂照舊 ${D.LESSON_COINS}（實得 +${c1 - c0}）`);
     ok(!tut.dodge && !tut.attack, '第 4 堂不影響「教學大樓畢業」的三堂');
     await p.close();
   }

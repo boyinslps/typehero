@@ -128,6 +128,9 @@ export const BUG_COINS = 15;
 /* 字元照嚴重度給：小 1×、中 2×、大 3×（老師 2026-11-23 決定）。前 BUG_REWARD_MAX 個被確認的回報才有 */
 export const bugCoins = sev => BUG_COINS * Math.min(3, Math.max(1, Math.floor(+sev) || 1));
 export const LESSON_COINS = 200;
+/* 第 4 堂（流派）只給 30：字元已經有堆積的問題，這堂不是必修（老師 2026-11-24 決定） */
+export const LESSON_COINS_FLOW = 30;
+export const lessonCoins = id => (id === 'flow' ? LESSON_COINS_FLOW : LESSON_COINS);
 export const BUG_REWARD_MAX = 5;
 export const TESTER_MISSIONS = [
   { id: 'm_dodge', icon: '💨', t: '閃避測試員', how: '打贏咕咕鳥（閃避測試）', test: n => (n.dex.coo || 0) > 0, coins: 20 },
