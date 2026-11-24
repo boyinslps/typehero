@@ -1,6 +1,7 @@
 /* 📊 總覽（SPEC §2.2）：數字卡、「今天要做的事」、三個捷徑。卡片點下去到對應的分頁（帶篩選）。 */
-import { loadScores, loadBoard, loadFlags, loadEvents, nameChanged, markNameWarn, pendingAwards } from './data.js';
-import { twDay, normalizeEvent, phaseOf, clsShort } from './nw.js';
+import { loadScores, loadBoard, loadFlags, loadEvents, loadRankBoards, nameChanged, markNameWarn, pendingAwards } from './data.js';
+import { twDay, normalizeEvent, phaseOf, clsShort, stageOpen } from './nw.js';
+import { lastUpdate, staleDays } from './rank-io.js';
 import { esc, fmtT, helpBox } from './util.js';
 
 const SOON_MS = 48 * 3600 * 1000;   // 「快結束」的意思：兩天內
@@ -17,6 +18,12 @@ export default async function mount(el, ctx) {
   const pend = pendingAwards(events, now);
   const pending = flags.filter(f => f.type === 'bug' && (f.status || 'pending') === 'pending').length;
   const unread = flags.filter(f => f.type === 'feedback' && !f.read).length;
+  /* 榮譽碑：2a／2b 都還沒開放就只寫「還沒開放」；讀不到榜單（規則還沒貼）不擋總覽 */
+  const rankOpen = stageOpen('2a') || stageOpen('2b');
+  const runPend = flags.filter(f => f.type === 'run' && (f.status || 'pending') === 'pending').length;
+  let rankT = 0, rankErr = false;
+  if (rankOpen) { try { rankT = lastUpdate(await loadRankBoards(true)); } catch (e) { rankErr = true; console.warn('讀榮譽碑榜單失敗', e); } }
+  const rankDays = staleDays(), rankStale = stageOpen('2a') && !rankErr && (!rankT || now - rankT > rankDays * 86400000);
   markNameWarn(scores, flags);
   const warn = scores.filter(s => s.played && nameChanged(s, board[s.id])).length;
 
@@ -33,6 +40,8 @@ export default async function mount(el, ctx) {
   if (pending) todo.push({ k: 'bugs', go: 'bugs', text: `有 ${pending} 則回報等你審核`, cls: 'warn' });
   if (warn) todo.push({ k: 'warn', go: 'students', params: { warn: true }, text: `有 ${warn} 位同學換過名字，信箱先鎖著，要你確認`, cls: 'warn' });
   ending.forEach(ev => todo.push({ k: 'ending', go: 'events', params: { open: ev.id }, text: `活動「${esc(ev.title)}」快結束了（${esc(fmtT(ev.endAt))}）`, cls: '' }));
+  if (runPend) todo.push({ k: 'rank', go: 'rank', text: `有 ${runPend} 場狩獵紀錄等你審核（榮譽碑）`, cls: 'warn' });
+  if (rankStale) todo.push({ k: 'rankstale', go: 'rank', text: rankT ? `榜單 ${Math.floor((now - rankT) / 86400000)} 天沒更新了` : '榮譽碑的榜單還沒更新過', cls: '' });
   if (unread) todo.push({ k: 'unread', go: 'feedback', params: { unread: true }, text: `有 ${unread} 則回饋還沒看`, cls: '' });
   el.innerHTML = `<h2>📊 總覽</h2>
     ${helpBox(['先看「今天要做的事」：有紅色的就是要你動手的，點一下就會跳到那一頁。', '下面的數字卡也可以點，會帶你到對應的分頁（而且已經篩好）。', '最常用的三件事在最下面的「快速開始」：寄信、開活動、審回報。', '左邊的分頁各管一件事；每一頁標題下面都有「？這頁怎麼用」。'])}
@@ -46,6 +55,8 @@ export default async function mount(el, ctx) {
       ${card('award', '待發獎', pend.length, 'events', pend.length ? 'alert' : '', '排行榜結束了還沒發獎')}
       ${card('pending', '待審回報', pending, 'bugs', pending ? 'alert' : '')}
       ${card('unread', '未讀回饋', unread, 'feedback')}
+      ${card('rank', '🏆 榮譽碑', rankOpen ? `${runPend}<span class="dim" style="font-size:.5em"> 場待審</span>` : '<span style="font-size:.6em">還沒開放</span>', 'rank', runPend ? 'alert' : '',
+        !rankOpen ? '鐵匠鋪（2b）開放後才有紀錄' : rankErr ? '榜單讀不到（規則還沒貼？）' : `${rankT ? `上次更新：${esc(fmtT(rankT))}` : '榜單還沒更新過'}${stageOpen('2a') ? '' : '（還沒開放給學生）'}`)}
       ${card('warn', '⚠ 換過名字', warn, 'students', warn ? 'alert' : '', '信箱先鎖著，等你按「名字沒問題」')}
     </div>
     ${econ ? `<p class="dim" data-econ style="margin-top:8px">各班平均持有字元與戰力（通膨的早期訊號）　${econ}</p>` : ''}

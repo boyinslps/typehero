@@ -16,6 +16,7 @@ async function cached(key, force, fn) {
 export const invalidate = (...keys) => (keys.length ? keys : Object.keys(cache)).forEach(k => delete cache[k]);
 
 import { idParts } from './ids.js';
+import { readBoards } from './rank-io.js';
 export { idParts };
 export const byClsSeat = (a, b) => (clsShort(a.className) < clsShort(b.className) ? -1 : clsShort(a.className) > clsShort(b.className) ? 1 : 0) || (a.seat - b.seat);
 
@@ -74,6 +75,10 @@ export function loadEvents(force) {
    回整理過的活動（normalizeEvent），最早結束的在前。總覽、活動分頁用同一個算法，數字才會一樣 */
 export function pendingAwards(events, now = Date.now()) {
   return events.map(e => normalizeEvent(e.id, e)).filter(ev => ev && ev.type === 'ranking' && phaseOf(ev, now) === 'ended' && !ev.awarded).sort((a, b) => a.endAt - b.endAt);
+}
+/* 榮譽碑榜單（mg_nw_board 3 份，學生讀的那份）：總覽只用來看上次更新時間。2a 沒開放、規則還沒貼時讀不到，由呼叫的人 try/catch */
+export function loadRankBoards(force) {
+  return cached('rankboards', force, () => readBoards({ db, fs: { doc, getDoc } }));
 }
 /* 信：新的在前。沒有 t 的舊信（理論上沒有）不會出現，因為 orderBy 會跳過沒欄位的文件 */
 export function loadMails(force) {

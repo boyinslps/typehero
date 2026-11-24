@@ -1703,12 +1703,13 @@ import { PX } from './pixel.js';
 import { initNewWorld } from './newworld.js';
 import { initNwPreview } from './nw-preview.js';
 import { sha256Hex, cleanCode } from './nw-access.js';
+import { stageOpen } from './nw-data.js';
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword, signOut, setPersistence,
          browserLocalPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
 import { getFirestore, doc, collection, setDoc, getDoc, getDocs, deleteDoc,
          onSnapshot, query, orderBy, where, serverTimestamp,
-         increment, arrayUnion, arrayRemove, deleteField, documentId, limit, getCountFromServer }
+         increment, arrayUnion, arrayRemove, deleteField, documentId, limit, getCountFromServer, writeBatch }
   from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
 /* ══════════════════════════════════════════════════════════════
@@ -7693,9 +7694,25 @@ function ensureAdmin() {
     return new Promise((resolve, reject) => { w.resolve = resolve; w.reject = reject; });
   })();
   adminLoginWait = w;
-  w.p.then(() => { adminLoginWait = null; }, () => { adminLoginWait = null; });
+  w.p.then(() => { adminLoginWait = null; rankBgUpdate(); }, () => { adminLoginWait = null; });
   return w.p;
 }
+
+/* 2a 榮譽碑：老師用 admin 身分登入後，在背景更新一次榜單（docs/SPEC-STAGE2.md §2.7）。
+   沒開放就第一行回頭，什麼都不載入、不讀；距離上次更新不到 30 分鐘不跑；失敗只記 console，不彈窗、不擋開戰。
+   計算與讀寫在 teacher/rank-io.js，跟教師頁 🏆 分頁同一份。 */
+let rankBgAt = 0;
+async function rankBgUpdate() {
+  if (!stageOpen('2a')) return;
+  if (Date.now() - rankBgAt < 30 * 60 * 1000) return;
+  rankBgAt = Date.now();
+  try {
+    const io = await import('./teacher/rank-io.js');
+    const env = { db: adminDb, fs: { collection, doc, getDoc, getDocs, query, where, orderBy, limit, writeBatch } };
+    await io.updateIfStale(env);
+  } catch (e) { console.warn('榮譽碑背景更新失敗', e); }
+}
+
 function closeAdminLogin(err) {
   show('admin-login-modal', false);
   const w = adminLoginWait;

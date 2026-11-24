@@ -101,7 +101,7 @@ const dismissGifts = async p => { for (let i = 0; i < 14; i++) { if (!(await p.$
     ok(/initializeApp\(firebaseConfig, 'admin'\)/.test(tf) && /firebasejs\/11\.0\.1\//.test(tf), '具名 app admin、Firebase 11.0.1');
     const T = fs.readFileSync(path.join(__dirname, '../../teacher/tabs.js'), 'utf8');
     const ids = [...T.matchAll(/id: '(\w+)'.*import\('\.\/(tab-[\w-]+\.js)'\)/g)];
-    ok(ids.length === 8 && ids.every(m => fs.existsSync(path.join(__dirname, '../../teacher', m[2]))), '8 個分頁、每個都有對應的 tab-*.js 檔：' + ids.map(m => m[1]).join(','));
+    ok(ids.length === 9 && ids.every(m => fs.existsSync(path.join(__dirname, '../../teacher', m[2]))), '9 個分頁、每個都有對應的 tab-*.js 檔：' + ids.map(m => m[1]).join(','));
     ok(!/UID|@gmail|@ms\./.test(fs.readFileSync(path.join(__dirname, '../../teacher/main.js'), 'utf8')), 'repo 裡沒有老師 UID／email');
   }
 
@@ -151,7 +151,7 @@ const dismissGifts = async p => { for (let i = 0; i < 14; i++) { if (!(await p.$
     await p.waitForSelector('#app:not(.hidden)'); await ready(p);
     ok(await p.evaluate(() => window.__LAST_PERSISTENCE) === 'SESSION' && (await p.textContent('#who')).includes('teacher@example.test'), '老師登入：沒勾記住→關分頁就登出（session）；標題列顯示身分');
     ok(await p.evaluate(() => !!sessionStorage.getItem('mock_admin_user') && !localStorage.getItem('mock_admin_user')), '沒勾「記住這台電腦」只存 session');
-    ok(await p.isHidden('#login') && (await p.$$('#nav [data-tab]')).length === 8, '登入後：8 個分頁');
+    ok(await p.isHidden('#login') && (await p.$$('#nav [data-tab]')).length === 9, '登入後：9 個分頁');
     ok((await p.getAttribute('#back-game', 'href')) === 'index.html', '標題列有「回遊戲」');
     await p.click('#logout'); await p.waitForSelector('#login:not(.hidden)');
     ok(await p.isHidden('#app'), '登出：回到登入畫面');

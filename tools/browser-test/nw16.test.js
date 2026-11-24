@@ -1,5 +1,5 @@
 /* 2a 榮譽碑（docs/SPEC-STAGE2.md §2、§5 的 2a-1、§6；編號 nw16，原因見 nw12.test.js 開頭）。
-   現在只有「不開瀏覽器」的一半：teacher/rank-calc.js 的純函式，用 node 直接測（跟 nw13.test.js 同一種做法，不需要靜態伺服器、不需要 Playwright）。
+   前半「不開瀏覽器」：teacher/rank-calc.js 的純函式，用 node 直接測（跟 nw13.test.js 同一種做法）；後半 browserHalf()：教師頁 🏆、總覽、舊控制台背景更新（要靜態伺服器與 playwright）。
    用法：node tools/browser-test/nw16.test.js
 
    涵蓋：q 切回每題；進步（兩邊各 3 場、最好 3 場平均、同題目等級才比、跨題目等級不混、下降／持平／太小不顯示、> 60% 標 ⚠、> 100% 先不上榜、
@@ -9,16 +9,11 @@
 let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++; };
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
-/* ═══ TODO：瀏覽器那一半（教師頁 teacher/tab-rank.js 與學生端 nw-rank.js 重寫完成後才加；規格 §6 的 nw14 列與 t5 列）═══
-   做的人在這裡加一段 Playwright（開頭照 nw15.test.js 的 open()／假資料庫；教師頁照 t5.test.js），並把這個檔改成「純函式測完再開瀏覽器」。
-   要測的（從 SPEC-STAGE2 §2.9、§2.10、§6 整理）：
-   · 教師頁 🏆 分頁：待審核列出 mg_nw_flags type 'run'、status 'pending'；「沒問題」「不採計」同一個 batch 寫 flag 狀態＋run.ok＋log()；
-     「移除這筆」「這個人先不上榜」（setBlocked 寫進 mg_nw_board_private）之後重新彙總，榜上不再出現；「現在更新」「從頭重算」（按兩次確認）。
-   · 更新流程：讀 where('ts','>', cursorOf(priv))，寫 3 份 mg_nw_board＋3 份 mg_nw_board_private（用 window.__WRITES 確認都走 admin app）；
-     總覽打開／舊控制台老師登入後，超過 6 小時才自動更新。
-   · 學生端 nw-rank.js：只讀 1 份 mg_nw_board/{年級}（window.__READS 沒有 mg_scores、mg_nw_runs）；前 10＋自己、自己用 c＋s 認；
-     榜外不顯示名次、只寫「再快 N 就上榜」；▲ 與 🆕、下降不顯示；hideNick＝「神秘獵人」；讀不到／還沒更新過的文字；手機 390 寬。
-   · 假資料庫 mock/fs.js 不會擋巢狀陣列、undefined、單文件 1 MB：頁面寫出去的 mg_nw_board*／mg_nw_board_private* 用 R.checkDoc 再掃一遍。 */
+/* ═══ 瀏覽器那一半（教師頁 teacher/tab-rank.js、總覽、舊控制台背景更新）寫在檔案最後的 browserHalf()，純函式測完才開瀏覽器 ═══
+   需要靜態伺服器（python3 -m http.server 8765）與 playwright；沒有 playwright 時只印 SKIP。
+   還沒做的（下一塊，學生端 nw-rank.js 重寫完成後才加）：學生端只讀 1 份 mg_nw_board/{年級}、前 10＋自己、榜外不顯示名次、▲／🆕、
+   下降不顯示、hideNick＝「神秘獵人」、讀不到／還沒更新過的文字、手機 390 寬。
+   假資料庫 mock/fs.js 不會擋巢狀陣列、undefined、單文件 1 MB：頁面寫出去的 mg_nw_board*／mg_nw_board_private* 用 R.checkDoc 再掃一遍。 */
 
 (async () => {
   const D = await import('../../nw-data.js');
@@ -495,6 +490,457 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   const early = R.updateBoards(null, [...baseR, { ...held1, ok: 1 }], { now: NOW });
   ok(same(late.states['5'].students, early.states['5'].students) && same(late.boards['5'], early.boards['5']), '先待審、之後老師放行（verdicts）＝一開始就帶 ok: 1');
 
+  await browserHalf(R, D);
+
   console.log(fails ? `\n${fails} 個失敗` : '\n全部通過');
   process.exit(fails ? 1 : 0);
 })().catch(e => { console.log('FAIL 測試本身丟例外：' + (e && e.stack || e)); process.exit(1); });
+
+/* ═══════════════ 瀏覽器那一半 ═══════════════
+   教師頁 🏆 榮譽碑（teacher/tab-rank.js）、總覽的榮譽碑列、舊控制台老師登入後的背景更新。
+   全程開 window.__RULES；姓名全是假的，才能逐一搜尋有沒有漏進榜單與操作紀錄。
+   假資料庫的 batch 沒有交易（前面成功的寫入不會因為後面失敗而退回），所以「同一個 batch」用「只 commit 一次、一次帶幾個寫入」來驗：
+   這裡把 mock/fs.js 的 commit 換成會記錄 window.__COMMITS 的版本，並加上 window.__DENY_READ（符合的路徑讀取一律 permission-denied）；
+   只在這個測試裡換，不改 mock 檔。 */
+async function browserHalf(R, D) {
+  let chromium;
+  try { ({ chromium } = require('playwright')); } catch (e) { console.log('SKIP 瀏覽器那一半（沒有 playwright）'); return; }
+  const fs = require('fs'), path = require('path');
+  const M = path.join(__dirname, 'mock') + '/', OUT = process.argv[2] || require('os').tmpdir();
+  const css = require('./tw.js')(OUT);
+  const NOW = Date.now(), H = 3600e3, DY = 24 * H;
+  const fsSrc = fs.readFileSync(M + 'fs.js', 'utf8')
+    .replace('async commit() { ops.forEach(f => f()); }', 'async commit() { (window.__COMMITS = window.__COMMITS || []).push(ops.length); ops.forEach(f => f()); }')
+    .replace('function ruleCheck(db, op, path, data, exists) {', 'function ruleCheck(db, op, path, data, exists) { if (window.__DENY_READ && (op === "get" || op === "list") && new RegExp(window.__DENY_READ).test(path)) { const e = new Error("denied (mock)"); e.code = "permission-denied"; throw e; }');
+  ok(fsSrc.includes('__COMMITS') && fsSrc.includes('__DENY_READ'), '（測試用的假資料庫：commit 計數與讀取拒絕替換成功，mock/fs.js 的寫法沒變）');
+  const route = p => p.route('**/*', r => {
+    const u = r.request().url();
+    if (u.startsWith('http://localhost')) return r.continue();
+    if (u.includes('cdn.tailwindcss.com')) return r.fulfill({ contentType: 'application/javascript', body: `const s=document.createElement('style');s.textContent=${JSON.stringify(css)};document.head.appendChild(s);` });
+    const m = u.includes('firebase-app') ? 'app.js' : u.includes('firebase-auth') ? 'auth.js' : u.includes('firebase-firestore') ? 'fs.js' : null;
+    if (m) return r.fulfill({ contentType: 'application/javascript', body: m === 'fs.js' ? fsSrc : fs.readFileSync(M + m, 'utf8') });
+    return r.abort();
+  });
+  const watch = p => {
+    const errs = [], cons = []; p.errs = errs; p.cons = cons;
+    p.on('pageerror', e => errs.push('pageerror: ' + e.message));
+    p.on('console', m => { cons.push(m.type() + ': ' + m.text()); if (m.type() === 'error' && !/Failed to load resource|Missing or insufficient|permission/.test(m.text())) errs.push('console: ' + m.text()); });
+    p.on('dialog', d => d.accept());
+  };
+
+  /* ── 假資料（時間都相對現在：兩週以前＝20 天前起；最近＝這 3 小時內） ── */
+  const C5 = '五年級3班', C4 = '四年級2班', C6 = '六年級1班';
+  const P = { a: [C5, 1, '測試甲'], b: [C5, 2, '測試乙'], c: [C5, 3, '測試丙'], d: [C4, 4, '測試丁'], e: [C5, 5, '測試戊'], f: [C5, 6, '測試己'], g: [C6, 7, '測試庚'], h: [C5, 8, '測試辛'], i: [C5, 9, '測試壬'] };
+  const idOf = k => `${P[k][0]}_${P[k][1]}號`;
+  const FLAGNAME = { e: '旗標真名戊', h: '旗標真名辛' };
+  let sq = 0;
+  const runDoc = (k, o = {}) => {
+    const [cls, seat] = P[k], id = idOf(k), cpm = o.cpm || 60, n = o.n || 12, ms = Math.round(120000 / cpm);
+    const q = o.q || Array.from({ length: n }, () => [2, 5, ms, 2]);
+    const cor = q.reduce((a, x) => a + x[3], 0), act = q.reduce((a, x) => a + x[2], 0) / 1000, t = 1760000000000 + (++sq);
+    return { rid: `${id}_${t}`, d: { id, cls, seat, uid: 'uid-secret-' + k, t, ts: { __ts: o.ts }, v: 1, app: '3.15.0', mk: o.mk || 'coo', rk: 'grass', star: o.star || 3, lv: o.lv === undefined ? 6 : o.lv, qb: 'x', res: o.res || 'win',
+      secs: o.secs === undefined ? Math.round((act + 10) * 10) / 10 : o.secs, acc: 1, ans: q.length, cor, typ: cor, keys: o.keys === undefined ? q.length * 5 : o.keys, nokey: 0, act: Math.round(act * 10) / 10, cpm: 999,
+      fl: { fast: 0, paste: 0, wrong: 0 }, sus: o.sus || [], w: 'dagger', atk: 105, pw: 45, tier: 'B', q: [].concat(...q) } };
+  };
+  const series = (k, oldC, newC) => [...[0, 1, 2].map(i => runDoc(k, { cpm: oldC, ts: NOW - (20 + i) * DY })), ...[0, 1, 2].map(i => runDoc(k, { cpm: newC, ts: NOW - (1 + i) * H }))];
+  const mkSeed = (o = {}) => {
+    const seed = { 'mg_admins/T1': { ok: true } };
+    Object.keys(P).forEach(k => { seed[`mg_scores/${idOf(k)}`] = { className: P[k][0], seat: P[k][1], name: P[k][2] }; });
+    seed[`mg_bugboard/${idOf('c')}`] = { className: C5, seat: 3, hideNick: true, score: 0, n: 0 };
+    if (o.empty) return seed;
+    const runs = [...series('a', 40, 60), ...series('b', 40, 100), ...series('c', 50, 70), ...series('i', 50, 90),
+      runDoc('d', { n: 3, q: [[2, 5, 1500, 2], [2, 5, 1500, 2], [2, 5, 1500, 2]], secs: 6, star: 1, ts: NOW - 3 * H }),
+      ...[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(i => runDoc('g', { lv: 12, star: 5, ts: NOW - (1 + i) * 2 * H })),
+      runDoc('e', { keys: 10, ts: NOW - 2 * H }), runDoc('f', { keys: 10, ts: NOW - 2 * H }), runDoc('h', { sus: ['fast'], ts: NOW - 2 * H })];
+    runs.forEach(r => { seed[`mg_nw_runs/${r.rid}`] = r.d; });
+    seed['mg_nw_runs/壞資料_1'] = { id: 'x', ts: { __ts: NOW - H }, q: [1, 2, 3] };
+    const byK = k => runs.filter(r => r.d.id === idOf(k));
+    seed.__rid = { e: byK('e')[0].rid, f: byK('f')[0].rid, h: byK('h')[0].rid };
+    seed.__total = runs.length + 1;
+    const fl = (k, why) => { const r = byK(k)[0]; seed[`mg_nw_flags/run_${r.rid}`] = { type: 'run', status: 'pending', docId: idOf(k), cls: P[k][0], seat: P[k][1], name: FLAGNAME[k], runId: r.rid, why, mk: 'coo', star: 3, t: r.d.t }; };
+    fl('e', ['keys']); fl('h', ['fast']);
+    return seed;
+  };
+  const stripMeta = seed => { const s = Object.assign({}, seed), meta = { rid: s.__rid, total: s.__total }; delete s.__rid; delete s.__total; return { seed: s, meta }; };
+
+  /* ── 頁面小工具 ── */
+  const ready = p => p.waitForFunction(() => { const m = document.querySelector('#main'); return m && m.textContent && !m.textContent.includes('讀取中…') && m.children.length > 0; }, null, { timeout: 8000 }).then(() => p.waitForTimeout(150));
+  async function teacher(browser, seed, o = {}) {
+    const p = await browser.newPage({ viewport: o.mobile ? { width: 390, height: 800 } : { width: 1280, height: 1000 } });
+    watch(p);
+    await p.addInitScript(a => {
+      window.__FS = a.s; window.__RULES = true; localStorage.clear(); window.__ADMIN_PRESIGNED = { uid: 'T1', email: 'teacher@example.test' };
+      if (a.stages) window.__NW_STAGES__ = a.stages;
+      if (a.stale) localStorage.setItem('rank_stale_days', String(a.stale));
+      if (a.deny) window.__DENY_READ = a.deny;
+    }, { s: seed, stages: o.stages, stale: o.stale, deny: o.deny });
+    await route(p);
+    await p.goto('http://localhost:8765/teacher.html');
+    await p.waitForSelector('#app:not(.hidden)', { timeout: 8000 }); await ready(p);
+    return p;
+  }
+  const tab = async (p, id) => { await p.click(`#nav [data-tab="${id}"]`); await p.waitForTimeout(150); await ready(p); await p.waitForTimeout(200); };
+  const modalOpen = p => p.evaluate(() => document.querySelectorAll('[data-modal]').length);
+  const clickModal = async (p, id) => { await p.waitForSelector('[data-modal]', { timeout: 4000 }); await p.evaluate(id => { const ms = document.querySelectorAll('[data-modal]'); ms[ms.length - 1].querySelector(`[data-btn="${id}"]`).click(); }, id); await p.waitForTimeout(200); };
+  const modalText = p => p.evaluate(() => { const ms = document.querySelectorAll('[data-modal]'); return ms.length ? ms[ms.length - 1].textContent.replace(/\s+/g, ' ') : ''; });
+  const T = (p, sel) => p.textContent(sel).then(t => t.replace(/\s+/g, ' ').trim());
+  const FSV = (p, k) => p.evaluate(k => window.__FS[k], k);
+  const keysOf = (p, pre) => p.evaluate(pre => Object.keys(window.__FS).filter(k => k.startsWith(pre)).sort(), pre);
+  const commits = p => p.evaluate(() => (window.__COMMITS || []).slice());
+  const noErr = (p, m = '沒有 JS 錯誤') => ok(p.errs.length === 0, m + (p.errs.length ? '：' + p.errs.join(' | ') : ''));
+  const adminOnly = (p, re) => p.evaluate(re => { const w = window.__WRITES.filter(x => new RegExp(re).test(x.path)); return w.length > 0 && w.every(x => x.by === 'admin'); }, re);
+  const upd = async p => {
+    const n0 = (await commits(p)).length;
+    await p.click('[data-rk-update]');
+    await p.waitForFunction(n0 => (window.__COMMITS || []).length > n0 && !document.querySelector('[data-rk-update]').disabled, n0, { timeout: 10000 });
+    await p.waitForTimeout(200);
+  };
+  /* 做一個動作：點、確認視窗按 confirm、等 commit；回這個動作 commit 了幾次。confirm 是 'no' 就不等 */
+  const act = async (p, sel, confirm = 'ok') => {
+    const n0 = (await commits(p)).length;
+    await p.click(sel);
+    if (confirm === 'no') { await clickModal(p, 'no'); return 0; }
+    await clickModal(p, confirm);
+    await p.waitForFunction(n0 => (window.__COMMITS || []).length > n0, n0, { timeout: 8000 }).catch(() => {});
+    await p.waitForTimeout(250);
+    return (await commits(p)).length - n0;
+  };
+  const board = async (p, g) => JSON.parse(JSON.stringify(await FSV(p, 'mg_nw_board/' + g) || null));
+  const noT = b => { const c = JSON.parse(JSON.stringify(b)); delete c.t; return c; };
+  const privOf = (p, g) => FSV(p, 'mg_nw_board_private/' + g);
+  const checkWritten = async (p, m) => {
+    const bad = [];
+    for (const g of ['4', '5', '6']) for (const k of ['mg_nw_board/', 'mg_nw_board_private/']) { const d = await FSV(p, k + g); if (!d) bad.push(k + g + ' 沒有'); else bad.push(...R.checkDoc(d)); }
+    ok(bad.length === 0, m + (bad.length ? '：' + bad.slice(0, 3).join('；') : ''));
+  };
+  const logsOf = p => p.evaluate(() => Object.entries(window.__FS).filter(e => e[0].startsWith('mg_admin_log/')).map(e => e[1]));
+  const NAMES = Object.keys(P).map(k => P[k][2]);
+
+  const b = await chromium.launch();
+
+  /* ═══ A. 沒有任何資料：不壞，更新沒有新紀錄也不出錯，重複按冪等 ═══ */
+  {
+    const p = await teacher(b, mkSeed({ empty: true }), { stages: ['1', '2a', '2b'] });
+    await tab(p, 'rank');
+    const t0 = await T(p, '#main');
+    ok(t0.includes('榮譽碑') && t0.includes('還沒更新過'), 'A 空狀態：「還沒更新過」');
+    ok(await p.isVisible('[data-rk-nodata]') && (await T(p, '[data-rk-nodata]')).includes('更新榜單'), 'A 空狀態：榜單區說明怎麼開始（按更新榜單）');
+    ok((await T(p, '[data-rk-items] [data-rk-empty]')).includes('沒有待審核'), 'A 空狀態：待審核寫「沒有待審核的場次…」');
+    ok((await p.$$('[data-rk-grade]')).length === 3 && (await p.$$('[data-rk-sub]')).length === 3, 'A 三個年級頁籤、三個榜單分頁');
+    ok(await p.isVisible('[data-help]') && (await T(p, '[data-help] summary')).includes('怎麼用'), 'A 有「？這頁怎麼用」');
+    await upd(p);
+    const s1 = await T(p, '[data-rk-summary]');
+    ok(s1.includes('讀了 0 筆') && s1.includes('新的 0 筆') && s1.includes('新上榜 0 人'), 'A 沒有紀錄時更新：讀 0 筆、新上榜 0 人，沒有錯誤（' + s1.slice(0, 60) + '）');
+    ok((await keysOf(p, 'mg_nw_board/')).length === 3 && (await keysOf(p, 'mg_nw_board_private/')).length === 3, 'A 更新後寫出 3 份 mg_nw_board 與 3 份 mg_nw_board_private');
+    await checkWritten(p, 'A 寫出去的榜單與私有狀態：沒有巢狀陣列、undefined、NaN（checkDoc）');
+    ok((await commits(p)).join() === '7', 'A 一次 commit、7 個寫入（3 榜單＋3 私有狀態＋1 操作紀錄）');
+    ok(await adminOnly(p, '^mg_nw_board'), 'A 榜單與私有狀態都走 admin（老師身分）寫入');
+    const lg = (await logsOf(p)).filter(l => l.act === 'rank');
+    ok(lg.length === 1 && lg[0].target === 'update' && /讀 0 筆/.test(lg[0].summary), 'A 操作紀錄 rank／update，不含個資：' + (lg[0] && lg[0].summary));
+    const b1 = await board(p, '5'), v1 = JSON.stringify(await privOf(p, '5'));
+    await upd(p); await upd(p);
+    ok(JSON.stringify(noT(b1)) === JSON.stringify(noT(await board(p, '5'))), 'A 重複按更新：榜單內容不變（冪等）');
+    ok(JSON.stringify(await privOf(p, '5')).replace(/"t":\d+/g, '') === v1.replace(/"t":\d+/g, ''), 'A 重複按更新：私有狀態不變');
+    ok((await commits(p)).length === 3, 'A 每按一次更新就是一次 commit（共 3 次）');
+    noErr(p, 'A 沒有 JS 錯誤');
+    await p.close();
+  }
+
+  /* ═══ B. 有資料：更新、榜單、⚠、預覽、不外洩 ═══ */
+  const { seed: seedB, meta } = stripMeta(mkSeed());
+  const p = await teacher(b, seedB, { stages: ['1', '2a', '2b'] });
+  await tab(p, 'rank');
+  ok(Number(await T(p, '[data-rk-pendn]')) === 2, 'B 還沒更新前：待審核 2 場（來自 mg_nw_flags 的 run 標記）');
+  const e0 = await T(p, `[data-rk-item="${meta.rid.e}"]`);
+  ok(e0.includes('五年級') && e0.includes('咕咕鳥') && e0.includes('★3') && e0.includes('60 字／分') && e0.includes('100%') && e0.includes('按鍵太少'), 'B 待審卡片：年級、魔物星級、打字速度、正確率、原因（白話）');
+  ok(e0.includes('503・5號') && e0.includes('旗標真名戊'), 'B 待審卡片：顯示班級座號與名字（榜單還沒有這個人時，用標記裡的名字，給老師認人用）');
+  const eb = await p.$$eval(`[data-rk-item="${meta.rid.e}"] button`, bs => bs.map(x => x.textContent.trim()));
+  ok(eb.includes('放行') && eb.some(x => x.startsWith('不採用')) && eb.some(x => x.startsWith('先不上榜')), 'B 待審卡片三個按鈕：放行、不採用（不上榜）、先不上榜');
+  await upd(p);
+  const s2 = await T(p, '[data-rk-summary]');
+  ok(new RegExp(`讀了 ${meta.total} 筆`).test(s2) && new RegExp(`新的 ${meta.total - 1} 筆`).test(s2), `B 第一次更新：讀了 ${meta.total} 筆（含 1 筆壞資料）、新的 ${meta.total - 1} 筆（壞資料不算）（${s2.slice(0, 50)}）`);
+  ok(/新上榜 [1-9]\d* 人/.test(s2), 'B 新上榜人數大於 0');
+  ok((await p.isVisible('[data-rk-skipped]')) && (await T(p, '[data-rk-skipped]')).includes('1 筆'), 'B 壞資料：略過 1 筆並說明，不影響其他人');
+  ok((await T(p, '[data-rk-last]')).includes('/'), 'B 顯示最後更新時間');
+  await checkWritten(p, 'B 寫出去的資料都沒有巢狀陣列、undefined、NaN');
+  ok(Number(await T(p, '[data-rk-pendn]')) === 3, 'B 更新後待審 3 場（多了老師端重算才發現、沒有標記的那一場）');
+  const b5 = await board(p, '5'), b4 = await board(p, '4'), b6 = await board(p, '6');
+  const all = JSON.stringify([b4, b5, b6]);
+  ok(!/_\d+號/.test(all) && !all.includes(C5) && !all.includes(C4) && !all.includes(C6) && !all.includes('uid-secret') && !all.includes('旗標真名') && !all.includes('176000'), 'B 榜單裡沒有 docId、班級全名、uid、場次文件 ID、flag 裡的名字');
+  ok(all.includes('測試甲') && all.includes('神秘獵人') && !all.includes('測試丙'), 'B 榜單有登入名字（本來就公開）；隱藏暱稱的人顯示「神秘獵人」，真名沒有進榜單');
+  ok(JSON.stringify(b5.improve.map(r => r.n)) === JSON.stringify(['測試壬', '測試甲', '神秘獵人']) && b5.improve.map(r => r.v).join() === '80,50,40', 'B 五年級進步榜：+80、+50、+40（乙 +150% 先不上榜）');
+  ok(b6.acc.list.length === 1 && b6.acc.list[0].n === '測試庚' && b6.acc.more === 0, 'B 六年級神準名單 1 人');
+  ok(b4.fast['coo:1'] && b4.fast['coo:1'][0].v === 6 && b4.fast['coo:1'][0].n === '測試丁', 'B 四年級最快討伐：咕咕鳥★1 6 秒');
+  ok(!JSON.stringify(b5).includes('測試戊') && !JSON.stringify(b5).includes('測試辛') && !JSON.stringify(b5).includes('測試己'), 'B 待審的場次不在榜單上');
+  ok((await p.$$('[data-rk-row]')).length === 3, 'B 榜單檢視（五年級進步）3 列');
+  ok((await T(p, '[data-rk-row]')).includes('9號'), 'B 每列有班級座號');
+  ok((await p.$$('[data-rk-row] [data-rk-warn]')).length === 1 && (await T(p, '[data-rk-row] [data-rk-warn]')).includes('進步超過 60%'), 'B ⚠：進步 80% 的標「進步超過 60%」（50%、40% 沒有）');
+  ok((await T(p, '[data-rk-hold]')).includes('超過 100%') && (await T(p, '[data-rk-hold]')).includes('+150%'), 'B 進步超過 100% 的先不上榜，列在榜單下面請老師看');
+  ok((await T(p, '[data-rk-rows]')).includes('學生看到：神秘獵人'), 'B 隱藏暱稱的人：老師這邊看得到真名，並標「學生看到：神秘獵人」');
+  ok((await p.$$('[data-rk-row] [data-rk-act="block"]')).length === 3, 'B 每列都有「先不上榜」');
+  await p.click('[data-rk-grade="4"]'); await p.click('[data-rk-sub="fast"]'); await p.waitForTimeout(150);
+  ok((await T(p, '[data-rk-rows]')).includes('6 秒') && (await T(p, '[data-rk-rows] [data-rk-warn]')).includes(`比最低合理的 ${D.FASTEST_FLOOR.coo} 秒還快`), `B ⚠：最快秒數比 FASTEST_FLOOR（咕咕鳥 ${D.FASTEST_FLOOR.coo} 秒）還快`);
+  await p.click('[data-rk-grade="5"]'); await p.waitForTimeout(150);
+  ok((await p.$$('[data-rk-fkey] option')).length >= 1 && (await T(p, '[data-rk-rows]')).includes('戰力 45'), 'B 最快討伐：魔物星級下拉、武器戰力');
+  await p.click('[data-rk-sub="acc"]'); await p.click('[data-rk-grade="6"]'); await p.waitForTimeout(150);
+  ok((await T(p, '[data-rk-rows]')).includes('測試庚') && (await T(p, '[data-rk-rows]')).includes('不排名次') && !(await T(p, '[data-rk-rows]')).includes('🥇'), 'B 神準名單（六年級）：有名單、不排名次');
+  await p.click('[data-rk-grade="5"]'); await p.click('[data-rk-sub="improve"]'); await p.waitForTimeout(150);
+  await p.click('[data-rk-prevtoggle]'); await p.waitForTimeout(150);
+  const pv = await T(p, '[data-rk-preview]');
+  ok(pv.includes('榮譽碑・五年級') && pv.includes('測試壬') && pv.includes('神秘獵人') && pv.includes('打字變快 80%') && !pv.includes('測試丙') && !/_\d+號/.test(pv) && !pv.includes('先不上榜'), 'B 「學生看到的樣子」：跟 mg_nw_board 一致，隱藏暱稱顯示「神秘獵人」，沒有 id 與老師用的按鈕');
+  await p.click('[data-rk-prevtoggle]');
+  ok(!(await T(p, '#main')).includes('作弊'), 'B 教師頁沒有「作弊」兩個字');
+
+  const st = await p.evaluate(async () => {
+    const m = await import('https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js'), sdb = m.getFirestore(), r = {};
+    const t = async (k, f) => { try { await f(); r[k] = 'ok'; } catch (e) { r[k] = e.code || String(e); } };
+    await t('boardGet', () => m.getDoc(m.doc(sdb, 'mg_nw_board', '5')));
+    await t('privGet', () => m.getDoc(m.doc(sdb, 'mg_nw_board_private', '5')));
+    await t('runsList', () => m.getDocs(m.collection(sdb, 'mg_nw_runs')));
+    await t('boardSet', () => m.setDoc(m.doc(sdb, 'mg_nw_board', '5'), { x: 1 }));
+    await t('privSet', () => m.setDoc(m.doc(sdb, 'mg_nw_board_private', '5'), { x: 1 }));
+    return r;
+  });
+  ok(st.boardGet === 'ok' && st.privGet === 'permission-denied' && st.runsList === 'permission-denied' && st.boardSet === 'permission-denied' && st.privSet === 'permission-denied', '規則模式：學生帳號讀得到 mg_nw_board，讀不到 mg_nw_board_private 與 mg_nw_runs，寫不進榜單（' + JSON.stringify(st) + '）');
+
+  /* ═══ C. 審核：放行／不採用／撤銷／先不上榜 ═══ */
+  const rE = meta.rid.e, rF = meta.rid.f, rH = meta.rid.h, idA = idOf('a');
+  const hasE = async () => JSON.stringify(await board(p, '5')).includes('測試戊');
+  ok(!(await hasE()), 'C 放行前：戊那一場（待審）不在榜單上');
+  let n = await act(p, `[data-rk-act="approve"][data-rid="${rE}"]`, 'no');
+  ok(n === 0 && (await FSV(p, `mg_nw_runs/${rE}`)).ok === undefined && (await FSV(p, `mg_nw_flags/run_${rE}`)).status === 'pending', 'C 放行：確認視窗按取消，什麼都沒寫');
+  await p.click(`[data-rk-act="approve"][data-rid="${rE}"]`);
+  const mt = await modalText(p); await clickModal(p, 'no');
+  ok(mt.includes('放行') && mt.includes('學生不會收到任何通知'), 'C 放行的確認視窗：說明學生不會收到通知');
+  n = await act(p, `[data-rk-act="approve"][data-rid="${rE}"]`);
+  ok(n === 1 && (await commits(p)).pop() === 9, 'C 放行：同一個 batch，只 commit 一次、9 個寫入（flag＋run.ok＋3 榜單＋3 私有狀態＋操作紀錄）');
+  ok((await FSV(p, `mg_nw_flags/run_${rE}`)).status === 'approved' && (await FSV(p, `mg_nw_runs/${rE}`)).ok === 1, 'C 放行：flag 變 approved，run.ok＝1');
+  ok(await hasE(), 'C 放行後重新彙總：戊那一場進了榜單（最快討伐）');
+  ok(Number(await T(p, '[data-rk-pendn]')) === 2, 'C 待審核少 1 場');
+  await p.click('[data-rk-zone="approved"]'); await p.waitForTimeout(120);
+  ok((await p.$$('[data-rk-item]')).length === 1 && (await T(p, '[data-rk-item]')).includes('已放行') && !!(await p.$('[data-rk-act="undo"]')), 'C 「已放行」區有這一場，按鈕是「撤銷」');
+  n = await act(p, '[data-rk-act="undo"]');
+  ok(n === 1 && (await FSV(p, `mg_nw_flags/run_${rE}`)).status === 'pending' && (await FSV(p, `mg_nw_runs/${rE}`)).ok === undefined, 'C 撤銷放行：flag 退回 pending、run.ok 刪掉');
+  ok(!(await hasE()) && Number(await T(p, '[data-rk-pendn]')) === 3, 'C 撤銷後重新彙總：又回到待審，不在榜單上');
+  await p.click('[data-rk-zone="pending"]'); await p.waitForTimeout(120);
+  n = await act(p, `[data-rk-act="reject"][data-rid="${rE}"]`);
+  ok(n === 1 && (await FSV(p, `mg_nw_flags/run_${rE}`)).status === 'rejected' && (await FSV(p, `mg_nw_runs/${rE}`)).ok === -1, 'C 不採用：flag rejected、run.ok＝-1，同一個 batch');
+  ok(!(await hasE()) && !JSON.stringify(await privOf(p, '5')).includes(String((await FSV(p, `mg_nw_runs/${rE}`)).t)), 'C 不採用：榜單沒有、私有狀態也把這一場拿掉了');
+  await p.click('[data-rk-zone="rejected"]'); await p.waitForTimeout(120);
+  ok((await T(p, '[data-rk-item]')).includes('不採用'), 'C 「不採用」區有這一場');
+  n = await act(p, '[data-rk-act="undo"]');
+  ok(n === 1 && (await FSV(p, `mg_nw_flags/run_${rE}`)).status === 'pending' && (await FSV(p, `mg_nw_runs/${rE}`)).ok === undefined, 'C 撤銷不採用：flag 回 pending、run.ok 刪掉');
+  await p.click('[data-rk-zone="pending"]'); await p.waitForTimeout(120);
+  ok(Number(await T(p, '[data-rk-pendn]')) === 3 && (await p.$$('[data-rk-item]')).length === 3, 'C 撤銷不採用後：重新吸收原始紀錄，又回到待審核（3 場）');
+  ok(!(await FSV(p, `mg_nw_flags/run_${rF}`)), 'C 己那一場一開始沒有 flag');
+  n = await act(p, `[data-rk-act="approve"][data-rid="${rF}"]`);
+  const ff = await FSV(p, `mg_nw_flags/run_${rF}`);
+  ok(n === 1 && ff && ff.type === 'run' && ff.status === 'approved' && ff.docId === idOf('f') && !('name' in ff) && (await FSV(p, `mg_nw_runs/${rF}`)).ok === 1, 'C 沒有標記的待審場次：放行時建立 flag（type run、approved、不帶姓名）');
+  await p.click('[data-rk-zone="approved"]'); await p.waitForTimeout(100);
+  n = await act(p, `[data-rk-item="${rF}"] [data-rk-act="undo"]`);
+  ok(n === 1 && (await FSV(p, `mg_nw_flags/run_${rF}`)).status === 'pending', 'C 撤銷後 flag 變 pending（紀錄留著）');
+  await p.click('[data-rk-zone="pending"]'); await p.waitForTimeout(100);
+
+  ok((await T(p, '[data-rk-rows]')).includes('測試甲'), 'C 先不上榜前：甲在進步榜上');
+  await p.click(`[data-rk-row="${idA}"] [data-rk-act="block"]`);
+  await p.waitForSelector('[data-modal] [data-rk-until]');
+  const bt = await modalText(p);
+  ok(bt.includes('不會收到通知') && bt.includes('一週') && bt.includes('四週') && bt.includes('不設期限'), 'C 先不上榜視窗：說明學生不會收到通知、可選期限');
+  await p.fill('[data-modal] [data-rk-why]', '進步太多，先問問');
+  const nb0 = (await commits(p)).length;
+  await clickModal(p, 'ok'); await p.waitForFunction(n0 => (window.__COMMITS || []).length > n0, nb0, { timeout: 8000 }); await p.waitForTimeout(250);
+  const blk = (await privOf(p, '5')).blocked[idA];
+  ok(blk && blk.why === '進步太多，先問問' && Math.abs(blk.until - (Date.now() + 7 * DY)) < 60000, 'C 先不上榜（一週）：存在 mg_nw_board_private，期限約 7 天後，理由只在私有那份');
+  ok(!JSON.stringify(await board(p, '5')).includes('測試甲') && !JSON.stringify(await board(p, '5')).includes('進步太多'), 'C 先不上榜後重新彙總：榜單沒有甲（進步、最快都沒有），理由沒有進榜單');
+  ok((await T(p, `[data-rk-blocked="${idA}"]`)).includes('測試甲') && !!(await p.$(`[data-rk-blocked="${idA}"] [data-rk-act="unblock"]`)) && Number(await T(p, '[data-rk-blockn]')) === 1, 'C 「先不上榜的同學」清單有甲、有「解除」');
+  n = await act(p, `[data-rk-blocked="${idA}"] [data-rk-act="unblock"]`);
+  ok(n === 1 && !(await privOf(p, '5')).blocked[idA] && JSON.stringify(await board(p, '5')).includes('測試甲'), 'C 解除先不上榜：甲回到榜單，同一個 batch');
+  await p.click(`[data-rk-row="${idA}"] [data-rk-act="block"]`); await p.waitForSelector('[data-modal] [data-rk-until]');
+  await clickModal(p, 'ok'); await p.waitForTimeout(400);
+  ok(!JSON.stringify(await board(p, '5')).includes('測試甲'), 'C 再次先不上榜（預設一週）');
+  await p.evaluate(id => { window.__FS['mg_nw_board_private/5'].blocked[id].until = Date.now() - 1000; }, idA);
+  await upd(p);
+  ok(JSON.stringify(await board(p, '5')).includes('測試甲'), 'C 期限過了，下次更新甲自動回到榜上');
+  await p.click(`[data-rk-item="${rH}"] [data-rk-act="block"]`); await p.waitForSelector('[data-modal] [data-rk-until]');
+  await p.selectOption('[data-modal] [data-rk-until]', '0');
+  await clickModal(p, 'ok'); await p.waitForTimeout(400);
+  ok((await privOf(p, '5')).blocked[idOf('h')].until === 0, 'C 從待審卡片「先不上榜…」：不設期限（until＝0）');
+  ok((await T(p, `[data-rk-item="${rH}"]`)).includes('先不上榜中'), 'C 該卡片標示「先不上榜中」');
+  n = await act(p, `[data-rk-blocked="${idOf('h')}"] [data-rk-act="unblock"]`);
+  ok(n === 1 && !(await privOf(p, '5')).blocked[idOf('h')], 'C 解除不設期限的');
+
+  const lg2 = (await logsOf(p)).filter(l => l.act === 'rank');
+  ok(lg2.length >= 12 && lg2.every(l => !NAMES.some(nm => (l.summary + l.target).includes(nm)) && !/作弊/.test(l.summary)), 'C 每個審核動作都有操作紀錄（' + lg2.length + ' 筆），內容沒有學生姓名、沒有「作弊」');
+  ok(['放行', '不採用', '撤銷', '先不上榜', '解除'].every(w => lg2.some(l => l.summary.startsWith(w))), 'C 操作紀錄涵蓋放行、不採用、撤銷、先不上榜、解除');
+
+  /* ═══ D. 增量更新、從頭重算（按兩次確認、先不上榜名單保留） ═══ */
+  const newRun = runDoc('c', { cpm: 70, ts: NOW - 60 * 1000 });
+  await p.evaluate(r => { window.__FS['mg_nw_runs/' + r.rid] = r.d; }, newRun);
+  await upd(p);
+  ok(/其中新的 1 筆/.test(await T(p, '[data-rk-summary]')), 'D 之後只多了 1 筆新紀錄：更新顯示「新的 1 筆」（游標往回退 5 秒，所以「讀了」可能多一兩筆舊的）');
+  ok(JSON.stringify(await privOf(p, '5')).includes(String(newRun.d.t)), 'D 新紀錄被吸收進私有狀態');
+  await upd(p);
+  ok(/其中新的 0 筆/.test(await T(p, '[data-rk-summary]')), 'D 再按一次：新的 0 筆');
+  await p.click(`[data-rk-row="${idA}"] [data-rk-act="block"]`); await p.waitForSelector('[data-modal] [data-rk-until]'); await clickModal(p, 'ok'); await p.waitForTimeout(400);
+  const before = JSON.stringify(noT(await board(p, '5')));
+  const nc = (await commits(p)).length;
+  await p.click('[data-rk-rebuild]'); await p.waitForTimeout(150);
+  ok((await modalText(p)).includes('從頭重算') && (await modalOpen(p)) === 1, 'D 從頭重算：第一個確認視窗');
+  await clickModal(p, 'no'); await p.waitForTimeout(150);
+  ok((await commits(p)).length === nc && (await modalOpen(p)) === 0, 'D 第一個視窗按取消：什麼都沒做');
+  await p.click('[data-rk-rebuild]'); await p.waitForTimeout(100); await clickModal(p, 'ok'); await p.waitForTimeout(250);
+  ok((await modalOpen(p)) === 1 && (await modalText(p)).includes('再確認一次'), 'D 第二個確認視窗（按兩次才執行）');
+  await clickModal(p, 'no'); await p.waitForTimeout(150);
+  ok((await commits(p)).length === nc, 'D 第二個視窗按取消：還是什麼都沒做');
+  await p.click('[data-rk-rebuild]'); await p.waitForTimeout(100); await clickModal(p, 'ok'); await p.waitForTimeout(250); await clickModal(p, 'ok');
+  await p.waitForFunction(n0 => (window.__COMMITS || []).length > n0 && !document.querySelector('[data-rk-update]').disabled, nc, { timeout: 10000 }); await p.waitForTimeout(250);
+  const s4 = await T(p, '[data-rk-summary]');
+  ok(s4.includes('從頭重算完成') && new RegExp(`讀了 ${meta.total + 1} 筆`).test(s4), `D 從頭重算：重讀全部紀錄（${meta.total + 1} 筆，含剛加的 1 筆）：` + s4.slice(0, 50));
+  ok(JSON.stringify(noT(await board(p, '5'))) === before, 'D 從頭重算的榜單 ＝ 增量算出來的榜單（先不上榜的人仍不在榜上）');
+  ok(!!(await privOf(p, '5')).blocked[idA] && Number(await T(p, '[data-rk-blockn]')) === 1, 'D 從頭重算後，「先不上榜」名單還在');
+  noErr(p, 'B～D 整段操作沒有 JS 錯誤');
+
+  await p.setViewportSize({ width: 390, height: 800 }); await p.waitForTimeout(200);
+  const sw = await p.evaluate(() => ({ w: document.documentElement.scrollWidth, c: document.documentElement.clientWidth }));
+  ok(sw.w <= sw.c + 1, `手機 390 寬：🏆 分頁不橫向捲動（scrollWidth ${sw.w} ≤ ${sw.c}）`);
+  await p.click('[data-rk-prevtoggle]'); await p.click('[data-rk-sub="fast"]'); await p.waitForTimeout(200);
+  const sw2 = await p.evaluate(() => ({ w: document.documentElement.scrollWidth, c: document.documentElement.clientWidth, b: [...document.querySelectorAll('#main button')].filter(x => x.getBoundingClientRect().right > document.documentElement.clientWidth + 1).length }));
+  ok(sw2.w <= sw2.c + 1 && sw2.b === 0, `手機 390 寬：預覽與最快討伐也不橫向捲動、按鈕沒被切到（${sw2.w}／${sw2.c}、被切 ${sw2.b}）`);
+  await p.screenshot({ path: path.join(OUT, 'nw16-rank-mobile.png'), fullPage: true });
+  await p.close();
+
+  /* ═══ E. 資料壞掉、讀不到：不能壞 ═══ */
+  {
+    const sd = mkSeed({ empty: true });
+    sd['mg_nw_board_private/5'] = { v: 99, junk: true };
+    sd['mg_nw_board_private/4'] = { v: 1, g: '4', cursor: 'x', students: 5, blocked: [], prev: 3, cur: { imp: 1 } };
+    sd['mg_nw_board/6'] = 'not an object';
+    sd['mg_nw_flags/run_壞'] = { type: 'run', status: 'pending' };
+    sd['mg_nw_flags/run_五年級3班_9號_1'] = { type: 'run', status: 'pending', why: ['不存在的代碼', 5, '<img src=x onerror=alert(1)>'], mk: '<b>x</b>', star: 'q', cls: '<i>', seat: 9, name: '<script>x</script>' };
+    const q = await teacher(b, sd, { stages: ['1', '2a'] });
+    await tab(q, 'rank');
+    ok(await q.isVisible('[data-rk-status]') && (await T(q, '[data-rk-dataerr]')).includes('版本不認得'), 'E 私有資料版本不認得：提醒「按從頭重算」，頁面照常');
+    const html = await q.evaluate(() => document.querySelector('#main').innerHTML);
+    ok(!/<img src=x|<script>x|<b>x<\/b>/.test(html), 'E flag 裡學生寫的怪字串（HTML）一律跳脫，沒有被當成標籤');
+    ok((await q.$$('[data-rk-item]')).length === 2 && (await T(q, '#main')).includes('不認得的代碼'), 'E 沒有 runId 的 flag 用文件 ID 找；不認得的原因代碼顯示「不認得的代碼」');
+    await upd(q);
+    ok((await T(q, '[data-rk-summary]')).includes('讀了 0 筆') && (await keysOf(q, 'mg_nw_board/')).length === 3, 'E 壞資料之後更新照樣成功（壞的那份被當成空的重建）');
+    ok(!(await q.$('[data-rk-dataerr]')), 'E 更新後「版本不認得」的提醒消失');
+    noErr(q, 'E 沒有 JS 錯誤');
+    await q.close();
+    const q2 = await teacher(b, mkSeed({ empty: true }), { stages: ['1', '2a'], deny: '^mg_nw_board_private' });
+    await tab(q2, 'rank');
+    ok(await q2.isVisible('[data-rk-loaderr]') && await q2.isVisible('[data-rk-retry]') && !(await q2.$('[data-rk-update]')), 'E 讀不到（規則還沒貼）：友善提示＋「重試」，不給會失敗的更新按鈕');
+    await q2.evaluate(() => { window.__DENY_READ = null; });
+    await q2.click('[data-rk-retry]'); await q2.waitForTimeout(400);
+    ok(!(await q2.$('[data-rk-loaderr]')) && await q2.isVisible('[data-rk-update]'), 'E 按重試：讀得到之後恢復正常');
+    noErr(q2, 'E 讀不到的情況沒有未攔住的 JS 錯誤');
+    await q2.close();
+  }
+
+  /* ═══ F. 總覽的榮譽碑列 ═══ */
+  {
+    const q0 = await teacher(b, mkSeed({ empty: true }), {});
+    const t0 = await T(q0, '[data-card="rank"]');
+    ok(t0.includes('榮譽碑') && t0.includes('還沒開放'), 'F 2a／2b 都還沒開放：總覽榮譽碑卡片寫「還沒開放」，不是空白（' + t0 + '）');
+    ok(!(await T(q0, '[data-todolist]')).includes('榜單') && !(await T(q0, '[data-todolist]')).includes('榮譽碑'), 'F 還沒開放時，今天要做的事不會叫老師更新榜單');
+    ok((await q0.evaluate(() => (window.__READS || []).filter(r => /mg_nw_board/.test(r.path)).length)) === 0, 'F 還沒開放時，總覽連榜單都不讀');
+    noErr(q0, 'F 沒有 JS 錯誤');
+    await q0.close();
+    const sd = stripMeta(mkSeed()).seed;
+    const q1 = await teacher(b, sd, { stages: ['1', '2b'] });
+    const t1 = await T(q1, '[data-card="rank"]');
+    ok(t1.includes('2 場待審') && t1.includes('榜單還沒更新過') && t1.includes('還沒開放給學生'), 'F 2b 開放、2a 沒有：待審 2 場、「榜單還沒更新過」「還沒開放給學生」（' + t1 + '）');
+    ok((await T(q1, '[data-todolist]')).includes('有 2 場狩獵紀錄等你審核') && !(await T(q1, '[data-todolist]')).includes('沒更新'), 'F 待審的場次出現在「今天要做的事」；2a 沒開放不催更新');
+    await q1.click('[data-todo-k="rank"]'); await ready(q1); await q1.waitForTimeout(200);
+    ok(await q1.isVisible('[data-rk-status]'), 'F 點那一行直接跳到 🏆 分頁');
+    await q1.close();
+    const q2 = await teacher(b, sd, { stages: ['1', '2a', '2b'] });
+    ok((await T(q2, '[data-todolist]')).includes('榮譽碑的榜單還沒更新過'), 'F 2a 開放但從沒更新過：提醒');
+    await q2.close();
+    const boardsAt = t => ['4', '5', '6'].reduce((o, g) => Object.assign(o, { ['mg_nw_board/' + g]: { v: 1, g, t, week: 1, improve: [], fast: {}, acc: { list: [], more: 0 }, cut: {} } }), {});
+    const old = Object.assign({}, sd, boardsAt(NOW - 8 * DY));
+    const q3 = await teacher(b, old, { stages: ['1', '2a', '2b'] });
+    ok((await T(q3, '[data-todolist]')).includes('榜單 8 天沒更新了') && (await T(q3, '[data-card="rank"]')).includes('上次更新'), 'F 超過 7 天沒更新：總覽「榜單 8 天沒更新了」');
+    await tab(q3, 'rank');
+    ok(await q3.isVisible('[data-rk-stale-note]') && (await T(q3, '[data-rk-stale-note]')).includes('8 天沒更新'), 'F 🏆 分頁也提醒');
+    await q3.fill('[data-rk-stale]', '10'); await q3.dispatchEvent('[data-rk-stale]', 'change'); await q3.waitForTimeout(200);
+    ok(!(await q3.$('[data-rk-stale-note]')) && (await q3.evaluate(() => localStorage.getItem('rank_stale_days'))) === '10', 'F 提醒天數改成 10：8 天不再提醒（存在這台電腦）');
+    await tab(q3, 'overview');
+    ok(!(await T(q3, '[data-todolist]')).includes('沒更新'), 'F 回到總覽：不再提醒');
+    await q3.close();
+    const q4 = await teacher(b, Object.assign({}, sd, boardsAt(NOW - 3 * H)), { stages: ['1', '2a', '2b'] });
+    ok(!(await T(q4, '[data-todolist]')).includes('沒更新'), 'F 3 小時前才更新過：不提醒');
+    await q4.close();
+    const q5 = await teacher(b, old, { stages: ['1', '2a'], stale: 30 });
+    ok(!(await T(q5, '[data-todolist]')).includes('沒更新'), 'F 提醒天數設 30：8 天前更新的不提醒');
+    await q5.close();
+    const q6 = await teacher(b, sd, { stages: ['1', '2a'], deny: '^mg_nw_board/' });
+    ok((await T(q6, '[data-card="rank"]')).includes('榜單讀不到') && !(await T(q6, '[data-todolist]')).includes('沒更新'), 'F 榜單讀不到（規則還沒貼）：總覽照常顯示，卡片說讀不到，不亂催更新');
+    noErr(q6, 'F 讀不到時總覽沒有未攔住的 JS 錯誤');
+    await q6.close();
+  }
+
+  /* ═══ G. 舊控制台（index.html）老師登入後的背景更新 ═══ */
+  async function oldConsole(o) {
+    const p = await b.newPage({ viewport: { width: 1200, height: 900 } });
+    watch(p);
+    await p.addInitScript(a => {
+      window.__FS = a.s; window.__RULES = true; localStorage.clear(); window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas');
+      window.__ADMIN_PRESIGNED = { uid: 'T1', email: 'teacher@example.test' };
+      if (a.stages) window.__NW_STAGES__ = a.stages;
+      if (a.fail) window.__FAIL_WRITES = a.fail;
+    }, { s: o.seed, stages: o.stages, fail: o.fail });
+    await route(p);
+    await p.goto('http://localhost:8765/index.html'); await p.waitForFunction(() => window.__NWG, null, { timeout: 15000 }); await p.waitForTimeout(400);
+    return p;
+  }
+  const gate = async p => { await p.click('#btn-teacher'); await p.fill('#auth-pw', 'teacher'); await p.click('#auth-ok'); await p.waitForTimeout(1800); };
+  const loaded = p => p.evaluate(() => performance.getEntriesByType('resource').map(r => r.name).filter(n => /rank-io|rank-calc/.test(n)).length);
+  const boardWrites = p => p.evaluate(() => window.__WRITES.filter(w => w.path.startsWith('mg_nw_board')).length);
+  const sdG = stripMeta(mkSeed()).seed;
+  {
+    const g = await oldConsole({ seed: sdG });
+    await gate(g);
+    ok(await g.isVisible('#teacher-modal'), 'G 舊控制台照常開啟');
+    ok((await loaded(g)) === 0 && (await g.evaluate(() => (window.__READS || []).filter(r => /^mg_nw_(runs|board)/.test(r.path)).length)) === 0 && (await keysOf(g, 'mg_nw_board/')).length === 0, 'G 2a 沒開放：一行都不執行（沒載入 rank-io／rank-calc、沒讀紀錄與榜單、沒寫榜單）');
+    noErr(g, 'G 沒有 JS 錯誤');
+    await g.close();
+  }
+  {
+    const g = await oldConsole({ seed: sdG, stages: ['1', '2a', '2b'] });
+    ok((await loaded(g)) === 0, 'G 開放了但還沒登入老師：還沒載入榜單程式');
+    await gate(g);
+    ok(await g.isVisible('#teacher-modal'), 'G 開放時：舊控制台照常開啟');
+    ok((await keysOf(g, 'mg_nw_board/')).join() === 'mg_nw_board/4,mg_nw_board/5,mg_nw_board/6' && (await keysOf(g, 'mg_nw_board_private/')).length === 3, 'G 老師登入後背景更新：寫出 3 份榜單與 3 份私有狀態');
+    const bb = await FSV(g, 'mg_nw_board/5');
+    ok(bb && bb.improve.length === 3 && R.checkDoc(bb).length === 0, 'G 背景更新算出來的榜單：進步榜 3 人');
+    ok(await adminOnly(g, '^mg_nw_board'), 'G 背景更新走 admin（老師身分）');
+    const lg = (await logsOf(g)).filter(l => l.act === 'rank');
+    ok(lg.length === 1 && lg[0].target === 'auto' && !NAMES.some(nm => lg[0].summary.includes(nm)), 'G 背景更新留一筆操作紀錄（rank／auto），不含個資');
+    const w0 = await boardWrites(g);
+    await g.evaluate(() => { document.getElementById('teacher-modal').classList.add('hidden'); });
+    await gate(g);
+    ok((await boardWrites(g)) === w0, 'G 30 分鐘內再進控制台：不重複更新');
+    ok(await g.isHidden('#toast'), 'G 背景更新沒有彈窗、沒有提示');
+    noErr(g, 'G 沒有 JS 錯誤');
+    await g.close();
+  }
+  {
+    const fresh = Object.assign({}, sdG, { 'mg_nw_board/4': { v: 1, g: '4', t: Date.now() - 5 * 60 * 1000, improve: [], fast: {}, acc: { list: [], more: 0 }, cut: {} } });
+    const g = await oldConsole({ seed: fresh, stages: ['1', '2a'] });
+    await gate(g);
+    ok((await g.evaluate(() => (window.__READS || []).filter(r => r.path.startsWith('mg_nw_runs')).length)) === 0 && (await boardWrites(g)) === 0, 'G 5 分鐘前才更新過：不跑（沒讀紀錄、沒寫榜單）');
+    await g.close();
+  }
+  {
+    const g = await oldConsole({ seed: sdG, stages: ['1', '2a'], fail: '^mg_nw_board' });
+    await gate(g);
+    ok(await g.isVisible('#teacher-modal'), 'G 背景更新失敗：舊控制台照常開啟');
+    ok(await g.isHidden('#toast'), 'G 失敗不彈窗、不提示');
+    ok(g.cons.some(c => c.startsWith('warning') && c.includes('榮譽碑背景更新失敗')), 'G 失敗只記在 console（warn）');
+    ok(g.errs.length === 0, 'G 失敗也沒有未攔住的 JS 錯誤：' + g.errs.join('|'));
+    await g.close();
+  }
+  await b.close();
+}

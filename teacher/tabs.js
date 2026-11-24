@@ -11,5 +11,6 @@ export const TABS = [
   { id: 'news', icon: '📢', title: '公告', load: () => import('./tab-news.js') },
   { id: 'feedback', icon: '💬', title: '回饋', load: () => import('./tab-feedback.js') },
   { id: 'bugs', icon: '🐛', title: '回報與抓蟲榜', load: () => import('./tab-bugs.js') },
+  { id: 'rank', icon: '🏆', title: '榮譽碑', load: () => import('./tab-rank.js') },
   { id: 'settings', icon: '⚙', title: '設定', load: () => import('./tab-settings.js') }
 ];
