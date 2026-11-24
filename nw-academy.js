@@ -11,6 +11,7 @@ const CSS = `
 .ac-say{min-height:84px;padding:10px 14px;font-size:1.25em;line-height:1.5;font-weight:900}
 .ac-keys{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
 .kc{display:inline-block;min-width:3.4em;text-align:center;padding:.2em .7em;border:3px solid #6a5ab0;border-bottom-width:6px;background:#1a1530;color:#aab0d8;font-weight:900;font-family:ui-monospace,Consolas,monospace}
+.ac-word{-webkit-user-select:none;user-select:none}
 .kc.need{border-color:#ffd24a;color:#ffd24a;animation:acNeed .6s steps(2) infinite}
 .kc.down{background:#e8b64c;color:#1a1409;border-bottom-width:2px;transform:translateY(3px)}
 @keyframes acNeed{50%{background:#3a2c10}}
@@ -307,6 +308,8 @@ function makeScene(cv, PX, look, monKey, hostW) {
         const host = ui.extra;
         host.innerHTML = `<div class="ac-word">${esc(word)}</div><div class="ac-zy">${esc(zy)}</div><input data-in type="text" autocomplete="off" placeholder="打字，按 Enter" class="w-full mt-2 p-3 px-panel in" style="color:#fff;font-size:1.6em;text-align:center">`;
         const inp = host.querySelector('[data-in]'); inp.focus();
+        /* 戰鬥裡擋了貼上，練習這裡漏了：題目就顯示在上面，複製貼上就過關領獎勵 */
+        ['paste', 'drop'].forEach(t => inp.addEventListener(t, e => e.preventDefault()));
         const onKey = e => {
           if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return;
           e.preventDefault();

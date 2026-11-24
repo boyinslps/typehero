@@ -1,10 +1,10 @@
-import { VILLAGE, doorTile } from './nw-data.js';
+import { VILLAGE, doorTile, stageOpen } from './nw-data.js';
 
 const T = 16;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 export function mountVillage(host, o) {
-  const { PX, look, open, start, onEnter, scroller, fast, guide, mailN, noticeBang } = o;
+  const { PX, look, open, start, onEnter, scroller, fast, guide, mailN, noticeBang, forgeFx } = o;
   const V = VILLAGE, W = V.cols * T, H = V.rows * T;
   /* 倍率照 UI-ART-SPEC §1：整數，桌機 3～4、手機 2。地圖比畫面大，所以不再縮到塞進一個畫面，改成容器兩個方向都能捲 */
   const mobile = innerWidth < 640;
@@ -12,7 +12,7 @@ export function mountVillage(host, o) {
   host.innerHTML = '';
   if (!document.getElementById('nw-vp-css')) {
     const st = document.createElement('style'); st.id = 'nw-vp-css';
-    st.textContent = '.nw-vp{scrollbar-width:none;overscroll-behavior:contain}.nw-vp::-webkit-scrollbar{display:none}';
+    st.textContent = '.nw-vp{scrollbar-width:none;overscroll-behavior:contain}.nw-vp::-webkit-scrollbar{display:none}@keyframes nwForgeRise{0%{transform:translateY(0);opacity:1}100%{transform:translateY(-22px);opacity:0}}';
     document.head.appendChild(st);
   }
   host.classList.add('nw-vp');
@@ -78,7 +78,7 @@ export function mountVillage(host, o) {
     stage.appendChild(b);
     return b;
   };
-  let bang = null, bangShown = false;
+  let bang = null, bangShown = false, forgeBang = null, forgeEl = null, forgeOn = null, forgeAt = -9, forgeLast = false;
   V.buildings.forEach(b => {
     const isOpen = open.includes(b.id);
     const hot = addHot(b.id, b.name, b.x * T, b.y * T, 48, 48, !isOpen, isOpen ? '' : '施工中');
@@ -90,6 +90,19 @@ export function mountVillage(host, o) {
       bang.style.cssText = `display:none;position:absolute;left:50%;top:${-Math.max(26, 8 * sc)}px;margin-left:${-Math.max(10, 3 * sc)}px;width:${Math.max(20, 6 * sc)}px;text-align:center;pointer-events:none;font-weight:900;font-size:${Math.max(18, 6 * sc)}px;line-height:1.1;background:#d83a3a;color:#fff;border:2px solid #0a0714`;
       bang.textContent = '！';
       hot.appendChild(bang);
+    }
+    /* 鐵匠鋪開張以後：煙囪冒煙；真的有東西做得出來才冒火花＋「！」（只標要處理的，SPEC-STAGE2 §3.11） */
+    if (b.id === 'forge' && forgeFx && isOpen) {
+      forgeEl = document.createElement('span');
+      forgeEl.dataset.forgeFx = 'idle';
+      forgeEl.style.cssText = `position:absolute;left:${Math.round(37 / 48 * 100)}%;top:0;width:0;height:0;pointer-events:none`;
+      for (let k = 0; k < 3; k++) { const i = document.createElement('i'); i.style.cssText = `position:absolute;left:${(k - 1) * sc * 2}px;bottom:0;width:${sc * 2}px;height:${sc * 2}px;background:#9aa0aa;animation:nwForgeRise 1.6s steps(8) infinite;animation-delay:${k * .5}s`; forgeEl.appendChild(i); }
+      hot.appendChild(forgeEl);
+      forgeBang = document.createElement('span');
+      forgeBang.dataset.forgeBang = '1'; forgeBang.className = 'px-text';
+      forgeBang.style.cssText = `display:none;position:absolute;left:50%;top:${-Math.max(26, 8 * sc)}px;margin-left:${-Math.max(10, 3 * sc)}px;width:${Math.max(20, 6 * sc)}px;text-align:center;pointer-events:none;font-weight:900;font-size:${Math.max(18, 6 * sc)}px;line-height:1.1;background:#d83a3a;color:#fff;border:2px solid #0a0714`;
+      forgeBang.textContent = '！';
+      hot.appendChild(forgeBang);
     }
   });
   addHot('gate', '傳送門・回舊世界', gateEl.x, gateEl.y, 40, 56, false, '');
@@ -155,7 +168,8 @@ export function mountVillage(host, o) {
   function talk(n) {
     n.dir = Math.abs(P.fx - n.fx) > Math.abs(P.fy - n.fy) ? (P.fx > n.fx ? 'right' : 'left') : (P.fy > n.fy ? 'down' : 'up');
     n.goal = null; n.talkUntil = performance.now() + 3600;
-    const text = n.say[n.line++ % n.say.length];
+    const lines = (n.sayOpen && stageOpen('2b')) ? n.sayOpen : n.say;
+    const text = lines[n.line++ % lines.length];
     bubble.innerHTML = `<b style="color:#ffd98a">${n.name}</b><br>${text}`;
     bubble.style.display = 'block'; bubble.dataset.who = n.id;
     bubble.style.left = clamp(n.fx * sc - 130, 4, W * sc - 270) + 'px';
@@ -252,6 +266,12 @@ export function mountVillage(host, o) {
     showPrompt(near);
     if (mailBadge && mailN) { const n = mailN(); if (n !== mailShown) { mailShown = n; mailBadge.style.display = n > 0 ? 'block' : 'none'; mailBadge.textContent = `✉ ${n}`; } }
 
+    if (forgeEl) {
+      if (P.t - forgeAt > .4) { forgeAt = P.t; forgeLast = !!forgeFx(); }   // 每 0.4 秒算一次就夠，不要每個畫面都掃一遍配方
+      const can = forgeLast;
+      if (can !== forgeOn) { forgeOn = can; forgeEl.dataset.forgeFx = can ? 'can' : 'idle'; forgeEl.querySelectorAll('i').forEach(i => { i.style.background = can ? '#ff9a3c' : '#9aa0aa'; }); forgeBang.style.display = can ? 'block' : 'none'; }
+      if (can) forgeBang.style.transform = `translateY(${Math.round(Math.sin(P.t * 5) * -2 * sc)}px)`;
+    }
     if (bang) {
       const on = !!noticeBang();
       if (on !== bangShown) { bangShown = on; bang.style.display = on ? 'block' : 'none'; }

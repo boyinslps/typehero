@@ -78,7 +78,7 @@ const seed = () => Object.fromEntries([
     ok(['helm', 'armor', 'boots'].every(k => side.find(s => s[0] === k)[1] < hx) && ['weapon', 'gloves'].every(k => side.find(s => s[0] === k)[1] > hx), '左邊頭盔／盔甲／護腳，右邊武器／護手');
     const ch = await T(p, '[data-pc-chips]');
     ok(ch.includes('字元 120') && ch.includes('狩獵 10 場') && ch.includes('勝 8／敗 2') && /最後上線 (剛剛|2 分鐘前)/.test(ch) && ch.includes('抓蟲 30 分') && ch.includes('武器 2 把'), '小資訊列：' + ch);
-    ok(await p.$$eval('[data-pc-chips] .px-chip', e => e.length) === 5, '小資訊列用 px-chip（5 個）');
+    ok(await p.$$eval('[data-pc-chips] .px-chip', e => e.length) === 6, '小資訊列用 px-chip（6 個：字元、狩獵、最後上線、抓蟲、武器、戰力）');
     ok((await T(p, '[data-pc-later="skill"]')).includes('之後開放') && (await T(p, '[data-pc-later="item"]')).includes('之後開放'), '技能、道具留位置寫「之後開放」');
     const anim = await p.$eval('[data-pc-hero]', e => getComputedStyle(e).animationName + '|' + getComputedStyle(e).animationDuration);
     ok(anim === 'pcBreath|0.8s', '角色呼吸動畫 0.8 秒：' + anim);
@@ -153,6 +153,27 @@ const seed = () => Object.fromEntries([
     ok((await T(p, '[data-pc-real]')).includes('換過名字') && await p.$('[data-pc-act="nameok"]') !== null, '換過名字：卡片有 ⚠ 與「名字沒問題」');
     await p.click('[data-pc-act="nameok"]'); await p.waitForTimeout(500);
     ok(await p.$('[data-pc-act="nameok"]') === null && !!(await p.evaluate(id => window.__FS['mg_bugboard/' + id], ID6)).nameOkH, '按了之後解鎖，卡片的按鈕消失');
+    noErr(p); await p.close();
+  }
+  /* 第 2 段 2b：五格裝備、戰力欄、總覽的各班平均 */
+  {
+    const sd = seed(), nw = sd[`mg_scores/${ID5}`].nw;
+    Object.assign(nw, { gearV: 1, gear: [{ id: 'g0', k: 'w_dagger', c: 'gray', p: 0, t: 0, s: 1 }, { id: 'h1', k: 'coo_hat', c: 'green', p: 3, t: 1 }, { id: 'a1', k: 'wolf_mail', c: 'blue', p: 5, t: 2 }], eq: { weapon: 'g0', helm: 'h1', armor: 'a1', gloves: null, boots: null }, forge: { made: 4, ups: 3, top: 5, gift: 1 }, gw: [], equip: '', coins: 900 });
+    const p = await teacher(browser, sd);
+    ok(await p.$('[data-econ]') !== null && (await T(p, '[data-econ]')).includes('戰力') && (await T(p, '[data-econ]')).includes('503'), '總覽：各班平均持有字元與戰力（通膨的早期訊號）');
+    await tab(p, 'students');
+    ok((await p.$$eval('#main th', ths => ths.map(t => t.textContent))).some(t => t.includes('戰力')), '學生表格有「戰力」欄');
+    ok((await T(p, `tr[data-id="${ID5}"] [data-power]`)) === '76', '小明的戰力 76（小刀 10＋綠咕咕帽 +3 26＋藍炎狼皮甲 +5 40）');
+    await p.click('th[data-sort="power"]'); await p.waitForTimeout(150);
+    const first = await p.$eval('#main tbody tr', e => e.dataset.id);
+    await p.click('th[data-sort="power"]'); await p.waitForTimeout(150);
+    ok(first !== undefined, '戰力欄可以排序');
+    await openPc(p, ID5);
+    const slots = await p.$$eval('[data-pc-card] .bp-slot', els => els.map(e => ({ s: e.dataset.slot, on: e.classList.contains('on'), canvas: !!e.querySelector('canvas'), up: (e.querySelector('.bp-up') || {}).textContent || '' })));
+    ok(slots.find(s => s.s === 'helm').on && slots.find(s => s.s === 'helm').canvas && slots.find(s => s.s === 'helm').up === '+3' && slots.find(s => s.s === 'armor').up === '+5' && slots.find(s => s.s === 'weapon').canvas && !slots.find(s => s.s === 'gloves').on, '人物卡：頭盔、盔甲、武器有圖示與 +N，護手、護腳是空格');
+    ok((await T(p, '[data-pc-power]')).includes('戰力 76') && (await T(p, '[data-pc-power]')).includes('做過 4 件') && (await T(p, '[data-pc-power]')).includes('最高 +5'), '人物卡：戰力 76｜做過 4 件｜最高 +5');
+    ok((await T(p, '[data-pc-own="gears"]')).includes('咕咕帽 +3') && (await T(p, '[data-pc-own="gears"]')).includes('炎狼皮甲 +5'), '「他有什麼」多一行裝備');
+    await p.keyboard.press('Escape');
     noErr(p); await p.close();
   }
   /* 篩選後的順序：只列有玩過的 */

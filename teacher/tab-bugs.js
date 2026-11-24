@@ -13,7 +13,7 @@
    「採用」只是把確認／重複／不採用的視窗預填好，老師按視窗裡的按鈕才寫入；一則一則寫與「全部採用」走同一組 commit 函式，規則不會分岔。 */
 import { db, doc, getDoc, writeBatch, deleteField } from './fb.js';
 import { loadScores, loadBoard, loadFlags, invalidate } from './data.js';
-import { clsShort, toMs, bugCmp, BUG_COINS, BUG_REWARD_MAX } from './nw.js';
+import { clsShort, toMs, bugCmp, bugCoins, BUG_REWARD_MAX } from './nw.js';
 import { boardCalc, approvedCount, bugText, putReport, dropReport, publicBoard, SEV_NAME, clampSev, planBulk } from './bug-calc.js';
 import { mountBugExport, loadSugg, saveSugg, dropSugg, clearSugg, VERDICT_NAME } from './export-bugs.js';
 import { MAIL_BUG_TITLE, MAIL_AWARD_TITLE } from './migrate.js';
@@ -90,6 +90,9 @@ export default async function mount(el, ctx) {
   const flagWrite = (b, f, data) => b.set(doc(db, 'mg_nw_flags', f.id), data, { merge: true });
   const mailDoc = (f, title, body, items) => { const now = Date.now(); return { aud: ['id:' + f.docId], title, body: clipS(body, 200), items, from: '老師', sendAt: now, expireAt: 0, t: now, src: 'bug' }; };
   const replyLine = r => r ? `\n老師說：${r}` : '';
+  /* 信裡先引用他回報的內容：學生才知道老師講的是哪一則（信 200 字上限，引用最多 44 字） */
+  const quoteLine = f => { const t = bugText(f); return `你回報的：${clipS(t.did, 20)}／${clipS(t.what, 20)}\n`; };
+  const DEFAULT_REPLY = '收到你的回報，確認是 bug，已經發獎勵了。';
 
   /* commit* 只負責寫（flag＋bugboard＋信，同一個 batch），不跳視窗、不重畫：
      單則審核（視窗按確認之後）與「全部採用建議」都呼叫它們。已經算過的回報在這裡「用剛讀到的最新資料」判斷，重按不會重複加分 */
@@ -99,15 +102,15 @@ export default async function mount(el, ctx) {
     const before = approvedCount(rs0.filter(r => r.id !== f.id)), coins = before < BUG_REWARD_MAX;
     /* 已經算過的回報（兩個分頁同時按、畫面沒更新）：只補寫 flag 的狀態，分數、信都不動 */
     const sev = already ? clampSev(already.sev) : clampSev(sevIn), reply = already ? String(already.reply || '') : replyIn;
-    const b = writeBatch(db);
+    const b = writeBatch(db), n = bugCoins(sev);
     flagWrite(b, f, { status: 'approved', sev, reply, dupOf: deleteField() });
     if (!already) {
       b.set(doc(db, 'mg_bugboard', f.docId), boardPatch(f.docId, f, cur, putReport(rs0, { id: f.id, st: 'approved', sev, reply, t: f.t || 0 }), null, notes), { merge: true });
       if (!(await mailExists('bug_' + f.id))) b.set(doc(db, 'mg_mail', 'bug_' + f.id), mailDoc(f, MAIL_BUG_TITLE,
-        (coins ? `老師確認了你回報的問題，幫了大忙！送你 ${BUG_COINS} 字元。` : '老師確認了你回報的問題，幫了大忙，謝謝你！') + replyLine(reply),
-        coins ? [{ type: 'coins', n: BUG_COINS }] : []));
+        quoteLine(f) + (coins ? `老師確認了，幫了大忙！依問題大小，送你 ${n} 字元。` : '老師確認了，幫了大忙，謝謝你！') + replyLine(reply),
+        coins ? [{ type: 'coins', n }] : []));
     }
-    await log('確認回報', f.id, `${flagWho(f)}：嚴重度${SEV_NAME[sev]}${already ? '（補寫，沒有重複加分）' : coins ? `，寄 ${BUG_COINS} 字元` : '，只寄感謝'}`, b);
+    await log('確認回報', f.id, `${flagWho(f)}：嚴重度${SEV_NAME[sev]}${already ? '（補寫，沒有重複加分）' : coins ? `，寄 ${n} 字元` : '，只寄感謝'}`, b);
     await b.commit();
     dropSugg(f.id); sugg = loadSugg();
     return { already: !!already, sev };
@@ -118,7 +121,7 @@ export default async function mount(el, ctx) {
     const b = writeBatch(db);
     flagWrite(b, f, { status: 'dup', dupOf, sev: deleteField() });
     b.set(doc(db, 'mg_bugboard', f.docId), boardPatch(f.docId, f, cur, putReport(rs0, entry), null, notes), { merge: true });
-    if (!(await mailExists('bug_' + f.id))) b.set(doc(db, 'mg_mail', 'bug_' + f.id), mailDoc(f, MAIL_BUG_TITLE, '你發現的問題，已經有同學先回報了。謝謝你也發現它！', []));
+    if (!(await mailExists('bug_' + f.id))) b.set(doc(db, 'mg_mail', 'bug_' + f.id), mailDoc(f, MAIL_BUG_TITLE, quoteLine(f) + '老師已經收到其他同學的回報了，謝謝你也告訴老師！', []));
     await log('回報標成重複', f.id, `${flagWho(f)}：跟 ${dupOf} 一樣，不加分，寄感謝信`, b);
     await b.commit();
     dropSugg(f.id); sugg = loadSugg();
@@ -129,7 +132,7 @@ export default async function mount(el, ctx) {
     flagWrite(b, f, { status: 'rejected', reply, sev: deleteField(), dupOf: deleteField() });
     b.set(doc(db, 'mg_bugboard', f.docId), boardPatch(f.docId, f, cur, putReport(rs0, { id: f.id, st: 'rejected', sev: 0, reply, t: f.t || 0 }), null, notes), { merge: true });
     /* 有寫回覆才寄信（本人的主要管道）。用 bugr_ 而不是 bug_：之後要是改成確認，bug_ 那封獎勵信才寄得出去 */
-    if (reply && !(await mailExists('bugr_' + f.id))) b.set(doc(db, 'mg_mail', 'bugr_' + f.id), mailDoc(f, MAIL_BUG_TITLE, '這次沒有採用，謝謝你回報。' + replyLine(reply), []));
+    if (reply && !(await mailExists('bugr_' + f.id))) b.set(doc(db, 'mg_mail', 'bugr_' + f.id), mailDoc(f, MAIL_BUG_TITLE, quoteLine(f) + '這次沒有採用，謝謝你回報。' + replyLine(reply), []));
     await log('不採用回報', f.id, `${flagWho(f)}${reply ? '：' + reply : ''}`, b);
     await b.commit();
     dropSugg(f.id); sugg = loadSugg();
@@ -147,9 +150,9 @@ export default async function mount(el, ctx) {
       html: `${preNote(pre)}<div class="kv"><b>做了什麼</b><span>${nl(bugText(f).did)}</span><b>錯誤狀況</b><span>${nl(bugText(f).what)}</span></div>
         ${already ? '<div class="note bad">這則已經確認過、分數算過了。按確認只會補寫回報狀態，分數和信都不會動。</div>' : ''}
         <div style="margin-top:8px"><b>嚴重度</b><div class="row" data-sev>${[1, 2, 3].map(v => `<label class="chk"><input type="radio" name="sev" value="${v}" ${v === clampSev(already ? already.sev : pre ? pre.sev : 1) ? 'checked' : ''}> ${SEV_NAME[v]}（${v} 分）</label>`).join('')}</div></div>
-        <div style="margin-top:8px"><b>回覆（可以不寫）</b><input class="inp" data-reply maxlength="60" style="width:100%" value="${esc(pre && pre.reply || '')}" placeholder="一句話，例如：謝謝你，這個問題我修好了">
-          <div class="warn" data-replywarn style="font-size:.9em">回覆所有同學都可能看到，不要寫名字。（另外會寄一封信給他本人。）</div></div>
-        <div class="note" data-mailinfo>${already ? '' : coins ? `會寄信：🪙 字元 ×${BUG_COINS}（這位學生的第 ${before + 1} 個，前 ${BUG_REWARD_MAX} 個有字元）` : `會寄感謝信，沒有字元（這位學生已經有 ${before} 個被確認，超過 ${BUG_REWARD_MAX} 個只寄感謝）`}</div>` });
+        <div style="margin-top:8px"><b>回覆（可以不寫）</b><input class="inp" data-reply maxlength="60" style="width:100%" value="${esc(pre ? pre.reply || '' : DEFAULT_REPLY)}" placeholder="一句話，例如：謝謝你，這個問題我修好了">
+          <div class="warn" data-replywarn style="font-size:.9em">回覆所有同學都可能看到，不要寫名字。（另外會寄一封信給他本人，信裡會引用他寫的內容。）</div></div>
+        <div class="note" data-mailinfo>${already ? '' : coins ? `會寄信：🪙 字元（小 ${bugCoins(1)}／中 ${bugCoins(2)}／大 ${bugCoins(3)}，照你選的嚴重度；這位學生的第 ${before + 1} 個，前 ${BUG_REWARD_MAX} 個有字元）` : `會寄感謝信，沒有字元（這位學生已經有 ${before} 個被確認，超過 ${BUG_REWARD_MAX} 個只寄感謝）`}</div>` });
     if (r !== 'ok') return;
     const res = await commitConfirm(f, $('input[name="sev"]:checked', box).value, $('[data-reply]', box).value.trim());
     await refresh(); paintAll(); toast(res.already ? '已補寫（沒有重複加分）' : `已確認，加 ${res.sev} 分，獎勵信寄出了`);
@@ -188,14 +191,14 @@ export default async function mount(el, ctx) {
   };
   const doApplyAll = guard(async () => {
     await refresh(); sugg = loadSugg();   // 先讀最新的狀態：別的分頁已經審過的就不要再動
-    const plan = planBulk(Object.keys(sugg).map(k => Object.assign({ flagId: k }, sugg[k])), flags, board, BUG_REWARD_MAX);
+    const plan = planBulk(Object.keys(sugg).map(k => Object.assign({ flagId: k }, sugg[k])), flags, board, BUG_REWARD_MAX, bugCoins);
     paintAll();
     if (!plan.items.length) { toast('沒有可以採用的建議（都已經審過，或對象有問題）', true); return; }
     const c = plan.counts, who = id => { const f = flags.find(x => x.id === id); return f ? flagWho(f) : id; };
     const stu = plan.students.filter(s => s.to !== s.from).sort((a, b) => (b.to - b.from) - (a.to - a.from));
     const replies = plan.items.filter(i => i.verdict !== 'dup' && i.reply);
     const ok = await ask('全部採用 Claude 的建議？', `<p>會一次處理 <b>${plan.items.length}</b> 則待審回報：確認 ${c.approve}、重複 ${c.dup}、不採用 ${c.reject}。</p>
-      <div class="note" data-bulk-sum><b>抓蟲分總共 ${plan.delta >= 0 ? '+' : ''}${plan.delta} 分</b>，涉及 ${plan.students.length} 位同學。會寄信：有字元的獎勵信 ${plan.coinMails} 封、只有感謝的 ${plan.thanksMails} 封、不採用附回覆的 ${plan.replyMails} 封。</div>
+      <div class="note" data-bulk-sum><b>抓蟲分總共 ${plan.delta >= 0 ? '+' : ''}${plan.delta} 分</b>，涉及 ${plan.students.length} 位同學。會寄信：有字元的獎勵信 ${plan.coinMails} 封（共 ${plan.coinTotal} 字元，照嚴重度）、只有感謝的 ${plan.thanksMails} 封、不採用附回覆的 ${plan.replyMails} 封。</div>
       ${stu.length ? `<ul data-bulk-stu style="margin:4px 0;padding-left:1.2em">${stu.slice(0, 8).map(s => `<li>${esc(label(s.docId))}：${s.from} → ${s.to} 分（${s.to - s.from >= 0 ? '+' : ''}${s.to - s.from}）</li>`).join('')}${stu.length > 8 ? `<li class="dim">還有 ${stu.length - 8} 位…</li>` : ''}</ul>` : ''}
       ${replies.length ? `<details data-bulk-replies><summary>要寫給學生的回覆（${replies.length} 則，所有同學都可能看到）</summary><ul style="margin:4px 0;padding-left:1.2em">${replies.slice(0, 20).map(i => `<li>${esc(i.reply)}</li>`).join('')}</ul></details>` : ''}
       ${plan.skips.length ? `<p class="warn" data-bulk-skip>略過 ${plan.skips.length} 則（請個別處理）：${plan.skips.slice(0, 5).map(s => esc(who(s.flagId) + '：' + s.reason)).join('；')}</p>` : ''}

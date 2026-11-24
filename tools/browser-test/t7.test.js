@@ -194,6 +194,7 @@ const sg = (rid, verdict, extra) => Object.assign({ rid, verdict }, extra || {})
     ok(pl.skips.length === 3 && pl.skips.some(s => s.flagId === F.f5 && s.reason.includes('不採用或重複')) && pl.skips.some(s => s.flagId === F.f6 && s.reason.includes('已經審核過')) && pl.skips.some(s => s.flagId === 'nope'), '略過：對象是不採用的重複、已審過、找不到');
     ok(pl.delta === 2 + 3 + 1 && pl.students.find(s => s.docId === A).from === 2 && pl.students.find(s => s.docId === A).to === 4 && pl.students.find(s => s.docId === Cc).to === 3, '總分變化 +6（甲 2→4、丙 0→3、丁 5→6）：' + JSON.stringify(pl.students));
     ok(pl.coinMails === 2 && pl.thanksMails === 2 && pl.replyMails === 1, '信：有字元 2 封（甲、丙）、只感謝 2 封（丁已有 5 個確認、重複 1 封）、不採用附回覆 1 封：' + [pl.coinMails, pl.thanksMails, pl.replyMails]);
+    ok(BC.planBulk(items, fl, board, 5, s => 15 * s).coinTotal === 30 + 45 && BC.planBulk(items, fl, board, 5).coinTotal === 0, '試算：字元總數照嚴重度（中 30＋大 45；丁超過 5 個只感謝不算）');
     ok(BC.planBulk([], [], {}, 5).items.length === 0 && BC.planBulk(undefined, undefined, undefined, 5).delta === 0, '空的不壞');
   }
 
@@ -314,7 +315,7 @@ const sg = (rid, verdict, extra) => Object.assign({ rid, verdict }, extra || {})
     await clickModal(p, 'ok'); await p.waitForTimeout(500);
     const f1 = await FSV(p, 'mg_nw_flags/' + F.f1), bb = await FSV(p, 'mg_bugboard/' + A), ml = await FSV(p, 'mg_mail/bug_' + F.f1);
     ok(f1.status === 'approved' && f1.sev === 3 && f1.reply === '老師改過的回覆', '按確認才寫入，用老師改過的值（不是建議的）：' + JSON.stringify([f1.status, f1.sev, f1.reply]));
-    ok(bb.score === 5 && bb.n === 2 && ml && ml.body.includes('老師改過的回覆') && ml.items[0].n === 15, '抓蟲榜 2→5 分、n=2、獎勵信（字元 15）');
+    ok(bb.score === 5 && bb.n === 2 && ml && ml.body.includes('老師改過的回覆') && ml.items[0].n === 45 && ml.body.includes('你回報的：'), '抓蟲榜 2→5 分、n=2、獎勵信（大＝45 字元，照嚴重度；引用回報內容）');
     ok(await p.$(`[data-sugg="${F.f1}"]`) === null && await p.$$eval('[data-sugg]', e => e.length) === 3, '寫入後那則的建議消失，其他 3 則還在');
     ok((await FSV(p, 'mg_nw_flags/' + F.f2)).status === 'pending' && (await FSV(p, 'mg_nw_flags/' + F.f4)).status === 'pending' && (await FSV(p, 'mg_nw_flags/' + F.f5)).status === 'pending', '其他回報沒被動到');
     /* 重複：下拉預選 */
@@ -348,7 +349,7 @@ const sg = (rid, verdict, extra) => Object.assign({ rid, verdict }, extra || {})
     const w0 = await flagWrites(p);
     await p.click('[data-bx="all"]'); await p.waitForSelector('[data-modal]');
     const mt = await modalText(p);
-    ok(mt.includes('會一次處理 4 則') && mt.includes('確認 2、重複 1、不採用 1') && mt.includes('抓蟲分總共 +5 分') && mt.includes('涉及 4 位同學') && mt.includes('2 → 4 分') && mt.includes('0 → 3 分'), '再確認視窗：處理 4 則、總分 +5、涉及 4 位（甲、乙、丙、丁）、有變的同學的分數變化：' + mt);
+    ok(mt.includes('會一次處理 4 則') && mt.includes('確認 2、重複 1、不採用 1') && mt.includes('抓蟲分總共 +5 分') && mt.includes('共 75 字元') && mt.includes('涉及 4 位同學') && mt.includes('2 → 4 分') && mt.includes('0 → 3 分'), '再確認視窗：處理 4 則、總分 +5、涉及 4 位（甲、乙、丙、丁）、有變的同學的分數變化：' + mt);
     ok(mt.includes('略過 1 則') && mt.includes('不採用或重複') && mt.includes('要寫給學生的回覆') && mt.includes('不能收回') && mt.includes('沒有名字'), '略過 1 則（對象是不採用）、列出回覆、提醒寄出的信不能收回');
     await clickModal(p, 'no'); await p.waitForTimeout(250);
     ok(await flagWrites(p) === w0 && await p.$$eval('[data-sugg]', e => e.length) === 5, '取消：沒寫入，建議都還在');
@@ -358,7 +359,7 @@ const sg = (rid, verdict, extra) => Object.assign({ rid, verdict }, extra || {})
     ok(await st(F.f5) === 'pending' && await st(F.f8) === 'pending', '略過的與沒有建議的維持待審');
     const bA = await FSV(p, 'mg_bugboard/' + A), bC = await FSV(p, 'mg_bugboard/' + Cc);
     ok(bA.score === 4 && bA.n === 2 && bC.score === 3 && bC.n === 1, '抓蟲榜分數：甲 2→4、丙 0→3');
-    ok((await FSV(p, 'mg_mail/bug_' + F.f1)) && (await FSV(p, 'mg_mail/bug_' + F.f3)).items[0].n === 15 && (await FSV(p, 'mg_mail/bug_' + F.f2)).items.length === 0 && (await FSV(p, 'mg_mail/bugr_' + F.f4)), '各自的信：獎勵信、感謝信、不採用回覆信');
+    ok((await FSV(p, 'mg_mail/bug_' + F.f1)) && (await FSV(p, 'mg_mail/bug_' + F.f1)).items[0].n === 30 && (await FSV(p, 'mg_mail/bug_' + F.f3)).items[0].n === 45 && (await FSV(p, 'mg_mail/bug_' + F.f2)).items.length === 0 && (await FSV(p, 'mg_mail/bug_' + F.f2)).body.includes('老師已經收到其他同學的回報') && (await FSV(p, 'mg_mail/bugr_' + F.f4)), '各自的信：獎勵信（中 30、大 45 字元）、重複的感謝信、不採用回覆信');
     const L = await logs(p);
     ok(L.filter(l => l.act === '確認回報').length === 2 && L.filter(l => l.act === '回報標成重複').length === 1 && L.filter(l => l.act === '不採用回報').length === 1 && L.some(l => l.act === '採用建議' && l.summary.includes('4 則')), '每一則寫一筆紀錄，另有一筆「採用建議」總結');
     ok(await p.$$eval('[data-sugg]', e => e.length) === 1 && (await T(p, '[data-bx-allbox]')).includes('有 1 則'), '還剩略過那 1 則的建議（沒有消失，老師可以個別處理）');

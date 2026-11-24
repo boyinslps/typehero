@@ -2,10 +2,12 @@ import { PX } from './pixel.js';
 import {
   LOOK, DEFAULT_LOOK, heroLook, STARTERS, LOCKED_WEAPONS, REGIONS, MAP_POS, ELEM, STATUS, MONSTERS,
   regionLv, MAIN_QUESTS, normalizeNw, currentQuest, zoneOpen, starOpen, addHrExp, hrNeed, huntExp, huntCoins,
-  COLOR_NAME, COLOR_HEX, HR_MAX, VILLAGE, doorTile, buildingOpen, goalOf, TEST_TAGS, FB_COINS, FB_MINLEN, BUG_COINS, BUG_REWARD_MAX, LESSON_COINS, TESTER_MISSIONS, checkMissions, GIFT_WEAPONS, weaponInfo, weaponBase, curWeapon, WORDS, WORD_GROUPS, checkWords, setTitleParts, wordById, normName, ITEM_DEFS, displayName, NOTICES, MAT_INFO, isBpId, isMatId, TUT_LESSONS, ZONE_STAR_MAX
+  COLOR_NAME, COLOR_HEX, HR_MAX, VILLAGE, doorTile, buildingOpen, goalOf, TEST_TAGS, FB_COINS, FB_MINLEN, BUG_COINS, bugCoins, BUG_REWARD_MAX, LESSON_COINS, TESTER_MISSIONS, checkMissions, GIFT_WEAPONS, weaponInfo, weaponBase, curWeapon, WORDS, WORD_GROUPS, checkWords, setTitleParts, wordById, normName, ITEM_DEFS, displayName, NOTICES, MAT_INFO, isBpId, isMatId, TUT_LESSONS, ZONE_STAR_MAX
 } from './nw-data.js';
 import { injectUi } from './nw-ui.js';
-import { tierOf, EQUIP_LEFT, EQUIP_RIGHT, heroOf, titleBadgeHtml, darkDots, equipSlotHtml, mountSprites as mountSpritesPx, CARD_CSS } from './nw-card.js';
+import { setStarter, gearDef, gearItem, doEquip, equippedItem, rollBlueprints, giveGear, giftGearOk, itemName, itemText, forgeHint, stageOpen, GEAR_MAX, wordOpen, newGearId, syncLegacy, giveClothBps, craftList, BP_DUP_COINS, susCheck, SUS } from './nw-data.js';
+import { openForge, gearTab, matsTab, bpTab } from './nw-forge.js';
+import { tierOf, EQUIP_LEFT, EQUIP_RIGHT, chibiOf, heroOf, titleBadgeHtml, darkDots, equipSlotHtml, mountSprites as mountSpritesPx, CARD_CSS } from './nw-card.js';
 import { mountVillage } from './nw-village.js';
 import { mountBoard } from './nw-board.js';
 import { startBattle } from './nw-battle.js';
@@ -104,6 +106,7 @@ export function initNewWorld(C) {
     await Promise.all([syncClock(), syncBoard(true)]);
     await checkName();
     checkWords(NW);
+    flushRuns();   // 上次沒寫進去的場次紀錄（離線、逾時）進村時補寫
     if (C.setTitle) C.setTitle(NW.title || '', (NW.titleParts || []).length);
   }
 
@@ -355,7 +358,7 @@ export function initNewWorld(C) {
   let village = null;
   /* 村莊地圖版本：2＝32×22 的新地圖。存檔裡 posV 不是 2 的舊座標（舊 22×15 地圖）一律回出生點 */
   const POS_V = 2;
-  const myChibi = () => heroLook(NW.look, curWeapon(NW) || 'staff');
+  const myChibi = () => chibiOf(NW);
 
   function enterBuilding(b) {
     if (b.id === 'gate') { leave(); return; }
@@ -369,12 +372,14 @@ export function initNewWorld(C) {
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     const d = doorTile(b);
     NW.pos = [d[0], d[1] + 1]; NW.posV = POS_V;
-    if (buildingOpen(b)) { const go = { map: viewBoard, rank: openRank, academy: openAcademyUI, notice: () => openNotice(false) }[b.act] || (() => {}); introOnce(b.id === 'board' ? 'board' : b.id).then(go); return; }
+    if (buildingOpen(b)) { const go = { map: viewBoard, rank: openRank, academy: openAcademyUI, notice: () => openNotice(false), forge: openForgeUI, storage: openStorageUI }[b.act] || (() => {}); introOnce(b.id === 'board' ? 'board' : b.id).then(go); return; }
     openWip(b);
   }
 
   function viewHub() {
     stopAnims();
+    /* 任務改版前就上完教學課的人、或在別台電腦補到進度的人：存檔裡有進度，但任務沒人替他算，會一直卡在「到教學大樓」。進村時補算一次 */
+    const caught = checkQuests();
     const need = hrNeed(NW.hr), pct = NW.hr >= HR_MAX ? 100 : Math.min(100, NW.hrExp / need * 100);
     const matN = Object.values(NW.mats).reduce((a, b) => a + b, 0);
     const q = currentQuest(NW);
@@ -403,9 +408,10 @@ export function initNewWorld(C) {
       el.querySelector('[data-hero]').replaceChildren(PX.chibi(myChibi(), 'down', 0, 3));
       village = mountVillage(el.querySelector('#vmap'), {
         PX, look: myChibi(), open: VILLAGE.buildings.filter(buildingOpen).map(b => b.id),
-        start: NW.posV === POS_V && NW.pos ? NW.pos : VILLAGE.start, scroller: root, fast: FAST, onEnter: enterBuilding, guide: guideBuilding(), mailN: () => mailCount, noticeBang: () => nflags.any
+        start: NW.posV === POS_V && NW.pos ? NW.pos : VILLAGE.start, scroller: root, fast: FAST, onEnter: enterBuilding, guide: guideBuilding(), mailN: () => mailCount, noticeBang: () => nflags.any, forgeFx: () => craftList(NW).some(x => x.can)
       });
       if (location.hostname === 'localhost') window.__NWV = village;   // 瀏覽器測試用（讀位置、傳送、走路）
+      caught.forEach((q, i) => setTimeout(() => toast(`任務完成：${q.t}　獎勵：${q.rewardText}`, 3600), 600 + i * 3800));
       hubStart();
     });
   }
@@ -504,7 +510,7 @@ export function initNewWorld(C) {
       ok.addEventListener('click', () => {
         const first = !NW.starter;
         if (!first && pick.w !== NW.starter) NW.swaps++;
-        NW.starter = pick.w; saveNw();
+        setStarter(NW, pick.w); saveNw();
         const got = checkQuests();
         toast(first ? `拿到「${STARTERS[pick.w].name}」！去委託板看看吧` : '換好了！', 2600);
         if (got.length) setTimeout(() => toast(`任務完成：${got[0].t}　獎勵：${got[0].rewardText}`, 3600), 1500);
@@ -553,6 +559,57 @@ export function initNewWorld(C) {
 
   const MAT = MAT_INFO;
   const matName = id => MAT[id] || [id, 'gray'];
+  /* ── 鐵匠鋪、倉庫（2b，SPEC-STAGE2 §3.6、§3.7、§3.11）── */
+  const forgeCtx = () => ({ PX, NW: () => NW, save: saveNw, saveNow: saveNwNow, toast, esc: escHtml, now, fast: FAST, sync: syncGear, after: afterGear });
+  /* 兩個分頁同時開：動作前先看雲端存檔有沒有比自己新，有就先換成雲端的，不然兩邊各扣一次材料、各做一件 */
+  async function syncGear() {
+    if (!C.online()) return false;
+    try {
+      const s = await C.withTimeout(C.getDoc(docRef()), 4000, 'nw-gear-sync');
+      const cloud = s.exists() ? s.data().nw : null;
+      if (cloud && (cloud.savedAt || 0) > (NW.savedAt || 0)) {
+        NW = normalizeNw(cloud);
+        try { localStorage.setItem(lkey(), JSON.stringify(NW)); } catch (e) { /* 空間滿了就只存雲端 */ }
+        return true;
+      }
+    } catch (e) { console.warn('同步裝備存檔失敗', e); }
+    return false;
+  }
+  /* 做完、穿上、強化後：算任務（1-5、1-6）和稱號詞條，回要跳的一句話 */
+  function afterGear() {
+    const qs = checkQuests(), ws = checkWords(NW);
+    if (qs.length || ws.length) saveNw();
+    const parts = [];
+    if (qs.length) parts.push(`任務完成：${qs[0].t}　獎勵：${qs[0].rewardText}`);
+    if (ws.length) parts.push(`新的稱號詞條：${ws.join('、')}`);
+    return { note: parts.join('　') };
+  }
+  async function openForgeUI() {
+    await introOnce('forge');
+    if (!NW.forge.gift) {
+      const got = giveClothBps(NW); saveNwNow();
+      if (got.length) await showGift({ icon: '📜', title: `布裝圖紙 ×${got.length}`, note: '鐵匠送你一套布裝圖紙：布帽、布衣、布手套、布鞋。先做一件試試看！' });
+    }
+    const h = openForge(forgeCtx(), { onClose: () => { if (view === 'hub') viewHub(); } });
+    if (!NW.intro.forgeTour && !window.__NW_NOINTRO__ && craftList(NW).some(x => x.can)) {
+      NW.intro.forgeTour = 1; saveNw();
+      const st = h.state, made0 = NW.forge.made;
+      /* 導覽中關掉鐵匠鋪：導覽的提示指著不存在的按鈕，自動收起來，不卡住畫面 */
+      const watch = setInterval(() => {
+        if (!document.getElementById('nw-tour')) { clearInterval(watch); return; }
+        if (!document.getElementById('nw-forge')) { const sk = document.querySelector('#nw-tour [data-skip]'); if (sk) sk.click(); clearInterval(watch); }
+      }, 400);
+      tour([
+        { text: '左邊發亮的圖紙（有 ✨）就是材料夠了。點一下你想做的那張！', target: () => document.querySelector('#nw-forge .fg-row.can'), done: () => st.clicked || st.result || NW.forge.made > made0 },
+        { text: '右邊寫著要用哪些材料。都打勾了，就按「打造」！', target: () => document.querySelector('#nw-forge [data-do-craft]'), done: () => !!st.result || NW.forge.made > made0, back: () => !document.getElementById('nw-forge') },
+        { text: '做好了！按「穿上」，角色就會變。', target: () => document.querySelector('#nw-forge [data-wear]'), done: () => !st.result || !document.getElementById('nw-forge') }
+      ], { title: '鐵匠鋪教學' });
+    }
+  }
+  async function openStorageUI() {
+    await introOnce('storage');
+    openBackpack('mats');
+  }
 
   function questBody() {
     const q = currentQuest(NW), done = MAIN_QUESTS.filter(x => NW.quest.done.includes(x.id));
@@ -565,36 +622,28 @@ export function initNewWorld(C) {
       : '<div class="text-xl px-title">第 1 章完成了！之後的任務會陸續開放。</div>'}
       ${done.length ? `<h3 class="text-lg mt-4 mb-2">完成了</h3><div class="grid gap-2">${done.map(d => `<div class="px-panel in flex justify-between"><span>✅ ${escHtml(d.t)}</span>
         <span class="text-sm" style="color:#aab0d8">${escHtml(d.rewardText)}</span></div>`).join('')}</div>` : ''}
-      <p class="text-xs mt-3" style="color:#aab0d8">還有幾個任務要等鐵匠鋪開張才會出現。每日任務施工中。</p>`;
+      <p class="text-xs mt-3" style="color:#aab0d8">${stageOpen('2b') ? '' : '還有幾個任務要等鐵匠鋪開張才會出現。'}每日任務施工中。</p>`;
   }
 
+  let bagSort = 'color', bagSel = null, bagMat = null;
   function bagBody(tab) {
     if (tab === 'equip') {
       const cur = curWeapon(NW), w = weaponInfo(cur), swapLeft = Math.max(0, 3 - NW.hunts);
-      const owned = (NW.starter ? [NW.starter] : []).concat(NW.gw);
-      const cells = owned.map(k => `<div class="bp-cell ${k === cur ? 'on' : ''} ${GIFT_WEAPONS[k] ? 'dark' : ''}" data-equip="${k}" title="${weaponInfo(k).name}（點一下換上）" style="cursor:pointer"><div data-sprite="weapon:${k}:3"></div>${GIFT_WEAPONS[k] ? darkDots() : ''}</div>`).concat(Array(16).fill('<div class="bp-cell"></div>')).slice(0, 16).join('');
-      return `<h3 class="text-lg mb-2">裝備背包</h3>
-        <div class="grid gap-2" style="grid-template-columns:repeat(4,minmax(0,1fr));max-width:340px">${cells}</div>
+      const gt = gearTab(forgeCtx(), bagSort, bagSel); bagSel = gt.current;
+      return `${gt.html}
         <div class="mt-3"><div class="label">現在的武器</div>
           <div class="text-xl px-title">${w ? w.name : '還沒選'} <span class="text-sm" style="color:#aab0d8">${w ? w.kind : ''}</span></div>
           <p class="text-sm mt-1 px-text">${w ? w.desc : ''}</p>
           <button class="px-btn gold mt-2" data-bag-act="starter">${swapLeft > 0 ? '換武器' : '武器（不能再免費換）'}</button>
-          <p class="text-xs mt-2" style="color:#aab0d8">${swapLeft > 0 ? `前 3 場狩獵可以免費換，還剩 ${swapLeft} 場。` : '前 3 場已經過了，之後要打造新武器才能換。'}${NW.gw.length ? '格子裡的武器，點一下就能換上。' : ''}打造出來的裝備會放在這個背包裡。</p></div>`;
+          <p class="text-xs mt-2" style="color:#aab0d8">${swapLeft > 0 ? `前 3 場狩獵可以免費換，還剩 ${swapLeft} 場。` : (stageOpen('2b') ? '前 3 場已經過了，之後到鐵匠鋪打造新武器就能換。' : '前 3 場已經過了，之後要打造新武器才能換。')}格子裡的裝備，點一下就能穿上。打造出來的裝備會放在這個背包裡。</p></div>`;
     }
     if (tab === 'items') {
       const rows = Object.entries(NW.items).filter(([, n]) => n > 0).map(([id, n]) => { const d = ITEM_DEFS[id] || { name: id, icon: '📦' }; return `<div class="px-panel in flex justify-between items-center"><span class="flex items-center gap-2">${d.pixel ? `<span data-sprite="item:${d.pixel}:2"></span>` : d.icon} ${escHtml(d.name)}${d.desc && d.pixel ? `<small style="color:#aab0d8">　${escHtml(d.desc)}</small>` : ''}</span><b>×${n}</b></div>`; });
       return `<h3 class="text-lg mb-2">道具</h3>${rows.length ? `<div class="grid gap-2">${rows.join('')}</div>` : '<p class="px-text">還沒有道具。</p>'}
         <p class="text-xs mt-3" style="color:#aab0d8">回復藥要等商店開張才能在戰鬥中使用，先幫你存著。</p>`;
     }
-    if (tab === 'mats') {
-      const rows = Object.entries(NW.mats).filter(([, n]) => n > 0).map(([id, n]) => { const [nm, c] = matName(id); return `<div class="px-panel in flex justify-between"><span><span style="color:${COLOR_HEX[c]}">■</span> ${nm}</span><b>×${n}</b></div>`; });
-      return `<h3 class="text-lg mb-2">材料</h3>${rows.length ? `<div class="grid gap-2" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr))">${rows.join('')}</div>` : '<p class="px-text">還沒有材料。打倒魔物就會掉。</p>'}
-        <p class="text-xs mt-3" style="color:#aab0d8">鐵匠鋪開張就能用來打造武器和裝備。</p>`;
-    }
-    if (tab === 'bp') {
-      const rows = NW.bp.map(id => { const [nm, c] = matName(id); return `<div class="px-panel in"><span style="color:${COLOR_HEX[c]}">📜</span> ${nm}</div>`; });
-      return `<h3 class="text-lg mb-2">圖紙</h3>${rows.length ? `<div class="grid gap-2" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr))">${rows.join('')}</div>` : '<p class="px-text">還沒有圖紙。打倒魔物有機會掉。</p>'}`;
-    }
+    if (tab === 'mats') return matsTab(forgeCtx(), bagMat);
+    if (tab === 'bp') return bpTab(forgeCtx());
     if (tab === 'quest') return questBody();
     const mons = Object.entries(MONSTERS).map(([k, m]) => `<div class="px-panel in text-center" style="padding:6px"><div class="px-img" data-sprite="monster:${k}:3" style="${(NW.dex[k] || 0) ? '' : 'filter:grayscale(1) brightness(.35)'}"></div>
       <div class="text-sm font-bold">${(NW.dex[k] || 0) ? m.name : '？？？'}</div><div class="text-xs" style="color:#aab0d8">打過 ${NW.dex[k] || 0} 次</div></div>`).join('');
@@ -619,7 +668,7 @@ export function initNewWorld(C) {
           <p class="px-text mt-2" style="font-size:.95em">${escHtml(g.note || '')}</p>
           <div class="mt-4"><button class="px-btn gold" style="padding:8px 30px" data-ok>收下</button></div></div>`;
       const ico = sheet.querySelector('[data-ico]');
-      if (g.weapon) ico.prepend(PX.canvas('weapon', g.weapon, 4, false)); else if (g.itemPx) ico.prepend(PX.canvas('item', g.itemPx, 4, false)); else ico.insertAdjacentHTML('afterbegin', `<span style="font-size:60px;line-height:90px">${g.icon || '🎁'}</span>`);
+      if (g.weapon) ico.prepend(PX.canvas('weapon', g.weapon, 4, false)); else if (g.gear) ico.prepend(PX.canvas('gear', g.gear, 5, false)); else if (g.itemPx) ico.prepend(PX.canvas('item', g.itemPx, 4, false)); else ico.insertAdjacentHTML('afterbegin', `<span style="font-size:60px;line-height:90px">${g.icon || '🎁'}</span>`);
       sheet.addEventListener('click', e => { if (e.target.closest('[data-ok]')) { sheet.remove(); done(); } });
       document.body.appendChild(sheet);
     });
@@ -640,7 +689,8 @@ export function initNewWorld(C) {
       known: r => own(GIFT_WEAPONS, r.key),
       apply: r => {
         const w = GIFT_WEAPONS[r.key];
-        if (!NW.gw.includes(r.key)) NW.gw.push(r.key);
+        if (!NW.gear.some(g => g.k === r.key)) giveGear(NW, r.key, 'green', 0, now());
+        syncLegacy(NW);
         return { weapon: r.key, dark: !!w.dark, title: w.name, note: `${w.desc}　到背包的裝備格點一下就能換上。` };
       },
       label: r => `🗡 ${(GIFT_WEAPONS[r.key] || { name: '新武器' }).name}`
@@ -695,10 +745,21 @@ export function initNewWorld(C) {
       known: r => isBpId(r.key),
       apply: r => {
         const nm = matName(r.key)[0], had = NW.bp.includes(r.key);
-        if (!had) NW.bp.push(r.key);
-        return { icon: '📜', title: `圖紙「${nm}」`, note: had ? '這張圖紙你已經會了，不用再學一次。' : '圖紙學會了就不會用掉。鐵匠鋪開張就能用它打造。' };
+        if (!had) NW.bp.push(r.key); else NW.coins += BP_DUP_COINS;
+        return { icon: '📜', title: `圖紙「${nm}」`, note: had ? `這張圖紙你已經會了，換成 ${BP_DUP_COINS} 字元。` : (stageOpen('2b') ? '圖紙學會了就不會用掉。到鐵匠鋪就能用它打造。' : '圖紙學會了就不會用掉。鐵匠鋪開張就能用它打造。') };
       },
       label: r => `📜 圖紙「${matName(r.key)[0]}」`
+    },
+    gear: {
+      known: r => giftGearOk(r),
+      apply: r => {
+        const it = giveGear(NW, r.key, r.c, r.p, now()), d = gearDef(r.key);
+        if (!it || it === 'full') return { icon: '🛡', title: '裝備放不下了', note: `裝備已經 ${GEAR_MAX} 件了。` };
+        const base = d.slot === 'weapon' ? { weapon: d.wk, dark: !!GIFT_WEAPONS[d.wk] } : { gear: r.key };
+        return Object.assign(base, { title: itemName(it), note: `${itemText(it)}。到背包的裝備格點一下就能穿上。` });
+      },
+      label: r => `🛡 ${(gearDef(r.key) || { name: '新裝備' }).name}${r.p ? ' +' + r.p : ''}`,
+      full: n => NW.gear.length + n > GEAR_MAX
     },
     /* 直接升到某個獵人等級（只往上）。星星跟著等級走（addHrExp 每升一級給一顆）。
        主要給存檔被同學亂蓋、要補回進度的人用 */
@@ -771,6 +832,12 @@ export function initNewWorld(C) {
     book: [{ icon: '📓', title: '測試員手冊', text: '新世界還在試玩，你是第一批冒險者！每完成一個任務就蓋一個章，拿字元和稱號詞條。字元是新世界的貨幣，之後可以買東西、打造裝備。' }],
     mail: [{ icon: '✉', title: '郵筒與信箱', text: '老師寄給你的信和禮物，都會放在信箱裡。村莊廣場旁的藍色郵筒冒出 ✉ 和數字，就是有信還沒領！走到郵筒旁邊按 Enter，或點背包裡的「✉ 信箱」，都能打開。按「領取」就能收下禮物，領過的信會留著，可以再看。' }],
     notice: [{ icon: '📢', title: '佈告欄', text: '活動、老師的公告、抓蟲榜，都貼在這裡！有新東西，木板上方會跳出「！」。🎪 活動：看現在有什麼活動、自己做到哪裡。🐛 抓蟲榜：發現遊戲怪怪的地方告訴老師，確認以後就會上榜。' }],
+    forge: [
+      { icon: '⚒', title: '鐵匠鋪', text: '這裡可以用打魔物拿到的材料，打造武器和裝備！做出來的東西穿上去，角色也會跟著變。' },
+      { icon: '✨', title: '會發亮的圖紙', text: '材料夠了，圖紙就會發亮 ✨。帽子、衣服、手套、鞋子，對「會攻擊你的魔物」才有用喔。打造一定會成功，強化也一定會成功，不會壞掉。' },
+      { icon: '📜', title: '先做一件試試看', text: '鐵匠送你一套布裝圖紙：布帽、布衣、布手套、布鞋。用灰色的材料就能做，先做一件試試看！' }
+    ],
+    storage: [{ icon: '📦', title: '倉庫', text: '你的材料和圖紙都放在這裡，一目了然。點一下材料，會告訴你哪裡掉、可以做什麼。做好的裝備放在「裝備背包」。' }],
     gift: [{ icon: '🎁', title: '序號禮物', text: '老師會發序號給你。在這裡輸入（輸入的字會藏起來），就能領禮物，領到會跳出通知。每組序號每個人只能領一次。' }]
   };
   function introOnce(key) {
@@ -1140,12 +1207,15 @@ export function initNewWorld(C) {
     NW.tut[id] = 1; NW.coins += LESSON_COINS; saveNw();
     await showGift({ icon: '🏫', title: `字元 ×${LESSON_COINS}`, note: '學會了新本領！字元是新世界的貨幣，之後可以買東西、打造裝備。' });
     await awardMissions();
+    /* 第三堂課一做完就算主線：以前要等下一場狩獵打完才會算，同學做完了任務卻不跳下一個 */
+    for (const q of checkQuests()) await showGift({ icon: '📌', title: `任務完成：${q.t}`, note: `獎勵：${q.rewardText}。` });
   }
   async function weaponTour() {
     const key = NW.gw[NW.gw.length - 1] || NW.starter;
     const name = (weaponInfo(key) || {}).name || '新武器';
+    const wi = [...NW.gear].reverse().find(g => (gearDef(g.k) || {}).wk === key), wid = wi ? wi.id : '';
     const bagOpen = () => !!document.getElementById('nw-bag'), equipped = () => curWeapon(NW) === key;
-    const equipBtn = () => document.querySelector(`#nw-bag [data-equip="${key}"]`);
+    const equipBtn = () => document.querySelector(`#nw-bag [data-equip="${wid}"]`);
     const ok = await tour([
       { text: '先打開背包：按這個「🎒 背包」按鈕（也可以按鍵盤的 B）。', target: () => document.querySelector('[data-act="bagopen"]'), done: () => bagOpen() || equipped() },
       /* 背包可能被開在「任務」那一頁，或太快又被關掉，所以要能指到別的地方、也能退回第 1 步 */
@@ -1183,7 +1253,7 @@ export function initNewWorld(C) {
       <textarea data-did maxlength="150" rows="2" placeholder="例：我在背包裡很快連點 3 次「裝備背包」" class="w-full mt-1 p-3 px-panel in" style="color:#fff"></textarea>
       <div class="px-text text-sm mt-2" style="font-weight:900">② 出現什麼錯誤狀況？</div>
       <textarea data-what maxlength="150" rows="2" placeholder="例：背包整個黑掉，按什麼都沒有反應" class="w-full mt-1 p-3 px-panel in" style="color:#fff"></textarea>
-      <p class="text-xs mt-1" style="color:#ffd98a">送出後，要等<b>老師看過、確認</b>，才會有獎勵：前 ${BUG_REWARD_MAX} 個被確認的回報，每個送 🪙 ${BUG_COINS} 字元，並解鎖「除蟲員」。亂寫的不會被確認喔。</p>
+      <p class="text-xs mt-1" style="color:#ffd98a">送出後，要等<b>老師看過、確認</b>，才會有獎勵：前 ${BUG_REWARD_MAX} 個被確認的回報有字元：小問題 🪙 ${bugCoins(1)}、中 ${bugCoins(2)}、大 ${bugCoins(3)}，並解鎖「除蟲員」。亂寫的不會被確認喔。</p>
       <div data-err class="text-sm mt-1" style="color:#e5705f;min-height:1.2em"></div>
       <div class="flex gap-2 justify-end mt-2"><button class="px-btn" data-close>取消</button><button class="px-btn gold" data-send style="padding:8px 22px">送出</button></div></div>`;
     let cat = '';
@@ -1198,10 +1268,14 @@ export function initNewWorld(C) {
       const text = `【我做了什麼】${did}\n【錯誤狀況】${what}`;
       if (!C.online()) { err.textContent = '現在連不上網路'; return; }
       if (Date.now() - (openBugReport.last || 0) < 20000) { err.textContent = '剛剛才送過，等一下再送下一個'; return; }
+      const fid = `bug_${ME.docId}_${Date.now()}`;
       try {
-        await C.withTimeout(C.setDoc(C.doc(C.db, 'mg_nw_flags', `bug_${ME.docId}_${Date.now()}`), { type: 'bug', status: 'pending', docId: ME.docId, cat, text, did, what, view, cls: ME.className, seat: ME.seat, name: ME.name, t: Date.now() }), 6000, 'nw-bug');
+        await C.withTimeout(C.setDoc(C.doc(C.db, 'mg_nw_flags', fid), { type: 'bug', status: 'pending', docId: ME.docId, cat, text, did, what, view, cls: ME.className, seat: ME.seat, name: ME.name, t: Date.now() }), 6000, 'nw-bug');
       } catch (er) { err.textContent = '送出失敗，再試一次'; return; }
       openBugReport.last = Date.now();
+      /* 老師頁的回報代號就是這個 ID。mg_bugboard 大家都讀得到，不能放內文，所以「我的回報」要看得到自己寫了什麼，只能留在自己的存檔 */
+      NW.bugLog = NW.bugLog || {}; NW.bugLog[fid] = `${did.slice(0, 24)}／${what.slice(0, 24)}`;
+      Object.keys(NW.bugLog).sort().slice(0, -20).forEach(k => delete NW.bugLog[k]);
       NW.bugsSent = (NW.bugsSent || 0) + 1; saveNw(); sheet.remove();
       await showGift({ icon: '🐛', title: '回報收到了！', note: '老師看過、確認以後，獎勵（字元和「除蟲員」）會在你下次進新世界時寄給你。' });
       if (view === 'hub') viewHub();
@@ -1216,6 +1290,12 @@ export function initNewWorld(C) {
     const r = m && /老師說：([\s\S]*)$/.exec(String(m.body || ''));
     return r ? r[1].trim() : null;
   };
+  /* 老師的信會引用他回報的內容（「你回報的：…」）：沒存在自己存檔裡的舊回報，就用信裡那句 */
+  const mailQuote = id => {
+    const m = mailList.find(x => x.id === 'bug_' + id) || mailList.find(x => x.id === 'bugr_' + id);
+    const r = m && /你回報的：([^\r\n]*)/.exec(String(m.body || ''));
+    return r ? r[1].trim() : '';
+  };
   function myReportsHtml() {
     const rs = (board && Array.isArray(board.reports)) ? board.reports.slice().sort((a, b) => (b.t || 0) - (a.t || 0)).slice(0, 8) : [];
     const score = NW.bugScore > 0 ? `<span class="px-chip" style="color:#8ec96b">抓蟲分 ${NW.bugScore}</span>` : '';
@@ -1223,10 +1303,10 @@ export function initNewWorld(C) {
     if (!rs.length) return `<div class="px-text text-sm mt-3" style="color:#aab0d8">我的回報：老師還沒有看過你的回報。${score}</div>`;
     /* 重複與不採用都用溫和的話：不讓同學覺得自己做錯了。老師有寫回覆就顯示老師的話 */
     const st = r => r.st === 'approved' ? '<b style="color:#8ec96b">✓ 老師確認了</b>'
-      : r.st === 'dup' ? '<span style="color:#9ec9ff">別人先回報了，謝謝你也發現了！</span>'
+      : r.st === 'dup' ? '<span style="color:#9ec9ff">老師已經收到其他同學的回報，謝謝你！</span>'
       : r.st === 'rejected' ? '<span style="color:#e5705f">這次沒有採用，謝謝你</span>' : '<span style="color:#ffd98a">老師還沒看</span>';
     return `<div class="px-text mt-3" style="font-weight:900;color:#ffd98a">我的回報 ${score}</div>
-      <div class="flex flex-col gap-1 mt-1" data-reports>${rs.map(r => `<div class="px-panel in text-sm" style="padding:6px 10px">${r.t ? new Date(r.t).toLocaleDateString('zh-TW') + '　' : ''}${st(r)}${r.sev ? `　嚴重度 ${'★'.repeat(Math.min(3, +r.sev || 0))}` : ''}${replyOf(r) ? `<div style="color:#aab0d8">老師說：${escHtml(String(replyOf(r)).slice(0, 80))}</div>` : ''}</div>`).join('')}</div>`;
+      <div class="flex flex-col gap-1 mt-1" data-reports>${rs.map(r => `<div class="px-panel in text-sm" style="padding:6px 10px">${r.t ? new Date(r.t).toLocaleDateString('zh-TW') + '　' : ''}${st(r)}${(NW.bugLog || {})[r.id] || mailQuote(r.id) ? `<div style="color:#dfe3ff;overflow-wrap:anywhere">你寫的：${escHtml((NW.bugLog || {})[r.id] || mailQuote(r.id))}</div>` : ''}${r.sev ? `　嚴重度 ${'★'.repeat(Math.min(3, +r.sev || 0))}` : ''}${replyOf(r) ? `<div style="color:#aab0d8">老師說：${escHtml(String(replyOf(r)).slice(0, 80))}</div>` : ''}</div>`).join('')}</div>`;
   }
 
   async function openTesterBook() {
@@ -1319,7 +1399,7 @@ export function initNewWorld(C) {
       const names = parts.map(id => wordById(id).w);
       const slots = [0, 1, 2].map(i => parts[i] ? `<button class="px-btn gold" data-rm="${i}" title="點一下拿掉">${escHtml(names[i])} ✕</button>` : `<span class="px-panel in" style="padding:8px 14px;color:#6d6a90">空格</span>`).join('');
       const groups = WORD_GROUPS.map(g => {
-        const cells = WORDS.filter(x => x.g === g).map(x => NW.words.includes(x.id)
+        const cells = WORDS.filter(x => x.g === g && (wordOpen(x) || NW.words.includes(x.id))).map(x => NW.words.includes(x.id)
           ? `<button class="px-btn" data-add="${x.id}" ${parts.includes(x.id) || parts.length >= 3 ? 'disabled' : ''}>${escHtml(x.w)}</button>`
           : `<div class="px-panel in" style="padding:5px 9px;opacity:.55;filter:grayscale(1)"><b class="px-text">🔒 ${escHtml(x.w)}</b><div class="text-xs" style="color:#aab0d8">${escHtml(x.how)}</div></div>`).join('');
         return `<div class="px-text mt-3 mb-1" style="color:#ffd98a">${g}詞條</div><div class="flex flex-wrap gap-2">${cells}</div>`;
@@ -1392,13 +1472,14 @@ export function initNewWorld(C) {
         const cm = s.exists() && s.data().nw && s.data().nw.mail;
         if (cm && typeof cm === 'object' && !Array.isArray(cm)) for (const k in cm) if (!NW.mail[k]) NW.mail[k] = cm[k];
       } catch (e) { toast('現在連不上網路，等一下再來領', 3000); return; }
-      const gifts = []; let did = 0, unknown = 0;
+      const gifts = []; let did = 0, unknown = 0, full = 0;
       stateGifted = false;
       for (const id of ids) {
         const m = mailList.find(x => x.id === id);
         if (!m || NW.mail[id]) continue;
         const items = mailItems(m);
         if (!items.every(itemKnown)) { unknown++; continue; }
+        if (NW.gear.length + items.filter(x => x.type === 'gear').length > GEAR_MAX) { full++; continue; }
         items.forEach(it => { const g = applyReward(it); if (g) gifts.push(g); });
         if (!items.length) gifts.push({ icon: '✉', title: m.title || '一封信', note: m.body || '' });
         NW.mail[id] = now(); did++;
@@ -1414,6 +1495,7 @@ export function initNewWorld(C) {
       for (const g of gifts) await showGift(g);
       if (stateGifted) { stateGifted = false; await awardMissions(); }
       if (unknown) toast('有信裡的東西這個版本還不認得，請按 F5 重新整理再來領', 4200);
+      if (full) toast(`裝備滿了（最多 ${GEAR_MAX} 件），這封信先留著，之後開放「分解」整理好再來領`, 4200);
       if (did && view === 'hub') viewHub();
     } finally { mailBusy = false; }
   }
@@ -1575,7 +1657,7 @@ export function initNewWorld(C) {
           <div class="flex flex-col gap-6" style="align-self:flex-start">${EQUIP_RIGHT.map(([k, n]) => slot(k, n)).join('')}</div>
         </div>
         <div class="flex gap-2 mt-2 flex-wrap justify-center"><button class="px-btn" data-bag-act="creator">💇 改造型</button></div>
-        <p class="text-xs mt-2" style="color:#aab0d8">頭盔、盔甲、護手、護腳要等鐵匠鋪開張才能穿，穿上去角色會跟著變。</p>`;
+        <p class="text-xs mt-2" style="color:#aab0d8">${stageOpen('2b') ? '到鐵匠鋪打造裝備，穿上去角色會跟著變。' : '頭盔、盔甲、護手、護腳要等鐵匠鋪開張才能穿，穿上去角色會跟著變。'}</p>`;
       mountSprites(c);
       c.querySelector('[data-hero]').replaceChildren(PX.hero(myHero(), 5));
     };
@@ -1592,8 +1674,12 @@ export function initNewWorld(C) {
       if (t) { render(t.dataset.bagTab); return; }
       if (e.target.closest('[data-name-edit]')) { openRename(renderCard, false); return; }
       if (e.target.closest('[data-title-edit]')) { openTitleEditor(renderCard); return; }
+      const so = e.target.closest('[data-sort]');
+      if (so) { bagSort = so.dataset.sort; render('equip'); return; }
+      const mt = e.target.closest('[data-mat]');
+      if (mt) { bagMat = mt.dataset.mat; render('mats'); return; }
       const eq = e.target.closest('[data-equip]');
-      if (eq) { NW.equip = eq.dataset.equip === NW.starter ? '' : eq.dataset.equip; saveNw(); renderCard(); render('equip'); return; }
+      if (eq) { doEquip(NW, eq.dataset.equip); bagSel = eq.dataset.equip; saveNw(); const fx = afterGear(); renderCard(); render('equip'); if (fx.note) toast(fx.note, 3600); return; }
       const a = e.target.closest('[data-bag-act]');
       if (a) { closeBag(); if (a.dataset.bagAct === 'starter') viewStarter(); else viewCreator(false); }
     });
@@ -1756,7 +1842,8 @@ export function initNewWorld(C) {
       if (sum.win) {
         s.wins++;
         NW.wwin[weaponBase(curWeapon(NW))] = (NW.wwin[weaponBase(curWeapon(NW))] || 0) + 1;
-        if (res.accuracy >= 100 && lv >= 10) NW.perfect = (NW.perfect || 0) + 1;
+        /* accuracy 是 0～1 的小數（畫面才乘 100）；以前寫 >= 100 永遠不成立，「一字不差」從來沒人拿到 */
+        if (res.accuracy >= 1 && lv >= 10) NW.perfect = (NW.perfect || 0) + 1;
         NW.dex[res.mk] = (NW.dex[res.mk] || 0) + 1;
         if (res.star > (NW.zone[res.rk] || 0)) NW.zone[res.rk] = res.star;
         const key = res.rk + ':' + res.star;
@@ -1773,14 +1860,61 @@ export function initNewWorld(C) {
         const n = Math.max(1, Math.round((lo + Math.floor(Math.random() * (hi - lo + 1))) * rolls));
         NW.mats[id] = (NW.mats[id] || 0) + n; sum.drops.push({ id, name, color, n });
       });
-      if (sum.win) m.rare.forEach(([id, name, color]) => {
-        if (Math.random() < 0.3 && !NW.bp.includes(id)) { NW.bp.push(id); sum.rare.push({ id, name, color }); }
-      });
+      if (sum.win) sum.rare = rollBlueprints(NW, res.mk);
+      /* 每場紀錄（2b-9）：算「可疑」、記進步用的速度、排進寫入佇列。2b 開放才開始寫（規則要先貼好，OPEN_STAGES 加 '2b' 就是那個時刻）；
+         測試用的假結果沒有每題摘要（q），就略過 */
+      if (Array.isArray(res.q) && stageOpen('2b')) {
+        const hist = NW.cpmHist[res.qb] || (NW.cpmHist[res.qb] = []);
+        sum.sus = susCheck(res, hist);
+        if (!sum.sus.length && res.cpm > 0) { hist.push(res.cpm); while (hist.length > SUS.jumpNeed) hist.shift(); }
+        queueRun(res, sum);
+      }
     }
     sum.quests = checkQuests();
     sum.words = checkWords(NW);
     saveNw();
+    flushRuns();
     return sum;
+  }
+
+  /* ── 每場紀錄 mg_nw_runs（2b-9，docs/SPEC-STAGE2.md §2.6）──
+     2b 上線就開始寫，學生看不到差別；2a 榮譽碑開放前沒人讀。文件 ID＝文件ID_毫秒，同一場重送不會變兩筆。
+     寫不進去（離線、逾時）就留在 NW.runQ（最多 5 筆，多的丟最舊的），下次進村或下一場結束時補寫；
+     補寫的 ts 是補寫當下的伺服器時間，所以那場算進「補寫的那一週」，這是故意的（改電腦時間塞不了舊紀錄）。
+     學生不能 update：同一個 ID 再寫會被規則擋（permission-denied），當成已經寫進去了。 */
+  const round = (x, k) => Math.round((+x || 0) * 10 ** k) / 10 ** k;
+  function queueRun(res, sum) {
+    const t = Date.now(), rid = `${ME.docId}_${t}`;
+    const run = JSON.parse(JSON.stringify({
+      id: ME.docId, cls: ME.className, seat: Number(ME.seat) || 0, uid: (C.uid && C.uid()) || '', t, v: 1, app: C.appVersion || '',
+      mk: res.mk, rk: res.rk, star: res.star, lv: res.lv, qb: res.qb, res: res.result === 'win' ? 'win' : res.result === 'fail' ? 'fail' : 'retreat',
+      secs: round(res.secs, 1), acc: round(res.accuracy, 3), ans: res.ans, cor: res.cor, typ: res.typ, keys: res.keys, nokey: res.nokey, act: res.act, cpm: res.cpm,
+      fl: { fast: (res.flags || {}).fast || 0, paste: (res.flags || {}).paste || 0, wrong: (res.flags || {}).wrong || 0 },
+      sus: sum.sus || [], w: res.wk || res.weapon, atk: res.atk, pw: res.pw, tier: res.tier, q: [].concat(...res.q)   // 平的數字陣列、每 4 個一題；Firestore 不能存「陣列裡的陣列」（NW.runQ 也會存進 mg_scores）
+    }));
+    const flag = (sum.sus || []).length ? { type: 'run', status: 'pending', docId: ME.docId, cls: ME.className, seat: ME.seat, name: ME.name, runId: rid, why: sum.sus, mk: res.mk, star: res.star, t } : null;
+    NW.runQ.push({ rid, run, flag });
+    while (NW.runQ.length > 5) NW.runQ.shift();
+  }
+  let runBusy = false;
+  async function flushRuns() {
+    if (runBusy || !NW || !NW.runQ || !NW.runQ.length || !C.online()) return;
+    runBusy = true;
+    try {
+      for (const it of NW.runQ.slice()) {
+        if (!it.ran) {
+          try { await C.withTimeout(C.setDoc(C.doc(C.db, 'mg_nw_runs', it.rid), Object.assign({}, it.run, { ts: C.serverTimestamp() })), 6000, 'nw-run'); it.ran = 1; }
+          catch (e) { if (e && e.code === 'permission-denied') it.ran = 1; else { console.warn('寫場次紀錄失敗，之後再補', e); break; } }
+        }
+        let flagOk = !it.flag;
+        if (it.ran && it.flag) {
+          try { await C.withTimeout(C.setDoc(C.doc(C.db, 'mg_nw_flags', 'run_' + it.rid), it.flag), 6000, 'nw-runflag'); flagOk = true; }
+          catch (e) { if (e && e.code === 'permission-denied') flagOk = true; else { console.warn('寫可疑標記失敗，之後再補', e); break; } }
+        }
+        if (it.ran && flagOk) NW.runQ = NW.runQ.filter(x => x.rid !== it.rid);
+        saveNw();
+      }
+    } finally { runBusy = false; }
   }
 
   function showResult(res, sum, done) {
@@ -1819,7 +1953,7 @@ export function initNewWorld(C) {
           <div class="flex items-center gap-2 mt-2"><b class="px-text" style="color:#ffd98a">獵人 Lv ${NW.hr}</b><div class="px-bar xp flex-1"><i data-hr style="width:${p0}%"></i></div></div>
           ${sum.ups ? `<div class="px-title mt-2 px-cursor" style="font-size:1.2em">獵人等級升到 ${NW.hr}！拿到 ${sum.ups} 顆星星（星圖台施工中，先存著）</div>` : ''}
           ${(sum.words || []).length ? `<div class="px-title mt-2 px-cursor" style="font-size:1.1em">${PX.badge(3, 2)} 新的稱號詞條：${sum.words.map(escHtml).join('、')}！到背包點名字下面的稱號，自己拚拚看</div>` : ''}
-          <p class="text-xs mt-2" style="color:#aab0d8">材料和圖紙先幫你存著，鐵匠鋪開張就能用。</p>` : ''}
+          ${stageOpen('2b') ? (fh => `<p class="px-text mt-2" data-forge-hint style="color:#ffd98a;font-weight:900">⚒ 鐵匠鋪：${escHtml(fh ? fh.text : '材料和圖紙先存著，打造和強化都在鐵匠鋪')}</p>`)(forgeHint(NW)) : '<p class="text-xs mt-2" style="color:#aab0d8">材料和圖紙先幫你存著，鐵匠鋪開張就能用。</p>'}` : ''}
         <div class="mt-5 text-right"><button class="px-btn gold" style="padding:10px 30px;font-size:1.1em" data-close>回公會</button></div>
       </div></div>`;
     sheet.addEventListener('click', e => { if (e.target.closest('[data-close]')) { sheet.remove(); done(); } });

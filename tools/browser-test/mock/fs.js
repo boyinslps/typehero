@@ -49,8 +49,8 @@ function ruleCheck(db, op, path, data, exists) {
   if (['competition', 'scores', 'mg_rooms'].includes(col)) return;
   if (col === 'mg_nw_flags') {
     if (op === 'create') {
-      const d = data || {}, keys = ['type', 'status', 'docId', 'cat', 'text', 'did', 'what', 'view', 'mk', 'mon', 'star', 'rate', 'cls', 'seat', 'name', 'oldName', 't'];
-      if (!['bug', 'feedback', 'namechg'].includes(d.type) || (d.status || 'pending') !== 'pending' || Object.keys(d).some(k => !keys.includes(k))) deny(op, path);
+      const d = data || {}, keys = ['type', 'status', 'docId', 'cat', 'text', 'did', 'what', 'view', 'mk', 'mon', 'star', 'rate', 'cls', 'seat', 'name', 'oldName', 't', 'runId', 'why'];
+      if (!['bug', 'feedback', 'namechg', 'run'].includes(d.type) || (d.status || 'pending') !== 'pending' || Object.keys(d).some(k => !keys.includes(k))) deny(op, path);
       if ((d.text || '').length > 400 || (d.did || '').length > 200 || (d.what || '').length > 200) deny(op, path);
       return;
     }
@@ -58,7 +58,17 @@ function ruleCheck(db, op, path, data, exists) {
     deny(op, path);
   }
   if (col === 'mg_scores') { if (op === 'delete') deny(op, path); return; }
-  if (col === 'mg_nw_runs') { if (read || op === 'create') return; deny(op, path); }
+  /* 場次紀錄（firestore-rules.txt）：學生只能新增，欄位白名單、ts 要是伺服器時間、ID＝文件ID_毫秒；不能讀、不能改、不能刪 */
+  if (col === 'mg_nw_runs') {
+    if (op !== 'create') deny(op, path);
+    const d = data || {}, keys = ['id', 'cls', 'seat', 'uid', 't', 'ts', 'v', 'app', 'mk', 'rk', 'star', 'lv', 'qb', 'res', 'secs', 'acc', 'ans', 'cor', 'typ', 'keys', 'nokey', 'act', 'cpm', 'fl', 'sus', 'w', 'atk', 'pw', 'tier', 'q'];
+    if (Object.keys(d).some(k => !keys.includes(k)) || !d.ts || d.ts.__op !== 'ts' || typeof d.id !== 'string' || !new RegExp('^' + d.id + '_[0-9]+$').test(id)) deny(op, path);
+    if (typeof d.uid !== 'string' || !d.uid || d.uid !== (userOf(db) || {}).uid) deny(op, path);
+    if (!(typeof d.secs === 'number' && d.secs >= 0 && d.secs <= 310) || !(typeof d.acc === 'number' && d.acc >= 0 && d.acc <= 1) || !(Number.isInteger(d.star) && d.star >= 1 && d.star <= 5)) deny(op, path);
+    if (!Array.isArray(d.q) || d.q.length > 480 || d.q.length % 4 !== 0 || d.q.some(x => typeof x !== 'number') || !Array.isArray(d.sus) || d.sus.length > 4) deny(op, path);
+    return;
+  }
+  if (col === 'mg_nw_board') { if (read) return; deny(op, path); }
   if (col === 'mg_gift_used') {
     if (read) return;
     if (op === 'create' && data && Object.keys(data).every(k => ['h', 'id', 't'].includes(k)) && typeof data.h === 'string') return;
@@ -106,6 +116,8 @@ function notify(path) {
 }
 const deepMerge = (a, b) => { for (const k of Object.keys(b)) { if (b[k] && b[k].__del) { delete a[k]; continue; } a[k] = (b[k] && typeof b[k] === 'object' && !Array.isArray(b[k]) && !('__ts' in b[k]) && a[k] && typeof a[k] === 'object' && !Array.isArray(a[k])) ? deepMerge(a[k], b[k]) : b[k]; } return a; };
 function doSet(ref, data, opt, by) {
+  /* window.__FAIL_WRITES：路徑符合這個正規表示式的寫入一律丟「連不上」（code unavailable），測離線補寫用 */
+  if (window.__FAIL_WRITES && new RegExp(window.__FAIL_WRITES).test(ref.path)) { const e = new Error('offline (mock)'); e.code = 'unavailable'; throw e; }
   const merge = opt && opt.merge, exists = ref.path in FS;
   ruleCheck(ref.db, exists ? 'update' : 'create', ref.path, data, exists);
   const base = merge ? clone(FS[ref.path] || {}) : {};

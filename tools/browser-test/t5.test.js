@@ -94,7 +94,7 @@ const me = ['id:' + ID5];
     const p = await teacher(b, tseed());
     await tab(p, 'mail');
     const types = await optVals(p, '[data-addgift]');
-    ok(['weapon', 'coins', 'potion', 'exp', 'item', 'mat', 'bp', 'word', 'hr', 'zone', 'dex', 'tut'].every(t => types.includes(t)), '禮物種類涵蓋所有學生端 type：' + types.join(','));
+    ok(['weapon', 'coins', 'potion', 'exp', 'item', 'mat', 'bp', 'gear', 'word', 'hr', 'zone', 'dex', 'tut'].every(t => types.includes(t)), '禮物種類涵蓋所有學生端 type：' + types.join(','));
     /* 一次加 12 種各一列，index 照 types 順序 */
     const order = ['weapon', 'coins', 'potion', 'exp', 'item', 'mat', 'bp', 'word', 'hr', 'zone', 'dex', 'tut'];
     for (const t of order) await p.selectOption('[data-addgift]', t);
@@ -106,13 +106,27 @@ const me = ['id:' + ID5];
     const wByG = await p.$$eval(`[data-key="${ix('word')}"] optgroup`, gs => gs.map(g => [...g.querySelectorAll('option')].map(o => o.value)));
     ok(D.WORD_GROUPS.every((g, i) => JSON.stringify(wByG[i]) === JSON.stringify(D.WORDS.filter(w => w.g === g).map(w => w.id))), '每一組的稱號都放對組');
     ok(JSON.stringify(await optVals(p, `[data-key="${ix('weapon')}"]`)) === JSON.stringify(Object.keys(D.GIFT_WEAPONS)), '武器清單＝GIFT_WEAPONS');
+    /* 裝備（2b）：清單＝GEAR_DEFS，顏色只能選那件做得出來的，強化 +0～+5 */
+    ok(types.includes('gear'), '禮物種類有「🛡 裝備」');
+    await p.selectOption('[data-addgift]', 'gear');
+    const gi = order.length;
+    const gearVals = await optVals(p, `[data-key="${gi}"]`);
+    ok(Object.keys(D.GEAR_DEFS).every(k => gearVals.includes(k)) && gearVals.length === Object.keys(D.GEAR_DEFS).length, `裝備清單涵蓋 GEAR_DEFS 全部 ${Object.keys(D.GEAR_DEFS).length} 件`);
+    await p.selectOption(`[data-key="${gi}"]`, 'coo_hat'); await p.waitForTimeout(150);
+    ok(JSON.stringify(await optVals(p, `[data-gc="${gi}"]`)) === JSON.stringify(['green']) && JSON.stringify(await optVals(p, `[data-gp="${gi}"]`)) === JSON.stringify(['0', '1', '2', '3', '4', '5']), '咕咕帽：顏色只有綠色、強化 +0～+5');
+    await p.selectOption(`[data-gp="${gi}"]`, '3'); await p.waitForTimeout(150);
+    ok((await p.textContent('[data-pv]')).includes('咕咕帽 +3'), '預覽：「🛡 咕咕帽 +3」');
+    await p.selectOption(`[data-key="${gi}"]`, 'w_dagger'); await p.waitForTimeout(150);
+    ok(JSON.stringify(await optVals(p, `[data-gc="${gi}"]`)) === JSON.stringify(['gray', 'green']), '換成小刀：顏色換成灰、綠（舊的強化與顏色重新對過）');
+    ok(JSON.stringify(await optVals(p, `[data-key="${ix('bp')}"]`)).includes('bp_cloth_hat') && (await p.$$eval(`[data-key="${ix('bp')}"] optgroup`, g => g.map(x => x.label))).includes('鐵匠送的布裝'), '圖紙清單有布裝圖紙（放在「鐵匠送的布裝」）');
+    await p.click(`[data-del="${gi}"]`); await p.waitForTimeout(150);   // 拿掉這一列，後面「寄出 12 種」的檢查不要被多的一列影響
     ok(JSON.stringify(await optVals(p, `[data-key="${ix('item')}"]`)) === JSON.stringify(Object.keys(D.ITEM_DEFS).filter(k => k !== 'potion')), '道具清單＝ITEM_DEFS（回復藥有專屬種類）');
     const dropIds = Object.values(D.MONSTERS).flatMap(m => m.drops.map(d => d[0]));
     const matVals = await optVals(p, `[data-key="${ix('mat')}"]`);
     ok(dropIds.every(i => matVals.includes(i)) && matVals.length === dropIds.length && !matVals.some(v => v.startsWith('bp_')), '材料清單＝魔物 drops，沒有混進圖紙');
-    const bpIds = [...Object.values(D.MONSTERS).flatMap(m => m.rare.map(r => r[0])), ...Object.keys(D.STARTERS).map(k => 'bp_' + k)];
+    const bpIds = [...Object.values(D.MONSTERS).flatMap(m => m.rare.map(r => r[0])), ...Object.keys(D.STARTERS).map(k => 'bp_' + k), ...D.CLOTH_BPS];
     const bpVals = await optVals(p, `[data-key="${ix('bp')}"]`);
-    ok(bpIds.every(i => bpVals.includes(i)) && bpVals.length === bpIds.length, '圖紙清單＝魔物 rare＋初心武器圖紙');
+    ok(bpIds.every(i => bpVals.includes(i)) && bpVals.length === bpIds.length, '圖紙清單＝魔物 rare＋初心武器圖紙＋鐵匠送的布裝圖紙');
     const regs = Object.keys(D.REGIONS).filter(k => !D.REGIONS[k].wip);
     ok(JSON.stringify(await optVals(p, `[data-key="${ix('zone')}"]`)) === JSON.stringify(regs), '區域清單只有已開放的區域：' + regs.join(','));
     ok(JSON.stringify(await optVals(p, `[data-key="${ix('dex')}"]`)) === JSON.stringify(Object.keys(D.MONSTERS)), '圖鑑清單＝MONSTERS');
@@ -349,7 +363,7 @@ const me = ['id:' + ID5];
     const after = await nwLocal(p);
     ok(after.bp.length === before.bp.length && after.hr === before.hr && after.zone.grass === 3 && after.dex.frog === 1 && after.words.filter(w => w === 'staff2').length === 1 && after.mail.d1, '另一封信送一樣的東西：圖紙不重複、等級不往下、區域不往下、圖鑑次數不變、詞條不重複');
     ok(g2.includes('已經會了') && g2.includes('已經比這個高了') && g2.includes('走得比這裡更遠') && g2.includes('本來就打倒過') && g2.includes('已經學會了') && g2.includes('本來就有了'), '通知寫「已經會了／已經比這個高了／走得更遠／本來就打倒過／已經學會了／本來就有了」');
-    ok(after.coins === before.coins, '沒有多給字元');
+    ok(after.coins === before.coins + D.BP_DUP_COINS, `重複的圖紙換成 ${D.BP_DUP_COINS} 字元（GDD §12.5），其他重複的都不多給字元`);
     /* 背包看得到 */
     await p.click('#nw-mail [data-close]').catch(() => {}); await p.waitForTimeout(100);
     await p.click('[data-act="bagopen"]'); await p.waitForTimeout(400);

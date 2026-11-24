@@ -4,7 +4,7 @@ const TABS = [
   ['hr', '獵人等級', r => r.hr * 1000 + r.hrExp, r => `Lv ${r.hr}`],
   ['fast', '最快討伐', null, null],
   ['dex', '圖鑑', r => r.dexN * 100 + r.starN, r => `${r.dexN} 種魔物・${r.starN} 區 ★5`],
-  ['acc', '精準獵人', r => r.acc, r => `${r.acc.toFixed(0)}%（${r.accN} 場）`]
+  ['acc', '精準獵人', r => r.acc, r => `${(r.acc * 100).toFixed(0)}%（${r.accN} 場）`]
 ];
 
 const MIN_ACC_RUNS = 10;

@@ -2,7 +2,7 @@
    所以集中在這裡讀一次；寫入之後呼叫 invalidate('board') 之類，下次再讀才是新的。
    快取只活在這個分頁的記憶體，重新整理就沒了。 */
 import { db, collection, doc, getDoc, getDocs, query, orderBy, limit } from './fb.js';
-import { toMs, normName, normalizeNw, curWeapon, weaponInfo, clsShort, normalizeEvent, phaseOf } from './nw.js';
+import { toMs, normName, normalizeNw, curWeapon, weaponInfo, clsShort, normalizeEvent, phaseOf, gearPower } from './nw.js';
 
 const cache = {};
 const TTL = 45 * 1000;
@@ -35,7 +35,7 @@ export function loadScores(force) {
         id: d.id, className: x.className || p.className, seat: +(x.seat !== undefined && x.seat !== '' ? x.seat : p.seat) || 0, name: x.name || '',
         played, nw, raw: x,
         nick: played ? (x.name || '') : '', hr: nw ? nw.hr : 0, coins: nw ? nw.coins : 0, weapon: w ? w.name : '',
-        hunts: nw ? (nw.hunts || 0) : 0, wins: nw ? nw.stat.wins : 0, fails: nw ? nw.stat.fails : 0,
+        power: nw ? gearPower(nw) : 0, hunts: nw ? (nw.hunts || 0) : 0, wins: nw ? nw.stat.wins : 0, fails: nw ? nw.stat.fails : 0,
         sent: nw ? (nw.bugsSent || 0) : 0, last, nwCls: x.nwCls || ''
       });
     });

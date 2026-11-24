@@ -437,16 +437,17 @@ const saveForm = async p => { await submitForm(p); await waitModal(p); await cli
 
     /* 確認 q2（嚴重度大），再確認 q1（小）：firstAt 看送出時間不是確認順序 */
     await T.click('[data-confirm="q2"]'); await waitModal(T);
-    ok((await modalText(T)).includes('會寄信：🪙 字元 ×15'), '確認視窗說明會寄 15 字元');
+    ok((await modalText(T)).includes('小 15／中 30／大 45'), '確認視窗說明字元照嚴重度（小 15／中 30／大 45）');
     await clickSev(T, 3); await T.fill('[data-reply]', '謝謝，我修好了'); await clickModal(T, 'ok'); await T.waitForTimeout(700);
     let b5 = await FS(T, 'mg_bugboard/' + ID5), q2 = await FS(T, 'mg_nw_flags/q2'), ml = await FS(T, 'mg_mail/bug_q2');
     ok(q2.status === 'approved' && q2.sev === 3 && q2.reply === '謝謝，我修好了', '確認 q2：flag 寫 status／sev／reply');
     ok(b5.score === 3 && b5.n === 1 && b5.firstAt === NOW - 2 * H && b5.reports.length === 1 && b5.reports[0].id === 'q2' && b5.reports[0].st === 'approved' && b5.reports[0].sev === 3 && b5.reports[0].t === NOW - 2 * H && b5.className === C3 && b5.seat === 5, '確認 q2：bugboard 分數 3、n 1、firstAt＝送出時間、reports 一筆：' + JSON.stringify(b5));
-    ok(ml && ml.aud.join() === 'id:' + ID5 && ml.items.length === 1 && ml.items[0].type === 'coins' && ml.items[0].n === 15 && ml.src === 'bug' && ml.from === '老師' && ml.body.includes('謝謝，我修好了') && ml.title.length <= 20 && ml.body.length <= 200, '確認 q2：獎勵信 bug_q2（15 字元、帶老師回覆）');
+    ok(ml && ml.aud.join() === 'id:' + ID5 && ml.items.length === 1 && ml.items[0].type === 'coins' && ml.items[0].n === 45 && ml.src === 'bug' && ml.from === '老師' && ml.body.includes('謝謝，我修好了') && ml.title.length <= 20 && ml.body.length <= 200, '確認 q2：獎勵信 bug_q2（大＝45 字元、帶老師回覆）');
+    ok(ml.body.includes('你回報的：') && ml.body.indexOf('你回報的：') < ml.body.indexOf('老師說：'), '獎勵信先引用他回報的內容，再寫老師說的話：' + ml.body.split(String.fromCharCode(10)).join('／'));
     await T.click('[data-confirm="q1"]'); await waitModal(T); await clickModal(T, 'ok'); await T.waitForTimeout(700);
     b5 = await FS(T, 'mg_bugboard/' + ID5);
     ok(b5.score === 4 && b5.n === 2 && b5.firstAt === NOW - 2 * H && b5.reports.length === 2 && (await FS(T, 'mg_nw_flags/q1')).sev === 1, '再確認較早送出的 q1（小）：分數 4、n 2、firstAt 仍是較晚送出那則 q2 的時間（不是確認時間）');
-    ok((await FS(T, 'mg_mail/bug_q1')).items[0].n === 15, 'q1 也寄了 15 字元');
+    ok((await FS(T, 'mg_mail/bug_q1')).items[0].n === 15, 'q1（小）寄了 15 字元');
     const lg = (await logsOf(T)).filter(l => l.act === '確認回報');
     ok(lg.length === 2, '確認動作寫操作紀錄');
 
@@ -568,7 +569,7 @@ const saveForm = async p => { await submitForm(p); await waitModal(p); await cli
     const c0 = (await nwLocal(S)).coins;
     await S.click('#nw-mail [data-all]'); await S.waitForTimeout(600); await dismissGifts(S);
     const nw = await nwLocal(S);
-    ok(expect === 15 + 15 + 50 + 5 && nw.coins === c0 + expect, `領信：字元 +${expect}（回報 15＋15、第 1 名 50、參加獎 5）：${nw.coins - c0}`);
+    ok(expect === 45 + 15 + 50 + 5 && nw.coins === c0 + expect, `領信：字元 +${expect}（回報 45＋15、第 1 名 50、參加獎 5）：${nw.coins - c0}`);
     ok(nw.awards && nw.awards.bugking === 1, '領到「職業除錯師」稱號詞條');
     ok(nw.bugScore === 5 && nw.bugs >= 1, '同步抓蟲分 5（確認 3＋加分 2）：' + nw.bugScore);
     await S.keyboard.press('Escape'); await S.waitForTimeout(200);

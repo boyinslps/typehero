@@ -100,6 +100,15 @@ function dagger(s, hx, hy, tx, ty) {
   const [ex, ey] = at(-.8); put(s, ex, ey, '#e8b64c');
 }
 W.dagger = () => { const s = mk(28, 28); dagger(s, 4, 24, 23, 4); dagger(s, 24, 24, 5, 4); outline(s, OL); return s; };
+function fireBlade(s, hx, hy, tx, ty) {
+  const dx = tx - hx, dy = ty - hy, L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L, px = -uy, py = ux;
+  const at = (t, o = 0) => [hx + ux * t + px * o, hy + uy * t + py * o];
+  for (let t = 5; t < L; t += .5) { const w = t > L - 3 ? 0 : 1; const [x, y] = at(t); put(s, x, y, t > L * .62 ? '#ffd24a' : '#ff8a3c'); if (w) { const [x2, y2] = at(t, 1); put(s, x2, y2, '#b8401a'); } }
+  for (let t = 0; t < 4.5; t += .5) { const [x, y] = at(t); put(s, x, y, '#5a2a1a'); }
+  for (let o = -3; o <= 3; o += .5) { const [x, y] = at(4.8, o); put(s, x, y, '#e8b64c'); }
+  const [ex, ey] = at(-.8); put(s, ex, ey, '#e8b64c');
+}
+W.flame_dagger = () => { const s = mk(28, 28); fireBlade(s, 4, 24, 23, 4); fireBlade(s, 24, 24, 5, 4); outline(s, OL); [[14, 9], [9, 15], [19, 17], [16, 5]].forEach(([x, y]) => put(s, x, y, '#ffe27a')); return s; };
 function darkBlade(s, hx, hy, tx, ty) {
   const dx = tx - hx, dy = ty - hy, L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L, px = -uy, py = ux;
   const at = (t, o = 0) => [hx + ux * t + px * o, hy + uy * t + py * o];
@@ -545,7 +554,7 @@ function hero(look) {
   rect(s, cx - 5, 21, 11, 1, L.trim);
   rect(s, cx - 7, 13, 3, 3, lt(L.armor, .15)); rect(s, cx + 5, 13, 3, 3, dk(L.armor, .1)); rect(s, cx - 7, 13, 3, 1, L.trim); rect(s, cx + 5, 13, 3, 1, L.trim);
   rect(s, cx - 7, 16, 2, 6, dk(L.armor, .1)); rect(s, cx + 6, 16, 2, 6, dk(L.armor, .2));
-  rect(s, cx - 7, 22, 2, 2, L.skin); rect(s, cx + 6, 22, 2, 2, L.skin);
+  rect(s, cx - 7, 22, 2, 2, L.hands || L.skin); rect(s, cx + 6, 22, 2, 2, L.hands || L.skin);
   if (L.cape) {
     rect(s, cx - 5, 14, 11, 13, L.cape); rect(s, cx - 5, 14, 2, 13, lt(L.cape, .2)); rect(s, cx + 4, 14, 2, 13, dk(L.cape, .25));
     rect(s, cx - 5, 26, 11, 1, L.trim); line(s, cx, 15, cx, 25, dk(L.cape, .2));
@@ -561,6 +570,17 @@ function hero(look) {
   if (L.helm === 'helm' || L.helm === 'horn') {
     sell(s, cx, 6, 6, 5, '#aeb8c4'); rect(s, cx, 1, 1, 10, L.trim); rect(s, cx - 6, 10, 13, 2, '#8e9aa6'); rect(s, cx - 6, 10, 13, 1, '#c8d0da');
   }
+  /* 打造的頭盔（nw-data.js GEAR_DEFS）：helmC＝主色、helmTrim＝花邊（強化越高越亮） */
+  if (L.helm === 'cloth' || L.helm === 'coo') {
+    const c = L.helmC || '#a08a6a';
+    sdisc(s, cx, 5, 5, c); rect(s, cx - 6, 8, 13, 2, dk(c, .22)); rect(s, cx - 6, 8, 13, 1, lt(c, .12)); rect(s, cx - 6, 9, 13, 1, L.helmTrim || dk(c, .35));
+    if (L.helm === 'coo') { rect(s, cx, 0, 1, 3, '#f0eee8'); put(s, cx - 1, 1, '#d8d4c8'); put(s, cx + 1, 1, '#d8d4c8'); put(s, cx - 1, 2, '#f0eee8'); put(s, cx + 1, 2, '#f0eee8'); }
+  }
+  if (L.helm === 'shroom') {
+    const c = L.helmC || '#c0392b';
+    sdisc(s, cx, 5, 6, c); rect(s, cx - 7, 8, 15, 2, dk(c, .25)); rect(s, cx - 7, 8, 15, 1, lt(c, .1)); rect(s, cx - 7, 9, 15, 1, L.helmTrim || dk(c, .4));
+    [[cx - 3, 3], [cx + 2, 2], [cx + 4, 5], [cx - 1, 5]].forEach(([x, y]) => rect(s, x, y, 2, 2, '#f0eee8'));
+  }
   if (L.helm === 'horn') { line(s, cx - 6, 6, cx - 9, 1, '#f4efe0'); line(s, cx - 6, 5, cx - 8, 1, '#d8d0bc'); line(s, cx + 6, 6, cx + 9, 1, '#f4efe0'); line(s, cx + 6, 5, cx + 8, 1, '#d8d0bc'); }
   const wood = '#a8763c', steel = '#dfe6ec';
   if (L.weapon === 'staff') { tline(s, cx + 9, 28, cx + 9, 6, wood, '#74491f'); disc(s, cx + 9, 4, 3, '#6a42e8'); put(s, cx + 8, 3, '#e6d9ff'); }
@@ -569,7 +589,7 @@ function hero(look) {
     line(s, cx + 8, 8, cx + 8, 26, '#efe6c8');
   }
   if (L.weapon === 'testblade') { rect(s, cx + 6, 11, 2, 11, '#2a1b3a'); rect(s, cx + 7, 11, 1, 11, '#9a5ae8'); rect(s, cx + 5, 22, 4, 1, '#c9a6ff'); put(s, cx + 9, 10, '#c9a6ff'); put(s, cx + 4, 14, '#9a5ae8'); }
-  if (L.weapon === 'dagger') { rect(s, cx + 6, 12, 2, 10, steel); rect(s, cx + 7, 12, 1, 10, '#8e9aa6'); rect(s, cx + 5, 22, 4, 1, L.trim); }
+  if (L.weapon === 'dagger') { const fire = L.wfx === 'fire'; rect(s, cx + 6, 12, 2, 10, fire ? '#ff8a3c' : steel); rect(s, cx + 7, 12, 1, 10, fire ? '#b8401a' : '#8e9aa6'); if (fire) { rect(s, cx + 6, 12, 2, 3, '#ffd24a'); put(s, cx + 9, 11, '#ffe27a'); } rect(s, cx + 5, 22, 4, 1, L.trim); }
   if (L.weapon === 'sword') {
     rect(s, cx + 6, 8, 2, 14, steel); rect(s, cx + 7, 8, 1, 14, '#8e9aa6'); rect(s, cx + 5, 22, 4, 1, L.trim);
     poly(s, [[cx - 12, 16], [cx - 6, 16], [cx - 6, 22], [cx - 9, 26], [cx - 12, 22]], '#3a6ea5'); rect(s, cx - 12, 16, 7, 1, L.trim); rect(s, cx - 10, 18, 3, 1, '#f0f4f8'); rect(s, cx - 9, 17, 1, 6, '#f0f4f8');
@@ -675,12 +695,15 @@ function chibiGrid(look, dir, frame) {
   rect(s, 5, 18 + dy[0] - 1, 3, 2, L.boots); rect(s, 8, 18 + dy[1] - 1, 3, 2, L.boots);
   rect(s, 4, 10, 8, 6, L.armor); rect(s, 4, 10, 2, 6, lt(L.armor, .2)); rect(s, 4, 14, 8, 1, L.trim);
   rect(s, 2, 11, 2, 4, dk(L.armor, .15)); rect(s, 12, 11, 2, 4, dk(L.armor, .25));
-  put(s, 2, 15, L.skin); put(s, 3, 15, L.skin); put(s, 12, 15, L.skin); put(s, 13, 15, L.skin);
+  const hd = L.hands || L.skin;
+  put(s, 2, 15, hd); put(s, 3, 15, hd); put(s, 12, 15, hd); put(s, 13, 15, hd);
   if (L.style === 'long' && dir !== 'down') rect(s, 3, 8, 10, 6, L.hair);
   sdisc(s, 8, 6, 5, L.hair);
   if (dir === 'down') { rect(s, 5, 5, 6, 5, L.skin); put(s, 6, 7, '#222'); put(s, 9, 7, '#222'); rect(s, 5, 3, 6, 2, L.hair); }
   if (dir === 'left') { rect(s, 3, 5, 5, 5, L.skin); put(s, 4, 7, '#222'); rect(s, 5, 3, 6, 2, L.hair); }
   if (dir === 'right') { rect(s, 8, 5, 5, 5, L.skin); put(s, 11, 7, '#222'); rect(s, 5, 3, 6, 2, L.hair); }
+  if (L.helm === 'cloth' || L.helm === 'coo') { const c = L.helmC || '#a08a6a'; rect(s, 4, 2, 8, 3, c); rect(s, 3, 4, 10, 1, dk(c, .22)); rect(s, 4, 4, 8, 1, L.helmTrim || dk(c, .35)); if (L.helm === 'coo') { rect(s, 8, 0, 1, 2, '#f0eee8'); put(s, 7, 1, '#d8d4c8'); put(s, 9, 1, '#d8d4c8'); } }
+  if (L.helm === 'shroom') { const c = L.helmC || '#c0392b'; rect(s, 3, 1, 10, 3, c); rect(s, 2, 4, 12, 1, dk(c, .25)); rect(s, 3, 4, 10, 1, L.helmTrim || dk(c, .4)); put(s, 5, 2, '#f0eee8'); put(s, 9, 1, '#f0eee8'); put(s, 11, 3, '#f0eee8'); }
   if (L.style === 'bun') sdisc(s, 8, 1, 2, L.hair);
   if (L.style === 'spiky') { tri(s, 5, 0, 3, 1, L.hair); tri(s, 8, -1, 2, 1, L.hair); tri(s, 11, 0, 3, 1, L.hair); }
   if (L.style === 'pony' && dir !== 'down') { rect(s, 7, 10, 2, 5, L.hair); }
@@ -1064,11 +1087,52 @@ IT.renameCard = () => {
   rect(s, 13, 8, 3, 3, '#ffd24a'); put(s, 14, 7, '#ffd24a'); put(s, 14, 11, '#ffd24a'); put(s, 14, 9, '#fff2a8');
   return outline(s, '#1a1209');
 };
-const GRIDS = { weapon: W, region: RG, monster: M, item: IT };
+/* 裝備圖示 16×16（UI-ART-SPEC §7）：一件一個函式，只用調色盤顏色，有輪廓。PX.canvas('gear', key, 倍率) */
+const GR = {};
+const g16 = () => mk(16, 16);
+const GC = { cloth: '#a08a6a', coo: '#6aa84f', frog: '#3e9a96', shroom: '#c0392b', wolf: '#b8502a', feather: '#f0eee8' };
+function capIcon(c, trimC) {
+  const s = g16();
+  sdisc(s, 8, 8, 5, c); rect(s, 2, 11, 12, 2, dk(c, .22)); rect(s, 2, 11, 12, 1, lt(c, .12)); rect(s, 4, 10, 8, 1, trimC || dk(c, .35));
+  return s;
+}
+function vestIcon(c) {
+  const s = g16();
+  rect(s, 4, 4, 8, 10, c); rect(s, 2, 4, 3, 5, dk(c, .12)); rect(s, 11, 4, 3, 5, dk(c, .22));
+  rect(s, 6, 4, 4, 2, null); rect(s, 4, 4, 2, 10, lt(c, .18)); rect(s, 4, 12, 8, 2, dk(c, .22)); line(s, 8, 6, 8, 13, dk(c, .3));
+  return s;
+}
+function glovesIcon(c) {
+  const s = g16();
+  [[2, false], [9, true]].forEach(([x, flip]) => {
+    rect(s, x, 5, 5, 7, c); rect(s, x, 5, 5, 2, lt(c, .2)); rect(s, flip ? x - 1 : x + 4, 8, 2, 3, dk(c, .12)); rect(s, x, 12, 5, 2, dk(c, .3));
+    rect(s, x + 1, 3, 1, 3, c); rect(s, x + 3, 3, 1, 3, c);
+  });
+  return s;
+}
+function bootsIcon(c) {
+  const s = g16();
+  [[2], [9]].forEach(([x]) => { rect(s, x, 4, 5, 8, c); rect(s, x, 4, 5, 1, lt(c, .25)); rect(s, x, 12, 6, 2, dk(c, .45)); rect(s, x, 8, 5, 1, dk(c, .2)); });
+  return s;
+}
+GR.cloth_hat = () => outline(capIcon(GC.cloth), OL);
+GR.cloth_vest = () => outline(vestIcon(GC.cloth), OL);
+GR.cloth_gloves = () => outline(glovesIcon(GC.cloth), OL);
+GR.cloth_shoes = () => outline(bootsIcon(GC.cloth), OL);
+GR.coo_hat = () => { const s = capIcon(GC.coo); rect(s, 8, 1, 1, 4, GC.feather); put(s, 7, 2, '#d8d4c8'); put(s, 9, 2, '#d8d4c8'); put(s, 7, 3, GC.feather); put(s, 9, 3, GC.feather); return outline(s, OL); };
+GR.coo_gloves = () => { const s = glovesIcon(GC.coo); [[2, 12], [9, 12]].forEach(([x, y]) => { rect(s, x, y, 5, 1, GC.feather); put(s, x + 1, y + 1, GC.feather); put(s, x + 3, y + 1, GC.feather); }); return outline(s, OL); };
+GR.frog_boots = () => { const s = bootsIcon(GC.frog); [[3, 6], [10, 6]].forEach(([x, y]) => { put(s, x, y, '#bfe8ff'); put(s, x + 1, y, '#bfe8ff'); }); return outline(s, OL); };
+GR.frog_vest = () => { const s = vestIcon(GC.frog); [[5, 7], [9, 8], [6, 10], [10, 11], [5, 12]].forEach(([x, y]) => put(s, x, y, lt(GC.frog, .35))); return outline(s, OL); };
+GR.shroom_cap = () => { const s = g16(); sdisc(s, 8, 7, 6, GC.shroom); rect(s, 1, 11, 14, 2, dk(GC.shroom, .25)); rect(s, 1, 11, 14, 1, lt(GC.shroom, .1)); [[5, 5], [9, 4], [11, 8], [7, 8]].forEach(([x, y]) => rect(s, x, y, 2, 2, GC.feather)); return outline(s, OL); };
+/* 資料表新增了裝備、還沒畫圖示時用的「？」方塊，畫面不會壞掉（UI-ART-SPEC §7 要補圖示） */
+GR.unknown = () => { const s = g16(); rect(s, 3, 3, 10, 10, '#5a5a6a'); rect(s, 3, 3, 10, 1, '#8a8a9a'); rect(s, 6, 5, 4, 1, '#e8e8f0'); rect(s, 9, 6, 1, 2, '#e8e8f0'); rect(s, 7, 8, 2, 1, '#e8e8f0'); rect(s, 7, 10, 2, 1, '#e8e8f0'); return outline(s, OL); };
+GR.wolf_mail = () => { const s = vestIcon(GC.wolf); rect(s, 4, 3, 8, 2, '#8a6a4a'); [[5, 3], [7, 4], [9, 3], [11, 4]].forEach(([x, y]) => put(s, x, y, '#c8a070')); rect(s, 7, 8, 2, 3, '#ff8a3c'); put(s, 8, 7, '#ffd24a'); put(s, 8, 8, '#ffd24a'); return outline(s, OL); };
+
+const GRIDS = { weapon: W, region: RG, monster: M, item: IT, gear: GR };
 const cache = {};
 function grid(kind, key) {
   const id = kind + ':' + key;
-  return cache[id] || (cache[id] = kind === 'portal' ? portal() : kind === 'hunter' ? hunter() : kind === 'battle' ? battle() : GRIDS[kind][key]());
+  return cache[id] || (cache[id] = kind === 'portal' ? portal() : kind === 'hunter' ? hunter() : kind === 'battle' ? battle() : (GRIDS[kind][key] || (kind === 'gear' ? GR.unknown : null))());
 }
 return {
   canvas: (kind, key, scale, angry) => blit(grid(kind, key), scale, !!angry),

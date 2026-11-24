@@ -8,7 +8,7 @@
 
    teacher/nw.js 是各分頁共用的入口、目前有別人在改；新加的幾個名稱先直接從 nw-data.js 拿（見下面第二個 import）。 */
 import { GIFT_WEAPONS, ITEM_DEFS, WORDS, WORD_GROUPS, MONSTERS, REGIONS, HR_MAX, weaponInfo, ownedWeapons } from './nw.js';
-import { MAT_INFO, isBpId, TUT_LESSONS, ZONE_STAR_MAX, COLOR_NAME } from '../nw-data.js';
+import { MAT_INFO, isBpId, TUT_LESSONS, ZONE_STAR_MAX, COLOR_NAME, GEAR_DEFS, GEAR_SLOTS, GEAR_MAX_P, gearDef, defColors, giftGearOk, itemName } from '../nw-data.js';
 
 /* 材料與圖紙的名稱（顯示用，含圖紙）；每次現查 MAT_INFO，資料表之後加東西不用重開 */
 const matName = id => (MAT_INFO[id] || [id])[0];
@@ -27,7 +27,7 @@ const dropOwner = () => {
   return m;
 };
 const pickMats = () => { const o = dropOwner(); return Object.keys(MAT_INFO).filter(id => !isBpId(id)).map(id => ({ value: id, label: `${matName(id)}（${COLOR_NAME[MAT_INFO[id][1]] || ''}）`, group: o[id] || '其他' })); };
-const pickBps = () => { const o = dropOwner(); return Object.keys(MAT_INFO).filter(isBpId).map(id => ({ value: id, label: matName(id), group: o[id] ? `${o[id]}掉的` : '初心武器' })); };
+const pickBps = () => { const o = dropOwner(); return Object.keys(MAT_INFO).filter(isBpId).map(id => ({ value: id, label: matName(id), group: o[id] ? `${o[id]}掉的` : id.startsWith('bp_cloth') ? '鐵匠送的布裝' : '初心武器' })); };
 const regionsOpen = () => Object.entries(REGIONS).filter(([, r]) => !r.wip);
 
 /* 一種禮物一列：
@@ -47,6 +47,9 @@ export const GIFT_TYPES = [
   { type: 'mat', label: '📦 材料', pick: pickMats, qty: true, def: 1, search: true, big: it => it.n > 50, bigNorm: 50 },
   { type: 'bp', label: '📜 圖紙', pick: pickBps, qty: false, search: true,
     note: '學生學會這張圖紙；已經會了就什麼都不加。' },
+  /* 裝備（2b）：一件做好的裝備，顏色只能選那件做得出來的、強化 +0～+5。學生背包滿 60 件就先留著不領 */
+  { type: 'gear', label: '🛡 裝備', gear: true, pick: () => Object.entries(GEAR_DEFS).map(([k, d]) => ({ value: k, label: d.name, group: (GEAR_SLOTS.find(s => s[0] === d.slot) || ['', '其他'])[1] })), qty: false, search: true,
+    note: '寄一件做好的裝備（選顏色、強化幾）。裝備遺失或被弄壞時，補寄同樣的就好。學生的裝備滿 60 件時這封信會先留著。' },
   { type: 'word', label: '🏅 稱號詞條', pick: () => WORDS.map(w => ({ value: w.id, label: w.w, group: w.g, hint: w.how })), qty: false, search: true,
     note: '任何稱號詞條都能頒，領到就解鎖，不用達成條件。學生要到背包點名字下面的稱號才能戴上。' },
   { type: 'hr', label: '⭐ 獵人等級（直接升到）', qty: true, def: 5, min: 2, max: HR_MAX, unit: '升到 HR', mailOnly: true, big: it => it.n > 15, bigNorm: 15,
@@ -91,8 +94,17 @@ export function newItem(type) {
   const g = giftType(type), it = { type };
   if (g.pick) it.key = g.pick()[0].value;
   if (g.qty) it.n = g.def;
+  if (g.gear) { it.c = defColors(gearDef(it.key))[0]; it.p = 0; }
   return it;
 }
+/* 裝備列多出來的兩個下拉（顏色、強化）；換了裝備，顏色要重新對到那件做得出來的顏色 */
+export function fixGear(it) {
+  if (!it || it.type !== 'gear') return;
+  const cols = defColors(gearDef(it.key));
+  if (!cols.includes(it.c)) it.c = cols[0];
+  if (!Number.isInteger(it.p) || it.p < 0 || it.p > GEAR_MAX_P) it.p = 0;
+}
+export const gearFieldsHtml = (it, i, ac, ap, esc) => `<select class="inp" ${ac}="${i}" aria-label="顏色">${defColors(gearDef(it.key)).map(c => `<option value="${c}" ${c === it.c ? 'selected' : ''}>${esc(COLOR_NAME[c])}色</option>`).join('')}</select><select class="inp" ${ap}="${i}" aria-label="強化">${Array.from({ length: GEAR_MAX_P + 1 }, (_, p) => `<option value="${p}" ${p === it.p ? 'selected' : ''}>+${p}</option>`).join('')}</select>`;
 
 /* 跟學生信箱的 itemLabel() 同樣的字 */
 export const itemLabel = it => !it ? '' : ({
@@ -102,7 +114,8 @@ export const itemLabel = it => !it ? '' : ({
   mat: () => `📦 ${matName(it.key)} ×${it.n}`, word: () => `🏅 稱號詞條「${wordName(it.key)}」`,
   bp: () => `📜 圖紙「${matName(it.key)}」`, hr: () => `⭐ 獵人等級升到 ${it.n}`,
   zone: () => `🗺 ${zoneName(it.key)} ★${it.n} 以下都算過關`, dex: () => `📖 圖鑑：${monName(it.key)}`,
-  tut: () => `🏫 教學大樓：${lessonName(it.key)}課學會了`
+  tut: () => `🏫 教學大樓：${lessonName(it.key)}課學會了`,
+  gear: () => `🛡 ${(gearDef(it.key) || { name: '新裝備' }).name}${it.p ? ' +' + it.p : ''}`
 }[it.type] || (() => '❓ 新東西'))();
 
 /* 寄出前檢查一列禮物；回錯誤文字或 '' */
@@ -110,6 +123,7 @@ export function itemError(it) {
   const g = giftType(it.type);
   if (!g) return '不認得的禮物種類';
   if (g.pick && !g.pick().some(o => o.value === it.key)) return `${g.label}：請選一個`;
+  if (g.gear && !giftGearOk(it)) return `${g.label}：顏色或強化不對`;
   const lo = g.min || 1, hi = g.max || 100000;
   if (g.qty && !(Number.isInteger(it.n) && it.n >= lo && it.n <= hi)) return `${g.label}：數量要是 ${lo}～${hi} 的整數`;
   return '';
@@ -130,6 +144,7 @@ export function ownedSummary(nw) {
     mats: cnt(nw.mats, matName),
     bps: (nw.bp || []).map(matName),
     items: cnt(nw.items, k => (ITEM_DEFS[k] || { name: k }).name),
-    weapons: ownedWeapons(nw).map(k => (weaponInfo(k) || { name: k }).name)
+    weapons: ownedWeapons(nw).map(k => (weaponInfo(k) || { name: k }).name),
+    gears: (nw.gear || []).filter(g => gearDef(g.k)).map(g => itemName(g))
   };
 }

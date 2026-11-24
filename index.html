@@ -2732,8 +2732,21 @@ function initNw() {
    版本紀錄：首頁右下角那顆 v2.0.0 按鈕點開看到的內容。
    跟 CHANGELOG.md 是同一份資料，改一邊也要記得改另一邊。
    ══════════════════════════════════════════════════════════════ */
-const APP_VERSION = '3.14.2';
+const APP_VERSION = '3.14.4';
 const VERSION_LOG = [
+  { v:'3.14.4', date:'2026-11-23', title:'回報的字元照問題大小給',
+    changed: [
+      '回報被老師確認，字元照問題大小給：小 15、中 30、大 45',
+      '老師回信會寫出你回報的內容。「測試員手冊」的「我的回報」也看得到你自己寫了什麼'
+    ] },
+  { v:'3.14.3', date:'2026-11-23', title:'修好了同學回報的幾個問題',
+    fixed: [
+      '「一字不差」稱號修好了，Lv10 以上打出 100% 就拿得到',
+      '打怪的題目不會一直重複了',
+      '教學大樓做完三堂課，會跳出下一個任務了。練習也不能貼上了',
+      '重置天賦，退回的點數會跟你當初花的一樣',
+      '精準獵人榜的正確率數字顯示對了'
+    ] },
   { v:'3.14.2', date:'2026-11-20', title:'佈告欄的活動可以點進去看排名了',
     added: [
       '「🎪 活動」最上面多了「🐛 抓蟲大作戰」，一直都在。抓蟲榜也放在裡面',
@@ -5308,7 +5321,8 @@ async function buyTalent(id) {
   const pts = (MY_HIST && MY_HIST.growthPts) || 0;
   if (pts < cost) { toast(`還差 ${cost - pts} 點`); return; }
 
-  const talents = Object.assign({}, myTalents(), { [id]: 1 });
+  /* 值存「這個節點實際花的點數」：雲端的 map 不保留順序，重置時才退得準 */
+  const talents = Object.assign({}, myTalents(), { [id]: cost });
   MY_HIST = Object.assign({}, MY_HIST, {
     talents, talentCount: myTalentCount() + 1,
     growthPts: pts - cost, lastPlayedMs: Date.now()
@@ -5334,15 +5348,17 @@ async function resetTalents() {
   if (!n) { toast('還沒點亮任何天賦'); return; }
   if (!confirm(`要把已經點亮的 ${n} 個天賦全部收回來嗎？
 點數會全部還給你，可以重新分配。`)) return;
-  // 退款＝把已經花掉的全部還回來（累計花費就是 10n²，含大節點的兩倍價另計）
+  /* 退款＝實際花掉的。以前用「現在 key 的順序」重算價錢，但雲端 map 的 key 是照字母排、不是照買的順序，
+     大節點（兩倍價）被算在別的位置，退回來的點數就跟花掉的不一樣。現在每個節點的值就是當時付的點數；
+     舊存檔的值是 1（順序已經不可考），照「大節點最後買」算，只會多退、不會少退。 */
   let refund = 0;
   const owned = myTalents();
-  let i = 0;
-  for (const id of Object.keys(owned)) {
-    if (!owned[id]) continue;
-    i++;
-    refund += talentCost(i, !!(TALENTS[id] && TALENTS[id].big));
-  }
+  const ids = Object.keys(owned).filter(id => owned[id]);
+  const paid = ids.filter(id => typeof owned[id] === 'number' && owned[id] > 1);
+  paid.forEach(id => { refund += owned[id]; });
+  const legacy = ids.filter(id => !paid.includes(id));
+  const small = legacy.filter(id => !(TALENTS[id] && TALENTS[id].big)), bigs = legacy.filter(id => TALENTS[id] && TALENTS[id].big);
+  [...small, ...bigs].forEach((id, k) => { refund += talentCost(k + 1, !!(TALENTS[id] && TALENTS[id].big)); });
   MY_HIST = Object.assign({}, MY_HIST, {
     talents: {}, talentCount: 0,
     growthPts: ((MY_HIST && MY_HIST.growthPts) || 0) + refund,
@@ -7425,6 +7441,9 @@ function wireEvents() {
     $, show, toast, escHtml, ME, db, doc, getDoc, setDoc, deleteDoc, collection, getDocs, query, where, documentId, increment, REF, withTimeout, gotoLobby,
     orderBy, limit, getCountFromServer, serverTimestamp, adminDb: ensureAdmin,
     online: () => ONLINE,
+    /* 每場紀錄（mg_nw_runs）要帶匿名登入的 uid 與程式版本 */
+    uid: () => (auth.currentUser && auth.currentUser.uid) || '',
+    appVersion: APP_VERSION,
     /* 用改名卡改名後：登入畫面下次帶出新名字，本機成績也跟著改 */
     onRename: n => {
       try { const m = JSON.parse(localStorage.getItem('mg_me') || '{}'); m.name = n; localStorage.setItem('mg_me', JSON.stringify(m)); } catch (e) {}

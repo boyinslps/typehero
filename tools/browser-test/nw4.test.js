@@ -74,17 +74,17 @@ async function winHunt(p, rk, mk, star) {
     await p.click('#nw-bag [data-bag-close]'); await p.waitForTimeout(400);
     ok((await p.textContent('#nw-tour')).includes('第 1 / 3 步'), '第 2 步時太快把背包關掉：退回第 1 步，不會指著不存在的按鈕');
     await p.click('[data-act="bagq"]'); await p.waitForTimeout(400);
-    ok((await p.textContent('#nw-tour')).includes('裝備背包') && await p.$('#nw-bag [data-equip="testblade"]') === null, '背包開在「任務」那一頁：提示改成請你先點「裝備背包」那一頁');
+    ok((await p.textContent('#nw-tour')).includes('裝備背包') && await p.$('#nw-bag [data-gear-k="testblade"]') === null, '背包開在「任務」那一頁：提示改成請你先點「裝備背包」那一頁');
     await p.click('#nw-bag [data-bag-tab="equip"]'); await p.waitForTimeout(400);
     ok((await p.textContent('#nw-tour')).includes('測試者之刃'), '切到裝備背包以後，回到「點測試者之刃」');
-    await p.click('#nw-bag [data-equip="testblade"]'); await p.waitForTimeout(500);
+    await p.click('#nw-bag [data-gear-k="testblade"]'); await p.waitForTimeout(500);
     ok((await p.textContent('#nw-tour')).includes('第 3 / 3 步'), '換上武器後，第 3 步：關閉背包');
     await p.screenshot({ path: OUT + '/nw4-tour.png' });
     await p.click('#nw-bag [data-bag-close]'); await p.waitForTimeout(500);
     ok(await p.$('#nw-tour') === null && await p.evaluate(() => JSON.parse(localStorage.getItem('mg_nw_五年級3班_5號')).tut.equip) === 1, '三步都做完：教學結束並記下來');
     await p.keyboard.press('b'); await p.waitForTimeout(300);
-    ok(await p.$('#nw-bag [data-equip="testblade"]') !== null, '背包的裝備格有測試者之刃');
-    await p.click('#nw-bag [data-equip="testblade"]'); await p.waitForTimeout(300);
+    ok(await p.$('#nw-bag [data-gear-k="testblade"]') !== null, '背包的裝備格有測試者之刃');
+    await p.click('#nw-bag [data-gear-k="testblade"]'); await p.waitForTimeout(300);
     ok(await p.$('#nw-bag .bp-slot[data-slot="weapon"].dark') !== null && (await p.textContent('#nw-bag')).includes('測試者之刃'), '點一下換上：武器格有黑色粒子、說明寫出能力');
     await p.screenshot({ path: OUT + '/nw4-bag.png' });
     ok(p.errs.length === 0, '沒有 JS 錯誤 ' + p.errs.join(' | '));
@@ -200,6 +200,7 @@ async function winHunt(p, rk, mk, star) {
     await p.click('#nw-gift [data-ok]'); await p.waitForTimeout(400);
     let nw0 = await p.evaluate(() => JSON.parse(localStorage.getItem('mg_nw_五年級3班_5號')));
     ok(nw0.bugs === 0 && nw0.bugsSent === 1 && nw0.coins === 0 && !nw0.words.includes('bughunter'), '老師還沒確認：沒有字元、沒有除蟲員');
+    ok(Object.keys(nw0.bugLog || {}).length === 1 && Object.values(nw0.bugLog)[0].includes('／') && Object.keys(nw0.bugLog)[0].startsWith('bug_'), '回報內容留在自己的存檔（「我的回報」才看得到自己寫了什麼）：' + JSON.stringify(nw0.bugLog));
     const bug = await p.evaluate(() => Object.entries(window.__FS).filter(([, v]) => v && v.type === 'bug'));
     ok(bug.length === 1 && bug[0][1].status === 'pending' && bug[0][1].cat === '按鍵／操作' && bug[0][1].text.includes('【我做了什麼】') && bug[0][1].text.includes('【錯誤狀況】') && bug[0][1].did.includes('左 Ctrl') && bug[0][1].what.includes('沒有動'), '回報存進 mg_nw_flags（type: bug、待確認），老師看得到');
     ok(!('claimed' in bug[0][1]), '送出的回報不帶 claimed（新規則的欄位清單沒有它，帶了會被擋）');
@@ -220,7 +221,7 @@ async function winHunt(p, rk, mk, star) {
     await p.evaluate(() => { document.querySelectorAll('.nw-sheet').forEach(e => e.remove()); const b = window.__FS['mg_bugboard/五年級3班_5號']; b.reports.push({ id: 'x_dup', st: 'dup', sev: 0, reply: '', t: Date.now() - 1000 }, { id: 'x_rej', st: 'rejected', sev: 0, reply: '這是設計成這樣的', t: Date.now() - 2000 }, { id: 'x_rej2', st: 'rejected', sev: 0, reply: '', t: Date.now() - 3000 }); });
     await p.click('[data-act="book"]'); await p.waitForSelector('[data-reports]', { timeout: 6000 });
     const rep = await p.textContent('[data-reports]');
-    ok(rep.includes('別人先回報了，謝謝你也發現了！') && rep.includes('這次沒有採用，謝謝你') && rep.includes('老師說：這是設計成這樣的') && !rep.includes('老師還沒看'), '「我的回報」：重複顯示「別人先回報了…」、不採用顯示「這次沒有採用，謝謝你」與老師的回覆：' + rep.replace(/\s+/g, ' ').slice(0, 160));
+    ok(rep.includes('老師已經收到其他同學的回報，謝謝你！') && rep.includes('這次沒有採用，謝謝你') && rep.includes('老師說：這是設計成這樣的') && !rep.includes('老師還沒看'), '「我的回報」：重複顯示「別人先回報了…」、不採用顯示「這次沒有採用，謝謝你」與老師的回覆：' + rep.replace(/\s+/g, ' ').slice(0, 160));
     /* 老師的回覆：mg_bugboard 全班讀得到，所以另外寄信給本人；信箱裡有那句就優先用信裡的 */
     await p.evaluate(() => {
       document.querySelectorAll('.nw-sheet').forEach(e => e.remove());
@@ -258,6 +259,19 @@ async function winHunt(p, rk, mk, star) {
     await p.click('.vb[data-bld="academy"]'); await p.waitForSelector('#nw-acad', { timeout: 5000 });
     ok(await p.$('#nw-intro') === null, '第二次進教學大樓：不再介紹');
     ok(await p.evaluate(() => JSON.parse(localStorage.getItem('mg_nw_五年級3班_5號')).intro.hub) === 1, '看過的介紹記在存檔');
+    ok(p.errs.length === 0, '沒有 JS 錯誤 ' + p.errs.join(' | '));
+    await p.close();
+  }
+
+  {
+    /* 任務改版前就上完三堂課的存檔：進村要自動補算，不能卡在「到教學大樓」 */
+    const p = await open(b, { lobby: true, nw: { nameSet: 1, quest: { done: ['1-0'] }, tut: { dodge: 1, defend: 1, attack: 1 }, coins: 0, intro: { hub: 1 } } });
+    await p.click('#nw-door'); await p.waitForTimeout(1500);
+    const chip = await p.textContent('[data-act="bagq"]');
+    ok(!chip.includes('教學大樓') && chip.includes('泡泡蛙'), '三堂課早就做完的存檔：進村就跳到下一個任務（泡泡蛙），不卡在教學大樓 → ' + chip.trim());
+    const sv = await p.evaluate(() => JSON.parse(localStorage.getItem('mg_nw_五年級3班_5號')));
+    /* 100＝主線「學會三堂課」，30＝測試員任務「教學大樓畢業」（進村時本來就會補算） */
+    ok(sv.quest.done.includes('1-0a') && sv.coins === 130, '補算時發了教學大樓主線的 100 字元，加上畢業任務 30（共 130，只發一次）');
     ok(p.errs.length === 0, '沒有 JS 錯誤 ' + p.errs.join(' | '));
     await p.close();
   }

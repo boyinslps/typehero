@@ -23,6 +23,11 @@ npm test         # 起模擬器、跑完自動關
 - `mg_scores` 刪除只有老師。
 - `mg_bugboard_private`（老師專用：手動加分理由、真名）：學生讀、寫、列出都不過；用教師頁的 `publicBoard()` 寫出來的 `mg_bugboard`，學生讀得到但沒有真名與理由。老師的批次寫入（20 人手動加分）也過。
 
+## 2b 新增的案例（`mg_nw_runs`、`mg_nw_flags` 的 `run`、`mg_nw_board`／`_private`）
+
+學生只能 create `mg_nw_runs`（欄位白名單、`uid` 是自己、`ts` 是伺服器時間、ID＝`文件ID_毫秒`、`secs`／`acc`／`star`／`q`／`sus` 範圍），不能 update／delete／讀；老師讀寫都行；`mg_nw_flags` 學生可以 create `type:'run'`（`why` 最多 4 個、只能 `pending`）；`mg_nw_board` 學生只讀、`mg_nw_board_private` 學生讀寫都不行。
+⚠ **這些案例 2026-11-23 寫的時候那台電腦沒有 Java，沒有實際跑過。貼規則前請先在有 Java 11+ 的電腦跑 `npm test`**。
+
 ## 已知限制
 - 學生仍可改自己的 `mg_scores`（字元、裝備）；匿名 uid 對不上「班級_座號」，規則做不到。
 - 學生可以清掉 `nw_vote.v`（投票本來就要能寫），只能保護 `hidden`、`noms` 以外欄位。

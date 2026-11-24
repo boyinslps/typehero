@@ -1,0 +1,4288 @@
+{
+ "meta": {
+  "exportedAt": "2026-11-20",
+  "appVersion": "3.14.2",
+  "rows": 315,
+  "note": "已去識別化，請勿與名單對照",
+  "fields": {
+   "id": "隨機編號（每次匯出重新產生，沒有對照表）",
+   "grade": "年級：四／五／六；年級不足 5 人或看不出年級的合併成 ?",
+   "bestWpm": "歷史最高打字速度（字/分）",
+   "lastWpm": "最近一場打字速度（字/分）",
+   "bestAcc": "歷史最高正確率（%）",
+   "lastAcc": "最近一場正確率（%）",
+   "tier": "難度層級 A～D（新手教學量出來就固定）",
+   "plays": "總場次",
+   "bestLevel": "最高到第幾關",
+   "bestScore": "最佳戰績分",
+   "lastWeapon": "最近一場用的武器",
+   "byWeapon": "最近一場正式比賽各武器造成的傷害（不是場次；練習不寫，所以常常沒有）",
+   "nw.hr": "新世界獵人等級",
+   "nw.hunts": "新世界狩獵場數",
+   "nw.wins/fails": "新世界勝／敗場數",
+   "nw.accN/accSum": "高等級戰鬥的正確率場數與總和（平均＝accSum÷accN）",
+   "nw.dodgeOk/dodgeAll": "閃避成功／總次數",
+   "nw.defOk/defAll": "防禦成功／總次數",
+   "nw.fastest": "每個「區域:星級」最快打贏的秒數",
+   "nw.fastMk": "每隻「魔物:星級」自己最快的秒數",
+   "nw.dex": "打倒過的魔物與次數",
+   "nw.used": "用過的武器（1＝用過）",
+   "nw.wwin": "各武器打贏的場數"
+  }
+ },
+ "summary": {
+  "all": {
+   "n": 315,
+   "bestWpm": {
+    "n": 284,
+    "mean": 14.71,
+    "median": 11,
+    "p10": 4.3,
+    "p25": 7,
+    "p75": 18,
+    "p90": 25.7
+   },
+   "lastWpm": {
+    "n": 197,
+    "mean": 11.71,
+    "median": 10,
+    "p10": 4,
+    "p25": 6,
+    "p75": 15,
+    "p90": 20
+   },
+   "bestAcc": {
+    "n": 197,
+    "mean": 96.92,
+    "median": 100,
+    "p10": 88.6,
+    "p25": 100,
+    "p75": 100,
+    "p90": 100
+   },
+   "lastAcc": {
+    "n": 197,
+    "mean": 90.64,
+    "median": 100,
+    "p10": 68,
+    "p25": 89,
+    "p75": 100,
+    "p90": 100
+   }
+  },
+  "grades": {
+   "?": {
+    "n": 14,
+    "bestWpm": {
+     "n": 11,
+     "mean": 14.91,
+     "median": 10,
+     "p10": 1,
+     "p25": 2,
+     "p75": 19.5,
+     "p90": 28
+    },
+    "lastWpm": {
+     "n": 2,
+     "mean": 12,
+     "median": 12,
+     "p10": 9.6,
+     "p25": 10.5,
+     "p75": 13.5,
+     "p90": 14.4
+    },
+    "bestAcc": {
+     "n": 2,
+     "mean": 100,
+     "median": 100,
+     "p10": 100,
+     "p25": 100,
+     "p75": 100,
+     "p90": 100
+    },
+    "lastAcc": {
+     "n": 2,
+     "mean": 97,
+     "median": 97,
+     "p10": 97,
+     "p25": 97,
+     "p75": 97,
+     "p90": 97
+    }
+   },
+   "五": {
+    "n": 188,
+    "bestWpm": {
+     "n": 178,
+     "mean": 14.98,
+     "median": 12,
+     "p10": 5,
+     "p25": 8,
+     "p75": 18,
+     "p90": 25
+    },
+    "lastWpm": {
+     "n": 145,
+     "mean": 11.61,
+     "median": 11,
+     "p10": 4,
+     "p25": 7,
+     "p75": 15,
+     "p90": 20
+    },
+    "bestAcc": {
+     "n": 145,
+     "mean": 96.82,
+     "median": 100,
+     "p10": 88.4,
+     "p25": 99,
+     "p75": 100,
+     "p90": 100
+    },
+    "lastAcc": {
+     "n": 145,
+     "mean": 90.9,
+     "median": 100,
+     "p10": 72,
+     "p25": 89,
+     "p75": 100,
+     "p90": 100
+    }
+   },
+   "六": {
+    "n": 42,
+    "bestWpm": {
+     "n": 40,
+     "mean": 14.68,
+     "median": 13.5,
+     "p10": 5,
+     "p25": 8.75,
+     "p75": 18,
+     "p90": 28
+    },
+    "lastWpm": {
+     "n": 6,
+     "mean": 10.33,
+     "median": 8.5,
+     "p10": 6.5,
+     "p25": 7.25,
+     "p75": 12.75,
+     "p90": 16
+    },
+    "bestAcc": {
+     "n": 6,
+     "mean": 89.5,
+     "median": 99,
+     "p10": 69.5,
+     "p25": 91.25,
+     "p75": 100,
+     "p90": 100
+    },
+    "lastAcc": {
+     "n": 6,
+     "mean": 89.17,
+     "median": 98,
+     "p10": 69.5,
+     "p25": 91.25,
+     "p75": 99.5,
+     "p90": 100
+    }
+   },
+   "四": {
+    "n": 71,
+    "bestWpm": {
+     "n": 55,
+     "mean": 13.85,
+     "median": 8,
+     "p10": 3,
+     "p25": 6,
+     "p75": 14.5,
+     "p90": 26
+    },
+    "lastWpm": {
+     "n": 44,
+     "mean": 12.23,
+     "median": 9,
+     "p10": 3,
+     "p25": 5.75,
+     "p75": 13.5,
+     "p90": 20.7
+    },
+    "bestAcc": {
+     "n": 44,
+     "mean": 98.14,
+     "median": 100,
+     "p10": 94.3,
+     "p25": 100,
+     "p75": 100,
+     "p90": 100
+    },
+    "lastAcc": {
+     "n": 44,
+     "mean": 89.7,
+     "median": 100,
+     "p10": 63.1,
+     "p25": 90.75,
+     "p75": 100,
+     "p90": 100
+    }
+   }
+  }
+ },
+ "rows": [
+  {
+   "id": "E4PRY8PX",
+   "grade": "四",
+   "bestWpm": 4,
+   "lastWpm": 4,
+   "bestAcc": 100,
+   "lastAcc": 50,
+   "plays": 3,
+   "bestLevel": 4,
+   "bestScore": 3,
+   "tier": "A",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "7ET3N2CH",
+   "grade": "四",
+   "bestWpm": 9,
+   "lastWpm": 9,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 4,
+   "bestLevel": 7,
+   "bestScore": 9.9,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "69D8WCJQ",
+   "grade": "四",
+   "bestWpm": 6,
+   "lastWpm": 6,
+   "bestAcc": 95,
+   "lastAcc": 95,
+   "plays": 1,
+   "bestLevel": 4,
+   "bestScore": 6,
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "6R8V5R83",
+   "grade": "四",
+   "bestWpm": 6,
+   "lastWpm": 6,
+   "bestAcc": 94,
+   "lastAcc": 61,
+   "plays": 4,
+   "bestLevel": 4,
+   "bestScore": 6.2,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "BDK9CAWC",
+   "grade": "四",
+   "bestWpm": 6,
+   "plays": 2
+  },
+  {
+   "id": "7A7DSQM7",
+   "grade": "四",
+   "bestWpm": 16,
+   "lastWpm": 15,
+   "bestAcc": 98,
+   "lastAcc": 98,
+   "plays": 4,
+   "bestLevel": 8,
+   "bestScore": 14.4,
+   "tier": "C",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "KAMUWQV9",
+   "grade": "四",
+   "bestWpm": 10,
+   "lastWpm": 7,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 6,
+   "bestLevel": 7,
+   "bestScore": 7.7,
+   "tier": "B",
+   "lastWeapon": "dagger"
+  },
+  {
+   "id": "6AQE7X7Z",
+   "grade": "四",
+   "bestWpm": 6,
+   "lastWpm": 6,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 3,
+   "bestLevel": 7,
+   "bestScore": 6.6,
+   "tier": "A",
+   "lastWeapon": "bow"
+  },
+  {
+   "id": "NNT2DZMX",
+   "grade": "四",
+   "bestWpm": 3,
+   "lastWpm": 3,
+   "bestAcc": 78,
+   "lastAcc": 75,
+   "plays": 2,
+   "bestLevel": 2,
+   "bestScore": 0,
+   "tier": "B",
+   "lastWeapon": "bow"
+  },
+  {
+   "id": "96GRMVFF",
+   "grade": "四",
+   "tier": "B"
+  },
+  {
+   "id": "BXG3QE4E",
+   "grade": "四",
+   "bestWpm": 12,
+   "lastWpm": 3,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 2,
+   "bestLevel": 8,
+   "bestScore": 12,
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "FJKJYX2N",
+   "grade": "四",
+   "bestWpm": 5,
+   "lastWpm": 1,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 2,
+   "bestLevel": 1,
+   "bestScore": 1,
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "787684DZ",
+   "grade": "四",
+   "bestWpm": 19,
+   "lastWpm": 13,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 6,
+   "bestLevel": 12,
+   "bestScore": 14.3,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "69YE6NXX",
+   "grade": "四",
+   "bestWpm": 15,
+   "lastWpm": 15,
+   "bestAcc": 100,
+   "lastAcc": 96,
+   "plays": 2,
+   "bestLevel": 11,
+   "bestScore": 15,
+   "tier": "B",
+   "lastWeapon": "staff",
+   "nw": {
+    "hr": 1,
+    "hunts": 0,
+    "wins": 0,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 0,
+    "dodgeAll": 0,
+    "defOk": 0,
+    "defAll": 0
+   }
+  },
+  {
+   "id": "BDA5Z2GZ",
+   "grade": "四",
+   "tier": "B",
+   "nw": {
+    "hr": 1,
+    "hunts": 0,
+    "wins": 0,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 0,
+    "dodgeAll": 0,
+    "defOk": 0,
+    "defAll": 0
+   }
+  },
+  {
+   "id": "L4QP4AFU",
+   "grade": "四",
+   "bestWpm": 21,
+   "lastWpm": 17,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 9,
+   "bestLevel": 11,
+   "bestScore": 23.7,
+   "tier": "B",
+   "lastWeapon": "bow"
+  },
+  {
+   "id": "S8KULR73",
+   "grade": "四",
+   "bestWpm": 8,
+   "lastWpm": 8,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 2,
+   "bestLevel": 6,
+   "bestScore": 8,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "JMYPAC8R",
+   "grade": "四",
+   "bestWpm": 22,
+   "lastWpm": 20,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 8,
+   "bestLevel": 13,
+   "bestScore": 20,
+   "tier": "C",
+   "lastWeapon": "dagger"
+  },
+  {
+   "id": "QVHD43YC",
+   "grade": "四",
+   "bestWpm": 12,
+   "lastWpm": 12,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 6,
+   "bestLevel": 8,
+   "bestScore": 12,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "4JC88SER",
+   "grade": "四",
+   "bestWpm": 2,
+   "lastWpm": 2,
+   "bestAcc": 83,
+   "lastAcc": 83,
+   "plays": 1,
+   "bestLevel": 2,
+   "bestScore": 1.9,
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "39ZKVHFF",
+   "grade": "四",
+   "bestWpm": 14,
+   "lastWpm": 12,
+   "bestAcc": 100,
+   "lastAcc": 37,
+   "plays": 27,
+   "bestLevel": 8,
+   "bestScore": 14.5,
+   "tier": "B",
+   "lastWeapon": "staff",
+   "nw": {
+    "hr": 6,
+    "hunts": 8,
+    "wins": 6,
+    "fails": 1,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 0,
+    "dodgeAll": 0,
+    "defOk": 0,
+    "defAll": 0,
+    "fastest": {
+     "grass:1": 72.8485,
+     "grass:2": 94.30319999998756,
+     "grass:3": 107.77090000003577,
+     "grass:4": 79.7162999999523
+    },
+    "fastMk": {
+     "shroom:3": 107.8,
+     "shroom:4": 79.7
+    },
+    "dex": {
+     "coo": 1,
+     "frog": 1,
+     "shroom": 4
+    },
+    "used": {
+     "dagger": 1,
+     "staff": 1
+    },
+    "wwin": {
+     "dagger": 1,
+     "staff": 5
+    }
+   }
+  },
+  {
+   "id": "Y2G6SB9W",
+   "grade": "四",
+   "bestWpm": 53,
+   "lastWpm": 21,
+   "bestAcc": 100,
+   "lastAcc": 68,
+   "plays": 6,
+   "bestLevel": 17,
+   "bestScore": 66,
+   "tier": "B",
+   "lastWeapon": "staff",
+   "nw": {
+    "hr": 2,
+    "hunts": 1,
+    "wins": 1,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 0,
+    "dodgeAll": 0,
+    "defOk": 0,
+    "defAll": 0,
+    "fastest": {
+     "grass:1": 123.54099999999994
+    },
+    "dex": {
+     "shroom": 1
+    },
+    "used": {
+     "dagger": 1
+    },
+    "wwin": {
+     "dagger": 1
+    }
+   }
+  },
+  {
+   "id": "SRTMU76T",
+   "grade": "四",
+   "bestWpm": 3,
+   "plays": 1
+  },
+  {
+   "id": "K4PM9523",
+   "grade": "四",
+   "tier": "B"
+  },
+  {
+   "id": "TUZ37ZHR",
+   "grade": "四",
+   "tier": "B"
+  },
+  {
+   "id": "P7QK8J24",
+   "grade": "四",
+   "bestWpm": 21,
+   "lastWpm": 21,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 1,
+   "bestLevel": 13,
+   "bestScore": 21,
+   "tier": "B",
+   "lastWeapon": "bow"
+  },
+  {
+   "id": "7XN5B76Q",
+   "grade": "四",
+   "bestWpm": 26,
+   "lastWpm": 7,
+   "bestAcc": 100,
+   "lastAcc": 16,
+   "plays": 4,
+   "bestLevel": 18,
+   "bestScore": 28.2,
+   "tier": "C",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "Y4XJB8P6",
+   "grade": "四",
+   "tier": "B"
+  },
+  {
+   "id": "KRLENT8K",
+   "grade": "四",
+   "tier": "B"
+  },
+  {
+   "id": "FCR6DFPH",
+   "grade": "四",
+   "bestWpm": 6,
+   "plays": 1
+  },
+  {
+   "id": "J3BTNGBY",
+   "grade": "四",
+   "bestWpm": 7,
+   "lastWpm": 7,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 1,
+   "bestLevel": 5,
+   "bestScore": 7,
+   "lastWeapon": "bow",
+   "nw": {
+    "hr": 1,
+    "hunts": 0,
+    "wins": 0,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 0,
+    "dodgeAll": 0,
+    "defOk": 0,
+    "defAll": 0
+   }
+  },
+  {
+   "id": "L4SZBWW4",
+   "grade": "四",
+   "bestWpm": 20,
+   "lastWpm": 19,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 11,
+   "bestLevel": 13,
+   "bestScore": 24.7,
+   "tier": "B",
+   "lastWeapon": "bow",
+   "nw": {
+    "hr": 9,
+    "hunts": 11,
+    "wins": 11,
+    "fails": 0,
+    "accN": 1,
+    "accSum": 0.98,
+    "dodgeOk": 7,
+    "dodgeAll": 9,
+    "defOk": 8,
+    "defAll": 12,
+    "fastest": {
+     "forest:1": 81.41470000076288,
+     "forest:2": 100.62289999961854,
+     "forest:3": 121.83110000038141,
+     "forest:4": 114.10379999923703,
+     "forest:5": 141.4421000003822,
+     "grass:1": 77.34320000076286,
+     "grass:2": 97.02179999923703,
+     "grass:3": 94.56140000152595,
+     "grass:4": 81.10359999847401,
+     "grass:5": 119.42440000152578
+    },
+    "dex": {
+     "coo": 2,
+     "frog": 3,
+     "shroom": 1,
+     "wolf": 5
+    },
+    "used": {
+     "dagger": 1
+    },
+    "wwin": {
+     "dagger": 11
+    }
+   }
+  },
+  {
+   "id": "E9HULD4C",
+   "grade": "四",
+   "bestWpm": 4,
+   "lastWpm": 4,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 1,
+   "bestLevel": 3,
+   "bestScore": 4,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "3BRTCE63",
+   "grade": "四",
+   "bestWpm": 46,
+   "lastWpm": 42,
+   "bestAcc": 100,
+   "lastAcc": 96,
+   "plays": 27,
+   "bestLevel": 18,
+   "bestScore": 56.5,
+   "tier": "D",
+   "lastWeapon": "staff",
+   "nw": {
+    "hr": 9,
+    "hunts": 13,
+    "wins": 12,
+    "fails": 1,
+    "accN": 1,
+    "accSum": 0.9834710743801653,
+    "dodgeOk": 0,
+    "dodgeAll": 0,
+    "defOk": 0,
+    "defAll": 0,
+    "fastest": {
+     "forest:1": 152.7935,
+     "forest:2": 147.386400000006,
+     "forest:3": 215.8947000000179,
+     "forest:4": 208.19859999999403,
+     "forest:5": 121.05640000000585,
+     "grass:1": 55.17240000000601,
+     "grass:2": 96.011900000006,
+     "grass:3": 72.53459999999404,
+     "grass:4": 117.1155,
+     "grass:5": 106.5080999999941
+    },
+    "dex": {
+     "coo": 1,
+     "frog": 1,
+     "shroom": 5,
+     "wolf": 5
+    },
+    "used": {
+     "dagger": 1,
+     "staff": 1
+    },
+    "wwin": {
+     "dagger": 4,
+     "staff": 8
+    }
+   }
+  },
+  {
+   "id": "9U5C24FW",
+   "grade": "四",
+   "tier": "B"
+  },
+  {
+   "id": "92JB8F4N",
+   "grade": "四",
+   "bestWpm": 8
+  },
+  {
+   "id": "4U9AWTFK",
+   "grade": "四",
+   "bestWpm": 11,
+   "lastWpm": 11,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 4,
+   "bestLevel": 8,
+   "bestScore": 12.1,
+   "tier": "B",
+   "lastWeapon": "dagger"
+  },
+  {
+   "id": "E5R59CDN",
+   "grade": "四",
+   "bestWpm": 9,
+   "lastWpm": 9,
+   "bestAcc": 86,
+   "lastAcc": 86,
+   "plays": 1,
+   "bestLevel": 4,
+   "bestScore": 8.8,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "YQQBPRWQ",
+   "grade": "四",
+   "bestWpm": 5,
+   "plays": 1
+  },
+  {
+   "id": "C5MBZA73",
+   "grade": "四",
+   "bestWpm": 7,
+   "plays": 1
+  },
+  {
+   "id": "QB8LWHTY",
+   "grade": "四",
+   "bestWpm": 65,
+   "lastWpm": 53,
+   "bestAcc": 100,
+   "lastAcc": 87,
+   "plays": 25,
+   "bestLevel": 25,
+   "bestScore": 76.2,
+   "tier": "D",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "GVG79LLH",
+   "grade": "四",
+   "bestWpm": 13,
+   "lastWpm": 12,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 7,
+   "bestLevel": 9,
+   "bestScore": 13.2,
+   "tier": "B",
+   "lastWeapon": "bow"
+  },
+  {
+   "id": "3SCV8KVV",
+   "grade": "四",
+   "tier": "B",
+   "nw": {
+    "hr": 6,
+    "hunts": 7,
+    "wins": 6,
+    "fails": 1,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 3,
+    "dodgeAll": 3,
+    "defOk": 3,
+    "defAll": 8,
+    "fastest": {
+     "grass:1": 67.39630000000034,
+     "grass:2": 101.01849999999968,
+     "grass:3": 114.00670000000036,
+     "grass:4": 88.50989999999956
+    },
+    "fastMk": {
+     "coo:1": 67.4,
+     "frog:1": 239.1,
+     "shroom:1": 117.5,
+     "shroom:2": 101,
+     "shroom:3": 114,
+     "shroom:4": 88.5
+    },
+    "dex": {
+     "coo": 1,
+     "frog": 1,
+     "shroom": 4
+    },
+    "used": {
+     "dagger": 1
+    },
+    "wwin": {
+     "dagger": 6
+    }
+   }
+  },
+  {
+   "id": "ZW7L8WMD",
+   "grade": "四",
+   "bestWpm": 26,
+   "lastWpm": 20,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 5,
+   "bestLevel": 10,
+   "bestScore": 31.2,
+   "lastWeapon": "dagger",
+   "nw": {
+    "hr": 5,
+    "hunts": 6,
+    "wins": 6,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 0,
+    "dodgeAll": 0,
+    "defOk": 0,
+    "defAll": 0,
+    "fastest": {
+     "grass:1": 41.480999999999995,
+     "grass:2": 48.19799999999998,
+     "grass:3": 62.127999999999986,
+     "grass:4": 55.12900000000002
+    },
+    "dex": {
+     "coo": 2,
+     "frog": 1,
+     "shroom": 3
+    },
+    "used": {
+     "staff": 1
+    },
+    "wwin": {
+     "staff": 6
+    }
+   }
+  },
+  {
+   "id": "YYNJT2MN",
+   "grade": "四",
+   "bestWpm": 3,
+   "tier": "A"
+  },
+  {
+   "id": "4RHKFVDW",
+   "grade": "四",
+   "tier": "B"
+  },
+  {
+   "id": "9ECX4JWU",
+   "grade": "四",
+   "bestWpm": 3,
+   "plays": 1
+  },
+  {
+   "id": "9A38YTLW",
+   "grade": "四",
+   "tier": "B"
+  },
+  {
+   "id": "HUKHUPA9",
+   "grade": "四",
+   "bestWpm": 56,
+   "lastWpm": 55,
+   "bestAcc": 100,
+   "lastAcc": 92,
+   "plays": 18,
+   "bestLevel": 18,
+   "bestScore": 71.5,
+   "tier": "B",
+   "lastWeapon": "staff",
+   "nw": {
+    "hr": 1,
+    "hunts": 0,
+    "wins": 0,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 0,
+    "dodgeAll": 0,
+    "defOk": 0,
+    "defAll": 0
+   }
+  },
+  {
+   "id": "KNXVBM2G",
+   "grade": "四",
+   "bestWpm": 6
+  },
+  {
+   "id": "U7GJNDU3",
+   "grade": "四",
+   "bestWpm": 14,
+   "lastWpm": 13,
+   "bestAcc": 98,
+   "lastAcc": 98,
+   "plays": 4,
+   "bestLevel": 8,
+   "bestScore": 15.6,
+   "tier": "C",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "QHFX5Z2S",
+   "grade": "四",
+   "bestWpm": 12,
+   "lastWpm": 12,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 4,
+   "bestLevel": 9,
+   "bestScore": 14.4,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "S99ULJVP",
+   "grade": "四",
+   "bestWpm": 58,
+   "lastWpm": 9,
+   "bestAcc": 100,
+   "lastAcc": 93,
+   "plays": 11,
+   "bestLevel": 20,
+   "bestScore": 75.3,
+   "tier": "B",
+   "lastWeapon": "bow"
+  },
+  {
+   "id": "C6UCF6Z6",
+   "grade": "四",
+   "bestWpm": 7,
+   "lastWpm": 4,
+   "bestAcc": 100,
+   "lastAcc": 30,
+   "plays": 6,
+   "bestLevel": 7,
+   "bestScore": 7,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "ZWGA9KYP",
+   "grade": "四",
+   "bestWpm": 12,
+   "lastWpm": 12,
+   "bestAcc": 86,
+   "lastAcc": 86,
+   "plays": 1,
+   "bestLevel": 7,
+   "bestScore": 11.7,
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "KSA2JPDS",
+   "grade": "四",
+   "bestWpm": 12,
+   "lastWpm": 11,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 3,
+   "bestLevel": 4,
+   "bestScore": 11,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "6WA47ZL6",
+   "grade": "四",
+   "tier": "B"
+  },
+  {
+   "id": "MLYZLAGK",
+   "grade": "四",
+   "bestWpm": 4,
+   "lastWpm": 3,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 2,
+   "bestLevel": 4,
+   "bestScore": 3,
+   "tier": "A",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "PUHD5VRU",
+   "grade": "四",
+   "bestWpm": 7,
+   "lastWpm": 5,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 2,
+   "bestLevel": 4,
+   "bestScore": 5,
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "YCMLFPNS",
+   "grade": "四",
+   "bestWpm": 8,
+   "plays": 2
+  },
+  {
+   "id": "NFDYTH8N",
+   "grade": "四",
+   "bestWpm": 4
+  },
+  {
+   "id": "CFYNKKXX",
+   "grade": "四",
+   "bestWpm": 3,
+   "lastWpm": 3,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 1,
+   "bestLevel": 3,
+   "bestScore": 3,
+   "lastWeapon": "bow"
+  },
+  {
+   "id": "J7G5AUJG",
+   "grade": "四",
+   "bestWpm": 8,
+   "lastWpm": 7,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 5,
+   "bestLevel": 10,
+   "bestScore": 8,
+   "tier": "A",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "XLBAB2QP",
+   "grade": "四",
+   "bestWpm": 9,
+   "lastWpm": 9,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 3,
+   "bestLevel": 7,
+   "bestScore": 9,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "Y4P3Y4DK",
+   "grade": "四",
+   "tier": "B"
+  },
+  {
+   "id": "8VMKCZHL",
+   "grade": "四",
+   "tier": "B"
+  },
+  {
+   "id": "PFW4RLNR",
+   "grade": "四",
+   "tier": "B"
+  },
+  {
+   "id": "TM6K3LMP",
+   "grade": "四",
+   "bestWpm": 3,
+   "lastWpm": 3,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 1,
+   "bestLevel": 2,
+   "bestScore": 3,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "HPQ5SY8F",
+   "grade": "四",
+   "bestWpm": 7,
+   "lastWpm": 7,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 2,
+   "bestLevel": 1,
+   "bestScore": 7,
+   "tier": "A",
+   "lastWeapon": "dagger"
+  },
+  {
+   "id": "CS4H3MUA",
+   "grade": "四",
+   "tier": "B"
+  },
+  {
+   "id": "WKPNH47N",
+   "grade": "四",
+   "tier": "B"
+  },
+  {
+   "id": "BKP89NPK",
+   "grade": "五",
+   "bestWpm": 9,
+   "lastWpm": 9,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 2,
+   "bestLevel": 7,
+   "bestScore": 9.9,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "R6SCMENQ",
+   "grade": "五",
+   "bestWpm": 12,
+   "lastWpm": 12,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 1,
+   "bestLevel": 8,
+   "bestScore": 12,
+   "lastWeapon": "bow"
+  },
+  {
+   "id": "LGKQBF7W",
+   "grade": "五",
+   "bestWpm": 15,
+   "lastWpm": 15,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 1,
+   "bestLevel": 7,
+   "bestScore": 15,
+   "lastWeapon": "dagger"
+  },
+  {
+   "id": "JKDA75JK",
+   "grade": "五",
+   "bestWpm": 16,
+   "lastWpm": 16,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 2,
+   "bestLevel": 13,
+   "bestScore": 17.6,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "9VEZ54ML",
+   "grade": "五",
+   "bestWpm": 10,
+   "lastWpm": 10,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 6,
+   "bestLevel": 9,
+   "bestScore": 12,
+   "tier": "B",
+   "lastWeapon": "staff",
+   "nw": {
+    "hr": 1,
+    "hunts": 0,
+    "wins": 0,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 0,
+    "dodgeAll": 0,
+    "defOk": 0,
+    "defAll": 0
+   }
+  },
+  {
+   "id": "XSR3FBZ9",
+   "grade": "五",
+   "bestWpm": 8,
+   "lastWpm": 8,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 1,
+   "bestLevel": 6,
+   "bestScore": 8,
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "QBSZJFXY",
+   "grade": "五",
+   "bestWpm": 25,
+   "lastWpm": 20,
+   "bestAcc": 87,
+   "lastAcc": 78,
+   "plays": 9,
+   "bestLevel": 13,
+   "bestScore": 29.4,
+   "tier": "C",
+   "lastWeapon": "dagger"
+  },
+  {
+   "id": "E6UKMKAG",
+   "grade": "五",
+   "bestWpm": 14,
+   "lastWpm": 9,
+   "bestAcc": 100,
+   "lastAcc": 92,
+   "plays": 11,
+   "bestLevel": 10,
+   "bestScore": 16.8,
+   "tier": "A",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "P2QMUCCF",
+   "grade": "五",
+   "bestWpm": 20,
+   "lastWpm": 20,
+   "bestAcc": 86,
+   "lastAcc": 86,
+   "plays": 1,
+   "bestLevel": 12,
+   "bestScore": 19.6,
+   "lastWeapon": "dagger"
+  },
+  {
+   "id": "MJHD4C2N",
+   "grade": "五",
+   "bestWpm": 19,
+   "lastWpm": 19,
+   "bestAcc": 98,
+   "lastAcc": 98,
+   "plays": 1,
+   "bestLevel": 12,
+   "bestScore": 18.9,
+   "tier": "B",
+   "lastWeapon": "bow"
+  },
+  {
+   "id": "74EDHDZB",
+   "grade": "五",
+   "bestWpm": 14,
+   "lastWpm": 11,
+   "bestAcc": 66,
+   "lastAcc": 48,
+   "plays": 5,
+   "bestLevel": 9,
+   "bestScore": 13.6,
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "JPCQ39GC",
+   "grade": "五",
+   "bestWpm": 23,
+   "lastWpm": 23,
+   "bestAcc": 98,
+   "lastAcc": 95,
+   "plays": 8,
+   "bestLevel": 10,
+   "bestScore": 24.9,
+   "tier": "C",
+   "lastWeapon": "dagger",
+   "nw": {
+    "hr": 1,
+    "hunts": 0,
+    "wins": 0,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 0,
+    "dodgeAll": 0,
+    "defOk": 0,
+    "defAll": 0
+   }
+  },
+  {
+   "id": "3GBW5HFN",
+   "grade": "五",
+   "bestWpm": 30,
+   "lastWpm": 29,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 3,
+   "bestLevel": 13,
+   "bestScore": 35.9,
+   "tier": "D",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "LJBK6Z7W",
+   "grade": "五",
+   "bestWpm": 35,
+   "lastWpm": 11,
+   "bestAcc": 100,
+   "lastAcc": 97,
+   "plays": 8,
+   "bestLevel": 15,
+   "bestScore": 34.8,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "V2DGC3QT",
+   "grade": "五",
+   "bestWpm": 15,
+   "lastWpm": 13,
+   "bestAcc": 100,
+   "lastAcc": 93,
+   "plays": 3,
+   "bestLevel": 7,
+   "bestScore": 15,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "2LV5VXM5",
+   "grade": "五",
+   "bestWpm": 13,
+   "lastWpm": 11,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 7,
+   "bestLevel": 7,
+   "bestScore": 12.1,
+   "lastWeapon": "dagger",
+   "nw": {
+    "hr": 1,
+    "hunts": 0,
+    "wins": 0,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 0,
+    "dodgeAll": 0,
+    "defOk": 0,
+    "defAll": 0
+   }
+  },
+  {
+   "id": "SKLKSB76",
+   "grade": "五",
+   "bestWpm": 11,
+   "lastWpm": 8,
+   "bestAcc": 100,
+   "lastAcc": 96,
+   "plays": 3,
+   "bestLevel": 7,
+   "bestScore": 9,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "8KW22W3U",
+   "grade": "五",
+   "bestWpm": 25,
+   "lastWpm": 25,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 29,
+   "bestLevel": 11,
+   "bestScore": 25,
+   "tier": "C",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "9SLU3XHD",
+   "grade": "五",
+   "bestWpm": 18,
+   "lastWpm": 18,
+   "bestAcc": 97,
+   "lastAcc": 97,
+   "plays": 5,
+   "bestLevel": 9,
+   "bestScore": 21.5,
+   "tier": "C",
+   "lastWeapon": "staff",
+   "nw": {
+    "hr": 2,
+    "hunts": 1,
+    "wins": 1,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 4,
+    "dodgeAll": 7,
+    "defOk": 0,
+    "defAll": 0,
+    "fastest": {
+     "grass:1": 129.8986000000001
+    },
+    "dex": {
+     "coo": 1
+    },
+    "used": {
+     "staff": 1
+    },
+    "wwin": {
+     "staff": 1
+    }
+   }
+  },
+  {
+   "id": "VUZJ5V82",
+   "grade": "五",
+   "bestWpm": 8,
+   "plays": 1,
+   "nw": {
+    "hr": 1,
+    "hunts": 0,
+    "wins": 0,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 0,
+    "dodgeAll": 0,
+    "defOk": 0,
+    "defAll": 0
+   }
+  },
+  {
+   "id": "GT5TQXBK",
+   "grade": "五",
+   "bestWpm": 12,
+   "lastWpm": 12,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 1,
+   "bestLevel": 5,
+   "bestScore": 12,
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "MY25HJZX",
+   "grade": "五",
+   "bestWpm": 9,
+   "lastWpm": 6,
+   "bestAcc": 80,
+   "lastAcc": 68,
+   "plays": 4,
+   "bestLevel": 5,
+   "bestScore": 0,
+   "tier": "B",
+   "lastWeapon": "staff",
+   "nw": {
+    "hr": 1,
+    "hunts": 0,
+    "wins": 0,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 0,
+    "dodgeAll": 0,
+    "defOk": 0,
+    "defAll": 0
+   }
+  },
+  {
+   "id": "JE39Y642",
+   "grade": "五",
+   "bestWpm": 14,
+   "plays": 1
+  },
+  {
+   "id": "9AGRS23Z",
+   "grade": "五",
+   "bestWpm": 24,
+   "lastWpm": 22,
+   "bestAcc": 99,
+   "lastAcc": 99,
+   "plays": 4,
+   "bestLevel": 10,
+   "bestScore": 26.4,
+   "tier": "C",
+   "lastWeapon": "bow"
+  },
+  {
+   "id": "44F6ALFG",
+   "grade": "五",
+   "bestWpm": 13,
+   "lastWpm": 7,
+   "bestAcc": 100,
+   "lastAcc": 83,
+   "plays": 25,
+   "bestLevel": 11,
+   "bestScore": 15.1,
+   "tier": "B",
+   "lastWeapon": "dagger"
+  },
+  {
+   "id": "E5THCS8S",
+   "grade": "五",
+   "bestWpm": 23,
+   "lastWpm": 18,
+   "bestAcc": 100,
+   "lastAcc": 95,
+   "plays": 33,
+   "bestLevel": 14,
+   "bestScore": 23,
+   "tier": "B",
+   "lastWeapon": "dagger"
+  },
+  {
+   "id": "9BGXBHPK",
+   "grade": "五",
+   "bestWpm": 2,
+   "plays": 1
+  },
+  {
+   "id": "M5UGQNWR",
+   "grade": "五",
+   "bestWpm": 29,
+   "lastWpm": 6,
+   "bestAcc": 100,
+   "lastAcc": 85,
+   "plays": 7,
+   "bestLevel": 22,
+   "bestScore": 31.9,
+   "tier": "B",
+   "lastWeapon": "staff",
+   "nw": {
+    "hr": 6,
+    "hunts": 13,
+    "wins": 7,
+    "fails": 2,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 10,
+    "dodgeAll": 14,
+    "defOk": 17,
+    "defAll": 22,
+    "fastest": {
+     "grass:1": 54.82260000002407,
+     "grass:2": 247.74930000001177,
+     "grass:3": 218.4665,
+     "grass:4": 262.506899999976,
+     "grass:5": 36.530599999964124
+    },
+    "dex": {
+     "coo": 2,
+     "frog": 1,
+     "shroom": 4
+    },
+    "used": {
+     "bow": 1,
+     "dagger": 1
+    },
+    "wwin": {
+     "dagger": 7
+    }
+   }
+  },
+  {
+   "id": "F5XG93R5",
+   "grade": "五",
+   "bestWpm": 6,
+   "lastWpm": 6,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 1,
+   "bestLevel": 3,
+   "bestScore": 6,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "UGZCP73U",
+   "grade": "五",
+   "bestWpm": 18,
+   "lastWpm": 15,
+   "bestAcc": 100,
+   "lastAcc": 97,
+   "plays": 3,
+   "bestLevel": 10,
+   "bestScore": 21.6,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "BJ8JXY4C",
+   "grade": "五",
+   "tier": "B"
+  },
+  {
+   "id": "DVH3HYEU",
+   "grade": "五",
+   "bestWpm": 17,
+   "lastWpm": 17,
+   "bestAcc": 87,
+   "lastAcc": 87,
+   "plays": 1,
+   "bestLevel": 7,
+   "bestScore": 12.9,
+   "tier": "C",
+   "lastWeapon": "bow"
+  },
+  {
+   "id": "R5N2FWKY",
+   "grade": "五",
+   "bestWpm": 15,
+   "lastWpm": 11,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 2,
+   "bestLevel": 4,
+   "bestScore": 15,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "7TDXEFE4",
+   "grade": "五",
+   "bestWpm": 19,
+   "lastWpm": 17,
+   "bestAcc": 100,
+   "lastAcc": 95,
+   "plays": 16,
+   "bestLevel": 12,
+   "bestScore": 22.8,
+   "tier": "C",
+   "lastWeapon": "staff",
+   "nw": {
+    "hr": 1,
+    "hunts": 0,
+    "wins": 0,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 0,
+    "dodgeAll": 0,
+    "defOk": 0,
+    "defAll": 0
+   }
+  },
+  {
+   "id": "Q7M3K5RF",
+   "grade": "五",
+   "bestWpm": 13,
+   "lastWpm": 13,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 2,
+   "bestLevel": 9,
+   "bestScore": 14.3,
+   "lastWeapon": "bow"
+  },
+  {
+   "id": "5PCDNUMT",
+   "grade": "五",
+   "bestWpm": 11,
+   "lastWpm": 6,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 4,
+   "bestLevel": 7,
+   "bestScore": 12.1,
+   "tier": "B",
+   "lastWeapon": "bow"
+  },
+  {
+   "id": "N9N7VK5B",
+   "grade": "五",
+   "bestWpm": 11,
+   "lastWpm": 11,
+   "bestAcc": 97,
+   "lastAcc": 97,
+   "plays": 1,
+   "bestLevel": 8,
+   "bestScore": 11,
+   "tier": "B",
+   "lastWeapon": "bow"
+  },
+  {
+   "id": "6RM8ZYAJ",
+   "grade": "五",
+   "bestWpm": 8,
+   "lastWpm": 6,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 5,
+   "bestLevel": 5,
+   "bestScore": 6.6,
+   "lastWeapon": "bow",
+   "nw": {
+    "hr": 1,
+    "hunts": 0,
+    "wins": 0,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 0,
+    "dodgeAll": 0,
+    "defOk": 0,
+    "defAll": 0
+   }
+  },
+  {
+   "id": "Y85ALAN9",
+   "grade": "五",
+   "bestWpm": 6,
+   "tier": "B"
+  },
+  {
+   "id": "YVHPW3FH",
+   "grade": "五",
+   "bestWpm": 18,
+   "lastWpm": 7,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 6,
+   "bestLevel": 9,
+   "bestScore": 17.9,
+   "tier": "C",
+   "lastWeapon": "dagger"
+  },
+  {
+   "id": "LJS9FWPB",
+   "grade": "五",
+   "bestWpm": 31,
+   "plays": 3
+  },
+  {
+   "id": "433R4GW5",
+   "grade": "五",
+   "bestWpm": 11,
+   "lastWpm": 7,
+   "bestAcc": 100,
+   "lastAcc": 79,
+   "plays": 5,
+   "bestLevel": 7,
+   "bestScore": 12.1,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "MR46HM33",
+   "grade": "五",
+   "bestWpm": 11,
+   "lastWpm": 11,
+   "bestAcc": 97,
+   "lastAcc": 72,
+   "plays": 5,
+   "bestLevel": 8,
+   "bestScore": 10,
+   "tier": "B",
+   "lastWeapon": "staff",
+   "nw": {
+    "hr": 1,
+    "hunts": 0,
+    "wins": 0,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 0,
+    "dodgeAll": 0,
+    "defOk": 0,
+    "defAll": 0
+   }
+  },
+  {
+   "id": "R5DFTFTZ",
+   "grade": "五",
+   "bestWpm": 20,
+   "lastWpm": 20,
+   "bestAcc": 98,
+   "lastAcc": 98,
+   "plays": 1,
+   "bestLevel": 12,
+   "bestScore": 19.9,
+   "lastWeapon": "dagger",
+   "nw": {
+    "hr": 1,
+    "hunts": 0,
+    "wins": 0,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 0,
+    "dodgeAll": 0,
+    "defOk": 0,
+    "defAll": 0
+   }
+  },
+  {
+   "id": "5KTM5VBW",
+   "grade": "五",
+   "bestWpm": 3,
+   "plays": 1
+  },
+  {
+   "id": "7GE7S3QK",
+   "grade": "五",
+   "bestWpm": 18,
+   "lastWpm": 7,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 2,
+   "bestLevel": 9,
+   "bestScore": 17.9,
+   "tier": "C",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "4YHX8H9L",
+   "grade": "五",
+   "tier": "B"
+  },
+  {
+   "id": "LPA9D4WK",
+   "grade": "五",
+   "bestWpm": 5,
+   "lastWpm": 5,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 1,
+   "bestLevel": 4,
+   "bestScore": 5,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "LBDDPBL9",
+   "grade": "五",
+   "bestWpm": 15,
+   "lastWpm": 15,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 4,
+   "bestLevel": 9,
+   "bestScore": 15,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "8LXXYUAU",
+   "grade": "五",
+   "bestWpm": 10,
+   "lastWpm": 2,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 2,
+   "bestLevel": 2,
+   "bestScore": 2.2,
+   "lastWeapon": "bow",
+   "nw": {
+    "hr": 1,
+    "hunts": 0,
+    "wins": 0,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 0,
+    "dodgeAll": 0,
+    "defOk": 0,
+    "defAll": 0
+   }
+  },
+  {
+   "id": "V4JBUC9E",
+   "grade": "五",
+   "bestWpm": 11
+  },
+  {
+   "id": "C8HVV34F",
+   "grade": "五",
+   "bestWpm": 21,
+   "lastWpm": 18,
+   "bestAcc": 98,
+   "lastAcc": 89,
+   "plays": 4,
+   "bestLevel": 12,
+   "bestScore": 20.9,
+   "tier": "B",
+   "lastWeapon": "dagger"
+  },
+  {
+   "id": "2GHUZGZZ",
+   "grade": "五",
+   "bestWpm": 19,
+   "lastWpm": 19,
+   "bestAcc": 96,
+   "lastAcc": 95,
+   "plays": 2,
+   "bestLevel": 10,
+   "bestScore": 18.9,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "JLQVL2HN",
+   "grade": "五",
+   "bestWpm": 4,
+   "lastWpm": 4,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 2,
+   "bestLevel": 5,
+   "bestScore": 4,
+   "tier": "A",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "9HZ6JHQ9",
+   "grade": "五",
+   "bestWpm": 7,
+   "lastWpm": 7,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 1,
+   "bestLevel": 5,
+   "bestScore": 7,
+   "tier": "B",
+   "lastWeapon": "dagger"
+  },
+  {
+   "id": "86Q3JZE9",
+   "grade": "五",
+   "bestWpm": 17,
+   "lastWpm": 17,
+   "bestAcc": 98,
+   "lastAcc": 98,
+   "plays": 6,
+   "bestLevel": 8,
+   "bestScore": 20.3,
+   "tier": "C",
+   "lastWeapon": "bow",
+   "nw": {
+    "hr": 1,
+    "hunts": 0,
+    "wins": 0,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 0,
+    "dodgeAll": 0,
+    "defOk": 0,
+    "defAll": 0
+   }
+  },
+  {
+   "id": "5UKQ6MN9",
+   "grade": "五",
+   "bestWpm": 7,
+   "lastWpm": 7,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 1,
+   "bestLevel": 5,
+   "bestScore": 7,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "TW547DZX",
+   "grade": "五",
+   "bestWpm": 5,
+   "plays": 1,
+   "nw": {
+    "hr": 1,
+    "hunts": 0,
+    "wins": 0,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 0,
+    "dodgeAll": 0,
+    "defOk": 0,
+    "defAll": 0
+   }
+  },
+  {
+   "id": "VQLV3KWX",
+   "grade": "五",
+   "bestWpm": 12
+  },
+  {
+   "id": "PEFGEYPG",
+   "grade": "五",
+   "tier": "B"
+  },
+  {
+   "id": "ZDB3QL7Y",
+   "grade": "五",
+   "bestWpm": 9,
+   "lastWpm": 5,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 7,
+   "bestLevel": 8,
+   "bestScore": 9,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "7PNKKXC8",
+   "grade": "五",
+   "bestWpm": 43,
+   "lastWpm": 22,
+   "bestAcc": 98,
+   "lastAcc": 60,
+   "plays": 3,
+   "bestLevel": 13,
+   "bestScore": 42.9,
+   "tier": "D",
+   "lastWeapon": "staff",
+   "nw": {
+    "hr": 3,
+    "hunts": 2,
+    "wins": 2,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 0,
+    "dodgeAll": 0,
+    "defOk": 2,
+    "defAll": 3,
+    "fastest": {
+     "grass:1": 84.38569999999993
+    },
+    "fastMk": {
+     "frog:1": 92.9
+    },
+    "dex": {
+     "frog": 1,
+     "shroom": 1
+    },
+    "used": {
+     "dagger": 1
+    },
+    "wwin": {
+     "dagger": 2
+    }
+   }
+  },
+  {
+   "id": "JNX5UANS",
+   "grade": "五",
+   "bestWpm": 20,
+   "plays": 3
+  },
+  {
+   "id": "KMXXCJLK",
+   "grade": "五",
+   "bestWpm": 7,
+   "plays": 1,
+   "nw": {
+    "hr": 1,
+    "hunts": 0,
+    "wins": 0,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 0,
+    "dodgeAll": 0,
+    "defOk": 0,
+    "defAll": 0
+   }
+  },
+  {
+   "id": "UGAABYMW",
+   "grade": "五",
+   "bestWpm": 12,
+   "lastWpm": 12,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 3,
+   "bestLevel": 8,
+   "bestScore": 13.2,
+   "tier": "B",
+   "lastWeapon": "dagger"
+  },
+  {
+   "id": "V99GB5FM",
+   "grade": "五",
+   "bestWpm": 7,
+   "plays": 1
+  },
+  {
+   "id": "JYN9866W",
+   "grade": "五",
+   "bestWpm": 5,
+   "lastWpm": 3,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 4,
+   "bestLevel": 5,
+   "bestScore": 5.4,
+   "tier": "A",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "B3QKGCM7",
+   "grade": "五",
+   "bestWpm": 20,
+   "lastWpm": 20,
+   "bestAcc": 100,
+   "lastAcc": 97,
+   "plays": 5,
+   "bestLevel": 10,
+   "bestScore": 21.9,
+   "tier": "C",
+   "lastWeapon": "dagger"
+  },
+  {
+   "id": "7EVQ8R8H",
+   "grade": "五",
+   "bestWpm": 2,
+   "lastWpm": 2,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 1,
+   "bestLevel": 2,
+   "bestScore": 2,
+   "tier": "B",
+   "lastWeapon": "bow"
+  },
+  {
+   "id": "YGLS5KFN",
+   "grade": "五",
+   "bestWpm": 15,
+   "lastWpm": 3,
+   "bestAcc": 100,
+   "lastAcc": 3,
+   "plays": 4,
+   "bestLevel": 9,
+   "bestScore": 14.9,
+   "tier": "B",
+   "lastWeapon": "dagger"
+  },
+  {
+   "id": "6M7QRR4B",
+   "grade": "五",
+   "bestWpm": 5,
+   "lastWpm": 5,
+   "bestAcc": 88,
+   "lastAcc": 88,
+   "plays": 2,
+   "bestLevel": 5,
+   "bestScore": 3.9,
+   "tier": "A",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "SLQSDUYC",
+   "grade": "五",
+   "bestWpm": 6,
+   "lastWpm": 6,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 1,
+   "bestLevel": 7,
+   "bestScore": 6,
+   "tier": "A",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "NX3PVFQJ",
+   "grade": "五",
+   "bestWpm": 11,
+   "lastWpm": 11,
+   "bestAcc": 97,
+   "lastAcc": 97,
+   "plays": 3,
+   "bestLevel": 7,
+   "bestScore": 11,
+   "lastWeapon": "bow"
+  },
+  {
+   "id": "7CRPSPQ6",
+   "grade": "五",
+   "bestWpm": 4,
+   "lastWpm": 4,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 3,
+   "bestLevel": 4,
+   "bestScore": 4,
+   "tier": "A",
+   "lastWeapon": "bow"
+  },
+  {
+   "id": "M5Q4VVYB",
+   "grade": "五",
+   "tier": "B"
+  },
+  {
+   "id": "N2AAZAFD",
+   "grade": "五",
+   "bestWpm": 16,
+   "lastWpm": 11,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 17,
+   "bestLevel": 11,
+   "bestScore": 19.2,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "ZEA7JGX2",
+   "grade": "五",
+   "bestWpm": 8,
+   "plays": 4
+  },
+  {
+   "id": "8MUHN658",
+   "grade": "五",
+   "bestWpm": 9,
+   "lastWpm": 7,
+   "bestAcc": 93,
+   "lastAcc": 84,
+   "plays": 6,
+   "bestLevel": 8,
+   "bestScore": 6.9,
+   "tier": "B",
+   "lastWeapon": "staff",
+   "nw": {
+    "hr": 1,
+    "hunts": 1,
+    "wins": 0,
+    "fails": 1,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 0,
+    "dodgeAll": 0,
+    "defOk": 0,
+    "defAll": 0,
+    "used": {
+     "staff": 1
+    }
+   }
+  },
+  {
+   "id": "QFZYGJNM",
+   "grade": "五",
+   "bestWpm": 38,
+   "lastWpm": 8,
+   "bestAcc": 100,
+   "lastAcc": 35,
+   "plays": 13,
+   "bestLevel": 12,
+   "bestScore": 6,
+   "tier": "D",
+   "lastWeapon": "dagger",
+   "nw": {
+    "hr": 1,
+    "hunts": 0,
+    "wins": 0,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 0,
+    "dodgeAll": 0,
+    "defOk": 0,
+    "defAll": 0
+   }
+  },
+  {
+   "id": "UPQLRNL3",
+   "grade": "五",
+   "bestWpm": 14,
+   "lastWpm": 11,
+   "bestAcc": 100,
+   "lastAcc": 89,
+   "plays": 12,
+   "bestLevel": 8,
+   "bestScore": 12,
+   "tier": "C",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "JHUXZAHP",
+   "grade": "五",
+   "bestWpm": 18,
+   "lastWpm": 18,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 3,
+   "bestLevel": 9,
+   "bestScore": 21.6,
+   "tier": "C",
+   "lastWeapon": "dagger",
+   "nw": {
+    "hr": 1,
+    "hunts": 0,
+    "wins": 0,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 0,
+    "dodgeAll": 0,
+    "defOk": 0,
+    "defAll": 0
+   }
+  },
+  {
+   "id": "U3GW94DM",
+   "grade": "五",
+   "bestWpm": 12,
+   "plays": 1
+  },
+  {
+   "id": "TFT9GFHT",
+   "grade": "五",
+   "bestWpm": 8,
+   "plays": 1,
+   "nw": {
+    "hr": 1,
+    "hunts": 0,
+    "wins": 0,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 0,
+    "dodgeAll": 0,
+    "defOk": 0,
+    "defAll": 0
+   }
+  },
+  {
+   "id": "HNW53HDH",
+   "grade": "五",
+   "tier": "B"
+  },
+  {
+   "id": "SYAWSMMV",
+   "grade": "五",
+   "bestWpm": 10,
+   "plays": 13
+  },
+  {
+   "id": "D488YHNB",
+   "grade": "五",
+   "bestWpm": 20,
+   "lastWpm": 20,
+   "bestAcc": 100,
+   "lastAcc": 94,
+   "plays": 12,
+   "bestLevel": 10,
+   "bestScore": 19.4,
+   "tier": "C",
+   "lastWeapon": "staff",
+   "nw": {
+    "hr": 4,
+    "hunts": 4,
+    "wins": 4,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 5,
+    "dodgeAll": 8,
+    "defOk": 6,
+    "defAll": 6,
+    "fastest": {
+     "grass:1": 78.93219999980923,
+     "grass:2": 123.83079999923706
+    },
+    "dex": {
+     "coo": 1,
+     "frog": 1,
+     "shroom": 2
+    },
+    "used": {
+     "dagger": 1
+    },
+    "wwin": {
+     "dagger": 4
+    }
+   }
+  },
+  {
+   "id": "KV7WR2EZ",
+   "grade": "五",
+   "bestWpm": 13,
+   "lastWpm": 13,
+   "bestAcc": 89,
+   "lastAcc": 89,
+   "plays": 3,
+   "bestLevel": 10,
+   "bestScore": 14.1,
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "RRSDKN9S",
+   "grade": "五",
+   "tier": "B"
+  },
+  {
+   "id": "HLHRAJ9U",
+   "grade": "五",
+   "bestWpm": 22,
+   "lastWpm": 22,
+   "bestAcc": 98,
+   "lastAcc": 98,
+   "plays": 2,
+   "bestLevel": 13,
+   "bestScore": 21.9,
+   "tier": "B",
+   "lastWeapon": "staff",
+   "nw": {
+    "hr": 1,
+    "hunts": 0,
+    "wins": 0,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 0,
+    "dodgeAll": 0,
+    "defOk": 0,
+    "defAll": 0
+   }
+  },
+  {
+   "id": "6YS93X2W",
+   "grade": "五",
+   "bestWpm": 6,
+   "lastWpm": 5,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 4,
+   "bestLevel": 10,
+   "bestScore": 6.6,
+   "tier": "A",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "DYM3KTGH",
+   "grade": "五",
+   "bestWpm": 11,
+   "lastWpm": 9,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 4,
+   "bestLevel": 8,
+   "bestScore": 11,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "TPJMH9XZ",
+   "grade": "五",
+   "bestWpm": 9,
+   "lastWpm": 9,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 4,
+   "bestLevel": 7,
+   "bestScore": 9,
+   "lastWeapon": "dagger"
+  },
+  {
+   "id": "S97BH6XK",
+   "grade": "五",
+   "bestWpm": 11,
+   "plays": 2
+  },
+  {
+   "id": "D3YV8QTY",
+   "grade": "五",
+   "bestWpm": 15,
+   "lastWpm": 14,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 5,
+   "bestLevel": 9,
+   "bestScore": 15.4,
+   "tier": "C",
+   "lastWeapon": "dagger"
+  },
+  {
+   "id": "LGMRYCSR",
+   "grade": "五",
+   "bestWpm": 17,
+   "lastWpm": 11,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 6,
+   "bestLevel": 10,
+   "bestScore": 17,
+   "tier": "C",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "E253CLBL",
+   "grade": "五",
+   "bestWpm": 25,
+   "lastWpm": 15,
+   "bestAcc": 100,
+   "lastAcc": 96,
+   "plays": 28,
+   "bestLevel": 12,
+   "bestScore": 18,
+   "tier": "C",
+   "lastWeapon": "dagger",
+   "nw": {
+    "hr": 1,
+    "hunts": 0,
+    "wins": 0,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 0,
+    "dodgeAll": 0,
+    "defOk": 0,
+    "defAll": 0
+   }
+  },
+  {
+   "id": "9J7FNUTA",
+   "grade": "五",
+   "bestWpm": 13,
+   "lastWpm": 9,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 3,
+   "bestLevel": 12,
+   "bestScore": 14.3,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "LSPXXJV2",
+   "grade": "五",
+   "bestWpm": 15,
+   "lastWpm": 11,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 2,
+   "bestLevel": 9,
+   "bestScore": 12.2,
+   "tier": "B",
+   "lastWeapon": "dagger"
+  },
+  {
+   "id": "B4RHYVXU",
+   "grade": "五",
+   "bestWpm": 7,
+   "lastWpm": 7,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 2,
+   "bestLevel": 5,
+   "bestScore": 7,
+   "tier": "B",
+   "lastWeapon": "dagger",
+   "nw": {
+    "hr": 1,
+    "hunts": 0,
+    "wins": 0,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 0,
+    "dodgeAll": 0,
+    "defOk": 0,
+    "defAll": 0
+   }
+  },
+  {
+   "id": "CTAYSKKD",
+   "grade": "五",
+   "bestWpm": 17,
+   "lastWpm": 17,
+   "bestAcc": 100,
+   "lastAcc": 76,
+   "plays": 16,
+   "bestLevel": 10,
+   "bestScore": 16.8,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "8JGERX9E",
+   "grade": "五",
+   "bestWpm": 56,
+   "lastWpm": 53,
+   "bestAcc": 99,
+   "lastAcc": 99,
+   "plays": 4,
+   "bestLevel": 20,
+   "bestScore": 55.8,
+   "tier": "D",
+   "lastWeapon": "bow"
+  },
+  {
+   "id": "D3Z865TC",
+   "grade": "五",
+   "bestWpm": 8,
+   "lastWpm": 4,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 1,
+   "bestLevel": 3,
+   "bestScore": 4,
+   "lastWeapon": "dagger"
+  },
+  {
+   "id": "B5AZRG2A",
+   "grade": "五",
+   "bestWpm": 9,
+   "plays": 2
+  },
+  {
+   "id": "7NBURWQF",
+   "grade": "五",
+   "bestWpm": 7,
+   "lastWpm": 7,
+   "bestAcc": 94,
+   "lastAcc": 94,
+   "plays": 1,
+   "bestLevel": 4,
+   "bestScore": 6.9,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "TQGDFX8E",
+   "grade": "五",
+   "bestWpm": 6,
+   "lastWpm": 6,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 4,
+   "bestLevel": 7,
+   "bestScore": 6,
+   "tier": "A",
+   "lastWeapon": "bow",
+   "nw": {
+    "hr": 1,
+    "hunts": 0,
+    "wins": 0,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 0,
+    "dodgeAll": 0,
+    "defOk": 0,
+    "defAll": 0
+   }
+  },
+  {
+   "id": "DH5XRVTV",
+   "grade": "五",
+   "bestWpm": 5,
+   "plays": 1,
+   "nw": {
+    "hr": 1,
+    "hunts": 0,
+    "wins": 0,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 0,
+    "dodgeAll": 0,
+    "defOk": 0,
+    "defAll": 0
+   }
+  },
+  {
+   "id": "6Y5A8VJK",
+   "grade": "五",
+   "bestWpm": 16,
+   "lastWpm": 11,
+   "bestAcc": 100,
+   "lastAcc": 96,
+   "plays": 13,
+   "bestLevel": 9,
+   "bestScore": 16,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "3HA6X4SK",
+   "grade": "五",
+   "bestWpm": 21,
+   "lastWpm": 14,
+   "bestAcc": 100,
+   "lastAcc": 89,
+   "plays": 10,
+   "bestLevel": 9,
+   "bestScore": 25.2,
+   "tier": "C",
+   "lastWeapon": "bow"
+  },
+  {
+   "id": "BNRMNK95",
+   "grade": "五",
+   "bestWpm": 7,
+   "lastWpm": 7,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 6,
+   "bestLevel": 7,
+   "bestScore": 7.7,
+   "tier": "B",
+   "lastWeapon": "bow"
+  },
+  {
+   "id": "L2N3VP6E",
+   "grade": "五",
+   "bestWpm": 9,
+   "lastWpm": 9,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 10,
+   "bestLevel": 8,
+   "bestScore": 9,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "6ZSQFA7D",
+   "grade": "五",
+   "bestWpm": 12,
+   "lastWpm": 12,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 7,
+   "bestLevel": 9,
+   "bestScore": 14.4,
+   "tier": "B",
+   "lastWeapon": "dagger",
+   "nw": {
+    "hr": 1,
+    "hunts": 0,
+    "wins": 0,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 0,
+    "dodgeAll": 0,
+    "defOk": 0,
+    "defAll": 0
+   }
+  },
+  {
+   "id": "SVUEDUMJ",
+   "grade": "五",
+   "bestWpm": 27,
+   "lastWpm": 25,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 5,
+   "bestLevel": 11,
+   "bestScore": 25,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "3HPJW2P7",
+   "grade": "五",
+   "bestWpm": 10,
+   "lastWpm": 4,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 6,
+   "bestLevel": 3,
+   "bestScore": 4,
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "E7AV34KP",
+   "grade": "五",
+   "bestWpm": 7,
+   "plays": 1
+  },
+  {
+   "id": "L89RPWZU",
+   "grade": "五",
+   "bestWpm": 8,
+   "lastWpm": 7,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 4,
+   "bestLevel": 5,
+   "bestScore": 8,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "ZFBUVTC8",
+   "grade": "五",
+   "bestWpm": 8,
+   "tier": "B"
+  },
+  {
+   "id": "P6Y4BM69",
+   "grade": "五",
+   "bestWpm": 52,
+   "lastWpm": 20,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 15,
+   "bestLevel": 19,
+   "bestScore": 67.5,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "4SFL7ARU",
+   "grade": "五",
+   "tier": "B"
+  },
+  {
+   "id": "ECDCXWAL",
+   "grade": "五",
+   "bestWpm": 99,
+   "lastWpm": 35,
+   "bestAcc": 100,
+   "lastAcc": 72,
+   "plays": 14,
+   "bestLevel": 22,
+   "bestScore": 113.7,
+   "tier": "D",
+   "lastWeapon": "dagger",
+   "nw": {
+    "hr": 5,
+    "hunts": 5,
+    "wins": 5,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 1,
+    "dodgeAll": 7,
+    "defOk": 6,
+    "defAll": 8,
+    "fastest": {
+     "grass:1": 71.771,
+     "grass:2": 135.25300000000001,
+     "grass:3": 136.83799999999997
+    },
+    "fastMk": {
+     "shroom:1": 71.8
+    },
+    "dex": {
+     "frog": 1,
+     "shroom": 4
+    },
+    "used": {
+     "dagger": 1
+    },
+    "wwin": {
+     "dagger": 5
+    }
+   }
+  },
+  {
+   "id": "ZYY2FBUF",
+   "grade": "五",
+   "bestWpm": 72,
+   "lastWpm": 18,
+   "bestAcc": 100,
+   "lastAcc": 73,
+   "plays": 19,
+   "bestLevel": 15,
+   "bestScore": 63.6,
+   "tier": "D",
+   "lastWeapon": "dagger",
+   "nw": {
+    "hr": 10,
+    "hunts": 19,
+    "wins": 16,
+    "fails": 2,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 20,
+    "dodgeAll": 37,
+    "defOk": 0,
+    "defAll": 10,
+    "fastest": {
+     "forest:1": 146.10969999980927,
+     "forest:2": 170.33760000002385,
+     "grass:1": 55.993599999994046,
+     "grass:2": 64.5661999999881,
+     "grass:3": 64.79360000002384,
+     "grass:4": 94.85400000000004,
+     "grass:5": 76.48190000000591
+    },
+    "fastMk": {
+     "shroom:2": 170.3,
+     "wolf:1": 146.1
+    },
+    "dex": {
+     "coo": 4,
+     "frog": 2,
+     "shroom": 8,
+     "wolf": 2
+    },
+    "used": {
+     "dagger": 1,
+     "staff": 1
+    },
+    "wwin": {
+     "dagger": 16,
+     "staff": 1
+    }
+   }
+  },
+  {
+   "id": "73GN8RL4",
+   "grade": "五",
+   "bestWpm": 9,
+   "lastWpm": 9,
+   "bestAcc": 96,
+   "lastAcc": 48,
+   "plays": 3,
+   "bestLevel": 8,
+   "bestScore": 10,
+   "tier": "A",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "9Z9QDFAB",
+   "grade": "五",
+   "bestWpm": 19,
+   "lastWpm": 17,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 2,
+   "bestLevel": 8,
+   "bestScore": 17,
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "AWNN5C9K",
+   "grade": "五",
+   "bestWpm": 6,
+   "lastWpm": 1,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 2,
+   "bestLevel": 7,
+   "bestScore": 6,
+   "tier": "A",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "4J2AWE3U",
+   "grade": "五",
+   "bestWpm": 4,
+   "lastWpm": 4,
+   "bestAcc": 65,
+   "lastAcc": 65,
+   "plays": 1,
+   "bestLevel": 3,
+   "bestScore": 3.8,
+   "tier": "B",
+   "lastWeapon": "dagger"
+  },
+  {
+   "id": "SVY598HQ",
+   "grade": "五",
+   "bestWpm": 42,
+   "lastWpm": 12,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 13,
+   "bestLevel": 13,
+   "bestScore": 50,
+   "tier": "D",
+   "lastWeapon": "dagger"
+  },
+  {
+   "id": "JU2VDXFW",
+   "grade": "五",
+   "bestWpm": 12,
+   "lastWpm": 12,
+   "bestAcc": 100,
+   "lastAcc": 97,
+   "plays": 5,
+   "bestLevel": 8,
+   "bestScore": 11.9,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "THHH2TGT",
+   "grade": "五",
+   "bestWpm": 16,
+   "lastWpm": 12,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 4,
+   "bestLevel": 13,
+   "bestScore": 16,
+   "tier": "A",
+   "lastWeapon": "bow"
+  },
+  {
+   "id": "KLVAXUPQ",
+   "grade": "五",
+   "bestWpm": 6,
+   "lastWpm": 3,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 3,
+   "bestLevel": 5,
+   "bestScore": 6,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "HMD8ETLE",
+   "grade": "五",
+   "bestWpm": 8,
+   "tier": "B"
+  },
+  {
+   "id": "GUH9FBT6",
+   "grade": "五",
+   "bestWpm": 9,
+   "lastWpm": 7,
+   "bestAcc": 100,
+   "lastAcc": 96,
+   "plays": 7,
+   "bestLevel": 9,
+   "bestScore": 9,
+   "tier": "A",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "TTGW23JN",
+   "grade": "五",
+   "bestWpm": 17,
+   "lastWpm": 17,
+   "bestAcc": 100,
+   "lastAcc": 97,
+   "plays": 2,
+   "bestLevel": 10,
+   "bestScore": 20.3,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "8D8WHJ6U",
+   "grade": "五",
+   "bestWpm": 10
+  },
+  {
+   "id": "5YNNV2PC",
+   "grade": "五",
+   "bestWpm": 16,
+   "lastWpm": 16,
+   "bestAcc": 87,
+   "lastAcc": 87,
+   "plays": 2,
+   "bestLevel": 8,
+   "bestScore": 15.7,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "TFN74Q8G",
+   "grade": "五",
+   "bestWpm": 4,
+   "lastWpm": 4,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 2,
+   "bestLevel": 2,
+   "bestScore": 4,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "PZNY9QFC",
+   "grade": "五",
+   "bestWpm": 12,
+   "lastWpm": 10,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 13,
+   "bestLevel": 9,
+   "bestScore": 12,
+   "tier": "B",
+   "lastWeapon": "dagger",
+   "nw": {
+    "hr": 4,
+    "hunts": 3,
+    "wins": 2,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 4,
+    "dodgeAll": 7,
+    "defOk": 3,
+    "defAll": 6,
+    "fastest": {
+     "grass:1": 137.72030000000024
+    },
+    "fastMk": {
+     "coo:1": 137.7,
+     "frog:1": 184.9
+    },
+    "dex": {
+     "coo": 1,
+     "frog": 1
+    },
+    "used": {
+     "dagger": 1
+    },
+    "wwin": {
+     "dagger": 2
+    }
+   }
+  },
+  {
+   "id": "C29GNYCD",
+   "grade": "五",
+   "bestWpm": 14,
+   "lastWpm": 12,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 7,
+   "bestLevel": 12,
+   "bestScore": 14,
+   "tier": "B",
+   "lastWeapon": "dagger",
+   "nw": {
+    "hr": 4,
+    "hunts": 3,
+    "wins": 3,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 4,
+    "dodgeAll": 8,
+    "defOk": 5,
+    "defAll": 7,
+    "fastest": {
+     "grass:1": 132.34469999999993
+    },
+    "fastMk": {
+     "shroom:1": 132.3
+    },
+    "dex": {
+     "coo": 1,
+     "frog": 1,
+     "shroom": 1
+    },
+    "used": {
+     "dagger": 1
+    },
+    "wwin": {
+     "dagger": 3
+    }
+   }
+  },
+  {
+   "id": "Q36LC7LP",
+   "grade": "五",
+   "bestWpm": 27,
+   "lastWpm": 27,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 3,
+   "bestLevel": 14,
+   "bestScore": 35.1,
+   "tier": "C",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "UVM4JX9N",
+   "grade": "五",
+   "bestWpm": 18,
+   "lastWpm": 15,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 3,
+   "bestLevel": 14,
+   "bestScore": 19.8,
+   "tier": "C",
+   "lastWeapon": "bow"
+  },
+  {
+   "id": "27JYQ5E7",
+   "grade": "五",
+   "bestWpm": 11,
+   "lastWpm": 11,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 5,
+   "bestLevel": 9,
+   "bestScore": 12.1,
+   "tier": "B",
+   "lastWeapon": "bow"
+  },
+  {
+   "id": "5C7J7VUJ",
+   "grade": "五",
+   "bestWpm": 16,
+   "lastWpm": 13,
+   "bestAcc": 100,
+   "lastAcc": 75,
+   "plays": 4,
+   "bestLevel": 11,
+   "bestScore": 19.1,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "9LN527WH",
+   "grade": "五",
+   "tier": "B"
+  },
+  {
+   "id": "EE2PJ6QW",
+   "grade": "五",
+   "bestWpm": 7,
+   "tier": "B"
+  },
+  {
+   "id": "SHDBDLLH",
+   "grade": "五",
+   "bestWpm": 7,
+   "lastWpm": 6,
+   "bestAcc": 73,
+   "lastAcc": 45,
+   "plays": 3,
+   "bestLevel": 6,
+   "bestScore": 6.5,
+   "tier": "A",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "EV54VF48",
+   "grade": "五",
+   "bestWpm": 11,
+   "lastWpm": 11,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 2,
+   "bestLevel": 9,
+   "bestScore": 11,
+   "lastWeapon": "bow",
+   "nw": {
+    "hr": 1,
+    "hunts": 0,
+    "wins": 0,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 0,
+    "dodgeAll": 0,
+    "defOk": 0,
+    "defAll": 0
+   }
+  },
+  {
+   "id": "DTHB4UBR",
+   "grade": "五",
+   "bestWpm": 12,
+   "lastWpm": 12,
+   "bestAcc": 95,
+   "lastAcc": 95,
+   "plays": 2,
+   "bestLevel": 7,
+   "bestScore": 10.8,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "P8CYQ9VC",
+   "grade": "五",
+   "bestWpm": 19,
+   "lastWpm": 10,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 10,
+   "bestLevel": 4,
+   "bestScore": 10,
+   "tier": "C",
+   "lastWeapon": "dagger"
+  },
+  {
+   "id": "B8BBKPSA",
+   "grade": "五",
+   "bestWpm": 8,
+   "lastWpm": 5,
+   "bestAcc": 50,
+   "lastAcc": 25,
+   "plays": 4,
+   "bestLevel": 5,
+   "bestScore": 7.4,
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "7JHZFW4U",
+   "grade": "五",
+   "bestWpm": 14,
+   "lastWpm": 10,
+   "bestAcc": 100,
+   "lastAcc": 81,
+   "plays": 5,
+   "bestLevel": 13,
+   "bestScore": 15.4,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "FNFE6KZ2",
+   "grade": "五",
+   "bestWpm": 6,
+   "lastWpm": 6,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 1,
+   "bestLevel": 4,
+   "bestScore": 6,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "SLWZ7LL7",
+   "grade": "五",
+   "bestWpm": 25,
+   "lastWpm": 19,
+   "bestAcc": 100,
+   "lastAcc": 75,
+   "plays": 11,
+   "bestLevel": 12,
+   "bestScore": 29.8,
+   "tier": "C",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "62WJDYSH",
+   "grade": "五",
+   "tier": "B"
+  },
+  {
+   "id": "P33EDXNC",
+   "grade": "五",
+   "bestWpm": 11,
+   "tier": "B"
+  },
+  {
+   "id": "DBH2688R",
+   "grade": "五",
+   "bestWpm": 18,
+   "lastWpm": 18,
+   "bestAcc": 98,
+   "lastAcc": 98,
+   "plays": 2,
+   "bestLevel": 9,
+   "bestScore": 17.9,
+   "tier": "C",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "MWPYRRQJ",
+   "grade": "五",
+   "bestWpm": 24,
+   "lastWpm": 24,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 6,
+   "bestLevel": 10,
+   "bestScore": 24,
+   "tier": "C",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "Q2PCUDMV",
+   "grade": "五",
+   "bestWpm": 3,
+   "lastWpm": 3,
+   "bestAcc": 63,
+   "lastAcc": 63,
+   "plays": 1,
+   "bestLevel": 2,
+   "bestScore": 0,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "N5WL2BYA",
+   "grade": "五",
+   "bestWpm": 19,
+   "plays": 4
+  },
+  {
+   "id": "QNSK6HYT",
+   "grade": "五",
+   "bestWpm": 5,
+   "lastWpm": 5,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 1,
+   "bestLevel": 4,
+   "bestScore": 5,
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "UGHM2WZF",
+   "grade": "五",
+   "bestWpm": 3,
+   "lastWpm": 3,
+   "bestAcc": 43,
+   "lastAcc": 43,
+   "plays": 1,
+   "bestLevel": 3,
+   "bestScore": 0,
+   "tier": "A",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "NMTUEE4D",
+   "grade": "五",
+   "bestWpm": 13,
+   "lastWpm": 9,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 6,
+   "bestLevel": 5,
+   "bestScore": 13,
+   "tier": "B",
+   "lastWeapon": "dagger"
+  },
+  {
+   "id": "F2VDN2YA",
+   "grade": "五",
+   "bestWpm": 5,
+   "plays": 1
+  },
+  {
+   "id": "ASEZYG9W",
+   "grade": "五",
+   "bestWpm": 8,
+   "lastWpm": 8,
+   "bestAcc": 86,
+   "lastAcc": 86,
+   "plays": 1,
+   "bestLevel": 5,
+   "bestScore": 7.8,
+   "lastWeapon": "dagger"
+  },
+  {
+   "id": "5QMECRBC",
+   "grade": "五",
+   "bestWpm": 10,
+   "lastWpm": 8,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 4,
+   "bestLevel": 8,
+   "bestScore": 10,
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "CSUBP4FA",
+   "grade": "五",
+   "bestWpm": 5,
+   "lastWpm": 5,
+   "bestAcc": 80,
+   "lastAcc": 80,
+   "plays": 1,
+   "bestLevel": 4,
+   "bestScore": 4.9,
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "DRHVM3ZE",
+   "grade": "五",
+   "bestWpm": 5,
+   "lastWpm": 5,
+   "bestAcc": 80,
+   "lastAcc": 80,
+   "plays": 1,
+   "bestLevel": 2,
+   "bestScore": 4.9,
+   "tier": "B",
+   "lastWeapon": "dagger"
+  },
+  {
+   "id": "SNTM3R48",
+   "grade": "五",
+   "bestWpm": 9,
+   "lastWpm": 9,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 2,
+   "bestLevel": 8,
+   "bestScore": 9.9,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "LPLQD76R",
+   "grade": "五",
+   "bestWpm": 7
+  },
+  {
+   "id": "GM6VAGZU",
+   "grade": "五",
+   "bestWpm": 10,
+   "lastWpm": 10,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 8,
+   "bestLevel": 7,
+   "bestScore": 11,
+   "tier": "B",
+   "lastWeapon": "dagger"
+  },
+  {
+   "id": "3TP6XJJG",
+   "grade": "五",
+   "bestWpm": 9,
+   "lastWpm": 9,
+   "bestAcc": 100,
+   "lastAcc": 93,
+   "plays": 5,
+   "bestLevel": 6,
+   "bestScore": 8,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "95DYLGZ3",
+   "grade": "五",
+   "tier": "B"
+  },
+  {
+   "id": "GBA582NB",
+   "grade": "五",
+   "bestWpm": 8,
+   "lastWpm": 3,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 2,
+   "bestLevel": 6,
+   "bestScore": 8,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "QD8RL8X4",
+   "grade": "五",
+   "bestWpm": 16,
+   "lastWpm": 4,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 5,
+   "bestLevel": 4,
+   "bestScore": 17.6,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "ZEE2C565",
+   "grade": "五",
+   "bestWpm": 49,
+   "lastWpm": 16,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 10,
+   "bestLevel": 17,
+   "bestScore": 63.7,
+   "tier": "D",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "EEN6MM4W",
+   "grade": "五",
+   "bestWpm": 13,
+   "plays": 2
+  },
+  {
+   "id": "VCBJ433U",
+   "grade": "五",
+   "bestWpm": 6,
+   "plays": 3
+  },
+  {
+   "id": "7T7M8H28",
+   "grade": "五",
+   "bestWpm": 9,
+   "lastWpm": 9,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 3,
+   "bestLevel": 5,
+   "bestScore": 9,
+   "tier": "B",
+   "lastWeapon": "bow"
+  },
+  {
+   "id": "XFTZUY9K",
+   "grade": "五",
+   "bestWpm": 8,
+   "lastWpm": 7,
+   "bestAcc": 92,
+   "lastAcc": 92,
+   "plays": 4,
+   "bestLevel": 5,
+   "bestScore": 6.9,
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "N7NVX7GP",
+   "grade": "五",
+   "bestWpm": 2,
+   "tier": "A"
+  },
+  {
+   "id": "7NYJAKMQ",
+   "grade": "五",
+   "bestWpm": 10,
+   "plays": 2
+  },
+  {
+   "id": "E58J6CM9",
+   "grade": "五",
+   "bestWpm": 13,
+   "lastWpm": 11,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 2,
+   "bestLevel": 7,
+   "bestScore": 15.6,
+   "tier": "C",
+   "lastWeapon": "dagger"
+  },
+  {
+   "id": "M5N8VLG8",
+   "grade": "五",
+   "bestWpm": 17,
+   "lastWpm": 14,
+   "bestAcc": 100,
+   "lastAcc": 67,
+   "plays": 7,
+   "bestLevel": 9,
+   "bestScore": 18.7,
+   "tier": "C",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "MJJZMN8H",
+   "grade": "五",
+   "bestWpm": 6,
+   "plays": 2
+  },
+  {
+   "id": "CPX6LUGU",
+   "grade": "五",
+   "bestWpm": 85,
+   "lastWpm": 9,
+   "bestAcc": 100,
+   "lastAcc": 34,
+   "plays": 44,
+   "bestLevel": 28,
+   "bestScore": 101.8,
+   "tier": "D",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "A6YX77CM",
+   "grade": "五",
+   "bestWpm": 23,
+   "lastWpm": 12,
+   "bestAcc": 97,
+   "lastAcc": 97,
+   "plays": 4,
+   "bestLevel": 12,
+   "bestScore": 22.9,
+   "tier": "C",
+   "lastWeapon": "staff",
+   "nw": {
+    "hr": 2,
+    "hunts": 2,
+    "wins": 1,
+    "fails": 1,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 0,
+    "dodgeAll": 0,
+    "defOk": 0,
+    "defAll": 0,
+    "fastest": {
+     "grass:1": 179.68919999999972
+    },
+    "fastMk": {
+     "shroom:1": 179.7
+    },
+    "dex": {
+     "shroom": 1
+    },
+    "used": {
+     "dagger": 1
+    },
+    "wwin": {
+     "dagger": 1
+    }
+   }
+  },
+  {
+   "id": "7H4PBZY6",
+   "grade": "五",
+   "bestWpm": 23,
+   "lastWpm": 10,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 5,
+   "bestLevel": 19,
+   "bestScore": 25.3,
+   "tier": "B",
+   "lastWeapon": "dagger"
+  },
+  {
+   "id": "V7PLE6QX",
+   "grade": "五",
+   "bestWpm": 11,
+   "lastWpm": 6,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 5,
+   "bestLevel": 8,
+   "bestScore": 11,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "JTF2BFMZ",
+   "grade": "五",
+   "bestWpm": 25,
+   "lastWpm": 25,
+   "bestAcc": 96,
+   "lastAcc": 96,
+   "plays": 3,
+   "bestLevel": 11,
+   "bestScore": 23,
+   "tier": "C",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "AR4F8W7R",
+   "grade": "五",
+   "bestWpm": 13,
+   "lastWpm": 11,
+   "bestAcc": 100,
+   "lastAcc": 86,
+   "plays": 4,
+   "bestLevel": 5,
+   "bestScore": 10.8,
+   "lastWeapon": "staff",
+   "nw": {
+    "hr": 1,
+    "hunts": 0,
+    "wins": 0,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 0,
+    "dodgeAll": 0,
+    "defOk": 0,
+    "defAll": 0
+   }
+  },
+  {
+   "id": "8SSUQKR7",
+   "grade": "五",
+   "bestWpm": 6,
+   "lastWpm": 1,
+   "bestAcc": 100,
+   "lastAcc": 33,
+   "plays": 4,
+   "bestLevel": 5,
+   "bestScore": 6,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "RYJ77R59",
+   "grade": "六",
+   "bestWpm": 30,
+   "plays": 2
+  },
+  {
+   "id": "HH3LFHQN",
+   "grade": "六",
+   "bestWpm": 17,
+   "plays": 1
+  },
+  {
+   "id": "4FKH7LJR",
+   "grade": "六",
+   "bestWpm": 24,
+   "lastWpm": 6,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 6,
+   "bestLevel": 10,
+   "bestScore": 28.7,
+   "tier": "C",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "YFLXGL4F",
+   "grade": "六",
+   "tier": "B"
+  },
+  {
+   "id": "QC5282WW",
+   "grade": "六",
+   "bestWpm": 20,
+   "lastWpm": 14,
+   "bestAcc": 100,
+   "lastAcc": 98,
+   "plays": 8,
+   "bestLevel": 11,
+   "bestScore": 22.7,
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "BPRNACVQ",
+   "grade": "六",
+   "bestWpm": 14,
+   "plays": 2
+  },
+  {
+   "id": "M95BDMSN",
+   "grade": "六",
+   "bestWpm": 8,
+   "lastWpm": 8,
+   "bestAcc": 89,
+   "lastAcc": 89,
+   "plays": 3,
+   "bestLevel": 6,
+   "bestScore": 7.9,
+   "lastWeapon": "bow"
+  },
+  {
+   "id": "W5CAZ8Z7",
+   "grade": "六",
+   "bestWpm": 12,
+   "plays": 2
+  },
+  {
+   "id": "FWE9UPJR",
+   "grade": "六",
+   "bestWpm": 18,
+   "plays": 2
+  },
+  {
+   "id": "4E3NCTB4",
+   "grade": "六",
+   "bestWpm": 18,
+   "plays": 2
+  },
+  {
+   "id": "GTE6GK7X",
+   "grade": "六",
+   "bestWpm": 15,
+   "plays": 3
+  },
+  {
+   "id": "WWH5VL3R",
+   "grade": "六",
+   "bestWpm": 3,
+   "plays": 1
+  },
+  {
+   "id": "YQQNZUSV",
+   "grade": "六",
+   "bestWpm": 21,
+   "plays": 2
+  },
+  {
+   "id": "R2J48HXQ",
+   "grade": "六",
+   "bestWpm": 16,
+   "plays": 2
+  },
+  {
+   "id": "LPR85JJH",
+   "grade": "六",
+   "bestWpm": 45,
+   "plays": 1
+  },
+  {
+   "id": "7CL9PZRK",
+   "grade": "六",
+   "bestWpm": 11,
+   "plays": 2
+  },
+  {
+   "id": "UE5PKMD7",
+   "grade": "六",
+   "bestWpm": 8,
+   "plays": 1
+  },
+  {
+   "id": "5STSEX2D",
+   "grade": "六",
+   "bestWpm": 2,
+   "plays": 1
+  },
+  {
+   "id": "Z3B4WQGJ",
+   "grade": "六",
+   "bestWpm": 7,
+   "plays": 2
+  },
+  {
+   "id": "MFACN7LH",
+   "grade": "六",
+   "bestWpm": 16,
+   "plays": 3
+  },
+  {
+   "id": "Y6WEZBDW",
+   "grade": "六",
+   "bestWpm": 28,
+   "plays": 2
+  },
+  {
+   "id": "E5GH7MGQ",
+   "grade": "六",
+   "bestWpm": 9,
+   "plays": 2
+  },
+  {
+   "id": "HCNL278T",
+   "grade": "六",
+   "bestWpm": 10,
+   "plays": 2
+  },
+  {
+   "id": "BS6MQUMK",
+   "grade": "六",
+   "bestWpm": 10,
+   "plays": 1
+  },
+  {
+   "id": "895WWRZ6",
+   "grade": "六",
+   "bestWpm": 14,
+   "plays": 2
+  },
+  {
+   "id": "PQU2KPGZ",
+   "grade": "六",
+   "bestWpm": 9,
+   "plays": 2
+  },
+  {
+   "id": "3T49S6XF",
+   "grade": "六",
+   "bestWpm": 11,
+   "plays": 2
+  },
+  {
+   "id": "MXNH7EVS",
+   "grade": "六",
+   "bestWpm": 5,
+   "plays": 1
+  },
+  {
+   "id": "KWXUF8Y6",
+   "grade": "六",
+   "bestWpm": 23,
+   "plays": 2
+  },
+  {
+   "id": "QMG83AZB",
+   "grade": "六",
+   "bestWpm": 14,
+   "plays": 2
+  },
+  {
+   "id": "FCJD6SES",
+   "grade": "六",
+   "bestWpm": 8,
+   "plays": 2
+  },
+  {
+   "id": "RUEAWZ67",
+   "grade": "六",
+   "bestWpm": 32,
+   "plays": 2
+  },
+  {
+   "id": "9TXNU7Y4",
+   "grade": "六",
+   "bestWpm": 28,
+   "plays": 1
+  },
+  {
+   "id": "P76ETXZB",
+   "grade": "六",
+   "bestWpm": 9,
+   "lastWpm": 9,
+   "bestAcc": 50,
+   "lastAcc": 50,
+   "plays": 2,
+   "bestLevel": 5,
+   "bestScore": 8.3,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "BKVEH5WQ",
+   "grade": "六",
+   "bestWpm": 7,
+   "lastWpm": 7,
+   "bestAcc": 100,
+   "lastAcc": 100,
+   "plays": 3,
+   "bestLevel": 7,
+   "bestScore": 7.7,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "M526NTFZ",
+   "grade": "六",
+   "bestWpm": 18,
+   "lastWpm": 18,
+   "bestAcc": 98,
+   "lastAcc": 98,
+   "plays": 2,
+   "bestLevel": 10,
+   "bestScore": 19.7,
+   "lastWeapon": "bow"
+  },
+  {
+   "id": "YNUFHP8V",
+   "grade": "六",
+   "bestWpm": 1,
+   "plays": 1
+  },
+  {
+   "id": "URNXB4JD",
+   "grade": "六",
+   "bestWpm": 11,
+   "plays": 1
+  },
+  {
+   "id": "5GR7JP54",
+   "grade": "六",
+   "tier": "B"
+  },
+  {
+   "id": "PRYZPKWR",
+   "grade": "六",
+   "bestWpm": 13,
+   "plays": 2
+  },
+  {
+   "id": "MU2LLFC2",
+   "grade": "六",
+   "bestWpm": 17,
+   "plays": 2
+  },
+  {
+   "id": "JPHPR78R",
+   "grade": "六",
+   "bestWpm": 5,
+   "plays": 2
+  },
+  {
+   "id": "QDQLF67H",
+   "grade": "?",
+   "bestWpm": 10,
+   "lastWpm": 9,
+   "bestAcc": 100,
+   "lastAcc": 97,
+   "plays": 4,
+   "bestLevel": 8,
+   "bestScore": 9.9,
+   "tier": "B",
+   "lastWeapon": "staff"
+  },
+  {
+   "id": "4AEWHUH6",
+   "grade": "?",
+   "bestWpm": 18,
+   "lastWpm": 15,
+   "bestAcc": 100,
+   "lastAcc": 97,
+   "plays": 2,
+   "bestLevel": 8,
+   "bestScore": 18,
+   "lastWeapon": "dagger"
+  },
+  {
+   "id": "9LNSGX5G",
+   "grade": "?",
+   "bestWpm": 1,
+   "plays": 1,
+   "nw": {
+    "hr": 1,
+    "hunts": 0,
+    "wins": 0,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 0,
+    "dodgeAll": 0,
+    "defOk": 0,
+    "defAll": 0
+   }
+  },
+  {
+   "id": "SE62GT4K",
+   "grade": "?",
+   "tier": "B"
+  },
+  {
+   "id": "KB2MVZPZ",
+   "grade": "?",
+   "tier": "B"
+  },
+  {
+   "id": "NVD7446G",
+   "grade": "?",
+   "bestWpm": 21,
+   "nw": {
+    "hr": 2,
+    "hunts": 4,
+    "wins": 1,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 1,
+    "dodgeAll": 8,
+    "defOk": 2,
+    "defAll": 4,
+    "fastest": {
+     "grass:1": 47.15680000019074
+    },
+    "dex": {
+     "coo": 1
+    }
+   }
+  },
+  {
+   "id": "3NZLJUEF",
+   "grade": "?",
+   "bestWpm": 1,
+   "plays": 1
+  },
+  {
+   "id": "H7W8ZXKS",
+   "grade": "?",
+   "tier": "B",
+   "nw": {
+    "hr": 1,
+    "hunts": 2,
+    "wins": 0,
+    "fails": 0,
+    "accN": 0,
+    "accSum": 0,
+    "dodgeOk": 1,
+    "dodgeAll": 3,
+    "defOk": 0,
+    "defAll": 0,
+    "used": {
+     "dagger": 1
+    }
+   }
+  },
+  {
+   "id": "F46WCD5W",
+   "grade": "?",
+   "bestWpm": 4,
+   "tier": "A"
+  },
+  {
+   "id": "N5JEQ745",
+   "grade": "?",
+   "bestWpm": 28,
+   "plays": 4,
+   "bestLevel": 7,
+   "bestScore": 17
+  },
+  {
+   "id": "GUEL3FBQ",
+   "grade": "?",
+   "bestWpm": 65,
+   "plays": 2
+  },
+  {
+   "id": "KAFJYNFR",
+   "grade": "?",
+   "bestWpm": 1,
+   "plays": 1,
+   "bestLevel": 1,
+   "bestScore": 1
+  },
+  {
+   "id": "8GVLZKXK",
+   "grade": "?",
+   "bestWpm": 3,
+   "plays": 1
+  },
+  {
+   "id": "8M2YZR3D",
+   "grade": "?",
+   "bestWpm": 12
+  }
+ ]
+}

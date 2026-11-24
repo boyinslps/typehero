@@ -73,6 +73,19 @@
 | `nw.seenNotice`／`seenNews`／`seenEv`／`seenBug` | `nw` 裡 | 佈告欄各分頁看到哪裡 | 「！」與自動跳出 |
 | `nw.pos`／`nw.posV` | `nw` 裡 | 村莊座標；`posV` 不是 2（32×22 地圖）的舊座標一律回出生點 | 村莊 |
 
+### 1.4b 裝備與每場紀錄欄位（第 2 段 2b，`nw` 裡）
+
+| 欄位 | 意思 | 誰用 |
+|---|---|---|
+| `gearV` | 裝備格式版本；1＝已搬成裝備格式（`normalizeNw` 只搬一次，本機舊存檔比雲端新也不會重搬） | 搬移 |
+| `gear` | 所有裝備 `[{ id, k, c, p, t, s? }]`：`k`＝`GEAR_DEFS` 的 key（老師送的武器用 `GIFT_WEAPONS` 的 key，例 `testblade`）、`c`＝顏色 gray／green／blue、`p`＝強化 0～5、`s:1`＝初心武器那一件。最多 60 件 | 背包、鐵匠鋪、戰鬥 |
+| `eq` | 五格穿著 `{ weapon, helm, armor, gloves, boots }`，值是 `gear` 的 id 或 null | 戰鬥、人物卡 |
+| `forge` | `{ made, ups, top, gift }`：做過幾件、強化幾次、最高 +幾、布裝圖紙送過了嗎 | 主線 1-5／1-6、詞條 |
+| `bpDry` | `{ 魔物: 連續幾場贏了沒掉圖紙 }`，到 5 第 6 場一定掉 | 圖紙保底 |
+| `cpmHist` | `{ 題目等級: 最近 5 場打字速度 }` | 「進步太跳」偵測 |
+| `runQ` | 還沒寫進雲端的場次紀錄 `[{ rid, run, flag }]`，最多 5 筆 | 離線補寫 |
+| `equip`／`gw`／`starter` | **舊欄位照寫**（`syncLegacy`）：穿著的老師送的武器、擁有的老師送的武器、初心武器種類 | 舊分頁、教師頁舊程式 |
+
 ### 1.5 新集合（v3.14.0 起）
 
 | 集合／文件 | 誰寫 | 內容 |
@@ -86,6 +99,9 @@
 | `mg_gift_used/{雜湊_班級_座號}` | 學生 create | `{ h, id, t }`，序號一人一份；次數用 count 查詢 |
 | `mg_rooms/{班級_座號}` | 學生 | 組隊房間（取代 `mg_config/nwroom_*`） |
 | `mg_clock/{班級_座號}` | 學生 | 只有 `t`（伺服器時間），算學生電腦的時差 |
+| `mg_nw_runs/{班級_座號}_{毫秒}` | 學生 create（2b 開放後才寫） | 每場狩獵一筆：`id`（文件 ID）、`cls`、`seat`、`uid`、`t`、`ts`（伺服器時間，分週用）、`v`、`app`、`mk`、`rk`、`star`、`lv`、`qb`（題目等級）、`res`、`secs`、`acc`、`ans`、`cor`、`typ`、`keys`、`nokey`、`act`、`cpm`、`fl`、`sus`（可疑代碼）、`w`、`atk`、`pw`、`tier`、`q`（每題摘要，**平的數字陣列、每 4 個一題** `[字數, 按鍵, 毫秒, 打對]`，最多 120 題＝480 個數字；Firestore 不能存陣列裡的陣列，規格原本寫的巢狀陣列行不通）。學生不能讀、不能改；2a 榮譽碑用 |
+| `mg_nw_flags/run_{runId}` | 學生 create | 被標記的場次（`type:'run'`、`why`＝可疑代碼 keys／fast／sum／jump），老師在 2a 的教師頁審核 |
+| `mg_nw_board/{年級}`、`mg_nw_board_private/{年級}` | 老師（2a） | 榮譽碑榜單（學生讀）與累積狀態（只有老師） |
 | `mg_admin_log/{ID}` | 老師 | 操作紀錄 `{ act, target, summary, t }` |
 | `mg_config/class_sizes` | 老師 | `{ sizes: {班級: 人數}, t }`，班級挑戰分母（活動自己的 `clsSize` 優先） |
 
