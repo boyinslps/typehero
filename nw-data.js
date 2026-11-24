@@ -348,6 +348,7 @@ export const defaultNw = () => ({
   name0: '', bugScore: 0, evDone: [], nameFlagged: {},
   mail: {}, nameLog: [], nameSet: 0, ev: {}, fastMk: {}, cpmHist: {}, runQ: [],
   gearV: 0, gear: [], eq: { weapon: null, helm: null, armor: null, gloves: null, boots: null }, bpDry: {}, forge: { made: 0, ups: 0, top: 0, gift: 0 },
+  board: null,   // 委託板（BOARD_ROT 開著才用，格式見 normalizeBoard）
   flow: '', esc: {}   // 上次選的流派（''＝一般打法）；esc＝「怪物:星級」逃走了幾次（打贏就清掉），結算提示藤蔓流用
 });
 
@@ -372,6 +373,7 @@ export function normalizeNw(d) {
   o.evDone = Array.isArray(d.evDone) ? d.evDone : []; o.nameFlagged = d.nameFlagged || {};
   /* 已領的信是物件不是陣列：兩個分頁各自合併存檔時，不會整份蓋掉對方領過的紀錄 */
   o.mail = (d.mail && typeof d.mail === 'object' && !Array.isArray(d.mail)) ? d.mail : {};
+  o.board = normalizeBoard(d.board);
   /* 舊的詞庫暱稱不再使用，丟掉；nameLog＝用改名卡改過的名字（老師在學生卡看得到） */
   delete o.nick; delete o.nickAt;
   o.flow = FLOWS[d.flow] ? d.flow : '';
@@ -1084,3 +1086,38 @@ export const NOTICES = [
     '🎒 修好了：太快點背包，換裝備教學會卡住。'
   ] }
 ];
+
+/* ── 委託板「一次 4 張、打完才補」（docs/SPEC-BOARD-ROTATION.md）──
+   純函式在 nw-board-rot.js。這裡放常數、旗標與存檔整理（normalizeNw 要用，放在那邊會循環引用）。
+   旗標關掉＝完全是現在的畫面（全部列出），存檔裡的 board 欄位留著也無害。老師點頭後才改 true；
+   測試在 localhost 用 window.__BOARD_ROT__ = true／false 強制。不跟 OPEN_STAGES 綁（第 1 段已經開了）。 */
+export const BOARD_ROT = false;
+export const boardRotOn = () => (typeof location !== 'undefined' && location.hostname === 'localhost' && typeof window !== 'undefined' && typeof window.__BOARD_ROT__ === 'boolean') ? window.__BOARD_ROT__ : BOARD_ROT;
+export const BOARD = {
+  keys: ['a', 'b', 'c', 'd', 'e'],      // a 目標／剛好、b 挑戰、c 剛好、d 輕鬆、e 第二個目標（平常空著）
+  hardP: 0.55,                          // 挑戰單：預估勝率至少這麼多（沒有一隻達到就放那一星最好打的）
+  midP: 0.80,                           // 剛好單：預估勝率至少這麼多
+  phi0: 1.3,                            // 沒有任何打贏紀錄時，假設比中位慢 30%（保守）
+  best2typ: 1.15,                       // 「最快」比平常快約 15%（校準報告 §2.4）
+  sig: 0.25,                            // 預估的不確定（場與場 0.2 加上估計誤差）
+  loseSoft: 2,                          // 挑戰單連續 2 次沒贏 → 換成那一星最好打的
+  recentN: 3,                           // 記最近幾張打贏的單子（避免馬上又出現）
+  easyAge: 4                            // 輕鬆單最多比你打過的最高星低 4 星（草原 ★1 不會在森林 ★3 時還掛著）
+};
+const BOARD_ID_RE = /^[a-z]+:[a-z]+:[1-5]$/;
+/* 格式不對就丟掉（下次打開看板重排）；五個鍵一定都在：存檔是 merge 寫入，本機刪掉的鍵雲端刪不掉；重複的第二張清空 */
+export function normalizeBoard(d) {
+  if (!d || typeof d !== 'object' || Array.isArray(d) || d.v !== 1) return null;
+  const int = x => (Number.isFinite(+x) ? Math.max(0, Math.floor(+x)) : 0);
+  const empty = () => ({ id: '', k: '', at: 0, m: 0 });
+  const o = { v: 1, seed: int(d.seed) >>> 0, day: int(d.day), n: int(d.n), done: int(d.done), swap: int(d.swap), lose: Math.min(9, int(d.lose)),
+    last: BOARD_ID_RE.test(d.last) ? d.last : '', recent: Array.isArray(d.recent) ? d.recent.filter(x => BOARD_ID_RE.test(x)).slice(0, BOARD.recentN) : [],
+    out: BOARD_ID_RE.test(d.out) ? d.out : '', slots: {} };
+  const seen = [];
+  BOARD.keys.forEach(k => {
+    const s = d.slots && d.slots[k], id = s && BOARD_ID_RE.test(s.id) && !seen.includes(s.id) ? s.id : '';
+    if (id) seen.push(id);
+    o.slots[k] = id ? { id, k: typeof s.k === 'string' ? s.k.slice(0, 8) : '', at: int(s.at), m: Math.min(99, int(s.m)) } : empty();
+  });
+  return o;
+}
