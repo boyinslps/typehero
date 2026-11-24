@@ -33,8 +33,37 @@ const CSS = `
 .nwbd-info{margin:10px 0;line-height:1.55;font-size:.95em}
 .nwbd-room{display:flex;align-items:center;gap:10px;width:100%;padding:8px 12px;margin-bottom:8px;background:#e8d8b0;color:#3a2814;border:3px solid #1c1008;box-shadow:inset 0 0 0 2px #b89868;font-weight:800;text-align:left}
 .nwbd-room.me{background:#f0e0a8;outline:3px solid #ffd24a}
+/* 一次 4 張（BOARD_ROT）：2 欄排好、位置不跳；寬度跟著欄走，手機 390 不橫向捲 */
+.nwbd-sheets.rot{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 8px;justify-items:center}
+.nwbd-sheets.rot .qs-wrap{width:100%;max-width:196px;margin:0}
+.nwbd-sheets.rot .qs{width:100%}
+.nwbd-sheets.rot .qs-pic{max-width:100%}
+.qs-role{display:inline-block;margin:0 0 4px -4px;padding:1px 12px 1px 8px;font-size:12px;font-weight:900;border:2px solid #1c1008;color:#2a1a08;white-space:nowrap}
+.qs-role.easy{background:#a8c498}
+.qs-role.mid{background:#f0dc98}
+.qs-role.hard{background:#c8765a;color:#fff;padding-right:18px;clip-path:polygon(0 0,100% 0,calc(100% - 8px) 50%,100% 100%,0 100%)}
+.qs-seal{position:absolute;right:8px;top:12px;width:18px;height:18px;image-rendering:pixelated}
+.qs-newtag{position:absolute;top:-14px;right:-4px;z-index:5;max-width:150px;background:#ffe27a;color:#4a2a08;font-weight:900;font-size:12px;padding:2px 8px;border:2px solid #1c1008;transform:rotate(4deg)}
+.qs-wrap.new{animation:qsDrop .35s steps(4)}
+.qs-wrap.new .qs-pin{animation:qsPinSnap .35s steps(3) .35s backwards}
+@keyframes qsDrop{from{transform:translateY(-24px) rotate(-8deg) scale(1.1)}}
+@keyframes qsPinSnap{from{margin-top:-10px;opacity:.4}}
+@media (prefers-reduced-motion:reduce){.qs-wrap.new,.qs-wrap.new .qs-pin{animation:none}}
+.qs-blank{display:block;width:100%;padding:34px 12px;text-align:center;color:#6a5434;font-weight:800;font-size:.9em;line-height:1.5;opacity:.85}
+.nwbd-locks{margin-top:12px;display:flex;flex-direction:column;gap:6px}
+.nwbd-lock{padding:5px 10px;background:#cdbd98;color:#5a4a30;border:2px dashed #6a5434;font-size:.85em;font-weight:800;transform:rotate(-.4deg)}
+.nwbd-note{position:relative;z-index:2;margin:0 0 8px;padding:5px 10px;background:#f4e6b8;color:#4a2a08;border:3px solid #b8903a;font-size:.88em;line-height:1.4}
+.nwbd-role{margin:2px 0 6px;font-weight:800;line-height:1.5}
 `;
 
+
+const BLD_NAME = { academy: '教學大樓', forge: '鐵匠鋪' };
+const ROLE = {
+  easy: ['🍃', '輕鬆', '比較簡單，放心打、拿材料'],
+  mid: ['🎯', '剛好', '跟你打過的差不多'],
+  hard: ['🔥', '挑戰', '你還沒打過的星級，打贏就開放下一顆星']
+};
+const SEAL = ['..rr..', '.rRRr.', 'rRrrRr', 'rRrrRr', '.rRRr.', '..rr..'];
 const hash = s => { let h = 7; for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
 const rnd = (h, i) => ((Math.sin(h * 0.001 + i * 12.9898) * 43758.5453) % 1 + 1) % 1;
 
@@ -51,9 +80,12 @@ function jagged(h) {
 export function mountBoard(host, env) {
   const { PX, NW } = env;
   if (!document.getElementById('nwbd-css')) { const st = document.createElement('style'); st.id = 'nwbd-css'; st.textContent = CSS; document.head.appendChild(st); }
-  const quests = boardQuests(NW, env.today);
-  const goal = env.goal || null, isGoal = q => !!goal && !q.locked && goal.match(q);
-  let tab = 'quests', sel = env.selected && quests.find(q => q.id === env.selected && !q.locked) ? env.selected : ((quests.find(isGoal) || quests.find(q => !q.locked)) || {}).id;
+  const rot = Array.isArray(env.cards);   // BOARD_ROT 開著：newworld.js 傳 4 張現成的單子；關著就跟以前一樣全部列出
+  const quests = rot ? env.cards : boardQuests(NW, env.today);
+  const goal = env.goal || null, isGoal = q => rot ? !!q.tag : !!goal && !q.locked && goal.match(q);
+  const pickSel = () => rot ? ((quests.find(q => q.tag === 'quest' || q.tag === 'path') || quests.find(q => q.tag) || quests.find(q => q.role === 'hard') || quests[0]) || {}).id
+    : ((quests.find(isGoal) || quests.find(q => !q.locked)) || {}).id;
+  let tab = 'quests', sel = env.selected && quests.find(q => q.id === env.selected && !q.locked) ? env.selected : pickSel();
   let rooms = [], raf = 0, alive = true, poll = 0;
   const wood = PX.wood().toDataURL(), pinURL = PX.pin('#d83a3a').toDataURL();
   const papers = ['#e8d8b0', '#e0cfa0', '#ead9b8', '#dccb9a'].map(c => PX.paper(c).toDataURL());
@@ -65,9 +97,10 @@ export function mountBoard(host, env) {
     <div class="nwbd-wrap">
       <div class="nwbd-board" id="nwbd-board" style="background-image:url(${wood});background-size:144px 144px;image-rendering:pixelated">
         <div class="nwbd-sign">冒險者公會・委託板</div>
-        ${goal ? `<div class="nwbd-goal">📌 現在的任務：<b>${goal.text}</b>　→ 選有紅色「任務目標」標籤的委託單</div>` : ''}
+        ${goal ? `<div class="nwbd-goal">📌 現在的任務：<b>${goal.text}</b>　${rot && goal.building && goal.building !== 'board' ? `→ 去村莊的「${BLD_NAME[goal.building] || '建築'}」` : '→ 選有紅色「任務目標」標籤的委託單'}</div>` : ''}
+        ${rot ? [env.cleared ? '<div class="nwbd-note">🏆 迷霧森林的委託你都打完了！新的地方還在蓋。</div>' : '', ...(env.notes || []).map(t => `<div class="nwbd-note">${t}</div>`), env.evAny ? '<div class="nwbd-note">🎪 活動中：打贏哪一張都算</div>' : ''].join('') : ''}
         <div class="nwbd-tabs"><button class="nwbd-tab" data-tab="quests">📜 委託單</button><button class="nwbd-tab" data-tab="rooms">🚪 房間 <span id="nwbd-rc">0</span></button></div>
-        <div class="nwbd-sheets" id="nwbd-list"></div>
+        <div class="nwbd-sheets${rot ? ' rot' : ''}" id="nwbd-list"></div>
       </div>
       <div class="px-panel nwbd-side">
         <div class="px-title" style="font-size:1.1em;margin-bottom:6px">🗺 狩獵地點</div>
@@ -75,6 +108,7 @@ export function mountBoard(host, env) {
         <div class="nwbd-info px-text" id="nwbd-info"></div>
         <div class="px-text" id="nwbd-bell" style="display:none;margin-bottom:6px;color:#ffd98a">⏰ 快下課了，這場可能打不完喔！打不完也會照打掉的血給獎勵。</div>
         <button class="px-btn gold" style="width:100%;padding:12px;font-size:1.15em" data-go disabled>⚔ 狩獵</button>
+        ${rot ? '<button class="px-btn" style="width:100%;margin-top:8px;padding:8px" data-swap disabled>🔄 換一張</button>' : ''}
       </div>
     </div>`;
   const list = host.querySelector('#nwbd-list'), info = host.querySelector('#nwbd-info'), go = host.querySelector('[data-go]');
@@ -83,6 +117,13 @@ export function mountBoard(host, env) {
   cv.width = cw; cv.height = Math.round(cw * BIGMAP.h / BIGMAP.w);
   g.imageSmoothingEnabled = false;
 
+  const changed = env.changed || {};
+  const TAG = { quest: '📌 任務目標', path: '📌 往任務前進', event: '🎪 活動' };
+  const sealOf = () => {
+    const c = document.createElement('canvas'); c.width = 6; c.height = 6; c.className = 'qs-seal'; c.setAttribute('aria-hidden', 'true');
+    const x = c.getContext('2d'); SEAL.forEach((row, y) => [...row].forEach((ch, i) => { if (ch !== '.') { x.fillStyle = ch === 'R' ? '#d8503a' : '#8a1e12'; x.fillRect(i, y, 1, 1); } }));
+    return c;
+  };
   const qOf = id => quests.find(q => q.id === id);
   const spotOf = q => BIGMAP.spots[q.rk + ':' + q.mk];
 
@@ -102,7 +143,8 @@ export function mountBoard(host, env) {
         b.innerHTML = `<div class="qs-stars"><i>☆☆☆☆☆</i></div><div class="qs-name">${r.icon} ${r.name}的委託</div><div class="qs-meta">🔒 打倒${REGIONS[r.needs].name} ★5 就會出現</div>`;
       } else {
         const m = MONSTERS[q.mk];
-        b.innerHTML = `<div class="qs-stars">${'★'.repeat(q.star)}<i>${'☆'.repeat(5 - q.star)}</i></div>
+        const rb = rot ? `<div class="qs-role ${q.role}">${ROLE[q.role][0]} ${ROLE[q.role][1]}</div>` : '';
+        b.innerHTML = `${rb}<div class="qs-stars">${'★'.repeat(q.star)}<i>${'☆'.repeat(5 - q.star)}</i></div>
           <canvas class="qs-pic" width="120" height="96"></canvas>
           <div class="qs-name">討伐 ${m.name}</div><div class="qs-meta">Lv ${q.lv}・${REGIONS[q.rk].name}</div>${q.done ? '<div class="qs-stamp">已討伐</div>' : ''}${q.wait ? '<div class="qs-stamp" style="top:56px;color:#5a4128;border-color:#5a4128">明天再來</div>' : ''}`;
         const c = b.querySelector('canvas'), x = c.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(ink(q.mk, 3), 0, 0);
@@ -110,9 +152,27 @@ export function mountBoard(host, env) {
       }
       const pin = document.createElement('img'); pin.className = 'qs-pin'; pin.src = pinURL; pin.style.cssText = 'width:27px;image-rendering:pixelated'; pin.alt = '';
       wrap.appendChild(b); wrap.appendChild(pin);
-      if (isGoal(q)) { wrap.classList.add('goal'); const tg = document.createElement('div'); tg.className = 'qs-goal'; tg.textContent = '📌 任務目標'; wrap.appendChild(tg); }
+      if (isGoal(q)) { wrap.classList.add('goal'); const tg = document.createElement('div'); tg.className = 'qs-goal'; tg.textContent = rot ? TAG[q.tag] + (q.both ? '＋🎪 活動' : '') : '📌 任務目標'; wrap.appendChild(tg); }
+      if (rot && q.role === 'hard' && !q.locked) { b.appendChild(sealOf()); }
+      if (rot && changed[q.key]) {
+        wrap.classList.add('new');
+        const nt = document.createElement('div'); nt.className = 'qs-newtag'; nt.textContent = changed[q.key] === 'ladder' ? '🪜 換一隻比較好打的' : '✨ 新的！'; wrap.appendChild(nt);
+      }
       list.appendChild(wrap);
     });
+    if (rot && !env.cleared && quests.length < 4) {
+      const wrap = document.createElement('div'); wrap.className = 'qs-wrap'; wrap.style.cssText = '--r:1.5deg;--dy:4px;--m:0';
+      const b = document.createElement('div'); b.className = 'qs-blank';
+      b.style.cssText = `background-image:url(${papers[2]});background-size:96px 96px;image-rendering:pixelated;clip-path:${jagged(77)}`;
+      b.textContent = '打贏一張，這裡就會貼新的單子';
+      const pin = document.createElement('img'); pin.className = 'qs-pin'; pin.src = pinURL; pin.style.cssText = 'width:27px;image-rendering:pixelated'; pin.alt = '';
+      wrap.appendChild(b); wrap.appendChild(pin); list.appendChild(wrap);
+    }
+    if (rot && (env.locks || []).length) {
+      const box = document.createElement('div'); box.className = 'nwbd-locks'; box.style.gridColumn = '1 / -1'; box.style.width = '100%';
+      box.innerHTML = env.locks.map(l => `<div class="nwbd-lock">🔒 ${REGIONS[l.rk].name}：打倒${REGIONS[l.needs].name} ★5 就會出現</div>`).join('');
+      list.appendChild(box);
+    }
   }
 
   function renderRooms() {
@@ -128,12 +188,23 @@ export function mountBoard(host, env) {
     });
   }
 
+  /* 換一張：每天 1 次、目標單不能換、沒有別張可換就灰掉（不扣次數）。判斷在 newworld.js（swapCard 是純函式，先試算一次） */
+  const swapBtn = host.querySelector('[data-swap]');
+  function updateSwap(q) {
+    if (!swapBtn) return;
+    const st = q && !q.locked && env.canSwap ? env.canSwap(q.key) : { ok: false, why: 'none' };
+    swapBtn.disabled = !st.ok;
+    swapBtn.textContent = st.ok ? '🔄 換一張（今天還能換 1 次）' : st.why === 'goal' ? '🔄 任務要用，不能換' : st.why === 'used' ? '🔄 明天才能再換' : '🔄 沒有別張可以換';
+    swapBtn.dataset.why = st.ok ? '' : st.why;
+  }
   function renderInfo() {
     const q = qOf(sel);
+    updateSwap(q);
     if (!q || q.locked) { info.innerHTML = '<span style="color:#aab0d8">選一張委託單，這裡會顯示魔物住在哪裡。</span>'; go.disabled = true; return; }
     const m = MONSTERS[q.mk], sp = spotOf(q), hits = [...new Set(m.attacks.filter(a => a.status).map(a => STATUS[a.status]))];
     const drops = m.drops.map(d => `<span style="color:${COLOR_HEX[d[2]]}">■</span>${d[1]}`).join('　');
     info.innerHTML = `<div class="px-title" style="font-size:1.2em">${m.name} ${ELEM[m.elem]} <span style="font-size:.8em;color:#aab0d8">Lv ${q.lv}・${'★'.repeat(q.star)}</span></div>
+      ${rot ? `<div class="nwbd-role" data-role>${ROLE[q.role][0]} ${ROLE[q.role][1]}：${env.cleared && q.role === 'hard' ? '還沒打贏過的強敵，打贏看看！' : ROLE[q.role][2]}${q.tag ? `<br>${q.tag === 'event' ? '🎪 活動要打這張' : q.tag === 'path' ? '📌 往任務前進' : '📌 任務要打這張'}` : ''}</div>` : ''}
       <div>📍 ${REGIONS[q.rk].name}・${sp ? sp[2] : ''}　打：<b>${m.ask === 'zhuyin' ? '注音' : '詞語'}</b></div>
       <div>${m.lean}　打中你會：${hits.length ? hits.join('、') : '沒有特別的'}</div>
       <div style="color:#ffd98a">${m.sp}</div>
@@ -188,6 +259,7 @@ export function mountBoard(host, env) {
     if (t) { tab = t.dataset.tab; renderSheets(); if (tab === 'rooms') refreshRooms(); return; }
     const q = e.target.closest('[data-q]');
     if (q && !q.classList.contains('lock')) { select(q.dataset.q); return; }
+    if (e.target.closest('[data-swap]')) { const q = qOf(sel); if (q && !swapBtn.disabled && env.onSwap) env.onSwap(q.key, q.id); return; }
     if (e.target.closest('[data-go]') && qOf(sel) && !qOf(sel).locked && !qOf(sel).wait) env.onHunt(qOf(sel));
   });
 

@@ -5,7 +5,8 @@ import {
   COLOR_NAME, COLOR_HEX, HR_MAX, VILLAGE, doorTile, buildingOpen, goalOf, TEST_TAGS, FB_COINS, FB_MINLEN, BUG_COINS, bugCoins, BUG_REWARD_MAX, LESSON_COINS, lessonCoins, TESTER_MISSIONS, checkMissions, GIFT_WEAPONS, weaponInfo, weaponBase, curWeapon, WORDS, WORD_GROUPS, checkWords, setTitleParts, wordById, normName, ITEM_DEFS, displayName, NOTICES, MAT_INFO, isBpId, isMatId, TUT_LESSONS, ZONE_STAR_MAX
 } from './nw-data.js';
 import { injectUi } from './nw-ui.js';
-import { setStarter, gearDef, gearItem, doEquip, equippedItem, rollBlueprints, giveGear, giftGearOk, itemName, itemText, forgeHint, stageOpen, GEAR_MAX, wordOpen, newGearId, syncLegacy, giveClothBps, craftList, BP_DUP_COINS, susCheck, SUS, NW_V2, v2On, rewardRatio, dayStep, stdSecs, twDay, newStarLocked, FLOWS, FLOW_INFO, flowOf } from './nw-data.js';
+import { setStarter, gearDef, gearItem, doEquip, equippedItem, rollBlueprints, giveGear, giftGearOk, itemName, itemText, forgeHint, stageOpen, GEAR_MAX, wordOpen, newGearId, syncLegacy, giveClothBps, craftList, BP_DUP_COINS, susCheck, SUS, NW_V2, v2On, rewardRatio, dayStep, stdSecs, twDay, newStarLocked, FLOWS, FLOW_INFO, flowOf, BAL, boardRotOn } from './nw-data.js';
+import { ensureBoard, afterRun, swapCard, boardView, band, frontier, parseId, hash32 } from './nw-board-rot.js';
 import { openForge, gearTab, matsTab, bpTab } from './nw-forge.js';
 import { flowText, tierOf, EQUIP_LEFT, EQUIP_RIGHT, chibiOf, heroOf, titleBadgeHtml, darkDots, equipSlotHtml, mountSprites as mountSpritesPx, CARD_CSS } from './nw-card.js';
 import { mountVillage } from './nw-village.js';
@@ -372,7 +373,7 @@ export function initNewWorld(C) {
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     const d = doorTile(b);
     NW.pos = [d[0], d[1] + 1]; NW.posV = POS_V;
-    if (buildingOpen(b)) { const go = { map: viewBoard, rank: openRank, academy: openAcademyUI, notice: () => openNotice(false), forge: openForgeUI, storage: openStorageUI }[b.act] || (() => {}); introOnce(b.id === 'board' ? 'board' : b.id).then(go); return; }
+    if (buildingOpen(b)) { const go = { map: viewBoard, rank: openRank, academy: openAcademyUI, notice: () => openNotice(false), forge: openForgeUI, storage: openStorageUI }[b.act] || (() => {}); introOnce(b.id === 'board' ? 'board' : b.id).then(() => (b.id === 'board' && boardRotOn() ? introOnce('board2') : null)).then(() => go()); return; }
     openWip(b);
   }
 
@@ -827,6 +828,7 @@ export function initNewWorld(C) {
     ],
     academy: [{ icon: '🏫', title: '教學大樓', text: '這裡有閃避、防禦、打字三堂課。每一堂都是先看示範，再自己一步一步做；沒做對會一直等你，做對才換下一步；最後還要把稻草魔物打倒（打 5 下）。學會一堂送 200 字元！' }],
     board: [{ icon: '📜', title: '委託板', text: '選一張委託單，右邊的大地圖會亮起魔物住的地方。有紅色「任務目標」標籤的，就是現在任務要打的魔物。按「狩獵」開房間，再按「出發」就開打。★ 越多越難，打贏低星才會開高星。' }],
+    board2: [{ icon: '📜', title: '委託板改版了', text: '委託板一次只貼 4 張單子，每張上面寫著「輕鬆」「剛好」「挑戰」。🔥 挑戰是你還沒打過的星級，打贏就開放下一顆星。打贏一張，那個位置就會貼上新的單子；不想打的單子，每天可以按「🔄 換一張」換 1 次。' }],
     bag: [{ icon: '🎒', title: '背包', text: '左邊是你的角色和 5 個裝備格，點名字下面的稱號可以自己拚稱號。右邊的分頁看裝備、道具、材料、圖紙、任務、圖鑑。拿到新武器，點格子裡的武器就能換上。' }],
     title: [{ icon: '🏅', title: '自己拚稱號', text: '稱號是用「詞條」拚的：一次選 1～3 個，順序自己決定。灰色的詞條還沒解鎖，會寫怎麼拿。打贏魔物、完成任務、抓蟲都能解鎖新詞條。' }],
     book: [{ icon: '📓', title: '測試員手冊', text: '新世界還在試玩，你是第一批冒險者！每完成一個任務就蓋一個章，拿字元和稱號詞條。字元是新世界的貨幣，之後可以買東西、打造裝備。' }],
@@ -1719,10 +1721,58 @@ export function initNewWorld(C) {
     ? C.withTimeout(C.setDoc(roomRef(), data, merge ? { merge: true } : undefined), 4000, 'nw-room').catch(e => console.warn('房間寫入失敗', e)) : Promise.resolve();
   const closeRoom = () => (C.online() && C.deleteDoc ? C.withTimeout(C.deleteDoc(roomRef()), 4000, 'nw-room-del').catch(() => {}) : Promise.resolve());
 
-  function viewBoard() {
+  /* ── 委託板一次 4 張（BOARD_ROT，docs/SPEC-BOARD-ROTATION.md）──
+     旗標關著：viewBoard 跟以前一樣全部列出，完全不讀寫 NW.board。 */
+  const boardT = () => (v2On() ? NW_V2.cap : BAL.timeLimit);
+  let boardChanged = {}, boardTok = 0;   // 剛貼上的格子（只在記憶體，下次打開就沒有）
+  /* 交給看板的活動：進行中、自己班看得到（activeEvents 已經篩過）、有指定魔物、而且自己還沒達標；沒有指定魔物的（加倍等）只要提示一行 */
+  function boardEvents() {
+    const out = { list: [], any: false };
+    try {
+      EV.activeEvents().forEach(e => {
+        if (!e.mk) { out.any = true; return; }
+        const p = EV.eventProgress(e);
+        if ((e.type === 'hunt' && p.done) || (e.type === 'classwar' && p.mineReached)) return;
+        out.list.push({ id: e.id, mk: e.mk, minStar: e.minStar, title: e.title });
+      });
+    } catch (e) { console.warn('讀活動給委託板失敗', e); }
+    return out;
+  }
+  const boardSeed = () => hash32(ME.docId + ':board1');
+  function viewBoard(noSync) {
+    if (!boardRotOn()) {
+      setView('board', `${topbar('📜 冒險者公會', 'hub')}<div id="board"></div>`, el => {
+        village = mountBoard(el.querySelector('#board'), { PX, NW, today: twDay(now()), classLeft, goal: goalOf(NW), selected: boardSel, loadRooms, onSelect: id => { boardSel = id; }, onHunt: q => openRoom(q) });
+      });
+      return;
+    }
+    const tok = ++boardTok, T = boardT(), evs = boardEvents();
+    const e = ensureBoard(NW, now(), evs.list, T, boardSeed());
+    if (e.why !== 'same') { NW.board = e.board; saveNw(); }
+    const changed = Object.assign({}, boardChanged); boardChanged = {};
+    if (e.why !== 'new') e.changed.forEach(k => { changed[k] = changed[k] || 'new'; });
+    const bv = boardView(NW, NW.board, evs.list, T, twDay(now()));
+    const keyOf = id => (bv.cards.find(c => c.id === id) || {}).key;
     setView('board', `${topbar('📜 冒險者公會', 'hub')}<div id="board"></div>`, el => {
-      village = mountBoard(el.querySelector('#board'), { PX, NW, today: twDay(now()), classLeft, goal: goalOf(NW), selected: boardSel, loadRooms, onSelect: id => { boardSel = id; }, onHunt: q => openRoom(q) });
+      village = mountBoard(el.querySelector('#board'), { PX, NW, today: twDay(now()), classLeft, goal: goalOf(NW), selected: boardSel, loadRooms, onSelect: id => { boardSel = id; }, onHunt: q => openRoom(q),
+        cards: bv.cards, locks: bv.locks, notes: bv.notes, cleared: bv.cleared, evAny: evs.any, changed,
+        canSwap: key => {
+          const c = bv.cards.find(x => x.key === key);
+          if (!c) return { ok: false, why: 'none' };
+          if (c.tag) return { ok: false, why: 'goal' };
+          if (NW.board.swap === twDay(now())) return { ok: false, why: 'used' };
+          return swapCard(NW, NW.board, key, now(), evs.list, T).refused ? { ok: false, why: 'none' } : { ok: true, why: '' };
+        },
+        onSwap: key => {
+          const r = swapCard(NW, NW.board, key, now(), evs.list, T);
+          if (r.refused) return;
+          NW.board = r.board; r.changed.forEach(k => { boardChanged[k] = 'new'; }); saveNwNow();
+          boardSel = (r.board.slots[key] || {}).id || null;
+          viewBoard(true);
+        } });
     });
+    /* 兩個分頁同時開：雲端存檔比自己新就先換成雲端的再整理（比照 syncGear）。先用本機畫出來，有換才重畫 */
+    if (noSync !== true && C.online()) syncGear().then(did => { if (did && tok === boardTok && view === 'board') viewBoard(true); }).catch(() => {});
   }
 
   async function openRoom(q) {
@@ -1867,6 +1917,8 @@ export function initNewWorld(C) {
     if (NW.starter) NW.used[weaponBase(curWeapon(NW))] = 1;
     s.dodgeOk += res.dodgeOk; s.dodgeAll += res.dodgeAll; s.defOk += res.defOk; s.defAll += res.defAll;
     const V2 = v2On();
+    /* 挑戰單要在更新 zone「之前」算：打贏它之後那一星就不再是下一顆星了 */
+    const rotOn = boardRotOn() && !!NW.board, boardId = `${res.rk}:${res.mk}:${res.star}`, wasHard = rotOn && band(NW, parseId(boardId), frontier(NW, boardT())) === 'hard';
     const sum = { lv, win: res.result === 'win', exp: 0, coins: 0, drops: [], rare: [], ups: 0, quests: [], star: res.star };
     /* 獎勵比例：舊規則輸／撤退一律一半；V2 贏＝全額，其他照 0.3u＋0.7·f·min(1,2u)（u＝有在打字的秒數 ÷ max(秒數, 300)、f＝打掉的血，流派只算一半；v2.3，SPEC-BALANCE-V2 §1.2） */
     const ratio = !V2 ? (sum.win ? 1 : 0.5) : rewardRatio(sum.win, res.live, res.secs, res.fEff);
@@ -1937,6 +1989,11 @@ export function initNewWorld(C) {
     }
     sum.quests = checkQuests();
     sum.words = checkWords(NW);
+    /* 看板不給任何獎勵：只決定下次貼哪一張。打贏才撕單子；輸、逃走、撤退、不算數都留著 */
+    if (rotOn && res.valid) {
+      const r = afterRun(NW, NW.board, { id: boardId, win: sum.win, valid: true, wasHard }, now(), boardEvents().list, boardT());
+      if (r.board !== NW.board) { NW.board = r.board; r.changed.forEach(k => { boardChanged[k] = sum.win ? 'new' : 'ladder'; }); }
+    }
     saveNw();
     flushRuns();
     return sum;

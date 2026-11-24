@@ -1,7 +1,7 @@
 /* 委託板「一次 4 張、打完才補」的規則（docs/SPEC-BOARD-ROTATION.md §1～§2）。
    純函式：同樣的 nw、now、seed 一定排出同樣的板子。參考實作與驗算在 tools/nw-sim/board.mjs（nw24.test.js 逐字比對）。
    常數 BOARD、旗標 BOARD_ROT、normalizeBoard 放在 nw-data.js（normalizeNw 要用，放這裡會循環引用）。 */
-import { REGIONS, MAIN_QUESTS, boardQuests, stdSecs, twDay, BOARD } from './nw-data.js';
+import { REGIONS, MONSTERS, MAIN_QUESTS, boardQuests, stdSecs, twDay, BOARD } from './nw-data.js';
 export { BOARD };
 
 const ORDER = Object.keys(REGIONS).filter(k => !REGIONS[k].wip);
@@ -275,4 +275,30 @@ export function firestoreOk(x, inArr = false) {
   if (Array.isArray(x)) return !inArr && x.every(v => firestoreOk(v, true));
   if (x && typeof x === 'object') return Object.values(x).every(v => firestoreOk(v, false));
   return typeof x !== 'number' || Number.isFinite(x);
+}
+
+/* 畫面要的東西（nw-board.js 用）：每格的單子（沿用 boardQuests 的物件格式，另外加 key／role／tag）、鎖住的區域（只放下緣小紙條）、
+   活動說明。角色（role）每次現算、不存：進度變了，同一張單子的角色跟著變。
+   tag：quest＝📌 任務目標、path＝📌 往任務前進、event＝🎪 活動（任務與活動合成一張時 both＝true） */
+export function boardView(nw, board, events, tlim, today) {
+  const ctx = ctxOf(nw, board, 0, events, tlim), F = ctx.F;
+  const all = boardQuests(nw, today), byId = {};
+  all.forEach(q => { if (!q.locked) byId[q.id] = q; });
+  const cards = [];
+  BOARD.keys.forEach(key => {
+    const s = board.slots[key], q = s && s.id && byId[s.id];
+    if (!q) return;
+    const gi = s.k === 'goal0' ? 0 : s.k === 'goal1' ? 1 : -1, g = gi >= 0 ? ctx.goals[gi] : null, hit = g && g.match(q);
+    cards.push(Object.assign({}, q, { key, role: band(nw, q, F), tag: hit ? (g.kind === 'event' ? 'event' : g.why === 'path' ? 'path' : 'quest') : '', both: !!(hit && g.kind === 'quest' && g.ev) }));
+  });
+  const locks = all.filter(q => q.locked).map(q => ({ rk: q.rk, needs: REGIONS[q.rk].needs }));
+  const notes = [], cs = all.filter(q => !q.locked);
+  (events || []).forEach(ev => {
+    if (!ev.mk || ctx.goals.some(g => g.ev === ev.id || (g.kind === 'event' && parseId(g.id).mk === ev.mk))) return;
+    const rks = ORDER.filter(r => REGIONS[r].mons.includes(ev.mk)), open = rks.filter(r => cs.some(q => q.rk === r)), name = (MONSTERS[ev.mk] || {}).name || '魔物';
+    if (!open.length) { const r = REGIONS[rks[0]]; if (r && r.needs) notes.push(`🎪 活動「${ev.title || '活動'}」要打${name}，先打倒${REGIONS[r.needs].name} ★5 喔`); return; }
+    const rk = open[open.length - 1], min = Math.max(1, ev.minStar || 1), top = Math.min(5, ((nw.zone || {})[rk] || 0) + 1);
+    if (min > top) notes.push(`🎪 活動「${ev.title || '活動'}」要打 ★${min} 的${name}，先把${REGIONS[rk].name}打到 ★${min - 1} 喔`);
+  });
+  return { cards, locks, notes, cleared: F.cleared, goals: ctx.goals };
 }
