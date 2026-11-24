@@ -34,6 +34,12 @@ const SPEND = opt('--spend', 'greedy'), FLOOR = opt('--floor', null);
 const POLICY = opt('--policy', 'pref'), TIERRULE = opt('--tier', 'real'), SCEN = opt('--scen', 'att');
 const RULES_ON = opt('--rules', null) === 'v2', FLOWPOL = opt('--flow', 'none');
 const BUDGET = opt('--budget', null) === null ? null : +opt('--budget'), OVER = +opt('--over', 3), PAD = +opt('--pad', 60), MAXPER = 12;
+/* v2.3（SPEC-BALANCE-V2 §1.2、§2.6、§2.7）：只有給了才生效，沒給＝舊行為
+     --stars-per-day N   一天（一節課）最多開 N 個新星級（打贏過的照樣能重打）
+     --reward v23        輸／逃走獎勵 0.3u＋0.7·f·min(1,2u)，u＝有在打字的秒數÷max(這場秒數, 300)（勤勞也只算有在打字的秒數）
+     --exchange C,G,L    鐵匠鋪「換材料」：每節下課前，C 字元＋G 個灰材料換 1 個綠材料，一天最多 L 次（字元要先留著夠強化下一級才換） */
+const STARS_DAY = opt('--stars-per-day', null) === null ? null : +opt('--stars-per-day'), REWARD23 = opt('--reward', null) === 'v23';
+const EXCH = opt('--exchange', null) ? opt('--exchange').split(',').map(Number) : null;
 const SIGMA_B = opt('--sigma-b', null) !== null ? +opt('--sigma-b') : (RULES_ON ? 0.2 : null), PROGRESS = args.includes('--progress');
 if (RULES_ON && !['none', 'guard', 'vine', 'pick'].includes(FLOWPOL)) { console.error('--flow 只能是 none | guard | vine | pick'); process.exit(2); }
 const FILE = opt('--file', null) || new URL('../../data-public/typehero-speed-20261120.json', import.meta.url);
@@ -181,7 +187,7 @@ function runStudent(st, seed) {
   log.games = []; log.prog = []; log.esc = 0; log.lost = 0; log.invalid = 0; log.fast = 0; log.work = 0; log.flowN = { none: 0, guard: 0, vine: 0 }; log.act = 0;
   for (let s = 1; s <= SESSIONS; s++) {
     log.session = s;
-    let left = (BUDGET || 0) * 60, played = 0; const day = { n: 0, workT: 0, work: 0 };
+    let left = (BUDGET || 0) * 60, played = 0; const day = { n: 0, workT: 0, work: 0, stars: 0 };
     for (let h = 0; ; h++) {
       if (BUDGET !== null) { const est = recent.length ? mean(recent.slice(-3)) : 0; if (played >= MAXPER || (played > 0 && left < est + PAD)) break; }
       else if (h >= PER) break;
@@ -200,11 +206,11 @@ function runStudent(st, seed) {
       if (BUDGET !== null) { left -= res.secs + OVER * 60; recent.push(res.secs); }
       log.hunts++; log.downs += res.downs;
       nw.stat.dodgeOk += res.dodgeOk; nw.stat.dodgeAll += res.dodgeAll; nw.stat.defOk += res.defOk; nw.stat.defAll += res.defAll;
-      if (win) { log.wins++; lossStreak = 0; nw.dex[t.mk] = (nw.dex[t.mk] || 0) + 1; if (t.star > (nw.zone[t.rk] || 0)) nw.zone[t.rk] = t.star; if (t.rk === 'forest') { log.forestWins++; if (log.firstForest === null) log.firstForest = s; } }
+      if (win) { log.wins++; lossStreak = 0; nw.dex[t.mk] = (nw.dex[t.mk] || 0) + 1; if (t.star > (nw.zone[t.rk] || 0) && (STARS_DAY === null || day.stars < STARS_DAY)) { nw.zone[t.rk] = t.star; day.stars++; } if (t.rk === 'forest') { log.forestWins++; if (log.firstForest === null) log.firstForest = s; } }
       else lossStreak++;
       if (RULES_ON) {
         /* V2 獎勵（SPEC §1.2、§2）：贏＝全額；輸／逃走＝0.3a＋0.7f；答不到 3 題又沒贏＝不算 */
-        day.n++; const full = day.n <= NW_V2.dayFull, fr = res.reward;
+        day.n++; const full = day.n <= NW_V2.dayFull, u23 = Math.min(1, res.a * res.secs / Math.max(res.secs, 300)), fr = REWARD23 ? (win ? 1 : res.valid ? NW_V2.failBase * u23 + (1 - NW_V2.failBase) * res.f * Math.min(1, 2 * u23) : 0) : res.reward;
         log.flowN[flowNow]++; log.act += res.a;
         if (!win) { if (res.result === 'escape') log.esc++; else log.lost++; }
         if (!res.valid) { log.invalid++; fscore[flowNow] = fscore[flowNow] === undefined ? 0 : 0.6 * fscore[flowNow] + 0.4 * 0; continue; }
@@ -233,6 +239,17 @@ function runStudent(st, seed) {
       });
       if (win) log.bpGot += rollBlueprints(nw, t.mk, r).length;
       checkQuests(nw, log);
+    }
+    if (EXCH) {   // 換材料：先留著夠強化 +1 的字元，多的才換；灰材料從最多的那種扣
+      const [C, G, L] = EXCH; let n = 0;
+      while (n < L && nw.coins >= C + 150) {
+        const grays = Object.entries(nw.mats).filter(([id, v]) => colorOf(id) === 'gray' && v > 0).sort((a, b) => b[1] - a[1]), tot = grays.reduce((a, [, v]) => a + v, 0);
+        if (tot < G) break;
+        let need = G; for (const [id, v] of grays) { const u = Math.min(need, v); nw.mats[id] -= u; need -= u; if (!need) break; }
+        const greens = Object.keys(MONSTERS).filter(mk => nw.dex[mk]).map(greenOf).sort((a, b) => (nw.mats[a] || 0) - (nw.mats[b] || 0));
+        const gid = greens[0] || greenOf('coo'); nw.mats[gid] = (nw.mats[gid] || 0) + 1;
+        nw.coins -= C; log.coinsOut += C; log.matsIn.green++; log.matsOut.gray += G; log.exch = (log.exch || 0) + 1; n++;
+      }
     }
     log.prog[s] = { top: (nw.zone.forest || 0) ? 5 + nw.zone.forest : (nw.zone.grass || 0), pw: gearStats(nw).pw, games: log.games[s] || 0 };
     if (s === Math.ceil(SESSIONS / 2) || s === SESSIONS) log.snap[s] = { coins: nw.coins, mats: matsBy(nw), pw: gearStats(nw).pw };
@@ -311,6 +328,7 @@ if (RULES_ON || BUDGET !== null || PROGRESS) {
     row('流派使用 守/藤/無%', rs => { const t = x => mean(rs.map(r => r.log.flowN[x] / r.log.hunts)); return `${pct(t('guard'))}/${pct(t('vine'))}/${pct(t('none'))}`; });
     row('⚡快手獎勵(個/學期)', rs => f1(mean(rs.map(r => r.log.fast))));
     row('🔨勤勞獎勵(個/學期)', rs => f1(mean(rs.map(r => r.log.work))));
+    if (EXCH) row('換材料(次/學期)', rs => f1(mean(rs.map(r => r.log.exch || 0))));
   }
   row('進森林%（草原★5 過）', rs => pct(mean(rs.map(r => (r.zone.grass || 0) >= 5 ? 1 : 0))));
   row('打贏過森林魔物%', rs => pct(mean(rs.map(r => r.log.forestWins > 0 ? 1 : 0))));

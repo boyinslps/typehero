@@ -65,7 +65,7 @@ export const P = {
   /* V2：新世界拿掉層級（docs/SPEC-BALANCE-V2.md）。只有 v2 一節會讀；其他章節照舊。 */
   v2: {
     k: NW_V2.k,             // 單一血量倍率，取代 HP_TIER（＝現行 B）。以下標「NW_V2」的值都是 nw-data.js 的 NW_V2（還沒有就用 rules-v2.mjs 的後備值）
-    cap: NW_V2.cap,         // 8 分鐘：魔物逃走（不算輸，照打掉的血給獎勵）
+    cap: NW_V2.cap,         // v2.2 起 600 秒（10 分鐘）：魔物逃走（不算輸，照打掉的血給獎勵）
     laneW: NW_V2.laneW,     // 單一紅線預警（現行 A 層的值；真實反應 2.5～3 秒）
     attacks: ATTACKS_V2,    // { coo: ['single', 'pair'], frog: ['slam', 'single'], shroom: ['single', 'slam'], wolf: [全開] }
     shroomFrom: ATTACK_FROM.shroom,   // 跳跳菇從 ★2 開始攻擊（★1 留給完全不想被打的人）
@@ -567,25 +567,34 @@ export function semesterV2(v0, a, p = P, flowPick = 'none') {
 
 /* ───────── 6. V2.2：逐場模擬（sim.mjs＋rules-v2.mjs）的掛機與標準時間 ─────────
    掛機：跟 v2-afk.mjs 同一套策略（sim.mjs 的 A.afkPlay），另外用 sim 回傳的 act（有在打字的秒數）、f、valid
-   重算 v2.2 的獎勵公式 a×(0.3a＋0.7f)：保底改成按「有在打字的秒數 ÷ 480」給（V22_REWARD）。
+   重算 v2.3 的獎勵公式 0.3u＋0.7f·min(1,2u)，u＝有在打字的秒數 ÷ max(這場秒數, 300)（V22_REWARD／V23_U）。
    參數用 NW_V2_SET 改（rules-v2.mjs）。 */
-/* v2.2 的輸／逃走獎勵：保底 0.3 按「有在打字的秒數 ÷ 逃走秒數」給（像勤勞獎勵一樣是時間制），進度 0.7 按打掉的血 f。
-   而且有在打字不到一半時間（4 分鐘）時，進度 0.7×f 也照比例打折：打 4 題長詞就站著（炎牙狼★5 一題 3.75 字）f 可以到 0.55，不打折掛機能拿 45～48% */
-export const V22_REWARD = (r, cap = (P.v2 && P.v2.cap) || 480, fb = (P.v2 && P.v2.failBase) || 0.3) => { const u = Math.min(1, (r.act || 0) / cap);
-  return fb * u + (1 - fb) * r.f * Math.min(1, 2 * u); };   // 有在打字不到一半時間（4 分鐘），進度那 0.7 也照比例打折
+/* v2.3 的輸／逃走獎勵：0.3u＋0.7f·min(1,2u)，u＝有在打字的秒數 ÷ max(這場秒數, 300)。
+   v2.1 的 a＝打字秒數÷這場秒數：打幾題就站著被打倒時這場很短、a 反而高（掛機 46%）；
+   v2.2 除以 600：一直在打、5 分鐘就倒下或下課撤退的人也被打折（審查指出）；300 秒的下限只擋「很快結束的掛機」 */
+export const V23_U = r => Math.min(1, (r.act || 0) / Math.max(r.secs || 0, 300));
+export const V22_REWARD = (r, fb = (P.v2 && P.v2.failBase) || 0.3) => { const u = V23_U(r); return fb * u + (1 - fb) * r.f * Math.min(1, 2 * u); };
 export async function v2McAfk(N = 400, wpm = 11) {
   const { simulate } = await import('./sim.mjs'), { v2Rules } = await import('./rules-v2.mjs');
   const W = ['staff', 'bow', 'dagger', 'crossbow'], A0 = { ...DEFAULT_ASSUME, attendDodge: 0.11, attendDef: 0.73, cpmFloor: 0.3, sigmaB: 0.2 };
   const MON = [['grass', 'shroom', 1], ['grass', 'coo', 5], ['grass', 'frog', 3], ['forest', 'wolf', 1], ['forest', 'wolf', 5]];
   const ST = [['藤蔓：打 4 題後不動', 'vine', { nQ: 4, alt: false }], ['藤蔓：打 4 題後不動＋按住 Alt', 'vine', { nQ: 4, alt: true }], ['守護：只按 Alt 不打字', 'guard', { nQ: 0, alt: true }],
-    ['守護：打 3 題後只按 Alt', 'guard', { nQ: 3, alt: true }], ['守護：打 4 題後站著不動', 'guard', { nQ: 4, alt: false }]];
+    ['守護：打 3 題後只按 Alt', 'guard', { nQ: 3, alt: true }], ['守護：打 4 題後站著不動', 'guard', { nQ: 4, alt: false }],
+    ['一般：打 3 題後每 40 秒打 1 字不送出', 'none', { nQ: 3, alt: false, trickle: true }], ['藤蔓：打 3 題後每 40 秒打 1 字不送出', 'vine', { nQ: 3, alt: false, trickle: true }]];
+  const { NW_V2: V0 } = await import('./rules-v2.mjs');
   const rows = []; let worst = [0, 0], ci = 0;
   for (const gk of ['綠武器+5', '藍火刀+5＋綠+5']) for (const [rk, mk, st] of MON) {
-    const cell = (flow, play) => { let r1 = 0, r2 = 0, n = 0, ans = 0; for (const [wi, weapon] of W.entries()) for (let k = 0; k < N / 4; k++) {
-      const r = simulate({ wpm, acc: 99, weapon }, mk, rk, st, 0.5, ci * 100003 + wi * 9973 + k * 7 + 11, { ...A0, rules: v2Rules({ flow }), ...(play ? { afkPlay: play } : {}) }, { gear: PRESETS[gk] });
-      n++; ans += r.answered; r1 += r.reward; r2 += r.result === 'win' ? 1 : r.valid ? V22_REWARD(r) : 0; } ci++; return [r1 / n, r2 / n, ans / n]; };
+    const cell = (flow, sp, play) => { let r1 = 0, r2 = 0, n = 0, ans = 0; for (const [wi, weapon] of W.entries()) for (let k = 0; k < N / 4; k++) {
+      const r = simulate({ wpm, acc: 99, weapon }, mk, rk, st, 0.5, ci * 100003 + wi * 9973 + k * 7 + 11, { ...A0, rules: v2Rules({ flow }), afkPlay: sp }, { gear: PRESETS[gk] });
+      let rr = r;
+      if (play.trickle) {   // 每 40 秒打 1 個對的字、從不送出：逐字判斷時 act＝整場（r1）；v2.3 再加「120 秒內至少送出 1 題」（r2）
+        const lastSub = Math.max(0, (r.act || 0) - V0.afkWin);   // sim 的 act 到最後一次送出後 afkWin 秒為止
+        r1 += r.result === 'win' ? 1 : r.valid ? V0.failBase * 1 + (1 - V0.failBase) * r.f : 0;
+        rr = { ...r, act: Math.min(r.secs, lastSub + 120) };
+      } else r1 += r.reward;
+      n++; ans += r.answered; r2 += r.result === 'win' ? 1 : r.valid ? V22_REWARD(rr) : 0; } ci++; return [r1 / n, r2 / n, ans / n]; };
     /* 「實際答題數」大於策略的題數＝sim.mjs 倒下站起來時把下一題時間重設（qEnd），掛機的人又開始打字——是模擬器的副作用，不是掛機的收益，這種格子不算進最高值 */
-    for (const [name, flow, play] of ST) { const [x, y, an] = cell(flow, play), clean = an <= play.nQ + 0.05;
+    for (const [name, flow, play] of ST) { const [x, y, an] = cell(flow, { nQ: play.nQ, alt: play.alt }, play), clean = an <= play.nQ + 0.05;
       if (clean) worst = [Math.max(worst[0], x), Math.max(worst[1], y)];
       rows.push([gk, name, MN[mk] + '★' + st, pc(x) + '%', pc(y) + '%', r1(an) + (clean ? '' : '（倒下後又打字，不算）')]); }
   }
@@ -775,9 +784,10 @@ say(''); },
     applyGearV2();
     say('## v2mc：逐場模擬的掛機與標準時間（V2.2）'); say('```'); say(JSON.stringify({ NW_V2: N2, FLOWS: F2, ATTACK_DMG: AD, src: RULE_SOURCE })); say('```');
     const a = await v2McAfk(p.v2mcN || 400);
-    say('### 掛機策略的獎勵比例（中位手速；舊公式 0.3a＋0.7f（a＝打字秒數÷這場秒數）／ v2.2 公式 0.3u＋0.7f×min(1,2u)，u＝打字秒數÷480）');
+    say('### 掛機策略的獎勵比例（中位手速；舊＝v2.1 公式 0.3a＋0.7f（a＝打字秒數÷這場秒數；「每 40 秒打 1 字」那兩列＝遊戲逐字判斷但沒有 120 秒送出規定）／ v2.3＝0.3u＋0.7f·min(1,2u)，u＝打字秒數÷max(這場秒數,300)，而且 120 秒沒送出就不算有在打字）');
     table(['裝備', '策略', '魔物★', '舊公式', 'v2.2 公式', '實際答題數'], a.rows);
-    say(`最高：舊公式 ${pc(a.worst[0])}%、v2.2 公式 ${pc(a.worst[1])}%（目標 ≤40%，最好 ≤30%）`); say('');
+    say(`最高：舊公式 ${pc(a.worst[0])}%、v2.3 公式 ${pc(a.worst[1])}%（目標 ≤40%，最好 ≤30%）`); say('');
+    say('### 一般玩家（一直在打）的獎勵比例，同一個 f 下三種公式'); table(['情況', 'v2.1 0.3a＋0.7f', 'v2.2 u＝打字÷600', 'v2.3 u＝打字÷max(秒,300)'], [['5 分鐘倒下 3 次、打掉 30%', 300, 0.3], ['下課撤退：3 分鐘、打掉 30%', 180, 0.3], ['10 分鐘逃走、打掉 80%', 600, 0.8], ['2 分鐘倒下、打掉 15%', 120, 0.15]].map(([n, t, f]) => { const v21 = 0.3 + 0.7 * f, u2 = t / 600, v22 = 0.3 * u2 + 0.7 * f * Math.min(1, 2 * u2), u3 = Math.min(1, t / Math.max(t, 300)), v23 = 0.3 * u3 + 0.7 * f * Math.min(1, 2 * u3); return [n, pc(v21) + '%', pc(v22) + '%', pc(v23) + '%']; }));
     const st = await v2McStd(p.v2mcN ? Math.max(40, p.v2mcN / 2) : 200);
     say('### 標準時間（逐場；可直接貼成 nw-data.js 的 STD_SECS）'); say('```js'); say('export const STD_SECS = ' + JSON.stringify(st).replace(/"([a-z]+:[a-z]+)"/g, "'$1'").replace(/],/g, '], ') + ';'); say('```'); },
   v2(p) { const V = p.v2;
