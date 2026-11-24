@@ -6,7 +6,9 @@
 import { readFileSync } from 'node:fs';
 import { simulate, DEFAULT_ASSUME } from './sim.mjs';
 
-const file = process.argv[2] || new URL('../../data-private/typehero-speed-20261120.json', import.meta.url);
+import { existsSync } from 'node:fs';
+const priv = new URL('../../data-private/typehero-speed-20261120.json', import.meta.url);
+const file = process.argv[2] || (existsSync(priv) ? priv : new URL('../../data-public/typehero-speed-20261120.json', import.meta.url));
 const d = JSON.parse(readFileSync(file, 'utf8'));
 const hunters = d.rows.filter(r => r.nw && r.nw.hunts > 0 && r.bestWpm);
 let dO = 0, dA = 0, fO = 0, fA = 0;

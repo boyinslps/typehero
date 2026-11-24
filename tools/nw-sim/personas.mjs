@@ -3,6 +3,7 @@
    real：用 data-private/profiles.json（教師頁匯出 → load-real.mjs 轉的）的分位數：慢 P25、中 P50、快 P90、極快 45（實測最高）。
    沒有真實檔案時退回 BALANCE-CURVES.md §1.1 的對數常態（中位 10、P25＝6、P90＝19）。 */
 import { existsSync, readFileSync } from 'node:fs';
+import { toProfiles } from './load-real.mjs';
 
 export const SPEC6 = [
   ['四年級・慢', { wpm: 12, acc: 99.8, tier: 'B', weapon: 'staff' }], ['四年級・中', { wpm: 20, acc: 100, tier: 'B', weapon: 'dagger' }], ['四年級・快', { wpm: 53, acc: 100, tier: 'D', weapon: 'bow' }],
@@ -14,8 +15,11 @@ const q = (a, p) => { const s = a.slice().sort((x, y) => x - y), i = (s.length -
 
 export function realPersonas(file = new URL('../../data-private/profiles.json', import.meta.url)) {
   let src = 'BALANCE-CURVES 對數常態（沒有 data-private/profiles.json）', w = { slow: 6, mid: 10, fast: 19 }, acc = 97;
-  if (existsSync(file)) {
-    const rows = JSON.parse(readFileSync(file, 'utf8'));
+  /* 沒有 data-private/profiles.json（例如在只讀得到 GitHub 的雲端）就直接用 data-public 的匿名匯出檔 */
+  const pub = new URL('../../data-public/typehero-speed-20261120.json', import.meta.url);
+  if (!existsSync(file) && existsSync(pub)) { file = null; }
+  if (file === null || existsSync(file)) {
+    const rows = file === null ? toProfiles(JSON.parse(readFileSync(pub, 'utf8')), { unknownAs: '五年級' }) : JSON.parse(readFileSync(file, 'utf8'));
     const ws = rows.map(r => r.wpm);
     w = { slow: q(ws, .25), mid: q(ws, .5), fast: q(ws, .9) };
     acc = Math.round(q(rows.map(r => r.acc), .5) * 10) / 10;

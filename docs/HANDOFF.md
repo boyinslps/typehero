@@ -1,5 +1,7 @@
 # 交接：目前進度與下一步
 
+> **在別的雲端（只讀得到 GitHub）接手的 Claude，先讀 [HANDOFF-CLOUD.md](HANDOFF-CLOUD.md)，提示詞在 [PROMPT-CLOUD.md](PROMPT-CLOUD.md)。**
+
 > 更新：2026-11-23（見「學生 bug 回報處理」「第 2 段 2b」兩節）；原 2026-11-20　開發分支：`claude/gracious-pasteur-773n2t`（v3.14.2：活動詳情頁、常駐抓蟲大作戰、排行榜模板、老師頁頒稱號與匯出，見 CHANGELOG；v3.14.0、v3.14.1 已上線）
 > **分段開放表在 [`RELEASE-STAGES.md`](RELEASE-STAGES.md)**：現在只開討伐看板、武器背包、稱號（榮譽碑等到防作弊做完才開）。
 > `main` 在 `9df6109`（委託板、房間、國字判定、姿態條都已合併）；之後的「稱號＋榮譽碑排行」在分支上，**還沒合併到 main，要老師點頭**。
@@ -113,7 +115,7 @@
 
 ### 匯出打字速度（匿名）與 `data-private/`
 - 教師頁 ⚙ 設定 →「📊 匯出打字速度（匿名）」（`teacher/export-speed.js`）：預覽 → 確認 → 下載 JSON／CSV。去識別化用**白名單**，不讀姓名、座號、班級名稱、docId、暱稱；改這支時不要改成黑名單。操作紀錄只寫人數。
-- 下載的檔案放 **`/data-private/`**（已在 `.gitignore`，**真實資料絕對不進 repo**）。轉成模擬器格式：`node tools/nw-sim/load-real.mjs data-private/typehero-speed-YYYYMMDD.json --out data-private/profiles.json`，再 `node tools/nw-sim/run.mjs data-private/profiles.json`（年級不明的人可加 `--unknown-as 五年級`）。測試只用假資料。
+- 下載的檔案放 **`/data-private/`**（已在 `.gitignore`，**姓名、座號等對得回個別學生的資料絕對不進 repo**）。**例外（老師 2026-11-24 決定）**：已去識別化的匯出檔可以放 [`/data-public/`](../data-public/README.md) 公開，雲端的 Claude 讀得到。轉成模擬器格式：`node tools/nw-sim/load-real.mjs data-private/typehero-speed-YYYYMMDD.json --out data-private/profiles.json`，再 `node tools/nw-sim/run.mjs data-private/profiles.json`（年級不明的人可加 `--unknown-as 五年級`）。測試只用假資料。
 
 ### 平衡曲線與第 2 段規格（都還沒實作）
 | 文件 | 狀態 |
