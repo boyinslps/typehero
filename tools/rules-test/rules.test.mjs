@@ -132,15 +132,15 @@ describe('正式規則 firestore-rules.txt', () => {
     test('多一個不在白名單的欄位 → 不過', () => assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ bonus: 9999 }))));
     test('ID 不是「id_毫秒」→ 不過', () => assertFails(setDoc(doc(d.stu, `mg_nw_runs/${ID}_abc`), run())));
     test('ID 的前綴對不上紀錄裡的 id → 不過', () => assertFails(setDoc(doc(d.stu, 'mg_nw_runs/五年級4班_6號_1763500000000'), run())));
-    test('secs 480（8 分鐘魔物逃走）→ 過', () => assertSucceeds(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ secs: 480 }))));
-    test('secs 剛好 490 → 過；491 → 不過；負數 → 不過', async () => {
-      await assertSucceeds(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ secs: 490 })));
-      await assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID + '1'), run({ secs: 491 })));
+    test('secs 600（10 分鐘魔物逃走）→ 過', () => assertSucceeds(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ secs: 600 }))));
+    test('secs 剛好 610 → 過；611 → 不過；負數 → 不過', async () => {
+      await assertSucceeds(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ secs: 610 })));
+      await assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID + '1'), run({ secs: 611 })));
       await assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID + '2'), run({ secs: -1 })));
     });
     /* SPEC-BALANCE-V2 §7 第 2 步：新欄位進白名單（frac、flow、guards、vines、dodgeReal、idle），全部可省略，有送就要在範圍內 */
     const NEW = { frac: 0.41, flow: 'guard', guards: 7, vines: 0, dodgeReal: 3, idle: 12.5 };
-    test('帶全部新欄位（逃走、打掉 41%）→ 過', () => assertSucceeds(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ res: 'escape', secs: 480, ...NEW }))));
+    test('帶全部新欄位（逃走、打掉 41%）→ 過', () => assertSucceeds(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ res: 'escape', secs: 600, ...NEW }))));
     test('不帶新欄位（舊版程式）→ 過', () => assertSucceeds(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run())));
     test('flow 用占比數字 0.5 → 過；1.5 → 不過；13 個字的字串 → 不過', async () => {
       await assertSucceeds(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ flow: 0.5 })));
@@ -159,10 +159,10 @@ describe('正式規則 firestore-rules.txt', () => {
         await assertFails(setDoc(doc(d.stu, `mg_nw_runs/${RID}${i}`), run(o)));
       await assertSucceeds(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ guards: 999, vines: 999, dodgeReal: 999 })));
     });
-    test('idle 超過 490、負數 → 不過；剛好 490 → 過', async () => {
-      await assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ idle: 491 })));
+    test('idle 超過 610、負數 → 不過；剛好 610 → 過', async () => {
+      await assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ idle: 611 })));
       await assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID + '1'), run({ idle: -1 })));
-      await assertSucceeds(setDoc(doc(d.stu, 'mg_nw_runs/' + RID + '2'), run({ idle: 490 })));
+      await assertSucceeds(setDoc(doc(d.stu, 'mg_nw_runs/' + RID + '2'), run({ idle: 610 })));
     });
     /* 第 4 步補的兩個欄位（規格只寫「預警→第一次按鍵毫秒」「開始時間戳」，沒有欄位名）：react＝平的數字陣列、最多 40 個；t0＝這場開始的毫秒 */
     test('帶 react（每次出招的預警→按鍵毫秒，-1＝沒按）與 t0 → 過；不帶 → 過', async () => {

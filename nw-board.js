@@ -51,7 +51,7 @@ function jagged(h) {
 export function mountBoard(host, env) {
   const { PX, NW } = env;
   if (!document.getElementById('nwbd-css')) { const st = document.createElement('style'); st.id = 'nwbd-css'; st.textContent = CSS; document.head.appendChild(st); }
-  const quests = boardQuests(NW);
+  const quests = boardQuests(NW, env.today);
   const goal = env.goal || null, isGoal = q => !!goal && !q.locked && goal.match(q);
   let tab = 'quests', sel = env.selected && quests.find(q => q.id === env.selected && !q.locked) ? env.selected : ((quests.find(isGoal) || quests.find(q => !q.locked)) || {}).id;
   let rooms = [], raf = 0, alive = true, poll = 0;
@@ -73,6 +73,7 @@ export function mountBoard(host, env) {
         <div class="px-title" style="font-size:1.1em;margin-bottom:6px">🗺 狩獵地點</div>
         <div class="nwbd-mapbox"><canvas id="nwbd-cv"></canvas></div>
         <div class="nwbd-info px-text" id="nwbd-info"></div>
+        <div class="px-text" id="nwbd-bell" style="display:none;margin-bottom:6px;color:#ffd98a">⏰ 快下課了，這場可能打不完喔！打不完也會照打掉的血給獎勵。</div>
         <button class="px-btn gold" style="width:100%;padding:12px;font-size:1.15em" data-go disabled>⚔ 狩獵</button>
       </div>
     </div>`;
@@ -103,7 +104,7 @@ export function mountBoard(host, env) {
         const m = MONSTERS[q.mk];
         b.innerHTML = `<div class="qs-stars">${'★'.repeat(q.star)}<i>${'☆'.repeat(5 - q.star)}</i></div>
           <canvas class="qs-pic" width="120" height="96"></canvas>
-          <div class="qs-name">討伐 ${m.name}</div><div class="qs-meta">Lv ${q.lv}・${REGIONS[q.rk].name}</div>${q.done ? '<div class="qs-stamp">已討伐</div>' : ''}`;
+          <div class="qs-name">討伐 ${m.name}</div><div class="qs-meta">Lv ${q.lv}・${REGIONS[q.rk].name}</div>${q.done ? '<div class="qs-stamp">已討伐</div>' : ''}${q.wait ? '<div class="qs-stamp" style="top:56px;color:#5a4128;border-color:#5a4128">明天再來</div>' : ''}`;
         const c = b.querySelector('canvas'), x = c.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(ink(q.mk, 3), 0, 0);
         c.style.cssText = 'display:block;margin:4px auto 2px;width:120px;height:96px;image-rendering:pixelated';
       }
@@ -137,7 +138,11 @@ export function mountBoard(host, env) {
       <div>${m.lean}　打中你會：${hits.length ? hits.join('、') : '沒有特別的'}</div>
       <div style="color:#ffd98a">${m.sp}</div>
       <div style="font-size:.88em">會掉：${drops}</div>`;
-    go.disabled = false;
+    go.disabled = !!q.wait;
+    /* 這節剩不到 3 分鐘：只提醒，不擋（SPEC-BALANCE-V2 §6.3）。沒有下課時間的資料就不顯示 */
+    const left = env.classLeft ? env.classLeft() : null;
+    host.querySelector('#nwbd-bell').style.display = left != null && left < 180 && left > -600 ? 'block' : 'none';
+    if (q.wait) info.innerHTML += '<div style="color:#ffd98a;margin-top:4px">今天已經開了新的一星，明天再來挑戰這一星！打贏過的星級隨時可以重打。</div>';
   }
 
   const view = { cx: BIGMAP.w / 2, cy: BIGMAP.h / 2, z: 1 };
@@ -183,7 +188,7 @@ export function mountBoard(host, env) {
     if (t) { tab = t.dataset.tab; renderSheets(); if (tab === 'rooms') refreshRooms(); return; }
     const q = e.target.closest('[data-q]');
     if (q && !q.classList.contains('lock')) { select(q.dataset.q); return; }
-    if (e.target.closest('[data-go]') && qOf(sel) && !qOf(sel).locked) env.onHunt(qOf(sel));
+    if (e.target.closest('[data-go]') && qOf(sel) && !qOf(sel).locked && !qOf(sel).wait) env.onHunt(qOf(sel));
   });
 
   renderSheets(); renderInfo();

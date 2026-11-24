@@ -66,7 +66,7 @@ const goHunt = async (p, region, mon, star) => {
 
   /* ── 純函式：旗標與常數（node 裡沒有 location，v2On 回 false＝預設沒開） ── */
   ok(D.v2On() === false && D.NW_V2.on === false, '沒有瀏覽器環境、OPEN_STAGES 沒有 2b：V2 預設沒開');
-  ok(D.NW_V2.k === 0.5 && D.NW_V2.cap === 480 && D.NW_V2.laneW === 3 && D.NW_V2.dayFull === 4 && D.NW_V2.failBase === 0.3 && D.NW_V2.workEvery === 600 && D.NW_V2.workMax === 2 && D.NW_V2.bonusMat === 1 && D.NW_V2.afkWin === 40 && D.NW_V2.flowCap === 1, 'NW_V2 常數照規格 §6.2');
+  ok(D.NW_V2.ver === 2.3 && D.NW_V2.uFloor === 300 && D.NW_V2.submitWin === 120 && D.NW_V2.k === 0.4 && D.NW_V2.cap === 600 && D.NW_V2.warnAt === 540 && D.NW_V2.starsPerDay === 2 && D.NW_V2.laneW === 3 && D.NW_V2.dayFull === 4 && D.NW_V2.failBase === 0.3 && D.NW_V2.workEvery === 600 && D.NW_V2.workMax === 2 && D.NW_V2.bonusMat === 1 && D.NW_V2.afkWin === 40 && D.NW_V2.flowCap === 1, 'NW_V2 常數照規格 v2.3 參數表');
   ok(D.OPEN_STAGES.join() === '1', 'OPEN_STAGES 沒動（還是只有第 1 段）');
 
   const b = await chromium.launch();
@@ -84,7 +84,7 @@ const goHunt = async (p, region, mon, star) => {
   const p = await open(b, { v2: true });
   await hunt(p, fakeRes());
   await hunt(p, fakeRes({ over: { result: 'fail', secs: 150, frac: 0.62, fEff: 0.62, live: 140, idle: 10, guards: 0, dodgeReal: 2, react: [900, 1300, -1] } }));
-  await hunt(p, fakeRes({ over: { result: 'escape', secs: 480, frac: 0.8, fEff: 0.8, live: 300, idle: 180, dodgeReal: 4, react: [700, 1100, 850, -1, 1900], t0: 1763499900000 } }));
+  await hunt(p, fakeRes({ over: { result: 'escape', secs: 600, frac: 0.8, fEff: 0.8, live: 400, idle: 200, dodgeReal: 4, react: [700, 1100, 850, -1, 1900], t0: 1763499900000 } }));
   await hunt(p, fakeRes({ over: { result: 'retreat', secs: 33.3, frac: 0.12, fEff: 0.12, live: 33.3, idle: 0 } }));
   await p.waitForTimeout(800);
   const runs = await runsOf(p), by = x => (runs.find(r => r.v.res === x) || {}).v;
@@ -92,16 +92,16 @@ const goHunt = async (p, region, mon, star) => {
   const w = by('win'), f = by('fail'), e = by('escape'), t = by('retreat');
   ok(w && w.frac === 1 && w.flow === 'normal' && w.guards === 0 && w.vines === 0 && w.dodgeReal === 0 && w.idle === 10 && Array.isArray(w.react) && w.react.length === 0 && w.t0 > 1e12, `win：frac＝1、flow＝normal、次數 0、idle 10、react 空陣列、t0 是毫秒（${w && JSON.stringify({ frac: w.frac, idle: w.idle, t0: w.t0 })}）`);
   ok(f && f.frac === 0.62 && f.idle === 10 && f.dodgeReal === 2 && f.react.join() === '900,1300,-1', 'fail：frac 0.62、dodgeReal 2、react 照抄（-1＝沒按）');
-  ok(e && e.res === 'escape' && e.secs === 480 && e.frac === 0.8 && e.idle === 180 && e.dodgeReal === 4 && e.react.length === 5 && e.t0 === 1763499900000, 'escape：res＝escape、secs 480、有 frac（打掉 80%）、idle 180、react 5 筆、t0 照傳入');
+  ok(e && e.res === 'escape' && e.secs === 600 && e.frac === 0.8 && e.idle === 200 && e.dodgeReal === 4 && e.react.length === 5 && e.t0 === 1763499900000, 'escape：res＝escape、secs 600、有 frac（打掉 80%）、idle 200、react 5 筆、t0 照傳入');
   ok(t && t.res === 'retreat' && t.frac === 0.12 && t.secs === 33.3, 'retreat：frac 0.12');
   ok(runs.every(r => typeof r.v.frac === 'number' && r.v.frac >= 0 && r.v.frac <= 1 && typeof r.v.flow === 'string' && r.v.flow.length <= 12 && Number.isInteger(r.v.guards) && Number.isInteger(r.v.vines) && Number.isInteger(r.v.dodgeReal)
-    && typeof r.v.idle === 'number' && r.v.idle >= 0 && r.v.idle <= 490 && r.v.react.length <= 40 && r.v.react.every(x => typeof x === 'number') && typeof r.v.t0 === 'number' && r.v.secs <= 490), '每筆型別與範圍都符合規則（frac 0～1、整數次數、idle ≤ 490、react 是數字陣列 ≤ 40）');
+    && typeof r.v.idle === 'number' && r.v.idle >= 0 && r.v.idle <= 610 && r.v.react.length <= 40 && r.v.react.every(x => typeof x === 'number') && typeof r.v.t0 === 'number' && r.v.secs <= 610), '每筆型別與範圍都符合規則（frac 0～1、整數次數、idle ≤ 610、react 是數字陣列 ≤ 40）');
   ok(runs.every(r => noNested(r.v) && JSON.stringify(r.v) === JSON.stringify(JSON.parse(JSON.stringify(r.v)))), 'Firestore 限制：沒有陣列裡的陣列、沒有 undefined');
   /* 壞資料：超界的值要被夾回範圍，不會把整筆寫壞 */
   await hunt(p, fakeRes({ over: { frac: 7, idle: 9999, guards: -5, dodgeReal: 1e6, flow: 'x'.repeat(30), react: Array.from({ length: 80 }, () => 999999) } }));
   await p.waitForTimeout(600);
   const bad = (await runsOf(p)).find(r => r.v.flow && r.v.flow.length === 12);
-  ok(bad && bad.v.frac === 1 && bad.v.idle <= 490 && bad.v.guards === 0 && bad.v.dodgeReal === 999 && bad.v.react.length === 40 && bad.v.react.every(x => x === 60000), '超界的值夾回範圍、flow 截到 12 字、react 最多 40 筆');
+  ok(bad && bad.v.frac === 1 && bad.v.idle <= 610 && bad.v.guards === 0 && bad.v.dodgeReal === 999 && bad.v.react.length === 40 && bad.v.react.every(x => x === 60000), '超界的值夾回範圍、flow 截到 12 字、react 最多 40 筆');
   ok((await p.evaluate(() => window.__NWG.nw.runQ.length)) === 0, '都寫成功：佇列清空');
   await p.close();
 
@@ -120,7 +120,7 @@ const goHunt = async (p, region, mon, star) => {
     const r = await runsOf(q), v = r[0] && r[0].v;
     ok(r.length === 1 && v.res === 'retreat' && v.dodgeReal === 1 && v.guards === 0 && v.vines === 0, `真打：撤退寫一筆、真的躲開 1 次（${v && v.dodgeReal}）`);
     ok(v && v.react.length === 1 && v.react[0] >= 500 && v.react[0] <= 4000, `真打：react 記到預警後第一次按鍵（${v && v.react} 毫秒）`);
-    ok(v && v.frac > 0.05 && v.frac < 0.3 && v.flow === 'normal', `真打：撤退的 frac 是打掉的血比例（3 題 ≈ ${v && v.frac}）`);
+    ok(v && v.frac > 0.1 && v.frac < 0.5 && v.flow === 'normal', `真打：撤退的 frac 是打掉的血比例（3 題 ≈ ${v && v.frac}）`);
     ok(v && v.idle >= 0 && v.idle <= v.secs && v.t0 > 1e12 && v.t0 <= Date.now() + 1000, `真打：idle 在 0 到 secs 之間、t0 是開始的時間（idle ${v && v.idle}／secs ${v && v.secs}）`);
     ok(q.errs.length === 0, '沒有 JS 錯誤 ' + q.errs.join('|'));
     await q.close();

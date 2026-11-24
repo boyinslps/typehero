@@ -215,25 +215,29 @@ export const castTime = (lv, tier) => {
    舊世界打字遊戲的 A～D 層級完全沒動，這裡只拿掉「新世界戰鬥」對層級的依賴（newworld.js 的 tier() 現在只負責記錄）。
    數字照規格 §6.2；tools/nw-sim 之後改讀這份。 */
 export const NW_V2 = {
-  k: 0.5,            // 單一血量倍率＝現行 B（HP_TIER.B），不看層級
-  cap: 480,          // 滿 8 分鐘魔物逃走（不算輸）
-  warnAt: 420,       // 7:00 跳「魔物累了，再 1 分鐘就會逃走」
+  ver: 2.3,          // 規格版本（tools/nw-sim 用來判斷要不要讀這一組）
+  k: 0.4,            // 單一血量倍率（v2.2：逐場模擬的時間比解析長 30～40%，0.4 在逐場裡≈解析 0.5 想要的長度），不看層級
+  cap: 600,          // 滿 10 分鐘魔物逃走（不算輸；v2.1 是 8 分鐘）
+  warnAt: 540,       // 9:00 跳「魔物累了，再 1 分鐘就會逃走」
   laneW: 3.0,        // 紅線預警一律 3.0 秒（原 A 層的值；倒下是唯一的輸法，預警要給得起）
   dayFull: 4,        // 一天（twDay）前 4 場拿完整材料
   dayHalf: 0.5,      // 第 5 場起材料 ×0.5（經驗、字元不減）
-  failBase: 0.3,     // 輸／逃走／撤退的獎勵 ×(0.3×a ＋ 0.7×f)
+  failBase: 0.3,     // 輸／逃走／撤退的獎勵 ×(0.3u ＋ 0.7·f·min(1, 2u))，u＝有在打字的秒數 ÷ max(這場秒數, uFloor)（rewardRatio）
+  uFloor: 300,       // v2.3：u 的分母至少 300 秒（5 分鐘就倒下、下課撤退的人不被罰；打 4 題就站著不動的人 u 還是很小）
+  submitWin: 120,    // v2.3：最後一次送出題目超過 120 秒就不算「有在打字」（擋「每 40 秒打 1 個字、從不送出」）
   workEvery: 600,    // 勤勞獎勵：有在打字的戰鬥時間每累積 10 分鐘 +1 綠材料
   workMax: 2,        // 一天最多 2 個
   bonusMat: 1,       // ⚡ 比標準時間快：多 1 個那隻魔物的綠材料
   afkWin: 40,        // 防掛機：最近 40 秒內打對過 1 個字才算「有在打字」（最慢 p5 每字約 31 秒）
   flowCap: 1,        // 一場的流派傷害 ≤ 打字傷害（第 9 步才用）
   escFlow: 0.5,      // 輸／逃走算 f 時，流派打掉的血只算一半（第 9 步才有流派傷害，先留介面）
+  starsPerDay: 2,    // v2.3（v2.2 是 1）：一天最多開 2 個新星級（打贏過的星級可以一直重打；SPEC-BALANCE-V2 §2.6）
   get on() { return v2On(); }
 };
 export const v2On = () => (typeof location !== 'undefined' && location.hostname === 'localhost' && typeof window !== 'undefined' && typeof window.__NW_V2__ === 'boolean') ? window.__NW_V2__ : stageOpen('2b');
 /* 魔物招式倍率另乘多少（乘在 atk.mul 上，在 monDmg 的最低 4 點「之前」：SPEC-BALANCE-V2 §1.3。
-   森林狼 Lv10～22 每下 9～20 點碰不到下限，先乘後乘結果只差四捨五入；放在 monDmg 之前，被打到至少 4 點的保證才不會被打折） */
-export const ATTACK_DMG = { wolf: 0.7 };
+   v2.2 的 ×0.5：森林狼 Lv10～22 每下 7～14 點，一樣碰不到下限，先乘後乘結果只差四捨五入；放在 monDmg 之前，被打到至少 4 點的保證才不會被打折） */
+export const ATTACK_DMG = { wolf: 0.5 };
 /* V2 的攻擊表（§1.3）：咕咕鳥不變；泡泡蛙重壓＋舌頭彈（單線，新開）；跳跳菇、炎牙狼全開。
    ATTACKS_OPEN 還是現在上線的那張，V2 沒開時照舊 */
 export const ATTACKS_V2 = {
@@ -250,28 +254,31 @@ export const attackMul = (mk, on = v2On()) => (on && ATTACK_DMG[mk]) || 1;
 /* 血量、預警、出招節奏：V2 不看層級（一律 B／3.0 秒） */
 export const nwTier = (tier, on = v2On()) => (on ? 'B' : tier);
 export const nwLaneW = (tier, on = v2On()) => (on ? NW_V2.laneW : (LANE_W[tier] || LANE_W.B));
-export const nwMaxHp = (mk, lv, tier, players = 1, on = v2On()) => monMaxHp(mk, lv, nwTier(tier, on), players);
-/* 標準時間（秒）：中位學生（11 字/分）、沒裝備、一般打法的打完時間（SPEC-BALANCE-V2 §1.1）。「比標準快」才有 ⚡。
-   用 tools/nw-sim/curves.mjs 的 parV2（--preset v2＋§9）算出來；改了血量、攻擊表、裝備數值要重算。★1～★5 */
+/* V2：照 sim 的 v2H＝monMaxHp(B) × k ÷ HP_TIER.B（先取整再縮放，模擬器與遊戲才逐點相同）；咕咕鳥★1＝157 */
+export const nwMaxHp = (mk, lv, tier, players = 1, on = v2On()) => on ? Math.round(monMaxHp(mk, lv, 'B', players) * NW_V2.k / HP_TIER.B) : monMaxHp(mk, lv, tier, players);
+/* 標準時間（秒）：中位學生（11 字/分）、沒裝備、一般打法的「打贏時間中位數」（逐場模擬，SPEC-BALANCE-V2 v2.2 §2.2；解析模型低估慢手，所以比 v2.1 的表長 25～35%）。
+   「比標準快」才有 ⚡。改了血量、攻擊表、裝備數值要用 tools/nw-sim 的 curves.mjs v2mc 重算。★1～★5 */
 export const STD_SECS = {
-  'grass:coo': [106, 120, 133, 142, 161], 'grass:frog': [124, 140, 156, 167, 190], 'grass:shroom': [123, 140, 156, 167, 189],
-  'forest:shroom': [176, 196, 213, 232, 268], 'forest:coo': [151, 166, 182, 197, 229], 'forest:wolf': [206, 227, 251, 273, 316]
+  'grass:coo': [129, 148, 171, 170, 203], 'grass:frog': [147, 171, 196, 203, 245], 'grass:shroom': [139, 168, 197, 205, 244],
+  'forest:shroom': [218, 234, 242, 260, 299], 'forest:coo': [178, 205, 214, 238, 267], 'forest:wolf': [231, 250, 271, 275, 320]
 };
 export const stdSecs = (rk, mk, star) => { const r = STD_SECS[rk + ':' + mk]; return (r && r[Math.min(5, Math.max(1, star)) - 1]) || 0; };
-/* 輸／逃走／撤退的獎勵比例＝0.3a＋0.7f（§1.2）。a＝這場「有在打字的時間」比例，f＝打掉的血比例（流派打掉的只算一半，所以呼叫端傳的是已經折過的 f）；
-   贏＝1。0.3 只按「有在打字的時間」給，掛著不打字拿不到 */
+/* 輸／逃走／撤退的獎勵比例＝0.3u ＋ 0.7·f·min(1, 2u)（v2.3 §1.2）。u＝有在打字的秒數 ÷ max(這場秒數, uFloor 300)：
+   分母不能太小，5 分鐘就倒下或下課撤退的人只要一直在打，u 就接近 1；也不能用固定 600，否則這些人會被罰。
+   f＝打掉的血比例（流派打掉的只算一半，所以呼叫端傳的是已經折過的 f）；贏＝1。打 4 題就站著不動的人 live 只有幾十秒，u 很小，保底和進度都打折 */
 export function rewardRatio(win, live, secs, f) {
   if (win) return 1;
-  const a = Math.max(0, Math.min(1, (+live || 0) / Math.max(1, +secs || 0))), ff = Math.max(0, Math.min(1, +f || 0));
-  return NW_V2.failBase * a + (1 - NW_V2.failBase) * ff;
+  const u = Math.max(0, Math.min(1, (+live || 0) / Math.max(+secs || 0, NW_V2.uFloor))), ff = Math.max(0, Math.min(1, +f || 0));
+  return NW_V2.failBase * u + (1 - NW_V2.failBase) * ff * Math.min(1, 2 * u);
 }
-/* 一天的帳（nw.day＝{ d: twDay, n: 今天第幾場有效的, work: 今天已拿幾個勤勞, ws: 勤勞累積的秒數（不滿 10 分鐘的零頭） }）。
+/* 一天的帳（nw.day＝{ d: twDay, n: 今天第幾場有效的, work: 今天已拿幾個勤勞, st: 今天開了幾個新星級, ws: 勤勞累積的秒數（不滿 10 分鐘的零頭） }）。
    第 5 場起材料減半、沒有 ⚡、也不再累積勤勞（§2.4：回家一直刷擋這條）；勤勞只算「有在打字的秒數」，所以掛機 10 分鐘＝0。
    純函式：回新的 day 與這場的結果，不改傳進來的物件 */
 export function dayStep(prev, d, o) {
   const p = prev && typeof prev === 'object' ? prev : {}, same = p.d === d;
-  const day = { d, n: same ? (+p.n || 0) : 0, work: same ? (+p.work || 0) : 0, ws: Math.max(0, Math.min(NW_V2.workEvery - 1, +p.ws || 0)) };
+  const day = { d, n: same ? (+p.n || 0) : 0, work: same ? (+p.work || 0) : 0, st: same ? (+p.st || 0) : 0, ws: Math.max(0, Math.min(NW_V2.workEvery - 1, +p.ws || 0)) };
   day.n++;
+  if (o.newStar) day.st++;   // 今天開了一個新星級（贏了比自己最高紀錄更高的一星）
   const full = day.n <= NW_V2.dayFull;
   let fast = false, work = 0;
   if (full) {
@@ -362,7 +369,7 @@ export function normalizeNw(d) {
   /* 每場紀錄（2b-9）：cpmHist＝每個題目等級最近 5 場的打字速度（「進步太跳」用）；runQ＝還沒寫進雲端的紀錄（最多 5 筆） */
   o.cpmHist = (d.cpmHist && typeof d.cpmHist === 'object' && !Array.isArray(d.cpmHist)) ? d.cpmHist : {};
   /* V2 的一天帳（dayStep）：型別不對就丟掉，當作今天第一場 */
-  if (d.day && typeof d.day === 'object' && !Array.isArray(d.day) && [d.day.d, d.day.n, d.day.work, d.day.ws].every(x => Number.isFinite(+x))) o.day = { d: +d.day.d, n: Math.max(0, Math.floor(+d.day.n)), work: Math.max(0, Math.floor(+d.day.work)), ws: Math.max(0, +d.day.ws) };
+  if (d.day && typeof d.day === 'object' && !Array.isArray(d.day) && [d.day.d, d.day.n, d.day.work, d.day.ws].every(x => Number.isFinite(+x))) o.day = { d: +d.day.d, n: Math.max(0, Math.floor(+d.day.n)), work: Math.max(0, Math.floor(+d.day.work)), st: Math.max(0, Math.floor(+d.day.st || 0)), ws: Math.max(0, +d.day.ws) };
   else delete o.day;
   o.runQ = Array.isArray(d.runQ) ? d.runQ.filter(x => x && typeof x.rid === 'string' && x.run && typeof x.run === 'object').slice(-5) : [];
   return o;
@@ -964,14 +971,17 @@ export const BIGMAP = {
   }
 };
 
-export function boardQuests(nw) {
+/* V2：一天最多開 1 個新星級（§2.6）。「新星級」＝比這個區域最高紀錄更高的那一星；已經打贏過的星級隨時可以重打。
+   d＝今天（twDay）。今天已經開過了，新的那一星就寫「明天再來」 */
+export const newStarLocked = (nw, rk, star, d, on = v2On()) => !!on && d != null && star > (nw.zone[rk] || 0) && !!nw.day && nw.day.d === d && (nw.day.st || 0) >= NW_V2.starsPerDay;
+export function boardQuests(nw, today, on = v2On()) {
   const out = [];
   Object.entries(REGIONS).forEach(([rk, r]) => {
     if (r.wip) return;
     if (!zoneOpen(nw, rk)) { out.push({ id: 'lock:' + rk, locked: true, rk }); return; }
     r.mons.forEach(mk => {
       const top = Math.min(5, (nw.zone[rk] || 0) + 1);
-      for (let star = 1; star <= top; star++) out.push({ id: `${rk}:${mk}:${star}`, rk, mk, star, lv: regionLv(rk, star), done: (nw.zone[rk] || 0) >= star && (nw.dex[mk] || 0) > 0 });
+      for (let star = 1; star <= top; star++) out.push({ id: `${rk}:${mk}:${star}`, rk, mk, star, lv: regionLv(rk, star), done: (nw.zone[rk] || 0) >= star && (nw.dex[mk] || 0) > 0, wait: newStarLocked(nw, rk, star, today, on) });
     });
   });
   return out.sort((a, b) => (a.locked ? 1 : 0) - (b.locked ? 1 : 0) || (a.star || 9) - (b.star || 9) || (a.rk > b.rk ? 1 : -1));

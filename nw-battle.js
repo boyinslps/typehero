@@ -1,4 +1,4 @@
-import { BAL, TIERS, MONSTERS, GIFT_WEAPONS, weaponBase, curWeapon, hpPlayersMul, ATTACKS_OPEN, LANE_W, gearStats, gearMul, RANK_MIN_ACC, SUS, qBand, MAX_CHARS, CHANT_MAX, SHORT_CHANTS, regionLv, monMaxHp, monDmg, strikeDamage, atkInterval, castTime, STATUS, NW_V2, v2On, nwMaxHp, nwTier, nwLaneW, stdSecs } from './nw-data.js';
+import { BAL, MONSTERS, GIFT_WEAPONS, weaponBase, curWeapon, hpPlayersMul, gearStats, gearMul, RANK_MIN_ACC, SUS, qBand, MAX_CHARS, CHANT_MAX, SHORT_CHANTS, regionLv, monMaxHp, monDmg, strikeDamage, atkInterval, castTime, STATUS, NW_V2, v2On, nwMaxHp, nwTier, nwLaneW, stdSecs, attacksFor, attackMul } from './nw-data.js';
 
 const CSS = `
 #nwb-root{position:fixed;inset:0;z-index:70;display:flex;flex-direction:column;background:#000;color:var(--ink);font-size:clamp(13px,1.5vmin + 7px,21px);font-weight:700}
@@ -63,12 +63,13 @@ export function startBattle(env, cfg, done) {
   /* V2：血量、預警秒數、出招節奏都不看層級（SPEC-BALANCE-V2 §1.1）；tier 只剩記進 res。沒開 V2 時 tierE＝tier，行為不變 */
   const V2 = v2On(), tierE = nwTier(tier, V2);
   /* 時間上限：V2 沒有「時間到就輸」，只有倒下 3 次才輸；滿 cap 秒魔物逃走（不算輸，獎勵照打掉的血與有在打字的時間，見 newworld.js finishHunt） */
+  /* 會用哪些攻擊：V2 照 ATTACKS_V2＋ATTACK_FROM（跳跳菇 ★1 不攻擊、狼全開、蛙多一個單線），沒開照舊的 ATTACKS_OPEN。測試在 localhost 可以用 window.__NW_ATTACKS__ 直接指定 */
+  const enabled = (location.hostname === 'localhost' && window.__NW_ATTACKS__) || attacksFor(cfg.mk, cfg.star, V2);
   const CAP = V2 ? NW_V2.cap : BAL.timeLimit, STD = V2 ? stdSecs(cfg.rk, cfg.mk, cfg.star) : 0;
   const wkey = curWeapon(NW) || 'staff', weapon = weaponBase(wkey), wmod = GIFT_WEAPONS[wkey] || null, CE = (wmod && wmod.chantEvery) || BAL.chantEvery;
   /* 裝備（2b）：攻擊力、屬性、生命、減傷、舉盾秒數、紅線預警。測試在 localhost 可以用 window.__NW_GEAR__ 直接指定（gearStats 的格式） */
   const GS = (location.hostname === 'localhost' && window.__NW_GEAR__) || gearStats(NW);
   const mode = 'hanzi';
-  const enabled = (location.hostname === 'localhost' && window.__NW_ATTACKS__) || ATTACKS_OPEN[cfg.mk] || [];
   const nowS = () => performance.now() / 1000;
 
   if (!document.getElementById('nwb-style')) {
@@ -137,7 +138,7 @@ export function startBattle(env, cfg, done) {
 
   const T0 = nowS();
   const S = {
-    over: false, T0, mon: { hp: nwMaxHp(cfg.mk, lv, tier, cfg.players || 1, V2), max: monMaxHp(cfg.mk, lv, undefined, cfg.players || 1), angry: false, flashUntil: 0, lungeAt: -9 },
+    over: false, T0, mon: { hp: nwMaxHp(cfg.mk, lv, tier, cfg.players || 1, V2), max: nwMaxHp(cfg.mk, lv, undefined, cfg.players || 1, V2), angry: false, flashUntil: 0, lungeAt: -9 },
     me: { hp: BAL.playerHp + GS.hp, max: BAL.playerHp + GS.hp, down: false, downUntil: 0, downs: 0, hitAt: -9, x: 0, atkAt: -9 },
     st: { burn: 0, poison: [], ice: 0, lastTick: T0 },
     cast: null, nextCast: T0 + 6, lane: 1, hx: LANE_C[1] - 2, shieldUntil: 0, laneFlash: [],
@@ -147,8 +148,9 @@ export function startBattle(env, cfg, done) {
     gauge: 0, sharp: 0, mag: 0,
     dodgeOk: 0, dodgeAll: 0, defOk: 0, defAll: 0,
     /* 遙測與「有在打字」（SPEC-BALANCE-V2 §3.4、§5）：lastCorrectAt＝最近一次打對字的時間，live＝累計「有在打字」的秒數；
+       有在打字＝最近 afkWin 秒內打對過 1 個字（onInput 逐字判斷，慢手一題 40～80 秒也不會被當成掛機）而且最近 submitWin 秒內送出過 1 題（擋「每 40 秒打 1 個字、從不送出」）；
        dmgType／dmgFlow＝打字與流派各打掉多少血（輸／逃走時流派只算一半）；guards／vines／dodgeReal／react 給 mg_nw_runs 校準用 */
-    lastCorrectAt: T0, live: 0, dmgType: 0, dmgFlow: 0, guards: 0, vines: 0, dodgeReal: 0, react: [],
+    lastCorrectAt: T0, lastSubmitAt: T0, accT: T0, downAt: 0, qOk: 0, live: 0, dmgType: 0, dmgFlow: 0, guards: 0, vines: 0, dodgeReal: 0, react: [],
     flags: { fast: 0, paste: 0, wrong: 0 }, fx: [], hits: [], volley: null, bubUntil: 0, sporeUntil: 0, lastUi: 0
   };
   host.dataset.mode = mode;
@@ -196,7 +198,7 @@ export function startBattle(env, cfg, done) {
     S.units = C.q.questionUnits(S.q, mode);
     renderUnits();
     S.qAt = nowS();
-    inp.value = ''; S.committed = ''; S.qKeys = 0;
+    inp.value = ''; S.committed = ''; S.qKeys = 0; S.qOk = 0;
     inp.style.fontSize = clamp(Math.floor(((inp.clientWidth || 600) - 40) / Math.max(1, S.units.length)), 16, 30) + 'px';
     if (S.q.sp === 'chant') banner('✨ 詠唱！全部打對傷害變 3 倍', '#c9a6ff', true);
     if (S.q.sp === 'flurry') banner('🗡 連環斬！越快越痛', '#ffd24a', true);
@@ -263,6 +265,12 @@ export function startBattle(env, cfg, done) {
       g.fillStyle = `rgba(170,100,240,${(1 - k) * .9})`; g.fillRect(x, y, 1, 1);
     });
   }
+  /* 把「有在打字」的秒數累加到時間 T：區間 [accT, T] 裡，只有在最後一次打對字＋afkWin、最後一次送出＋submitWin 兩個期限之前的部分算。
+     每次事件（逐字打對、送出、倒下、起身、結束）先呼叫它再改期限，所以不靠每幀計時，分頁在背景 rAF 暫停也不會算錯 */
+  function advance(T) {
+    S.live += Math.max(0, Math.min(T, S.lastCorrectAt + NW_V2.afkWin, S.lastSubmitAt + NW_V2.submitWin) - S.accT);
+    S.accT = Math.max(S.accT, T);
+  }
   function hitMonster(dmg, note, color, small, flow) {
     if (dmg <= 0 || S.over) return;
     /* 裝備攻擊力 × 屬性：只放大打對的字（dmg 已經是打對的字算出來的，打錯是 0）。測試者之刃的 ×1.12 現在是攻擊力 112 */
@@ -294,6 +302,7 @@ export function startBattle(env, cfg, done) {
     const T = nowS();
     if (T - S.qAt < BAL.minShow) { S.flags.fast++; inp.value = ''; paintProgress(); toast('太快了，這題不算！'); return; }
     const res = C.q.judge(S.units, val);
+    advance(T); S.lastSubmitAt = T;   // 送出過一題（不管對不對）才算還在玩
     S.typed += res.total; S.correct += res.correct; S.answered++;
     /* 每題摘要（SPEC §2.5）：[字數, 按鍵數, 毫秒, 打對幾字]，最多 120 題；老師端用它重算「可疑」 */
     if (S.qLog.length < SUS.qMax) S.qLog.push([[...S.q.t].length, S.qKeys, Math.round((T - S.qAt) * 1000), res.correct]);
@@ -303,10 +312,7 @@ export function startBattle(env, cfg, done) {
       S.mon.lungeAt = T;
       nextQuestion(); updateUi(true); return;
     }
-    if (res.correct > 0) {
-      /* 兩次打對之間最多算 afkWin 秒「有在打字」；超過的是在發呆或掛機 */
-      S.live += Math.min(T - S.lastCorrectAt, NW_V2.afkWin); S.lastCorrectAt = T;
-    }
+    if (res.correct > 0) { advance(T); S.lastCorrectAt = T; }
     S.combo = res.perfect ? S.combo + 1 : 0;
     S.maxCombo = Math.max(S.maxCombo, S.combo);
     if (res.perfect) S.perfect++;
@@ -393,6 +399,7 @@ export function startBattle(env, cfg, done) {
   }
   function goDown() {
     const T = nowS();
+    advance(T); S.downAt = T;
     S.me.down = true; S.me.downs++; S.combo = 0; S.cast = null;
     S.st = { burn: 0, poison: [], ice: 0, lastTick: T };
     if (S.me.downs >= BAL.downMax) { finish('fail'); return; }
@@ -416,7 +423,7 @@ export function startBattle(env, cfg, done) {
     else if (kind === 'pair') { const safe = rl(); strikes = [0, 1, 2].filter(l => l !== safe).map(l => ({ lane: l, warn: H - W - B, hit: H, mul: 1 })); }
     else if (kind === 'sweep') { const o = Math.random() < .5 ? [0, 1, 2] : [2, 1, 0]; strikes = o.map((l, i) => ({ lane: l, warn: H + i * .7 - W * .8 - B, hit: H + i * .7, mul: .5 })); }
     else { const a = rl(), b = (a + 1 + Math.floor(Math.random() * 2)) % 3; strikes = [{ lane: a, warn: H - W - B, hit: H, cancel: H - W * .5, mul: 1 }, { lane: b, warn: H - W * .5 - B, hit: H + .4, mul: 1 }]; }
-    return { kind, strikes, base: monDmg(lv, atk.mul), hurt: false };
+    return { kind, strikes, base: monDmg(lv, atk.mul * attackMul(cfg.mk, V2)), hurt: false };
   }
   function castStart(T) {
     const usable = mon0.attacks.filter(a => a.type === 'defend' ? enabled.includes('slam') : enabled.some(k => k !== 'slam'));
@@ -595,6 +602,10 @@ export function startBattle(env, cfg, done) {
     const T = nowS();
     if (S.me.down && T >= S.me.downUntil) {
       S.me.down = false; S.me.hp = S.me.max; inp.disabled = false; inp.focus();
+      /* 倒下休息（打不了字）的秒數算「有在打字」，不能因為被打倒就被當成掛機；倒下前期限還沒過的話，期限也往後延同樣的秒數 */
+      const rest = T - S.downAt; S.live += rest; S.accT = T;
+      if (S.downAt <= S.lastCorrectAt + NW_V2.afkWin) S.lastCorrectAt = Math.min(T, S.lastCorrectAt + rest);
+      if (S.downAt <= S.lastSubmitAt + NW_V2.submitWin) S.lastSubmitAt = Math.min(T, S.lastSubmitAt + rest);
       banner('站起來了！', '#8ec96b', true);
     }
     runVolley(T);
@@ -614,7 +625,16 @@ export function startBattle(env, cfg, done) {
     raf = requestAnimationFrame(tick);
   }
 
-  function onInput() { paintProgress(); }
+  /* 逐字判斷「有在打字」：輸入框開頭跟題目對得上、而且比這題上次多對了至少 1 個字 */
+  function onInput() {
+    paintProgress();
+    if (S.over || S.me.down) return;
+    const typed = [...(S.composing ? S.committed : inp.value)];
+    let n = 0;
+    while (n < typed.length && n < S.units.length && C.q.canon(typed[n]) === C.q.canon(S.units[n].want)) n++;
+    if (n > S.qOk) { S.qOk = n; const T = nowS(); advance(T); S.lastCorrectAt = T; }
+    else if (n < S.qOk && typed.length < S.qOk) S.qOk = n;   // 刪掉重打：回到現在對的長度，之後再多對才算
+  }
   /* 按鍵數：一般字鍵、Backspace，加上注音輸入法組字時瀏覽器送的 Process／Unidentified／keyCode 229；不算 Enter、Esc、Ctrl、Alt、Shift */
   const countKey = e => !e.ctrlKey && !e.altKey && !e.metaKey && (e.key.length === 1 || e.key === 'Backspace' || e.key === 'Process' || e.key === 'Unidentified' || e.keyCode === 229);
   const onKey = e => {
@@ -654,7 +674,8 @@ export function startBattle(env, cfg, done) {
     banner(win ? '🎉 討伐成功！' : result === 'fail' ? '狩獵失敗…' : result === 'escape' ? '魔物累得逃走了…' : '撤退', win ? '#ffd24a' : '#e5705f');
     updateUi(true); draw(nowS());
     const acc = S.typed ? S.correct / S.typed : 0;
-    const live = Math.min(secs, Math.round((S.live + Math.min(Math.max(0, tEnd - S.lastCorrectAt), NW_V2.afkWin)) * 10) / 10);
+        if (S.me.down) S.live += Math.max(0, tEnd - S.downAt); else advance(tEnd);
+    const live = Math.min(secs, Math.round(S.live * 10) / 10);
     const frac = win ? 1 : clamp(1 - S.mon.hp / S.mon.max, 0, 1), fEff = clamp((S.dmgType + NW_V2.escFlow * S.dmgFlow) / S.mon.max, 0, 1);
     const act = S.qLog.reduce((a, x) => a + x[2], 0) / 1000;   // 各題作答時間加總（秒）；cpm＝打對的字 ÷ act × 60
     const res = {

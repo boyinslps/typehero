@@ -165,7 +165,7 @@ export function normalizeRun(raw) {
   if (typeof raw.mk !== 'string' || !Object.prototype.hasOwnProperty.call(MONSTERS, raw.mk)) return bad('mk');
   if (!isInt(raw.star, 1, 5)) return bad('star');
   if (!isNum(raw.lv) || raw.lv < 1 || raw.lv > 99) return bad('lv');
-  if (!isNum(raw.secs) || raw.secs < 0 || raw.secs > 490) return bad('secs');   // 8 分鐘（480 秒）逃走的場次也要收，跟 firestore-rules.txt 的 secs 上限一致
+  if (!isNum(raw.secs) || raw.secs < 0 || raw.secs > 610) return bad('secs');   // 10 分鐘（600 秒）逃走的場次也要收，跟 firestore-rules.txt 的 secs 上限一致
   if (!isNum(raw.acc) || raw.acc < 0 || raw.acc > 1) return bad('acc');
   const nums = {};
   for (const k of ['ans', 'cor', 'typ', 'keys']) {

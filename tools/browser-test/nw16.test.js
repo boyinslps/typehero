@@ -85,7 +85,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   ok(bad(mk({ q: Array.from({ length: 121 }, () => [2, 5, 2400, 2]) }), 'q') && R.normalizeRun(mk({ q: Array.from({ length: 120 }, () => [2, 5, 2400, 2]), n: 120 })).ok, 'q 超過 120 題略過、剛好 120 題收');
   ok(bad({ ...mk(), id: '五年級4班_6號' }, 'id') && bad({ ...mk(), seat: '5' }, 'seat') && bad({ ...mk(), cls: '三年級2班', id: '三年級2班_5號' }, 'grade') && bad({ ...mk(), cls: '亂寫' }, 'grade'), 'id 與班級座號對不上、座號不是整數、不是四～六年級、班級亂寫 → 略過');
   ok(bad({ ...mk(), mk: 'dragon' }, 'mk') && bad({ ...mk(), mk: '__proto__' }, 'mk') && bad({ ...mk(), mk: 'toString' }, 'mk') && bad({ ...mk(), star: 6 }, 'star') && bad({ ...mk(), star: 2.5 }, 'star'), '不是已知魔物（含 __proto__、toString）、星級不對 → 略過（公開榜單的 key 不能讓學生決定）');
-  ok(bad({ ...mk(), secs: 491 }, 'secs') && R.normalizeRun({ ...mk(), secs: 490 }).ok && bad({ ...mk(), secs: -1 }, 'secs') && bad({ ...mk(), acc: 1.2 }, 'acc') && bad({ ...mk(), acc: 'x' }, 'acc') && bad({ ...mk(), lv: 0 }, 'lv') && bad({ ...mk(), ans: -1 }, 'num') && bad({ ...mk(), t: 'x' }, 't'), '秒數、正確率、等級、數字欄位超出範圍 → 略過');
+  ok(bad({ ...mk(), secs: 611 }, 'secs') && R.normalizeRun({ ...mk(), secs: 610 }).ok && bad({ ...mk(), secs: -1 }, 'secs') && bad({ ...mk(), acc: 1.2 }, 'acc') && bad({ ...mk(), acc: 'x' }, 'acc') && bad({ ...mk(), lv: 0 }, 'lv') && bad({ ...mk(), ans: -1 }, 'num') && bad({ ...mk(), t: 'x' }, 't'), '秒數、正確率、等級、數字欄位超出範圍 → 略過');
   ok(bad({ ...mk(), _rid: '別的ID_1' }, 'rid') && R.normalizeRun({ ...mk(), _rid: 'x' }).ok === false && (r => R.normalizeRun({ ...r, _rid: rid(r) }).ok)(mk()), '文件 ID 跟 id＋t 對不上 → 略過；對得上才收');
   ok(['x', 5, null, undefined, [], true].every(v => bad(v, 'shape')), '不是物件的東西（字串、數字、null、undefined、陣列）→ 略過，不會丟例外');
   ok(bad(mk({ res: 'fail', q: Array.from({ length: 2 }, () => [2, 5, 2400, 2]) }), 'invalid') && R.normalizeRun(mk({ res: 'fail', n: 3 })).ok && R.normalizeRun(mk({ res: 'win', n: 1 })).ok, '沒打贏又答不到 3 題 → 略過；輸了但答 ≥ 3 題、或打贏 → 收');
@@ -139,10 +139,10 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   ok(go([...series({}, [50, 50, 50], [60, 60]), mk({ cpm: 60, acc: 0.899, ts: at(5, 1) })]).boards['5'].improve.length === 0, '正確率 89.9% 不算數');
   /* 輸掉的場次也算速度 */
   ok(go(series({ res: 'fail' }, [50, 50, 50], [60, 60, 60])).boards['5'].improve[0].v === 20, '輸掉的場次（答 ≥ 3 題）也算打字速度');
-  /* V2：滿 8 分鐘魔物逃走（res: 'escape'、secs 480）。只看 res === 'win'，所以不算贏、不算最快，但算打字速度；secs 480 不能被當成壞資料丟掉 */
-  const esc = o => mk({ res: 'escape', secs: 480, ...o });
-  ok(R.normalizeRun(esc()).ok && R.normalizeRun(esc()).run.win === false && R.normalizeRun(esc()).run.secs === 480, 'V2：逃走（secs 480）收進來，win 是 false');
-  ok(go(series({ res: 'escape', secs: 480 }, [50, 50, 50], [60, 60, 60])).boards['5'].improve[0].v === 20, 'V2：逃走的場次（答 ≥ 3 題）算打字速度');
+  /* V2：滿 10 分鐘魔物逃走（res: 'escape'、secs 600）。只看 res === 'win'，所以不算贏、不算最快，但算打字速度；secs 600 不能被當成壞資料丟掉 */
+  const esc = o => mk({ res: 'escape', secs: 600, ...o });
+  ok(R.normalizeRun(esc()).ok && R.normalizeRun(esc()).run.win === false && R.normalizeRun(esc()).run.secs === 600, 'V2：逃走（secs 600）收進來，win 是 false');
+  ok(go(series({ res: 'escape', secs: 600 }, [50, 50, 50], [60, 60, 60])).boards['5'].improve[0].v === 20, 'V2：逃走的場次（答 ≥ 3 題）算打字速度');
   ok(bad(esc({ n: 2 }), 'invalid'), 'V2：逃走但答不到 3 題 → 略過（跟輸掉一樣）');
   /* 用 ts 不用 t */
   const tsTest = [...series({}, [50, 50, 50], []), ...[60, 60, 60].map((c, i) => mk({ cpm: c, ts: at(5, i), t: at(0, i) }))];   // t 是很久以前、ts 是這週
@@ -250,7 +250,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   ok(same(fb['coo:3'].map(x => [x.s, x.v, x.r]), [[2, 40, 1], [1, 50, 2], [3, 60, 3]]), '每個人取最快的一場（座號 2 有 40 與 45 兩場，只算 40），秒數小的在前，名次 1、2、3');
   ok(fb['coo:3'][0].w === 'dagger' && fb['coo:3'][0].pw === 45 && fb['frog:2'][0].w === 'bow' && fb['frog:2'][0].pw === 12, '每列帶武器與戰力（配裝也算，榜上標出來）');
   ok(go([F(1, 50, { res: 'fail' }), F(2, 60, { res: 'retreat', n: 5 })]).boards['5'].fast['coo:3'] === undefined, '只算打贏的場次（輸掉、撤退不算最快）');
-  ok(go([F(1, 50, { res: 'fail' }), F(2, 60, { res: 'retreat', n: 5 }), F(3, 480, { res: 'escape' })]).boards['5'].fast['coo:3'] === undefined, 'V2：逃走（480 秒）不算最快');
+  ok(go([F(1, 50, { res: 'fail' }), F(2, 60, { res: 'retreat', n: 5 }), F(3, 600, { res: 'escape' })]).boards['5'].fast['coo:3'] === undefined, 'V2：逃走（600 秒）不算最快');
   ok(same(go([F(1, 400, { res: 'escape' }), F(2, 60)]).boards['5'].fast['coo:3'].map(x => x.s), [2]), 'V2：逃走的人不在最快榜上，旁邊打贏的人照常上榜');
   ok(go([F(1, 50, { acc: 0.88 }), F(2, 60)]).boards['5'].fast['coo:3'].length === 1 && go([F(1, 50, { acc: 0.88 }), F(2, 60)]).boards['5'].fast['coo:3'][0].s === 2, '正確率不到 90% 的最快紀錄不算');
   ok(go([F(1, 0)]).boards['5'].fast['coo:3'] === undefined, '0 秒的打贏不算（不然會永遠第一）');

@@ -1,5 +1,5 @@
-/* 平衡 V2 第 6 步：時間（SPEC-BALANCE-V2 §1.2、§7 第 6 步；編號 nw21）。取消「時間到就輸」：倒下 3 次才輸，滿 480 秒魔物逃走（res＝escape），
-   獎勵 ×(0.3a＋0.7f)；右上角寫「已經打了」往上數、不倒數不變紅；撤退照比例。旗標關（__NW_V2__=false）仍是 300 秒倒數、時間到＝撤退、輸／撤退一半。
+/* 平衡 V2 第 6 步：時間（SPEC-BALANCE-V2 §1.2、§7 第 6 步；編號 nw21）。取消「時間到就輸」：倒下 3 次才輸，滿 600 秒（v2.2；v2.1 是 480）魔物逃走（res＝escape），
+   獎勵 ×(0.3u＋0.7·f·min(1,2u))，u＝有在打字的秒數÷600；右上角寫「已經打了」往上數、不倒數不變紅；撤退照比例。旗標關（__NW_V2__=false）仍是 300 秒倒數、時間到＝撤退、輸／撤退一半。
    假時鐘：把 performance.now 加上 window.__tOff（毫秒），戰鬥用的 nowS() 就一下子跳到那個時間。 */
 const { chromium } = require('playwright'); const fs = require('fs');
 const path = require('path'); const M = path.join(__dirname, 'mock') + '/'; const OUT = process.argv[2] || require('os').tmpdir();
@@ -58,12 +58,15 @@ const fails0 = p => p.evaluate(() => window.__NWG.nw.stat.fails);
 (async () => {
   const D = await import('../../nw-data.js');
 
-  /* ── 純函式：獎勵比例 0.3a＋0.7f ── */
-  const near = (x, y) => Math.abs(x - y) < 1e-9;
-  ok(D.rewardRatio(true, 0, 480, 0) === 1, '贏＝全額 1');
-  ok(near(D.rewardRatio(false, 480, 480, 0.8), 0.3 + 0.7 * 0.8) && near(D.rewardRatio(false, 480, 480, 0.8), 0.86), '打掉 80%、一直在打字的逃走 → 86%（規格 §2.3）');
-  ok(D.rewardRatio(false, 0, 480, 0) === 0 && near(D.rewardRatio(false, 0, 480, 0.5), 0.35), '掛著不打字（a＝0）、沒打到血 → 0；打掉一半但沒在打字 → 只有 0.7f＝35%');
-  ok(near(D.rewardRatio(false, 240, 480, 0.5), 0.5) && D.rewardRatio(false, 999, 480, 5) === 1 && D.rewardRatio(false, -5, 0, -1) === 0, 'a、f 超界會夾在 0～1');
+  /* ── 純函式：獎勵比例 0.3u＋0.7·f·min(1,2u)，v2.3：u＝有在打字的秒數 ÷ max(這場秒數, 300) ── */
+  const near = (x, y) => Math.abs(x - y) < 1e-9, R = (live, secs, f) => D.rewardRatio(false, live, secs, f);
+  ok(D.rewardRatio(true, 0, 0, 0) === 1, '贏＝全額 1');
+  ok(near(R(600, 600, 0.8), 0.86) && near(R(300, 300, 0.3), 0.51) && near(R(180, 180, 0.3), 0.3 * 0.6 + 0.7 * 0.3 * 1), '規格 6e：整場都在打 → 10 分鐘打掉 80%＝0.86；5 分鐘倒下、打掉 30%＝0.51；3 分鐘下課撤退＝' + R(180, 180, 0.3).toFixed(2) + '（不會被除以 600 罰）');
+  ok(R(0, 600, 0) === 0 && R(0, 600, 0.5) === 0, '掛著不打字（u＝0）：保底和進度都是 0');
+  ok(near(R(150, 300, 0.5), 0.3 * 0.5 + 0.7 * 0.5 * 1) && near(R(75, 300, 0.5), 0.3 * 0.25 + 0.7 * 0.5 * 0.5), 'u＝0.5 起進度全算（min(1,2u)＝1）；u＝0.25 進度只算一半');
+  ok(R(9999, 600, 5) === 1 && R(-5, 0, -1) === 0 && R(10, 0, 0.5) < 0.1, 'u、f 超界夾在 0～1；秒數是 0 也用 300 當分母');
+  ok(R(60, 600, 0.35) <= 0.3 && R(60, 600, 0.22) <= 0.3, '打 4 題後掛著到 10 分鐘（有在打字約 60 秒）：獎勵 ≤ 30%（打掉 35% 時 ' + (R(60, 600, 0.35) * 100).toFixed(0) + '%）');
+  const U = (live, secs, f) => 0.3 * Math.min(1, live / Math.max(secs, 300)) + 0.7 * f * Math.min(1, 2 * Math.min(1, live / Math.max(secs, 300)));
 
   const b = await chromium.launch();
 
@@ -72,27 +75,29 @@ const fails0 = p => p.evaluate(() => window.__NWG.nw.stat.fails);
     const p = await open(b, { v2: true });
     await goHunt(p, 'grass', 'coo', 1);
     ok((await p.textContent('.nwb3-time')).includes('已經打了') && (await p.textContent('#nwb-time')) === '0:00' || /^0:0\d$/.test(await p.textContent('#nwb-time')), 'V2：右上角寫「已經打了」從 0:00 往上數');
-    ok((await p.textContent('#nwb-std')) === '⚡ 標準 1:46', `V2：下面寫標準時間（咕咕鳥★1＝1:46；${await p.textContent('#nwb-std')}）`);
+    ok((await p.textContent('#nwb-std')) === '⚡ 標準 2:09', `V2：下面寫標準時間（咕咕鳥★1＝129 秒＝2:09；${await p.textContent('#nwb-std')}）`);
     await answer(p, 4);
     const c0 = await coins(p), e0 = await exp(p), f0 = await fails0(p);
     await jump(p, 310); await p.waitForTimeout(700);
     ok(!(await p.$('#nw-result')) && !(await p.$eval('#nwb-in', e => e.disabled)), 'V2：滿 300 秒（舊的時限）還在打，沒有結束');
     ok(/^5:1\d$/.test(await p.textContent('#nwb-time')), `V2：顯示 5:1x（往上數；${await p.textContent('#nwb-time')}）`);
-    ok((await p.$$eval('.nwb2-banner', els => els.map(e => e.textContent))).every(t => !t.includes('逃走')), '還沒到 7:00：沒有「魔物累了」');
-    await jump(p, 425); await p.waitForTimeout(600);
-    ok((await p.$$eval('.nwb2-banner', els => els.map(e => e.textContent).join('|'))).includes('魔物累了，再 1 分鐘就會逃走'), '7:00：跳「魔物累了，再 1 分鐘就會逃走」');
+    ok((await p.$$eval('.nwb2-banner', els => els.map(e => e.textContent))).every(t => !t.includes('逃走')), '還沒到 9:00：沒有「魔物累了」');
+    await jump(p, 430); await p.waitForTimeout(600);
+    ok((await p.$$eval('.nwb2-banner', els => els.map(e => e.textContent))).every(t => !t.includes('逃走')), '7:10：還沒有（v2.2 是 9:00 才提示）');
+    await jump(p, 545); await p.waitForTimeout(600);
+    ok((await p.$$eval('.nwb2-banner', els => els.map(e => e.textContent).join('|'))).includes('魔物累了，再 1 分鐘就會逃走'), '9:00：跳「魔物累了，再 1 分鐘就會逃走」');
     const col = await p.$eval('#nwb-time', e => getComputedStyle(e).color), col2 = await p.$eval('.nwb3-time', e => getComputedStyle(e).animationName);
-    ok(col === 'rgb(255, 217, 138)' && col2 === 'none', `7:00 以後顏色不變（${col}）、沒有閃爍動畫（${col2}）`);
-    await jump(p, 479.4); await p.waitForTimeout(300);
-    ok(!(await p.$('#nw-result')), '479.4 秒：還沒逃走');
-    await jump(p, 481); await p.waitForSelector('#nw-result', { timeout: 8000 }); await p.waitForTimeout(900);
+    ok(col === 'rgb(255, 217, 138)' && col2 === 'none', `9:00 以後顏色不變（${col}）、沒有閃爍動畫（${col2}）`);
+    await jump(p, 599.4); await p.waitForTimeout(300);
+    ok(!(await p.$('#nw-result')), '599.4 秒：還沒逃走');
+    await jump(p, 601); await p.waitForSelector('#nw-result', { timeout: 8000 }); await p.waitForTimeout(900);
     const r = (await runsOf(p))[0];
-    ok(r && r.res === 'escape' && r.secs === 480, `480 秒 → res＝escape、secs＝480（${r && r.res}／${r && r.secs}）`);
-    const live = r.secs - r.idle, ratio = 0.3 * live / r.secs + 0.7 * r.frac;
+    ok(r && r.res === 'escape' && r.secs === 600, `600 秒 → res＝escape、secs＝600（${r && r.res}／${r && r.secs}）`);
+    const live = r.secs - r.idle, ratio = U(live, r.secs, r.frac);
     const dc = (await coins(p)) - c0, de = (await exp(p)) - e0;
-    ok(r.frac > 0.1 && r.frac < 0.8 && r.idle > 300, `打掉 ${Math.round(r.frac * 100)}% 的血、沒在打字 ${r.idle} 秒（a＝${(live / r.secs).toFixed(2)}）`);
-    ok(Math.abs(dc - Math.round(D.huntCoins(1, true) * ratio)) <= 1 && Math.abs(de - Math.round(D.huntExp(1, true) * ratio)) <= 1, `獎勵＝0.3a＋0.7f＝${(ratio * 100).toFixed(1)}%：字元 +${dc}（滿額 ${D.huntCoins(1, true)}）、經驗 +${de}（滿額 ${D.huntExp(1, true)}）`);
-    ok(dc < D.huntCoins(1, true) * 0.5 && dc > 0, '掛著不動不拿保底：比舊的「輸一半」還少，但打掉的血有算');
+    ok(r.frac > 0.1 && r.frac < 0.8 && r.idle > 500, `打掉 ${Math.round(r.frac * 100)}% 的血、沒在打字 ${r.idle} 秒（u＝${(live / 600).toFixed(2)}）`);
+    ok(Math.abs(dc - Math.round(D.huntCoins(1, true) * ratio)) <= 1 && Math.abs(de - Math.round(D.huntExp(1, true) * ratio)) <= 1, `獎勵＝0.3u＋0.7·f·min(1,2u)（u＝live÷max(秒數,300)）＝${(ratio * 100).toFixed(1)}%：字元 +${dc}（滿額 ${D.huntCoins(1, true)}）、經驗 +${de}（滿額 ${D.huntExp(1, true)}）`);
+    ok(dc < D.huntCoins(1, true) * 0.15, '掛著不動拿不到什麼：不到舊的「輸一半」的 30%');
     ok((await fails0(p)) === f0, '逃走不記輸（stat.fails 沒增加）');
     const txt = await p.textContent('#nw-result');
     ok(txt.includes('魔物逃走了') && txt.includes('魔物累得逃走了') && txt.includes(`${Math.round(r.frac * 100)}%`) && txt.includes(`${Math.round(ratio * 100)}%`) && !txt.includes('可疑'), '結算：標題「魔物逃走了」、寫打掉幾 % 與拿到幾 % 的獎勵');
@@ -107,7 +112,7 @@ const fails0 = p => p.evaluate(() => window.__NWG.nw.stat.fails);
     await answer(p, 2);                                   // 0～3 秒
     await jump(p, 30); await p.waitForTimeout(200); await answer(p, 1);          // 隔 30 秒：算 30
     await jump(p, 100); await p.waitForTimeout(200); await answer(p, 1);         // 隔 70 秒：只算 40
-    await jump(p, 481); await p.waitForSelector('#nw-result', { timeout: 8000 }); await p.waitForTimeout(800);
+    await jump(p, 601); await p.waitForSelector('#nw-result', { timeout: 8000 }); await p.waitForTimeout(800);
     const r = (await runsOf(p))[0], live = r.secs - r.idle;
     ok(r.res === 'escape' && live > 108 && live < 118, `有在打字＝約 3＋30＋40＋40＝113 秒（實際 ${live.toFixed(1)}；idle ${r.idle}）`);
     await p.close();
@@ -120,9 +125,38 @@ const fails0 = p => p.evaluate(() => window.__NWG.nw.stat.fails);
     await answer(p, 3);
     const c0 = await coins(p);
     await p.click('#nwb-quit'); await p.waitForSelector('#nw-result', { timeout: 8000 }); await p.waitForTimeout(800);
-    const r = (await runsOf(p))[0], live = r.secs - r.idle, ratio = 0.3 * live / r.secs + 0.7 * r.frac, dc = (await coins(p)) - c0;
-    ok(r.res === 'retreat' && Math.abs(dc - Math.round(D.huntCoins(1, true) * ratio)) <= 1 && ratio > 0.2, `撤退：照比例 ${(ratio * 100).toFixed(0)}%（字元 +${dc}／滿額 ${D.huntCoins(1, true)}），不是固定一半`);
+    const r = (await runsOf(p))[0], live = r.secs - r.idle, ratio = U(live, r.secs, r.frac), dc = (await coins(p)) - c0;
+    ok(r.res === 'retreat' && Math.abs(dc - Math.round(D.huntCoins(1, true) * ratio)) <= 1 && ratio < 0.5, `撤退：照 0.3u＋0.7·f·min(1,2u) ＝ ${(ratio * 100).toFixed(1)}%（字元 +${dc}／滿額 ${D.huntCoins(1, true)}），不是固定一半（才打幾秒就撤退，u 很小）`);
     await p.close();
+  }
+
+  /* ── v2.3：逐字判斷「有在打字」＋120 秒內要送出過 1 題 ── */
+  {
+    const typeSlow = async (p, gap, tOff) => {   // 一個字一個字打，每個字之間假時鐘走 gap 秒；回傳新的 tOff
+      const t = await qText(p);
+      for (let k = 1; k <= t.length; k++) { await p.fill('#nwb-in', t.slice(0, k)); await p.waitForTimeout(60); tOff += gap; await jump(p, tOff); await p.waitForTimeout(60); }
+      return tOff;
+    };
+    /* p10 的速度（一題約 60 秒、每個字約 20 秒）：一直在打字，整場 idle≈0（舊規則只在送出時更新，一題 40～80 秒會被停掉） */
+    const p = await open(b, { v2: true });
+    await goHunt(p, 'grass', 'coo', 1);
+    let t = 0;
+    for (let i = 0; i < 4; i++) { t = await typeSlow(p, 20, t); await p.fill('#nwb-in', await qText(p)); await p.waitForTimeout(480); await p.press('#nwb-in', 'Enter'); await p.waitForTimeout(80); }
+    t += 5; await jump(p, t); await p.waitForTimeout(100);
+    await p.click('#nwb-quit'); await p.waitForSelector('#nw-result', { timeout: 8000 }); await p.waitForTimeout(700);
+    const r = (await runsOf(p))[0];
+    ok(r.res === 'retreat' && r.idle <= 6 && r.secs > 100, `p10 的速度（每字約 20 秒）打 ${Math.round(r.secs)} 秒：idle＝${r.idle}（逐字判斷，沒被當成掛機）`);
+    await p.close();
+    /* 每 40 秒打 1 個對的字、從不送出：120 秒後 live 不再增加 */
+    const q = await open(b, { v2: true });
+    await goHunt(q, 'grass', 'coo', 1);
+    await answer(q, 3);   // 先送出 3 題（沒答到 3 題這場不算數）
+    let t2 = 0; const w = await qText(q);
+    for (let k = 1; k <= Math.min(w.length, 4); k++) { await q.fill('#nwb-in', w.slice(0, k)); await q.waitForTimeout(60); t2 += 40; await jump(q, t2); await q.waitForTimeout(60); }
+    await jump(q, 601); await q.waitForSelector('#nw-result', { timeout: 8000 }); await q.waitForTimeout(700);
+    const r2 = (await runsOf(q))[0], live2 = r2.secs - r2.idle;
+    ok(r2.res === 'escape' && live2 <= 125 && live2 > 60, `每 40 秒打 1 個字、從不送出：有在打字只有 ${live2.toFixed(0)} 秒（≤ 120 秒就停，不是 ${Math.min(w.length, 4) * 40 + 40}）`);
+    await q.close();
   }
 
   /* ── 旗標關：300 秒倒數、時間到＝撤退、輸／撤退一半，跟 V2 之前一樣 ── */

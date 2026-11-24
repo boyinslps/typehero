@@ -70,8 +70,8 @@ async function answer(p, n = 1) { for (let i = 0; i < n; i++) { await p.fill('#n
   const R5 = seq(100, [{ live: 100, fastWin: true }, { live: 100, fastWin: true }, { live: 100, fastWin: true }, { live: 100, fastWin: true }, { live: 100, fastWin: true }, { live: 100, fastWin: true }]);
   ok(R5.map(r => r.full).join() === 'true,true,true,true,false,false', '前 4 場拿完整材料，第 5 場起 full＝false');
   ok(R5.map(r => r.fast).join() === 'true,true,true,true,false,false', '⚡ 只有前 4 場有；第 5 場起沒有（就算贏得很快）');
-  const W = seq(100, Array.from({ length: 10 }, () => ({ live: 480, fastWin: false })));
-  ok(W.reduce((a, r) => a + r.work, 0) <= 2 && W.reduce((a, r) => a + r.work, 0) === 2, `一天打 10 場、每場 8 分鐘都有在打字：勤勞最多 2 個（拿了 ${W.reduce((a, r) => a + r.work, 0)}）`);
+  const W = seq(100, Array.from({ length: 10 }, () => ({ live: 600, fastWin: false })));
+  ok(W.reduce((a, r) => a + r.work, 0) <= 2 && W.reduce((a, r) => a + r.work, 0) === 2, `一天打 10 場、每場 10 分鐘都有在打字：勤勞最多 2 個（拿了 ${W.reduce((a, r) => a + r.work, 0)}）`);
   ok(W.slice(4).every(r => r.work === 0), '第 5 場起不再累積勤勞（「勤勞已滿」）');
   const H = seq(100, [{ live: 40 }, { live: 40 }, { live: 40 }, { live: 40 }]);
   ok(H.every(r => r.work === 0) && H[3].day.ws === 160, '每場只打了一下就掛著（有在打字 40 秒）：4 場加起來 160 秒，勤勞 0');
@@ -91,12 +91,12 @@ async function answer(p, n = 1) { for (let i = 0; i < n; i++) { await p.fill('#n
     const p = await open(b, { v2: true });
     await rollMax(p);
     const m0 = await mats(p), c0 = await p.evaluate(() => window.__NWG.nw.coins);
-    const s1 = await hunt(p, fakeRes({ over: { secs: 80, live: 70 } }));          // 咕咕鳥★3 標準 2:13＝133 秒，80 秒打贏 → ⚡
+    const s1 = await hunt(p, fakeRes({ over: { secs: 80, live: 70 } }));          // 咕咕鳥★3 標準 171 秒（v2.2 逐場），80 秒打贏 → ⚡
     const m1 = await mats(p), dc1 = (await p.evaluate(() => window.__NWG.nw.coins)) - c0;
-    ok(s1.full && s1.bonus.length === 1 && s1.bonus[0].kind === 'fast' && s1.bonus[0].id === 'coo_down' && s1.fastBy === 53, `第 1 場比標準快 53 秒 → ⚡ 多 1 個柔軟絨毛（${JSON.stringify(s1.bonus)}）`);
+    ok(s1.full && s1.bonus.length === 1 && s1.bonus[0].kind === 'fast' && s1.bonus[0].id === 'coo_down' && s1.fastBy === 91, `第 1 場比標準快 91 秒 → ⚡ 多 1 個柔軟絨毛（${JSON.stringify(s1.bonus)}）`);
     ok((m1.coo_feather || 0) - (m0.coo_feather || 0) === 4 && (m1.coo_down || 0) - (m0.coo_down || 0) === 3, `⚡ 是額外的：基本材料照拿（灰 +4、綠 +2）再加 1 ＝ 綠共 +3（灰 +${(m1.coo_feather || 0) - (m0.coo_feather || 0)}、綠 +${(m1.coo_down || 0) - (m0.coo_down || 0)}）`);
     const s2 = await hunt(p, fakeRes({ over: { secs: 200, live: 150 } }));
-    ok(s2.bonus.length === 0 && s2.dayN === 2, '第 2 場比標準慢（200 秒）：沒有 ⚡');
+    ok(s2.bonus.length === 0 && s2.dayN === 2, '第 2 場比標準慢（200 秒＞171）：沒有 ⚡');
     const s3 = await hunt(p, fakeRes({ over: { result: 'escape', secs: 480, live: 100, frac: 0.8, fEff: 0.8 } }));
     ok(s3.bonus.length === 0, '輸／逃走沒有 ⚡（要打贏）');
     const m3 = await mats(p), s4 = await hunt(p, fakeRes({ over: { secs: 80, live: 20 } }));
@@ -107,7 +107,7 @@ async function answer(p, n = 1) { for (let i = 0; i < n; i++) { await p.fill('#n
     const m5 = await mats(p), dc5 = (await p.evaluate(() => window.__NWG.nw.coins)) - cBefore, de5 = (await p.evaluate(() => window.__NWG.nw.hrExp + window.__NWG.nw.hr * 1000)) - eBefore;
     ok(!s5.full && s5.dayN === 5 && s5.bonus.length === 0, '第 5 場：不是完整、沒有 ⚡（雖然比標準快）、勤勞也不給（雖然整場都有在打字）');
     ok((m5.coo_feather - m4.coo_feather) === 2 && (m5.coo_down - m4.coo_down) === 1, `第 5 場材料減半（灰 4→2、綠 2→1；實際 +${m5.coo_feather - m4.coo_feather}、+${m5.coo_down - m4.coo_down}）`);
-    ok(dc5 === dc1 && de5 > 0, `第 5 場字元不減（和第 1 場一樣 +${dc5}）、經驗照拿（+${de5}）`);
+    ok(dc5 === dc1 && de5 > 0, `第 5 場字元不減（和第 1 場一樣 +${dc5}；字元出口等老師決定）、經驗照拿（+${de5}）`);
     const s6 = await hunt(p, fakeRes({ over: { secs: 80, live: 480 } }));
     ok(s6.dayN === 6 && !s6.full, '第 6 場：還是減半');
     /* 材料至少 1：減半＋比例很低的場次，每種還是 ≥1 */
@@ -118,14 +118,14 @@ async function answer(p, n = 1) { for (let i = 0; i < n; i++) { await p.fill('#n
     await p.evaluate(r => { r.t0 = Date.now(); window.__NWG.afterHunt(r); }, fakeRes({ over: { secs: 80, live: 70 } }));
     await p.waitForSelector('#nw-result');
     const t1 = await p.textContent('#nw-result');
-    ok(t1.includes('⚡ 比標準時間快 53 秒！多拿') && t1.includes('柔軟絨毛'), '結算畫面：寫「⚡ 比標準時間快 53 秒！多拿 ■ 柔軟絨毛 ×1」');
+    ok(t1.includes('⚡ 比標準時間快 91 秒！多拿') && t1.includes('柔軟絨毛'), '結算畫面：寫「⚡ 比標準時間快 91 秒！多拿 ■ 柔軟絨毛 ×1」');
     await p.click('[data-close]');
     await p.evaluate(() => { window.__NWG.nw.day = { d: 99999, n: 4, work: 0, ws: 0 }; });
     await p.evaluate(() => { window.__NWG.nw.day.d = Math.floor((Date.now() + 8 * 3600e3) / 86400e3); });
     await p.evaluate(r => { r.t0 = Date.now(); window.__NWG.afterHunt(r); }, fakeRes({ over: { secs: 200, live: 70 } }));
     await p.waitForSelector('#nw-result');
     const t2 = await p.textContent('#nw-result');
-    ok(t2.includes('今天已經打了 4 場，材料先變一半') && !t2.includes('可疑'), '第 5 場的結算：寫「今天已經打了 4 場，材料先變一半（字元和經驗照拿）」');
+    ok(t2.includes('今天已經打了 4 場，材料先變一半') && !t2.includes('可疑'), '第 5 場的結算：寫「今天已經打了 4 場，材料先變一半（經驗照拿）」');
     ok(p.errs.length === 0, '沒有 JS 錯誤 ' + p.errs.join('|'));
     await p.close();
   }
@@ -148,12 +148,12 @@ async function answer(p, n = 1) { for (let i = 0; i < n; i++) { await p.fill('#n
     for (let k = 0; k < 2; k++) {
       await goHunt(p, 'grass', 'coo', 1);
       await answer(p, 3);
-      await p.evaluate(() => { window.__tOff = (window.__tOff || 0) + 481000; });
+      await p.evaluate(() => { window.__tOff = (window.__tOff || 0) + 601000; });
       await p.waitForSelector('#nw-result', { timeout: 8000 }); await p.waitForTimeout(500);
       await p.click('[data-close]'); await p.waitForTimeout(700);
     }
     const day = await p.evaluate(() => window.__NWG.nw.day);
-    ok(day && day.n === 2 && day.work === 0 && day.ws > 60 && day.ws < 140, `掛著不動 2 場（共 16 分鐘）：有在打字只有 ${day && Math.round(day.ws)} 秒，勤勞 0`);
+    ok(day && day.n === 2 && day.work === 0 && day.ws > 60 && day.ws < 140, `掛著不動 2 場（共 20 分鐘）：有在打字只有 ${day && Math.round(day.ws)} 秒，勤勞 0`);
     const m1 = await mats(p);
     ok(Object.keys(m1).every(k => !k.endsWith('_down') || (m1[k] - (m0[k] || 0)) <= 2 * 2), '材料沒有勤勞的額外 1 個');
     await p.close();
@@ -163,14 +163,62 @@ async function answer(p, n = 1) { for (let i = 0; i < n; i++) { await p.fill('#n
   {
     const p = await open(b, { v2: true });
     await rollMax(p);
-    const r1 = await hunt(p, fakeRes({ over: { result: 'escape', secs: 480, live: 480, frac: 0.7, fEff: 0.7 } }));
-    const r2 = await hunt(p, fakeRes({ over: { result: 'escape', secs: 480, live: 480, frac: 0.7, fEff: 0.7 } }));
-    const r3 = await hunt(p, fakeRes({ over: { result: 'escape', secs: 480, live: 480, frac: 0.7, fEff: 0.7 } }));
-    const r4 = await hunt(p, fakeRes({ over: { result: 'escape', secs: 480, live: 480, frac: 0.7, fEff: 0.7 } }));
+    const r1 = await hunt(p, fakeRes({ over: { result: 'escape', secs: 600, live: 600, frac: 0.7, fEff: 0.7 } }));
+    const r2 = await hunt(p, fakeRes({ over: { result: 'escape', secs: 600, live: 600, frac: 0.7, fEff: 0.7 } }));
+    const r3 = await hunt(p, fakeRes({ over: { result: 'escape', secs: 600, live: 600, frac: 0.7, fEff: 0.7 } }));
+    const r4 = await hunt(p, fakeRes({ over: { result: 'escape', secs: 600, live: 600, frac: 0.7, fEff: 0.7 } }));
     const got = [r1, r2, r3, r4].map(r => r.bonus.filter(x => x.kind === 'work').length);
-    ok(got.join() === '0,1,1,0' && (await p.evaluate(() => window.__NWG.nw.day.work)) === 2, `4 場都打滿 8 分鐘：第 2、3 場各拿 1 個勤勞，第 4 場已滿（${got}）`);
-    const t = await (async () => { await p.evaluate(r => { r.t0 = Date.now(); window.__NWG.afterHunt(r); }, fakeRes({ over: { result: 'escape', secs: 480, live: 480, frac: 0.7, fEff: 0.7 } })); await p.waitForSelector('#nw-result'); return p.textContent('#nw-result'); })();
+    ok(got.join() === '1,1,0,0' && (await p.evaluate(() => window.__NWG.nw.day.work)) === 2, `4 場都打滿 10 分鐘：第 1、2 場各拿 1 個勤勞，之後已滿（${got}）`);
+    const t = await (async () => { await p.evaluate(r => { r.t0 = Date.now(); window.__NWG.afterHunt(r); }, fakeRes({ over: { result: 'escape', secs: 600, live: 600, frac: 0.7, fEff: 0.7 } })); await p.waitForSelector('#nw-result'); return p.textContent('#nw-result'); })();
     ok(!t.includes('🔨'), '第 5 場的結算沒有勤勞');
+    await p.close();
+  }
+
+  /* ── v2.3 §2.6：一天最多開 2 個新星級（v2.2 是 1 個） ── */
+  {
+    const nw0 = { zone: { grass: 1, forest: 0 }, dex: {} }, dd = (d, st) => ({ ...nw0, day: { d, n: 1, work: 0, st, ws: 0 } });
+    ok(D.NW_V2.starsPerDay === 2 && D.newStarLocked(dd(7, 2), 'grass', 2, 7, true) === true && D.newStarLocked(dd(7, 1), 'grass', 2, 7, true) === false && D.newStarLocked(dd(7, 2), 'grass', 1, 7, true) === false && D.newStarLocked(dd(6, 2), 'grass', 2, 7, true) === false
+      && D.newStarLocked(dd(7, 2), 'grass', 2, 7, false) === false, '純函式：今天開過 2 個新星級 → 新的那一星鎖住；只開過 1 個、已經打贏過的星級、換天、旗標關都不鎖');
+    ok(D.dayStep(null, 7, { live: 1, newStar: true }).day.st === 1 && D.dayStep({ d: 7, n: 1, work: 0, st: 1, ws: 0 }, 8, { live: 1 }).day.st === 0, 'dayStep：開新星級記 st，隔天歸零');
+    const bq = D.boardQuests(dd(7, 2), 7, true).filter(q => !q.locked);
+    ok(bq.filter(q => q.star === 2).every(q => q.wait) && bq.filter(q => q.star === 1).every(q => !q.wait) && D.boardQuests(dd(7, 2), undefined, true).every(q => !q.wait), '委託單：新的一星 wait、已過的 ★1 不 wait；沒給今天就不鎖');
+    const p = await open(b, { v2: true, nw: { zone: { grass: 1, forest: 0 } } });
+    const s1 = await hunt(p, fakeRes({ over: { star: 1, mk: 'coo', secs: 200, live: 100 } }));
+    ok(s1.newStar === false && (await p.evaluate(() => window.__NWG.nw.day.st)) === 0, '重打已經贏過的 ★1：不算開新星級');
+    const s2 = await hunt(p, fakeRes({ over: { star: 2, mk: 'coo', secs: 200, live: 100 } }));
+    ok(s2.newStar === true && (await p.evaluate(() => window.__NWG.nw.day.st)) === 1 && (await p.evaluate(() => window.__NWG.nw.zone.grass)) === 2, '贏了新的 ★2：開了新星級（今天 1 個）');
+    const s3 = await hunt(p, fakeRes({ over: { star: 3, mk: 'coo', secs: 200, live: 100 } }));
+    ok(s3.newStar === true && (await p.evaluate(() => window.__NWG.nw.day.st)) === 2, '今天第 2 個新星級（★3）');
+    const s4 = await hunt(p, fakeRes({ over: { star: 4, mk: 'coo', result: 'fail', secs: 100, live: 80, frac: 0.3, fEff: 0.3 } }));
+    ok(s4.newStar === false && (await p.evaluate(() => window.__NWG.nw.day.st)) === 2, '輸了不算開新星級');
+    await p.click('.vb[data-bld="board"]'); await p.waitForSelector('#nwbd-board');
+    const t4 = await p.textContent('.qs[data-q="grass:coo:4"]'), t3 = await p.textContent('.qs[data-q="grass:coo:3"]');
+    await p.click('.qs[data-q="grass:coo:4"]');
+    const dis4 = await p.$eval('[data-go]', e => e.disabled), info4 = await p.textContent('#nwbd-info');
+    await p.click('.qs[data-q="grass:coo:3"]');
+    const dis3 = await p.$eval('[data-go]', e => e.disabled);
+    ok(t4.includes('明天再來') && !t3.includes('明天再來') && dis4 === true && dis3 === false && info4.includes('今天已經開了新的一星'), `委託板：★4 寫「明天再來」、狩獵鈕灰掉（${dis4}）；重打 ★3 照常（${dis3}）`);
+    await p.evaluate(() => { window.__NWG.nw.day.d -= 1; });
+    const s5 = await hunt(p, fakeRes({ over: { star: 4, mk: 'coo', secs: 200, live: 100 } }));
+    ok(s5.newStar === true && (await p.evaluate(() => window.__NWG.nw.day.st)) === 1, '隔天：又可以開新的一星');
+    await p.close();
+    const q = await open(b, { v2: false, nw: { zone: { grass: 1, forest: 0 } } });
+    await hunt(q, fakeRes({ over: { star: 2, mk: 'coo', secs: 200, live: 100 } })); await hunt(q, fakeRes({ over: { star: 3, mk: 'coo', secs: 200, live: 100 } }));
+    await q.click('.vb[data-bld="board"]'); await q.waitForSelector('#nwbd-board');
+    ok(!(await q.textContent('.qs[data-q="grass:coo:4"]')).includes('明天再來'), '旗標關：不鎖星級');
+    await q.close();
+  }
+
+  /* ── v2.3 6g：快下課的提示（只提醒、不擋） ── */
+  {
+    const p = await open(b, { v2: true });
+    const bell = async end => { await p.evaluate(e => { window.__NW_CLASS_END__ = e; }, end); await p.click('.vb[data-bld="board"]'); await p.waitForSelector('#nwbd-board'); await p.click('.qs[data-q="grass:coo:1"]'); return p.$eval('#nwbd-bell', e => getComputedStyle(e).display); };
+    const near = await bell(Date.now() + 120000);
+    ok(near === 'block' && (await p.textContent('#nwbd-bell')).includes('快下課了，這場可能打不完喔！打不完也會照打掉的血給獎勵。') && !(await p.$eval('[data-go]', e => e.disabled)), '剩 2 分鐘：出發按鈕上方出現提示，按鈕沒被擋');
+    const far = await (async () => { await p.evaluate(() => { window.__NW_CLASS_END__ = Date.now() + 600000; }); await p.click('.qs[data-q="grass:frog:1"]'); return p.$eval('#nwbd-bell', e => getComputedStyle(e).display); })();
+    ok(far === 'none', '剩 10 分鐘：不顯示');
+    await p.evaluate(() => { window.__NW_CLASS_END__ = 0; }); await p.click('.qs[data-q="grass:coo:1"]');
+    ok((await p.$eval('#nwbd-bell', e => getComputedStyle(e).display)) === 'none', '沒有下課時間的資料：不顯示');
     await p.close();
   }
 

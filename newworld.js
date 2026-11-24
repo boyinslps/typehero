@@ -5,7 +5,7 @@ import {
   COLOR_NAME, COLOR_HEX, HR_MAX, VILLAGE, doorTile, buildingOpen, goalOf, TEST_TAGS, FB_COINS, FB_MINLEN, BUG_COINS, bugCoins, BUG_REWARD_MAX, LESSON_COINS, TESTER_MISSIONS, checkMissions, GIFT_WEAPONS, weaponInfo, weaponBase, curWeapon, WORDS, WORD_GROUPS, checkWords, setTitleParts, wordById, normName, ITEM_DEFS, displayName, NOTICES, MAT_INFO, isBpId, isMatId, TUT_LESSONS, ZONE_STAR_MAX
 } from './nw-data.js';
 import { injectUi } from './nw-ui.js';
-import { setStarter, gearDef, gearItem, doEquip, equippedItem, rollBlueprints, giveGear, giftGearOk, itemName, itemText, forgeHint, stageOpen, GEAR_MAX, wordOpen, newGearId, syncLegacy, giveClothBps, craftList, BP_DUP_COINS, susCheck, SUS, NW_V2, v2On, rewardRatio, dayStep, stdSecs, twDay } from './nw-data.js';
+import { setStarter, gearDef, gearItem, doEquip, equippedItem, rollBlueprints, giveGear, giftGearOk, itemName, itemText, forgeHint, stageOpen, GEAR_MAX, wordOpen, newGearId, syncLegacy, giveClothBps, craftList, BP_DUP_COINS, susCheck, SUS, NW_V2, v2On, rewardRatio, dayStep, stdSecs, twDay, newStarLocked } from './nw-data.js';
 import { openForge, gearTab, matsTab, bpTab } from './nw-forge.js';
 import { tierOf, EQUIP_LEFT, EQUIP_RIGHT, chibiOf, heroOf, titleBadgeHtml, darkDots, equipSlotHtml, mountSprites as mountSpritesPx, CARD_CSS } from './nw-card.js';
 import { mountVillage } from './nw-village.js';
@@ -1719,7 +1719,7 @@ export function initNewWorld(C) {
 
   function viewBoard() {
     setView('board', `${topbar('📜 冒險者公會', 'hub')}<div id="board"></div>`, el => {
-      village = mountBoard(el.querySelector('#board'), { PX, NW, goal: goalOf(NW), selected: boardSel, loadRooms, onSelect: id => { boardSel = id; }, onHunt: q => openRoom(q) });
+      village = mountBoard(el.querySelector('#board'), { PX, NW, today: twDay(now()), classLeft, goal: goalOf(NW), selected: boardSel, loadRooms, onSelect: id => { boardSel = id; }, onHunt: q => openRoom(q) });
     });
   }
 
@@ -1758,7 +1758,14 @@ export function initNewWorld(C) {
     });
   }
 
+  /* 這節課還剩幾秒（下課時間 − 現在）。資料來源：學生資料 hist.classEnd（毫秒）；目前還沒有任何地方會寫它（老師頁的下課時間設定還沒做），
+     所以預設不顯示；測試在 localhost 用 window.__NW_CLASS_END__ 指定 */
+  function classLeft() {
+    const h = C.getHist && C.getHist(), t = (location.hostname === 'localhost' && window.__NW_CLASS_END__) || (h && h.classEnd);
+    return Number.isFinite(+t) && +t > 0 ? (+t - now()) / 1000 : null;
+  }
   function launch(q) {
+    if (q.wait || newStarLocked(NW, q.rk, q.star, twDay(now()))) { toast('今天已經開了新的一星，明天再來挑戰吧！', 3000); return; }   // 已經在房間裡才發現（跨過午夜、雙分頁）也擋住
     stopAnims();
     writeRoom({ state: 'fighting', t: Date.now() }, true);
     show('nw-root', false);
@@ -1835,10 +1842,11 @@ export function initNewWorld(C) {
     s.dodgeOk += res.dodgeOk; s.dodgeAll += res.dodgeAll; s.defOk += res.defOk; s.defAll += res.defAll;
     const V2 = v2On();
     const sum = { lv, win: res.result === 'win', exp: 0, coins: 0, drops: [], rare: [], ups: 0, quests: [], star: res.star };
-    /* 獎勵比例：舊規則輸／撤退一律一半；V2 贏＝全額，其他照 0.3a＋0.7f（a＝有在打字的時間比例、f＝打掉的血，流派只算一半；SPEC-BALANCE-V2 §1.2） */
+    /* 獎勵比例：舊規則輸／撤退一律一半；V2 贏＝全額，其他照 0.3u＋0.7·f·min(1,2u)（u＝有在打字的秒數 ÷ max(秒數, 300)、f＝打掉的血，流派只算一半；v2.3，SPEC-BALANCE-V2 §1.2） */
     const ratio = !V2 ? (sum.win ? 1 : 0.5) : rewardRatio(sum.win, res.live, res.secs, res.fEff);
     sum.ratio = ratio; sum.v2 = V2;
     if (res.valid) {
+      const zoneBefore = NW.zone[res.rk] || 0;   // 這場有沒有「開新星級」要看打贏前的最高紀錄
       /* 活動要在更新「自己最快」之前算：進步獎拿活動前的紀錄當 base */
       const fk = res.mk + ':' + res.star, prevBest = NW.fastMk[fk];
       const evr = EV.onRun(res, prevBest, res.t0, now());
@@ -1855,19 +1863,19 @@ export function initNewWorld(C) {
         if (!NW.fastest[key] || res.secs < NW.fastest[key]) NW.fastest[key] = res.secs;
       } else if (!(V2 && res.result === 'escape')) s.fails++;   // 逃走不記輸（§1.2）
       if (res.lvAcc && lv >= 20) { s.accN++; s.accSum += res.accuracy; }
-      sum.exp = Math.round(huntExp(lv, true) * ratio * evr.boost.exp);
-      sum.coins = Math.round(huntCoins(lv, true) * ratio * evr.boost.coins);
-      sum.hr0 = NW.hr; sum.exp0 = NW.hrExp;
-      sum.ups = addHrExp(NW, sum.exp);
-      NW.coins += sum.coins;
       /* V2 的一天帳：前 4 場材料全額，第 5 場起 ×0.5（經驗、字元不減）；⚡ 快手、🔨 勤勞是「額外」的綠材料，不影響基本材料（SPEC-BALANCE-V2 §2.2～§2.4）。
          一天用台灣時間的日曆日（twDay，伺服器校正過的 now()）；只有有效場（valid）才算一場 */
       let dayR = null;
       if (V2) {
         const std = stdSecs(res.rk, res.mk, res.star);
-        dayR = dayStep(NW.day, twDay(now()), { live: res.live, fastWin: sum.win && std > 0 && res.secs < std });
-        NW.day = dayR.day; sum.full = dayR.full; sum.dayN = dayR.day.n;
+        dayR = dayStep(NW.day, twDay(now()), { live: res.live, fastWin: sum.win && std > 0 && res.secs < std, newStar: sum.win && res.star > zoneBefore });
+        NW.day = dayR.day; sum.full = dayR.full; sum.dayN = dayR.day.n; sum.newStar = sum.win && res.star > zoneBefore;
       }
+      sum.exp = Math.round(huntExp(lv, true) * ratio * evr.boost.exp);
+      sum.coins = Math.round(huntCoins(lv, true) * ratio * evr.boost.coins);   // 字元不隨一天場數減半：字元的出口等老師決定（SPEC-BALANCE-V2 §2.7）
+      sum.hr0 = NW.hr; sum.exp0 = NW.hrExp;
+      sum.ups = addHrExp(NW, sum.exp);
+      NW.coins += sum.coins;
       const rolls = ratio * (dayR && !dayR.full ? NW_V2.dayHalf : 1);
       m.drops.forEach(([id, name, color, lo, hi]) => {
         const n = Math.max(1, Math.round((lo + Math.floor(Math.random() * (hi - lo + 1))) * rolls));
@@ -1984,6 +1992,7 @@ export function initNewWorld(C) {
         ${res.valid ? `<div class="label mt-4 mb-2">獲得</div>
           <div class="flex gap-2 flex-wrap">${drops}${rare}</div>
           ${(sum.bonus || []).map(x => `<div class="px-panel in px-text mt-2" data-bonus="${x.kind}" style="color:#ffd98a">${x.kind === 'fast' ? `⚡ 比標準時間快 ${sum.fastBy} 秒！多拿 ` : '🔨 認真打字滿 10 分鐘！多拿 '}<span style="color:${COLOR_HEX[x.color]}">■</span> ${x.name} ×${x.n}</div>`).join('')}
+          ${sum.v2 && sum.newStar ? `<p class="px-text mt-2" data-newstar style="color:#ffd98a">${NW.day && NW.day.st >= NW_V2.starsPerDay ? '今天已經開了新的一星，明天再挑戰下一星！打贏過的星級隨時可以重打。' : ''}</p>` : ''}
           ${sum.v2 && sum.full === false ? `<p class="text-sm mt-2" data-daily style="color:#aab0d8">今天已經打了 ${sum.dayN - 1} 場，材料先變一半（字元和經驗照拿）。明天再拿滿！</p>` : ''}
           <div class="flex gap-5 mt-3 px-text" style="font-size:1.1em"><span>🪙 字元 +<b data-n="${sum.coins}">0</b></span><span>⭐ 獵人經驗 +<b data-n="${sum.exp}">0</b></span></div>
           <div class="flex items-center gap-2 mt-2"><b class="px-text" style="color:#ffd98a">獵人 Lv ${NW.hr}</b><div class="px-bar xp flex-1"><i data-hr style="width:${p0}%"></i></div></div>
