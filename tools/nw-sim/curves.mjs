@@ -71,11 +71,14 @@ export const P = {
     attendDodge: 0.11, attendDef: 0.73,   // 真實閃避 53%／防禦 63% 的擬合（BALANCE-2B-ANALYSIS §3.1 的 att）：沒注意＝站著不動；null＝人人都注意
     slamHits: 3, slamMul: 1,  // 重壓沒擋住打幾下、每下倍率。遊戲現況 3×1（resolveStrike 三條線各 hurt 一次）；V2 建議 1×1.5
     armorCeil: false,         // 盔甲減傷用無條件進位（每下至少少 1 點）；遊戲現況四捨五入
-    gCap: null,               // 武器×屬性的硬上限（V2 建議 1.32）；null＝不封頂（現況）
+    gCap: null,               // 武器×屬性的硬上限（V2 建議 1.37＝藍 +5 130 × 屬性 1.05）；null＝不封頂（現況）
+    afkWin: 40,               // 防掛機：流派只在「最近 40 秒內打對過 1 個字」時有作用（最慢 p5 每字約 31 秒）
+    flowCap: 1,               // 防掛機：一場的流派傷害最多＝打字傷害的 1 倍（打字永遠是主要輸出，流派占比 ≤50%）
+    escFlowHalf: true,        // 逃走／輸的獎勵比例 f 裡，流派傷害只算一半
     dmgMul: { coo: 1, frog: 1, shroom: 1, wolf: 0.7 },   // 狼的招式 ×0.7：時間到不再輸，倒下 3 次是唯一的輸法；「完全不換線」壓力測試下 ×1 會讓中位學生狼★5 輸 84%
     flows: {                // 流派（出發前選，免費換）
       none: {},
-      steady: { tau: 25, max: 1.6, noWrongHit: true },          // 穩打：全對的題目蓄力＝1＋（這題每個字平均花的秒數 ÷25），最多 ×1.6，取代連擊；亂打不被反擊
+      steady: { tau: 25, max: 1.6, noWrongHit: true },          // （第二波，先不開）穩打：全對的題目蓄力＝1＋（這題每個字平均花的秒數 ÷25），最多 ×1.6，取代連擊；亂打不被反擊
       guard: { rho: 0.05, typeMul: 0.85, shield: 0.5 },          // 守護：真的躲開或舉盾擋下（線上的攻擊擋一半）→ 反擊 5% 魔物血量×攻擊倍率；打字傷害 ×0.85；舉盾 +0.5 秒
       vine: { rho: 0.005, n: 4, every: 10, typeMul: 0.85 }       // 藤蔓：每題全對種 1 根（最多 4 根），每根每 10 秒扣 0.5% 魔物血量×攻擊倍率；打字傷害 ×0.85
     },
@@ -158,7 +161,8 @@ export function weaponOmega(w, L, a, c, star, p = P) {
 /* ───────── 2. 戰鬥模型（解析） ───────── */
 /* 一場的設定 → 期望時間、倒下、失敗機率。gear：{ atk, elem, hp, cut, shield, warn } */
 export const NOGEAR = { atk: 100, elem: null, hp: 0, cut: 0, shield: 0, warn: 0 };
-const elemMul = (g, mk) => !g.elem ? 1 : MONSTERS[mk].fear === g.elem ? 1.1 : MONSTERS[mk].resist === g.elem ? 0.9 : 1;
+const ELEM = { up: 1.1, down: 0.9 };   // 屬性：怕 ×1.1、不怕 ×0.9（nw-data.js elemMulOf）；V2 提案 1.05／0.95
+const elemMul = (g, mk) => !g.elem ? 1 : MONSTERS[mk].fear === g.elem ? ELEM.up : MONSTERS[mk].resist === g.elem ? ELEM.down : 1;
 export const gMul = (g, mk) => g.atk / 100 * elemMul(g, mk);
 
 function openPatterns(mk, star, p) {
@@ -265,13 +269,13 @@ function buildPresets() { Object.assign(PRESETS, { '無': NOGEAR, '灰全身+0':
   '綠武器+5': gearStats({ weapon: { c: 'green', n: 5 } }), '藍火刀+5＋綠+5': set('green', 5, 'blue', 5, 'fire') }); }
 /* V2 的裝備數值提案（docs/SPEC-BALANCE-V2.md §9）：[灰, 綠, 藍] 與每 +1。規則：下一色 +0 ＝ 上一色 +5（強化到頂再換顏色不吃虧，換了還能繼續長）；
    戰力 綠 22／藍 34 讓「綠 +0」嚴格高於「灰 +5」（穿上按鈕會變金色）。武器×屬性另外硬封頂 1.32（v2.gCap）。 */
-export const GEAR_V2 = { weapon: [[100, 110, 120], 2], helm: [[10, 25, 40], 3], armor: [[0.05, 0.10, 0.15], 0.01], gloves: [[0.2, 0.4, 0.6], 0.04], boots: [[0.2, 0.4, 0.6], 0.04],
-  power: { gray: 10, green: 22, blue: 34 }, cap: { warn: 0.8 } };
+export const GEAR_V2 = { weapon: [[100, 110, 120], 2], helm: [[10, 25, 40], 3], armor: [[0.05, 0.10, 0.15], 0.01], gloves: [[0.2, 0.4, 0.6], 0.04], boots: [[0.10, 0.20, 0.30], 0.03],
+  power: { gray: 10, green: 22, blue: 34 }, elem: { up: 1.05, down: 0.95 } };   // 護腳不動：G6a +0pp，等遙測
 /* 只改這個 node 行程裡的表（curves 自己的 SLOT／PRESETS，和 nw-data.js 的 GEAR_TB／POWER_BASE），檔案不動 */
 export function applyGearV2() {
   for (const [k, v] of Object.entries(GEAR_V2)) { if (!SLOT[k]) continue; const [b, per] = v;
     Object.assign(SLOT[k], { gray: b[0], green: b[1], blue: b[2], per }); GEAR_TB[k].base = [...b]; GEAR_TB[k].per = per; }
-  Object.assign(POW, GEAR_V2.power); Object.assign(POWER_BASE, GEAR_V2.power); Object.assign(CAP, GEAR_V2.cap); buildPresets();
+  Object.assign(POW, GEAR_V2.power); Object.assign(POWER_BASE, GEAR_V2.power); Object.assign(ELEM, GEAR_V2.elem); buildPresets();
 }
 /* 新世界拿掉層級＋V2 攻擊表＋8 分鐘逃走，改進 nw-data.js 的表，讓 sim.mjs／bal2b*.mjs／gear.mjs 用 V2 規則跑（同上，只在行程裡）。
    跳跳菇「★2 起才攻擊」在這裡做不到（ATTACKS_OPEN 不分星級），MC 裡跳跳菇★1 也會攻擊，結果偏保守。 */
@@ -401,7 +405,7 @@ export function battleV2(v, a, rk, mk, star, gear = NOGEAR, p = P, flow = 'none'
   const usable = m.attacks.filter(x => x.type === 'defend' ? en.includes('slam') : dodge.length > 0);
   let hitsE = 0, dmgHit = 0, act = 0, succ = 0, okSum = 0;
   /* 一下打多少：盔甲四捨五入（現況）或無條件進位（V2 建議） */
-  const perHit = d0 => { const d = Math.max(1, Math.round(d0)); return gear.cut ? Math.max(1, V.armorCeil ? d - Math.ceil(d * gear.cut) : Math.round(d * (1 - gear.cut))) : d; };
+  const perHit = d0 => { const d = Math.max(1, Math.round(d0)); return gear.cut ? Math.max(1, V.armorCeil ? d - Math.ceil(d * gear.cut - 1e-9) : Math.round(d * (1 - gear.cut))) : d; };
   const aD = V.attendDodge ?? 1, aS = V.attendDef ?? 1;
   for (const atk of usable) { const ks = atk.type === 'defend' ? ['slam'] : dodge;
     for (const k of ks) { const w = 1 / usable.length / ks.length, s = strikeModel(k, 'B', gr, q2, star);
@@ -418,13 +422,14 @@ export function battleV2(v, a, rk, mk, star, gear = NOGEAR, p = P, flow = 'none'
   const quick = m.spKey === 'quick', dur = castTime(lv, 'B') * (quick ? 0.75 : 1);
   const I1 = atkInterval(lv, 'B', false) * (quick ? BAL.quickMul : 1), I2 = atkInterval(lv, 'B', m.spKey === 'rage') * (quick ? BAL.quickMul : 1);
   // 積分到打倒（活動時間；倒下與換線的時間之後再加）
-  const dt = Math.max(V.dt, H / P1.rate / 400), cum = [0]; let t = 0, d = 0, t1 = null, vines = 0, dType = 0, dFlow = 0;
+  const dt = Math.max(V.dt, H / P1.rate / 400), cum = [0], cumF = [0]; let t = 0, d = 0, t1 = null, vines = 0, dType = 0, dFlow = 0;
   while (d < H && t < stopAt) {
     const ph = t1 === null ? P1 : P2, I = t1 === null ? I1 : I2;
     let rf = 0;
     if (F.n) { vines = Math.min(F.n, vines + ph.plant * dt); rf = vines * F.rho * H * g / F.every; }
     else if (F.rho && usable.length && t >= 6 + dur) rf = F.rho * H * g * succ / I;
-    d += (ph.rate + rf) * dt; dType += ph.rate * dt; dFlow += rf * dt; t += dt; cum.push(d);
+    if (V.flowCap != null) rf = Math.max(0, Math.min(rf, ((dType + ph.rate * dt) * V.flowCap - dFlow) / dt));   // 流派傷害不能超過打字傷害
+    d += (ph.rate + rf) * dt; dType += ph.rate * dt; dFlow += rf * dt; t += dt; cum.push(d); cumF.push(dFlow);
     if (t1 === null && d >= H * BAL.angryAt) t1 = t;
   }
   if (d < H && stopAt < 4000) return { T: Infinity, Tk: Infinity };   // vCapV2 只要知道「超過了」
@@ -442,7 +447,7 @@ export function battleV2(v, a, rk, mk, star, gear = NOGEAR, p = P, flow = 'none'
     downs = lerp(A[0], B[0], f); pFail = lerp(A[1], B[1], f); X = lerp(A[2], B[2], f);
     T = Tk + (casts * act * p.actCost + downs * BAL.downRest) * (Tk / Math.max(1, win));   // 打到死的總時間（逃走後那段用同樣比例外推）
   }
-  const fCap = T <= V.cap ? 1 : Math.min(1, (cum[Math.min(cum.length - 1, Math.round(win / dt))] || 0) / H);
+  const ix = Math.min(cum.length - 1, Math.round(win / dt)), fCap = T <= V.cap ? 1 : Math.min(1, ((cum[ix] || 0) - (V.escFlowHalf ? 0.5 * (cumF[ix] || 0) : 0)) / H);   // 逃走時流派傷害只算一半
   return { v, a, lv, H, g: r2(g), T, Tk, casts, hits: X, downs, pFail, fCap, flowShare: dFlow / Math.max(1e-9, dType + dFlow), dodgeOk: usable.length ? okSum : null, succ, rate: P1.rate };
 }
 /* 逃走門檻：T(v)=cap 的速度。勝率＝Φ(ln(v/v_cap)/σ_b)×(1−P(倒下 3 次)) */
@@ -457,7 +462,34 @@ export function winV2(v, a, rk, mk, star, gear = NOGEAR, p = P, flow = 'none', v
   return { ...b, vCap: vcap, pTime: pT, win: pT * (1 - b.pFail), escape: (1 - pT) * (1 - b.pFail) };
 }
 export const parV2 = (rk, mk, star, p) => battleV2(p.v2.parV, p.v2.parAcc, rk, mk, star, NOGEAR, p, 'none').T;
-export const FLOWS = ['none', 'steady', 'guard', 'vine'];
+/* 掛機的上限：照 battleV2 的同一套數字，但學生在第 n 題之後就不再打字（藤蔓）或從頭到尾只點 Alt（守護，n＝0 或 3）。
+   舊規則＝沒有 afkWin／flowCap／escFlowHalf；新規則＝P.v2 的設定。獎勵比例：贏 1；不然 0.3×（新規則：有在打字的時間比例）＋0.7f；答不到 3 題又沒贏＝0 */
+export function afkV2(p = P, g = 1.2) {
+  const V = p.v2, out = [], c = p.persona.mid * p.alpha, tq = 60 * 2 / c + p.tau0, perQ = BAL.perChar * 2 * g;
+  const run = (mk, rk, star, flow, nQ, rule) => {
+    const lv = regionLv(rk, star), H = v2H(mk, lv, V), F = V.flows[flow], m = MONSTERS[mk];
+    const tStop = nQ * tq, dType = Math.min(H, nQ * perQ * (F.typeMul || 1));
+    const quick = m.spKey === 'quick', dur = castTime(lv, 'B') * (quick ? 0.75 : 1);
+    let d = dType, dF = 0, t = 0, vines = 0, nextCast = 6 + dur, angry = false;
+    for (; t < V.cap && d < H; t += 1) {
+      const alive = !rule || t <= tStop + V.afkWin;
+      let rf = 0;
+      if (F.n) { if (t <= tStop) vines = Math.min(F.n, t / tq); rf = alive ? vines * F.rho * H * g / F.every : 0; }
+      else if (F.rho && t >= nextCast) { rf = alive ? F.rho * H * g : 0; nextCast = t + atkInterval(lv, 'B', m.spKey === 'rage' && angry) * (quick ? BAL.quickMul : 1); }   // 只點 Alt：每一招都「擋下」
+      if (rule && V.flowCap != null) rf = Math.max(0, Math.min(rf, dType * V.flowCap - dF));
+      dF += rf; d += rf; if (d <= H * BAL.angryAt) angry = true;
+    }
+    const win = d >= H, f = Math.min(1, (d - (rule && V.escFlowHalf ? 0.5 * dF : 0)) / H);
+    const valid = win || nQ >= 3, act = rule ? Math.min(1, (tStop + V.afkWin) / Math.max(1, t)) : 1, rew = win ? 1 : valid ? V.failBase * act + (1 - V.failBase) * f : 0;   // 新規則：保底的 0.3 只按「有在打字的時間」給
+    return `${win ? `贏（${t} 秒）` : `${valid ? '逃走' : '不算'}、打掉 ${pc(f)}%`}→獎勵 ${pc(rew)}%`;
+  };
+  for (const [name, mk, rk, star, flow, nQ] of [['藤蔓：打 4 題後不動', 'shroom', 'grass', 1, 'vine', 4], ['藤蔓：打 4 題後不動', 'wolf', 'forest', 5, 'vine', 4],
+    ['守護：完全不打字，每 2 秒點一下 Alt', 'wolf', 'forest', 5, 'guard', 0], ['守護：打 3 題後只點 Alt', 'wolf', 'forest', 5, 'guard', 3]])
+    out.push({ name, mon: MN[mk] + '★' + star, old: run(mk, rk, star, flow, nQ, false), neu: run(mk, rk, star, flow, nQ, true) });
+  return out;
+}
+export const FLOWS = ['none', 'guard', 'vine'];   // 穩打流第二波再開（P.v2.flows.steady 留著給 --set 試算）
+const FLOWS_ON = FLOWS.filter(f => f !== 'none');
 const FLOW_NAME = { none: '一般', steady: '穩打', guard: '守護', vine: '藤蔓', best: '自己挑最好的' };
 
 /* 一學期（V2）：一節課能打幾場由「每場多久」決定；倒下／逃走也照打掉的血給；一天前 4 場拿完整材料；比標準時間快多 1 個綠材料 */
@@ -712,7 +744,7 @@ say(''); },
     table(['魔物★', ...PV.map(([n, v]) => `${n}(${v})`)], SC.map(sc => [sn(sc), ...PV.map(([, v, a]) => cell(winV2(v, a, ...sc, NOGEAR, p, 'none')))]));
     say('### ③ 流派：無裝備時「打完秒數」相對一般打法（<1＝比較快）、勝率');
     const SC4 = [['grass', 'coo', 1], ['grass', 'shroom', 5], ['forest', 'wolf', 1], ['forest', 'wolf', 5]];
-    for (const fl of ['steady', 'guard', 'vine']) {
+    for (const fl of FLOWS_ON) {
       say(`**${FLOW_NAME[fl]}**（${JSON.stringify(V.flows[fl])}）`);
       table(['魔物★', ...PV.map(([n]) => n)], SC4.map(sc => [sn(sc), ...PV.map(([, v, a]) => { const b0 = battleV2(v, a, ...sc, NOGEAR, p, 'none'), w = winV2(v, a, ...sc, NOGEAR, p, fl);
         return `×${r2(w.T / b0.T)}／${pc(w.win)}%／流派占${pc(w.flowShare)}%`; })])); }
@@ -728,11 +760,11 @@ say(''); },
     const top = PRESETS['藍火刀+5＋綠+5'], gf = battleV2(s90[1], s90[2], 'grass', 'coo', 1, top, p, 'none'), gv = battleV2(s97[1], s97[2], 'grass', 'coo', 1, top, p, 'none');
     rows.push(['V1 戰鬥不被跳過', `p90 滿裝咕咕鳥★1 ${Math.round(gf.T)} 秒、出招 ${r1(gf.casts)}（要 ≥30 秒、≥2 招）；p97 ${Math.round(gv.T)} 秒、${r1(gv.casts)} 招（只參考）`, gf.T >= 30 && gf.casts >= 2 ? '過' : '不過']);
     let mono = true; for (const fl of FLOWS) for (const sc of SC) { const ts = PV.slice(0, 4).map(([, v, a]) => T(v, a, sc, NOGEAR, fl)); for (let i = 1; i < ts.length; i++) if (ts[i] > ts[i - 1] + 0.5) mono = false; }
-    rows.push(['V2 同一流派快的一定比慢的快', '四個流派 × 8 關 × p10<p25<p50<p90', mono ? '過' : '不過']);
-    const c3 = SC.map(sc => Math.min(...['steady', 'guard', 'vine'].map(fl => T(s10[1], s10[2], sc, NOGEAR, fl))) / T(s50[1], s50[2], sc, NOGEAR, 'none'));
-    const c3b = SC.map(sc => Math.min(...['steady', 'guard', 'vine'].map(fl => T(s25[1], s25[2], sc, NOGEAR, fl))) / T(s50[1], s50[2], sc, NOGEAR, 'none'));
+    rows.push(['V2 同一流派快的一定比慢的快', '三種打法（一般、守護、藤蔓）× 8 關 × p10<p25<p50<p90', mono ? '過' : '不過']);
+    const c3 = SC.map(sc => Math.min(...FLOWS_ON.map(fl => T(s10[1], s10[2], sc, NOGEAR, fl))) / T(s50[1], s50[2], sc, NOGEAR, 'none'));
+    const c3b = SC.map(sc => Math.min(...FLOWS_ON.map(fl => T(s25[1], s25[2], sc, NOGEAR, fl))) / T(s50[1], s50[2], sc, NOGEAR, 'none'));
     rows.push(['V3 慢手流派不超過中位一般', `p10 最好流派 ÷ p50 一般 的秒數：最小 ${r2(Math.min(...c3))}（要 ≥1）；p25：最小 ${r2(Math.min(...c3b))}（參考，要 ≥0.9）`, Math.min(...c3) >= 1 && Math.min(...c3b) >= 0.9 ? '過' : '不過']);
-    const c4 = ['steady', 'guard', 'vine'].map(fl => [fl, Math.max(...SC.map(sc => T(s90[1], s90[2], sc, NOGEAR, fl) / T(s90[1], s90[2], sc, NOGEAR, 'none'))), Math.min(...SC.map(sc => T(s90[1], s90[2], sc, NOGEAR, fl) / T(s90[1], s90[2], sc, NOGEAR, 'none')))]);
+    const c4 = FLOWS_ON.map(fl => [fl, Math.max(...SC.map(sc => T(s90[1], s90[2], sc, NOGEAR, fl) / T(s90[1], s90[2], sc, NOGEAR, 'none'))), Math.min(...SC.map(sc => T(s90[1], s90[2], sc, NOGEAR, fl) / T(s90[1], s90[2], sc, NOGEAR, 'none')))]);
     rows.push(['V4 快手也能玩、但不是快手專用', `p90 用流派的秒數 ÷ 一般：${c4.map(([f, mx, mn]) => `${FLOW_NAME[f]} ${r2(mn)}～${r2(mx)}`).join('、')}（每個要 ≤1.20 而且 ≥0.95）`, c4.every(([, mx, mn]) => mx <= 1.2 && mn >= 0.95) ? '過' : '不過']);
     const c5a = bestF(s10[1], s10[2], ['forest', 'wolf', 5], PRESETS['綠全身+5']), c5b = bestF(s10[1], s10[2], ['grass', 'shroom', 5], NOGEAR);
     rows.push(['V5 沒有永遠過不了', `p10 綠全身+5＋${FLOW_NAME[c5a.fl]} 炎牙狼★5：${pc(c5a.win)}%（要 ≥30%）；p10 無裝備＋${FLOW_NAME[c5b.fl]} 跳跳菇★5：${pc(c5b.win)}%（要 ≥50%）`, c5a.win >= 0.3 && c5b.win >= 0.5 ? '過' : '不過']);
@@ -741,6 +773,9 @@ say(''); },
     const g3 = winV2(s25[1], s25[2], 'forest', 'wolf', 3, NOGEAR, p, 'none'), g3b = winV2(s25[1], s25[2], 'forest', 'wolf', 3, PRESETS['綠全身+3'], p, 'none');
     rows.push(['V7 防具有用（G3 改）', `p25 炎牙狼★3 綠全身+3：倒下 ${r2(g3.downs)}→${r2(g3b.downs)}、勝率 ${pc(g3.win)}%→${pc(g3b.win)}%（倒下要少 ≥30%）`, g3b.downs <= 0.7 * g3.downs ? '過' : '不過']);
     table(['#', '結果', '判定'], rows);
+    // ⑤b 掛機：打幾題就不動（藤蔓）、只點 Alt 不打字（守護），新舊規則下拿到的獎勵比例
+    say('### ⑤b 掛機策略（中位 p50 的手速打幾題後不再打字；武器攻擊 ×1.2＝綠武器 +5）');
+    table(['策略', '魔物★', '舊規則（不防掛機）', `新規則（${V.afkWin} 秒沒打對字流派停、流派 ≤ 打字 ×${V.flowCap}、逃走時流派算一半、保底 0.3 只按有在打字的時間）`], afkV2(p).map(r => [r.name, r.mon, r.old, r.neu]));
     if (V.semester === false) return;   // --set v2.semester=false 只看單場（快）
     // ⑥ 一學期
     const TL = {};
@@ -767,7 +802,7 @@ export const CALIBRATED = { median: 11, sigma: 0.70, persona: { slow: 7, mid: 11
 
 /* V2 規格（docs/SPEC-BALANCE-V2.md）：校準後的速度分布＋真實閃避／防禦（att：反應 1.0→0.7 秒、attendDodge 0.11、attendDef 0.73，跟 bal2b 同一套）。
    v2＝連同 §9 的裝備與重壓提案；v2-now＝現行裝備與重壓（只拿掉層級與時間輸），用來對照 */
-export const V2PRESET = adj => ({ ...CALIBRATED, react: [1.0, 0.7], v2: { ...structuredClone(P.v2), ...(adj ? { slamHits: 1, slamMul: 1.5, armorCeil: true, gCap: 1.32, gear: 'new' } : {}) } });
+export const V2PRESET = adj => ({ ...CALIBRATED, react: [1.0, 0.7], v2: { ...structuredClone(P.v2), ...(adj ? { slamHits: 1, slamMul: 1.5, armorCeil: true, gCap: 1.37, gear: 'new' } : {}) } });
 
 /* 給別的模擬器用：NW_PATCH=v2,gear,slam node --import ./tools/nw-sim/curves.mjs tools/nw-sim/bal2b.mjs …
    （v2＝拿掉層級、V2 攻擊表、8 分鐘逃走；gear＝§9 裝備數值；slam＝重壓只打一下 ×1.5） */
