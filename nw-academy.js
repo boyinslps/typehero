@@ -70,7 +70,9 @@ const LESSONS = [
   { id: 'attack', icon: '⌨', name: '攻擊：打字', desc: '看魔物頭上的字，把它打出來，魔物就會掉血。' },
   { id: 'dodge', icon: '💨', name: '閃避：換線', desc: '地上的線變紅了，用左右 Ctrl 換到沒有紅色的線。' },
   { id: 'defend', icon: '🛡', name: '防禦：舉盾', desc: '整排變藍色，用 Alt 舉盾擋住。' },
-  { id: 'equip', icon: '🎒', name: '換裝備', desc: '拿到新武器以後，怎麼換上。', needsGift: true }
+  { id: 'equip', icon: '🎒', name: '換裝備', desc: '拿到新武器以後，怎麼換上。', needsGift: true },
+  /* 第 4 堂只在平衡 V2 開放後出現（流派是 V2 的功能）；不算進「教學大樓畢業」的三堂 */
+  { id: 'flow', icon: '🌿', name: '找到你的打法', desc: '守護流：擋下就反擊。藤蔓流：全對就種藤蔓。', v2: true }
 ];
 const WORDS = [['太陽', 'ㄊㄞˋ ㄧㄤˊ'], ['小狗', 'ㄒㄧㄠˇ ㄍㄡˇ'], ['老師', 'ㄌㄠˇ ㄕ'], ['書包', 'ㄕㄨ ㄅㄠ'], ['朋友', 'ㄆㄥˊ ㄧㄡˇ'], ['學校', 'ㄒㄩㄝˊ ㄒㄧㄠˋ']];
 const KEYNAME = { ControlLeft: '左 Ctrl', ControlRight: '右 Ctrl', Alt: 'Alt' };
@@ -90,7 +92,7 @@ export function openAcademy(env) {
     root.innerHTML = `<div class="max-w-3xl mx-auto p-3">
       <div class="px-panel" style="padding:12px;margin-bottom:12px"><div class="flex items-center justify-between gap-2"><div class="px-title" style="font-size:1.6em">🏫 教學大樓</div><button class="px-btn" data-close>← 回獵人村</button></div>
         <p class="px-text mt-1">跟著老師傅，先看一遍示範，再自己做一遍。做不好沒關係，會一直等你，直到做對再往下。</p></div>
-      <div class="flex flex-col gap-3">${LESSONS.map(l => {
+      <div class="flex flex-col gap-3">${LESSONS.filter(l => !l.v2 || (env.v2 && env.v2())).map(l => {
         const locked = l.needsGift && !(nw.gw || []).length;
         return `<button class="px-panel ac-card" data-l="${l.id}" ${locked ? 'disabled' : ''}><span class="ic">${l.icon}</span><span style="flex:1"><b class="px-text" style="font-size:1.2em">${l.name}</b><br><span class="px-text" style="color:#aab0d8;font-size:.9em">${locked ? '拿到新武器（例如測試者之刃）以後開放' : l.desc}</span></span><span class="px-chip" style="${done[l.id] ? 'color:#8ec96b' : 'color:#ffd98a'}">${done[l.id] ? '✓ 學會了' : '開始'}</span></button>`;
       }).join('')}</div></div>`;
@@ -106,10 +108,11 @@ export function openAcademy(env) {
     root.innerHTML = `<div class="max-w-3xl mx-auto p-3">
       <div class="px-panel" style="padding:10px;margin-bottom:10px"><div class="flex items-center justify-between gap-2"><div class="px-title" style="font-size:1.3em">${lesson.icon} ${lesson.name}</div><div class="ac-dots" data-dots></div><button class="px-btn" data-back>← 回教學大樓</button></div></div>
       <canvas class="ac-cv" data-cv></canvas>
+      <div class="px-panel in text-center px-text" data-stat style="margin-top:10px;font-weight:900;min-height:2em;display:none"></div>
       <div class="px-panel ac-say" data-say style="margin-top:10px"></div>
       <div class="ac-keys" data-keys></div>
       <div data-extra class="mt-2"></div></div>`;
-    const cv = root.querySelector('[data-cv]'), say = root.querySelector('[data-say]'), keys = root.querySelector('[data-keys]'), extra = root.querySelector('[data-extra]'), dots = root.querySelector('[data-dots]');
+    const stat = root.querySelector('[data-stat]'), cv = root.querySelector('[data-cv]'), say = root.querySelector('[data-say]'), keys = root.querySelector('[data-keys]'), extra = root.querySelector('[data-extra]'), dots = root.querySelector('[data-dots]');
     scene = makeScene(cv, PX, env.look(), id === 'attack' ? 'shroom' : 'coo', root.clientWidth);
     let back = false;
     root.onclick = e => { if (e.target.closest('[data-back]')) { back = true; menu(); } };
@@ -120,7 +123,7 @@ export function openAcademy(env) {
     const alive2 = () => alive && !back && root.isConnected;
     const steps = STEPS[id];
     const setDots = i => { dots.innerHTML = steps.map((_, k) => `<i class="${k < i ? 'on' : ''} ${k === i ? 'now' : ''}"></i>`).join(''); };
-    const ui = { say: t => { say.textContent = t; }, keys: keyCaps, scene, extra, alive: alive2, wait, root };
+    const ui = { say: t => { say.textContent = t; }, stat: t => { stat.style.display = t ? 'block' : 'none'; stat.textContent = t || ''; }, keys: keyCaps, scene, extra, alive: alive2, wait, root };
     for (let i = 0; i < steps.length && alive2(); i++) {
       setDots(i);
       const st = steps[i];
@@ -144,7 +147,7 @@ export function openAcademy(env) {
       }
       if (st.demo) {
         do {
-          ui.say(st.say); keyCaps(st.keys || []);
+          ui.say(st.say); keyCaps(st.keys || []); ui.stat('');
           await st.demo(ui);
           if (!alive2()) return;
           const again = await new Promise(res => {
@@ -157,7 +160,7 @@ export function openAcademy(env) {
       } else {
         for (;;) {
           if (!alive2()) return;
-          ui.say(st.say); keyCaps(st.keys || []); if (id !== 'attack') scene.reset();
+          ui.say(st.say); keyCaps(st.keys || []); ui.stat(''); if (id !== 'attack') scene.reset();
           const ok = await st.task(ui);
           if (!alive2()) return;
           if (ok) { say.classList.add('ac-ok'); ui.say(st.good || '太棒了！'); await wait(1400); say.classList.remove('ac-ok'); break; }
@@ -166,7 +169,7 @@ export function openAcademy(env) {
       }
     }
     if (!alive2()) return;
-    setDots(steps.length);
+    setDots(steps.length); ui.stat('');
     ui.say(`🎉 「${lesson.name}」學會了！`); keys.innerHTML = '';
     if (env.lessonDone) await env.lessonDone(id);
     if (alive2()) menu();
@@ -199,6 +202,41 @@ const STEPS = {
       task: async ui => { await wait(600); ui.scene.lane = 1; const r = await ui.scene.spawn('single', { lane: 1, W: 3.2 }); return r.shielded; } },
     { fight: true, say: '實戰！一邊打字把稻草魔物打倒（要打 5 下），整排變藍色時，記得按 Alt 舉盾。', keys: ['Alt'],
       strike: () => ({ kind: 'slam', opts: { W: 3.4 } }) }
+  ],
+  /* 第 4 堂：只教守護、藤蔓兩種。畫面上方的 stat 就是戰鬥裡的「反擊 ×N」「藤蔓 N 根」；規則與數字跟戰鬥一樣（nw-battle.js）。
+     用「各 30 秒」的守護挑戰、全對才種藤蔓的挑戰；做不到會重來 */
+  flow: [
+    { say: '🛡 守護流：看示範！整排變藍色，小人按「Alt」舉盾擋下，擋下以後就會自動反擊魔物！', keys: ['Alt'],
+      demo: async ui => { const s = ui.scene; s.reset(); ui.stat('🛡 反擊 ×0'); await wait(500); const p = s.spawn('slam', { W: 3 }); await wait(1900); s.press('Alt'); await p; s.hit(); ui.stat('🛡 反擊 ×1'); await wait(1200); } },
+    { say: '換你了！稻草魔物會一直出招，30 秒內擋下 3 次，就反擊 3 下。魔物快打到的時候按「Alt」舉盾。站著不動剛好沒被打到，不算喔！', keys: ['Alt'], good: '反擊 3 下！守護流你學會了！',
+      bad: '時間到了，還沒擋下 3 次。魔物快打到的時候要按 Alt，再來一次！',
+      task: async ui => {
+        let n = 0; const t0 = performance.now(), left = () => Math.max(0, 30 - Math.floor((performance.now() - t0) / 1000));
+        ui.stat('🛡 反擊 ×0　剩 30 秒');
+        while (ui.alive() && n < 3 && left() > 0) {
+          await wait(700);
+          const r = await ui.scene.spawn('slam', { W: 3.2 });
+          if (!r.hurt) { n++; ui.scene.hit(); }
+          ui.stat(`🛡 反擊 ×${n}　剩 ${left()} 秒`);
+        }
+        return n >= 3;
+      } },
+    { say: '🌿 藤蔓流：看示範！每一題「全部打對」，就種下一根藤蔓。藤蔓會自己一直打魔物，最多 4 根。',
+      demo: async ui => { const s = ui.scene; s.reset(); s.setMax(6); ui.stat('🌿 藤蔓 0 根'); for (let i = 0; i < 3; i++) { await s.fakeType(WORDS[i][0], WORDS[i][1]); ui.stat(`🌿 藤蔓 ${i + 1} 根`); } for (let k = 0; k < 3; k++) { await wait(1000); s.hit(); ui.stat('🌿 藤蔓 3 根　自己在打魔物！'); } await wait(600); } },
+    { say: '再看一次：如果停下來不打字（超過 40 秒），藤蔓就會枯掉，不會再打魔物。打對下一個字，藤蔓馬上活過來！',
+      demo: async ui => { const s = ui.scene; s.reset(); s.setMax(6); ui.stat('🌿 藤蔓 3 根'); await wait(1500); ui.stat('⏳ 40 秒都沒有打字…'); await wait(2000); ui.stat('🥀 藤蔓枯了　不打魔物了'); await wait(2400); await s.fakeType(WORDS[3][0], WORDS[3][1]); ui.stat('🌿 藤蔓活過來了！'); await wait(1400); } },
+    { say: '換你了！照著字打，整個字全部打對才會種一根藤蔓。種滿 3 根就過關。', good: '3 根藤蔓長出來了！藤蔓流你學會了！',
+      task: async ui => {
+        let n = 0, i = 4; ui.stat('🌿 藤蔓 0 根');
+        while (n < 3) {
+          if (!ui.alive()) return true;
+          const ok = await ui.scene.typeTask(ui, WORDS[i++ % WORDS.length]);
+          if (!ui.alive()) return true;
+          if (ok) { n++; ui.stat(`🌿 藤蔓 ${n} 根`); }
+          else { ui.stat(`🌿 藤蔓 ${n} 根　（有字打錯，這題沒種到）`); ui.say('字不一樣喔，這題沒種到藤蔓，再打一個！'); await wait(1100); ui.say('換你了！照著字打，整個字全部打對才會種一根藤蔓。種滿 3 根就過關。'); }
+        }
+        return true;
+      } }
   ],
   attack: [
     { say: '看示範：魔物要被打倒，就把畫面上的字打出來。照著注音打，選好字，再按 Enter。',
@@ -283,6 +321,7 @@ function makeScene(cv, PX, look, monKey, hostW) {
     press,
     reset() { S.max = 3; S.hp = 3; S.shieldUntil = 0; },
     setMax(n) { S.max = n; S.hp = n; },
+    hit() { S.hp = Math.max(0, S.hp - 1); S.monFlash = now(); },
     get hp() { return S.hp; },
     stop() { alive = false; cancelAnimationFrame(raf); removeEventListener('keydown', kd); },
     spawn(kind, o = {}) {
