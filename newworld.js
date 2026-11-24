@@ -5,9 +5,9 @@ import {
   COLOR_NAME, COLOR_HEX, HR_MAX, VILLAGE, doorTile, buildingOpen, goalOf, TEST_TAGS, FB_COINS, FB_MINLEN, BUG_COINS, bugCoins, BUG_REWARD_MAX, LESSON_COINS, TESTER_MISSIONS, checkMissions, GIFT_WEAPONS, weaponInfo, weaponBase, curWeapon, WORDS, WORD_GROUPS, checkWords, setTitleParts, wordById, normName, ITEM_DEFS, displayName, NOTICES, MAT_INFO, isBpId, isMatId, TUT_LESSONS, ZONE_STAR_MAX
 } from './nw-data.js';
 import { injectUi } from './nw-ui.js';
-import { setStarter, gearDef, gearItem, doEquip, equippedItem, rollBlueprints, giveGear, giftGearOk, itemName, itemText, forgeHint, stageOpen, GEAR_MAX, wordOpen, newGearId, syncLegacy, giveClothBps, craftList, BP_DUP_COINS, susCheck, SUS, NW_V2, v2On, rewardRatio, dayStep, stdSecs, twDay, newStarLocked } from './nw-data.js';
+import { setStarter, gearDef, gearItem, doEquip, equippedItem, rollBlueprints, giveGear, giftGearOk, itemName, itemText, forgeHint, stageOpen, GEAR_MAX, wordOpen, newGearId, syncLegacy, giveClothBps, craftList, BP_DUP_COINS, susCheck, SUS, NW_V2, v2On, rewardRatio, dayStep, stdSecs, twDay, newStarLocked, FLOWS, FLOW_INFO, flowOf } from './nw-data.js';
 import { openForge, gearTab, matsTab, bpTab } from './nw-forge.js';
-import { tierOf, EQUIP_LEFT, EQUIP_RIGHT, chibiOf, heroOf, titleBadgeHtml, darkDots, equipSlotHtml, mountSprites as mountSpritesPx, CARD_CSS } from './nw-card.js';
+import { flowText, tierOf, EQUIP_LEFT, EQUIP_RIGHT, chibiOf, heroOf, titleBadgeHtml, darkDots, equipSlotHtml, mountSprites as mountSpritesPx, CARD_CSS } from './nw-card.js';
 import { mountVillage } from './nw-village.js';
 import { mountBoard } from './nw-board.js';
 import { startBattle } from './nw-battle.js';
@@ -1201,7 +1201,7 @@ export function initNewWorld(C) {
   }
 
   function openAcademyUI() {
-    openAcademy({ PX, NW: () => NW, look: () => myHero(), close: () => viewHub(), weaponTour, lessonDone });
+    openAcademy({ PX, NW: () => NW, look: () => myHero(), close: () => viewHub(), weaponTour, lessonDone, v2: () => v2On() });
   }
   async function lessonDone(id) {
     if (NW.tut[id]) return;
@@ -1652,6 +1652,7 @@ export function initNewWorld(C) {
           : `<button class="px-btn mt-1" data-name-edit style="display:block;width:100%;${cards() < 1 ? 'opacity:.5' : ''}" title="名字會顯示在抓蟲榜上">${cards() > 0 ? `✏ 改名字　用 1 張改名卡（有 ${cards()} 張）` : '✏ 改名字'}</button>
         ${cards() < 1 ? '<p class="text-xs mt-1" style="color:#8a86b0">要有改名卡才能改名字（老師會寄給你）</p>' : ''}`}
         <button class="bp-title mt-1" data-title-edit title="點一下編輯稱號">${titleLine()}</button>
+        ${flowText(NW) ? `<div class="px-text text-sm mt-1" data-bag-flow style="color:#8ec96b">打法：${flowText(NW)}</div>` : ''}
         <div class="flex items-center justify-between gap-1 mt-3" style="padding-bottom:20px">
           <div class="flex flex-col gap-6">${EQUIP_LEFT.map(([k, n]) => slot(k, n)).join('')}</div>
           <div class="px-img" data-hero style="background:#0e0b16;padding:6px;border:3px solid #0a0714"></div>
@@ -1747,6 +1748,7 @@ export function initNewWorld(C) {
               <div class="px-panel in text-center"><div class="px-img" data-me style="display:inline-block"></div><div class="font-bold">${escHtml(ME.name)}</div><div class="px-chip" style="color:#ffd98a">房主</div></div>
               ${[2, 3, 4].map(() => '<div class="px-panel in text-center" style="opacity:.5;display:grid;place-items:center;min-height:110px"><div>等待隊友</div></div>').join('')}
             </div>
+            ${v2On() ? flowPickHtml() : ''}
             <p class="text-sm mt-3 px-text">你的房間已經貼在公會的「房間」分頁，同學看得到。<span style="color:#ffd98a">組隊一起打還在施工中，現在先單人出發！</span></p>
             <div class="mt-4 flex gap-3 flex-wrap"><button class="px-btn gold" style="padding:12px 28px;font-size:1.15em" data-act="startroom">⚔ 出發</button>
               <button class="px-btn" data-act="leaveroom">離開房間</button></div>
@@ -1755,7 +1757,30 @@ export function initNewWorld(C) {
       </div>`, el => {
       el.querySelector('[data-ink]').replaceChildren(PX.ink('monster', q.mk, 4));
       el.querySelector('[data-me]').replaceChildren(PX.chibi(myChibi(), 'down', 0, 5));
+      const box = el.querySelector('[data-flows]');
+      if (box) {
+        box.addEventListener('click', e => {
+          const b = e.target.closest('[data-flow]'); if (!b) return;
+          NW.flow = b.dataset.flow; saveNw();
+          box.querySelectorAll('[data-flow]').forEach(x => x.classList.toggle('gold', x === b));
+        });
+        /* 第一次看到：用導覽框住這一排（不選也沒關係；測試用的 __NW_NOINTRO__ 會跳過） */
+        if (!NW.intro.flowPick && !window.__NW_NOINTRO__) {
+          NW.intro.flowPick = 1; saveNw();
+          tour([{ text: '想換個打法嗎？點一下就能選，不選也沒關係，用一般打法照樣能打！', target: () => document.querySelector('[data-flows]'), done: () => !document.querySelector('[data-flows]') || NW.flow !== '' }], { title: '新打法' });
+        }
+      }
     });
+  }
+  /* 出發前選打法（SPEC-BALANCE-V2 §3.7）：免費、隨時換、沒選＝一般打法。說明寫「適合誰」，不寫「適合打字慢的人」 */
+  function flowPickHtml() {
+    const cur = flowOf(NW), one = (k, ic, name, line, who) => `<button class="px-btn ${cur === k ? 'gold' : ''}" data-flow="${k}" style="text-align:left;padding:8px 10px;min-width:0"><b>${ic} ${name}</b><br><span style="font-size:.85em;font-weight:400;line-height:1.4;display:block;overflow-wrap:anywhere">${line}${who ? `<br><span style="color:#ffd98a">${who}</span>` : ''}</span></button>`;
+    return `<div class="label mt-4 mb-1">打法（出發前選，隨時可以換）</div>
+      <div class="grid gap-2" data-flows style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+        ${one('', '⚔', '一般打法', '用打字打倒魔物，什麼都不用改。', '')}
+        ${Object.keys(FLOWS).map(k => one(k, FLOW_INFO[k].icon, FLOW_INFO[k].name, FLOW_INFO[k].line, FLOW_INFO[k].who)).join('')}
+      </div>
+      <p class="text-xs mt-1" style="color:#aab0d8">兩種新打法都要<b>一直打字</b>才有用：停下來不打字，不會反擊、藤蔓也會枯掉。打字的力氣會少一點點。教學大樓第 4 堂有教。</p>`;
   }
 
   /* 這節課還剩幾秒（下課時間 − 現在）。資料來源：學生資料 hist.classEnd（毫秒）；目前還沒有任何地方會寫它（老師頁的下課時間設定還沒做），
@@ -1770,7 +1795,7 @@ export function initNewWorld(C) {
     writeRoom({ state: 'fighting', t: Date.now() }, true);
     show('nw-root', false);
     const t0 = now();
-    startBattle(env(), { rk: q.rk, mk: q.mk, star: q.star }, res => {
+    startBattle(env(), { rk: q.rk, mk: q.mk, star: q.star, flow: flowOf(NW) }, res => {
       show('nw-root', true);
       closeRoom();
       res.t0 = t0;
@@ -1862,6 +1887,15 @@ export function initNewWorld(C) {
         const key = res.rk + ':' + res.star;
         if (!NW.fastest[key] || res.secs < NW.fastest[key]) NW.fastest[key] = res.secs;
       } else if (!(V2 && res.result === 'escape')) s.fails++;   // 逃走不記輸（§1.2）
+      /* 同一星逃走 2 次，結算提示「試試藤蔓流」（§3.7）；打贏就清掉重算 */
+      if (V2) {
+        const ek = res.mk + ':' + res.star;
+        if (sum.win) delete NW.esc[ek];
+        else if (res.result === 'escape') {
+          NW.esc[ek] = (NW.esc[ek] || 0) + 1;
+          if (NW.esc[ek] >= 2 && (!res.flow || res.flow === 'normal')) sum.flowHint = 'vine';
+        }
+      }
       if (res.lvAcc && lv >= 20) { s.accN++; s.accSum += res.accuracy; }
       /* V2 的一天帳：前 4 場材料全額，第 5 場起 ×0.5（經驗、字元不減）；⚡ 快手、🔨 勤勞是「額外」的綠材料，不影響基本材料（SPEC-BALANCE-V2 §2.2～§2.4）。
          一天用台灣時間的日曆日（twDay，伺服器校正過的 now()）；只有有效場（valid）才算一場 */
@@ -1923,7 +1957,7 @@ export function initNewWorld(C) {
       sus: sum.sus || [], w: res.wk || res.weapon, atk: res.atk, pw: res.pw, tier: res.tier, q: [].concat(...res.q)   // 平的數字陣列、每 4 個一題；Firestore 不能存「陣列裡的陣列」（NW.runQ 也會存進 mg_scores）
     }));
     /* V2 遙測（SPEC-BALANCE-V2 §5、§7 第 4 步）：校準 k、狼 ×0.7、流派、40 秒用。V2 沒開就不寫，規則白名單的欄位全部可省略。
-       frac＝打掉的血比例（逃走／倒下的場次看這個）；flow＝流派代號（現在只有 'normal'）；guards／vines／dodgeReal＝次數；idle＝沒在打字的秒數；
+       frac＝打掉的血比例（逃走／倒下的場次看這個）；flow＝流派代號（normal／guard／vine）；guards／vines／dodgeReal＝次數；idle＝沒在打字的秒數；
        react＝每次出招「預警→第一次按換線／舉盾鍵」的毫秒（-1＝沒按），平的數字陣列；t0＝這場開始的時間（本機＋校正，毫秒） */
     if (v2On()) {
       const n = (x, max) => Math.max(0, Math.min(max, Math.round(+x || 0)));
@@ -1988,6 +2022,7 @@ export function initNewWorld(C) {
         </div>
         ${res.valid ? '' : `<p class="mt-3 px-panel in" style="color:#e5705f">${escHtml(res.invalidWhy || '這場不算數')}</p>`}
         ${res.valid && sum.v2 && !win ? `<p class="mt-3 px-panel in px-text" data-ratio>${res.result === 'escape' ? '魔物累得逃走了，' : ''}你打掉了牠 <b>${Math.round((res.frac || 0) * 100)}%</b> 的血，所以拿到 <b>${Math.round(sum.ratio * 100)}%</b> 的獎勵。</p>` : ''}
+        ${res.valid && sum.flowHint ? `<p class="mt-3 px-panel in px-text" data-flowhint style="color:#ffd98a;line-height:1.6">💡 這隻魔物有點難對不對？出發前試試看「${FLOW_INFO[sum.flowHint].icon} ${FLOW_INFO[sum.flowHint].name}」：${FLOW_INFO[sum.flowHint].line}${NW.tut && NW.tut.flow ? '' : '教學大樓第 4 堂可以先練習。'}不想試也可以，照你喜歡的方式打就好！</p>` : ''}
         ${res.valid && sum.boost && sum.boost.text ? `<div class="px-title mt-3 px-cursor" style="font-size:1.1em">${escHtml(sum.boost.text)}</div>` : ''}
         ${res.valid ? `<div class="label mt-4 mb-2">獲得</div>
           <div class="flex gap-2 flex-wrap">${drops}${rare}</div>

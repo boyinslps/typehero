@@ -1,7 +1,7 @@
 /* 人物卡的共用零件：學生背包左邊的人物卡（newworld.js）與教師頁的學生人物卡（teacher/pc.js）畫法必須一致，
    所以裝備格、稱號徽章、經驗條算法都放在這裡，不要兩邊各抄一份（一邊改了另一邊會悄悄走樣）。
    這支只放「純函式＋CSS 字串」，不碰 DOM 狀態，教師頁 import 它不會把學生端的流程帶進來。 */
-import { heroLook, curWeapon, GIFT_WEAPONS, hrNeed, HR_MAX, gearLook, equippedItem, gearDef, itemName, itemText, COLOR_HEX, GEAR_SLOTS } from './nw-data.js';
+import { heroLook, curWeapon, GIFT_WEAPONS, hrNeed, HR_MAX, gearLook, equippedItem, gearDef, itemName, itemText, COLOR_HEX, GEAR_SLOTS, FLOW_INFO, flowOf } from './nw-data.js';
 
 /* 稱號徽章的等級：詞條 1 個＝銅、2 個＝銀、3 個以上＝金 */
 export const tierOf = n => Math.min(3, Math.max(1, n));
@@ -19,6 +19,9 @@ export function heroOf(nw, weapon, gear) {
 /* 村莊走路的小人（chibi）：頭盔、盔甲、靴子、手一起穿 */
 export const chibiOf = nw => heroLook(nw.look, curWeapon(nw) || 'staff', gearLook(nw));
 export const ownedWeapons = nw => (nw.starter ? [nw.starter] : []).concat(nw.gw || []);
+
+/* 目前用的打法（沒選、或 V2 還沒開＝空字串，卡片不顯示）。純文字，由呼叫端決定放在哪 */
+export const flowText = nw => { const k = flowOf(nw); return k ? `${FLOW_INFO[k].icon} ${FLOW_INFO[k].name}` : ''; };
 
 /* 經驗條百分比與文字；滿級時條是滿的、文字寫「滿級」 */
 export function hrProgress(nw) {

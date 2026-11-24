@@ -16,4 +16,4 @@ export { sha256Hex } from '../nw-access.js';
 /* 人物卡（teacher/pc.js）：畫法與學生背包共用同一套，見 nw-card.js */
 export { PX } from '../pixel.js';
 export { heroLook, HR_MAX } from '../nw-data.js';
-export { EQUIP_LEFT, EQUIP_RIGHT, heroOf, ownedWeapons, hrProgress, titleBadgeHtml, equipSlotHtml, mountSprites, CARD_CSS } from '../nw-card.js';
+export { flowText, EQUIP_LEFT, EQUIP_RIGHT, heroOf, ownedWeapons, hrProgress, titleBadgeHtml, equipSlotHtml, mountSprites, CARD_CSS } from '../nw-card.js';
