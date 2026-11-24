@@ -100,7 +100,7 @@ service cloud.firestore {
       allow create: if signedIn()
         && request.resource.data.keys().hasOnly(['id', 'cls', 'seat', 'uid', 't', 'ts', 'v', 'app', 'mk', 'rk', 'star', 'lv', 'qb', 'res',
              'secs', 'acc', 'ans', 'cor', 'typ', 'keys', 'nokey', 'act', 'cpm', 'fl', 'sus', 'w', 'atk', 'pw', 'tier', 'q',
-             'frac', 'flow', 'guards', 'vines', 'dodgeReal', 'idle'])
+             'frac', 'flow', 'guards', 'vines', 'dodgeReal', 'idle', 'react', 't0'])
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.ts == request.time
         && run.matches(request.resource.data.id + '_[0-9]+')
@@ -108,7 +108,8 @@ service cloud.firestore {
         && request.resource.data.secs is number && request.resource.data.secs >= 0 && request.resource.data.secs <= 490
         // SPEC-BALANCE-V2 §7 第 4 步的遙測欄位：舊版程式不會送，所以全部可省略（get 給預設值）；有送就要在範圍內。
         // frac＝打掉的血比例；flow＝流派（代號字串，或流派傷害占比，兩種寫法都收，免得第 4 步定案後還要再貼一次規則）；
-        // guards／vines／dodgeReal＝次數；idle＝沒在打字的秒數
+        // guards／vines／dodgeReal＝次數；idle＝沒在打字的秒數；
+        // react＝每次出招「預警→第一次按換線／舉盾鍵」的毫秒（-1＝沒按），平的數字陣列、最多 40 個（Firestore 不能存陣列裡的陣列）；t0＝這場開始的時間（毫秒）
         && request.resource.data.get('frac', 0) is number && request.resource.data.get('frac', 0) >= 0 && request.resource.data.get('frac', 0) <= 1
         && ((request.resource.data.get('flow', '') is string && request.resource.data.get('flow', '').size() <= 12)
             || (request.resource.data.get('flow', 0) is number && request.resource.data.get('flow', 0) >= 0 && request.resource.data.get('flow', 0) <= 1))
@@ -116,6 +117,8 @@ service cloud.firestore {
         && request.resource.data.get('vines', 0) is int && request.resource.data.get('vines', 0) >= 0 && request.resource.data.get('vines', 0) <= 999
         && request.resource.data.get('dodgeReal', 0) is int && request.resource.data.get('dodgeReal', 0) >= 0 && request.resource.data.get('dodgeReal', 0) <= 999
         && request.resource.data.get('idle', 0) is number && request.resource.data.get('idle', 0) >= 0 && request.resource.data.get('idle', 0) <= 490
+        && request.resource.data.get('react', []) is list && request.resource.data.get('react', []).size() <= 40
+        && request.resource.data.get('t0', 0) is number && request.resource.data.get('t0', 0) >= 0
         && request.resource.data.acc is number && request.resource.data.acc >= 0 && request.resource.data.acc <= 1
         && request.resource.data.star is int && request.resource.data.star >= 1 && request.resource.data.star <= 5
         // q 是平的數字陣列，每 4 個一題 [字數, 按鍵, 毫秒, 打對]，最多 120 題（Firestore 不能存陣列裡的陣列）

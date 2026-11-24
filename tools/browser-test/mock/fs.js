@@ -61,11 +61,16 @@ function ruleCheck(db, op, path, data, exists) {
   /* 場次紀錄（firestore-rules.txt）：學生只能新增，欄位白名單、ts 要是伺服器時間、ID＝文件ID_毫秒；不能讀、不能改、不能刪 */
   if (col === 'mg_nw_runs') {
     if (op !== 'create') deny(op, path);
-    const d = data || {}, keys = ['id', 'cls', 'seat', 'uid', 't', 'ts', 'v', 'app', 'mk', 'rk', 'star', 'lv', 'qb', 'res', 'secs', 'acc', 'ans', 'cor', 'typ', 'keys', 'nokey', 'act', 'cpm', 'fl', 'sus', 'w', 'atk', 'pw', 'tier', 'q', 'frac', 'flow', 'guards', 'vines', 'dodgeReal', 'idle'];
+    const d = data || {}, keys = ['id', 'cls', 'seat', 'uid', 't', 'ts', 'v', 'app', 'mk', 'rk', 'star', 'lv', 'qb', 'res', 'secs', 'acc', 'ans', 'cor', 'typ', 'keys', 'nokey', 'act', 'cpm', 'fl', 'sus', 'w', 'atk', 'pw', 'tier', 'q', 'frac', 'flow', 'guards', 'vines', 'dodgeReal', 'idle', 'react', 't0'];
     if (Object.keys(d).some(k => !keys.includes(k)) || !d.ts || d.ts.__op !== 'ts' || typeof d.id !== 'string' || !new RegExp('^' + d.id + '_[0-9]+$').test(id)) deny(op, path);
     if (typeof d.uid !== 'string' || !d.uid || d.uid !== (userOf(db) || {}).uid) deny(op, path);
     if (!(typeof d.secs === 'number' && d.secs >= 0 && d.secs <= 490) || !(typeof d.acc === 'number' && d.acc >= 0 && d.acc <= 1) || !(Number.isInteger(d.star) && d.star >= 1 && d.star <= 5)) deny(op, path);
     if (!Array.isArray(d.q) || d.q.length > 480 || d.q.length % 4 !== 0 || d.q.some(x => typeof x !== 'number') || !Array.isArray(d.sus) || d.sus.length > 4) deny(op, path);
+    /* V2 遙測欄位（可省略；有送就要型別、範圍對，跟 firestore-rules.txt 一樣） */
+    const num = (k, lo, hi) => d[k] === undefined || (typeof d[k] === 'number' && d[k] >= lo && d[k] <= hi), int = (k, lo, hi) => d[k] === undefined || (Number.isInteger(d[k]) && d[k] >= lo && d[k] <= hi);
+    if (!num('frac', 0, 1) || !num('idle', 0, 490) || !num('t0', 0, Infinity) || !int('guards', 0, 999) || !int('vines', 0, 999) || !int('dodgeReal', 0, 999)) deny(op, path);
+    if (d.flow !== undefined && !((typeof d.flow === 'string' && d.flow.length <= 12) || (typeof d.flow === 'number' && d.flow >= 0 && d.flow <= 1))) deny(op, path);
+    if (d.react !== undefined && (!Array.isArray(d.react) || d.react.length > 40 || d.react.some(x => typeof x !== 'number'))) deny(op, path);
     return;
   }
   if (col === 'mg_nw_board') { if (read) return; deny(op, path); }

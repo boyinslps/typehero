@@ -207,6 +207,84 @@ export const castTime = (lv, tier) => {
   return Math.max(T.castMin, T.cast - Math.floor(lv / 15)) * BAL.castMul;
 };
 
+/* ══ 平衡 V2（docs/SPEC-BALANCE-V2.md v2.1）══
+   所有 V2 行為都用 v2On() 包起來：沒開的時候（現在的 OPEN_STAGES＝['1']）戰鬥與結算跟 V2 之前逐項相同——血量依層級、時間到就輸、
+   只有咕咕鳥與泡泡蛙會攻擊。這樣第 2～9 步沒做完的分支不會動到已經上線的學生；整個 V2 要同一版一起開（規格 §7「上線順序」：
+   拿掉層級讓原 A 層血量 +43%，不能沒有流派就上）。
+   開關：2b 開放（stageOpen('2b')）就是 V2 開放；測試在 localhost 用 window.__NW_V2__ = true／false 強制。
+   舊世界打字遊戲的 A～D 層級完全沒動，這裡只拿掉「新世界戰鬥」對層級的依賴（newworld.js 的 tier() 現在只負責記錄）。
+   數字照規格 §6.2；tools/nw-sim 之後改讀這份。 */
+export const NW_V2 = {
+  k: 0.5,            // 單一血量倍率＝現行 B（HP_TIER.B），不看層級
+  cap: 480,          // 滿 8 分鐘魔物逃走（不算輸）
+  warnAt: 420,       // 7:00 跳「魔物累了，再 1 分鐘就會逃走」
+  laneW: 3.0,        // 紅線預警一律 3.0 秒（原 A 層的值；倒下是唯一的輸法，預警要給得起）
+  dayFull: 4,        // 一天（twDay）前 4 場拿完整材料
+  dayHalf: 0.5,      // 第 5 場起材料 ×0.5（經驗、字元不減）
+  failBase: 0.3,     // 輸／逃走／撤退的獎勵 ×(0.3×a ＋ 0.7×f)
+  workEvery: 600,    // 勤勞獎勵：有在打字的戰鬥時間每累積 10 分鐘 +1 綠材料
+  workMax: 2,        // 一天最多 2 個
+  bonusMat: 1,       // ⚡ 比標準時間快：多 1 個那隻魔物的綠材料
+  afkWin: 40,        // 防掛機：最近 40 秒內打對過 1 個字才算「有在打字」（最慢 p5 每字約 31 秒）
+  flowCap: 1,        // 一場的流派傷害 ≤ 打字傷害（第 9 步才用）
+  escFlow: 0.5,      // 輸／逃走算 f 時，流派打掉的血只算一半（第 9 步才有流派傷害，先留介面）
+  get on() { return v2On(); }
+};
+export const v2On = () => (typeof location !== 'undefined' && location.hostname === 'localhost' && typeof window !== 'undefined' && typeof window.__NW_V2__ === 'boolean') ? window.__NW_V2__ : stageOpen('2b');
+/* 魔物招式倍率另乘多少（乘在 atk.mul 上，在 monDmg 的最低 4 點「之前」：SPEC-BALANCE-V2 §1.3。
+   森林狼 Lv10～22 每下 9～20 點碰不到下限，先乘後乘結果只差四捨五入；放在 monDmg 之前，被打到至少 4 點的保證才不會被打折） */
+export const ATTACK_DMG = { wolf: 0.7 };
+/* V2 的攻擊表（§1.3）：咕咕鳥不變；泡泡蛙重壓＋舌頭彈（單線，新開）；跳跳菇、炎牙狼全開。
+   ATTACKS_OPEN 還是現在上線的那張，V2 沒開時照舊 */
+export const ATTACKS_V2 = {
+  coo: ['single', 'pair'], frog: ['slam', 'single'], shroom: ['single', 'slam'],
+  wolf: ['single', 'pair', 'sweep', 'fake', 'slam']
+};
+/* 跳跳菇 ★1 不攻擊：留給「完全不想被打」的人 */
+export const ATTACK_FROM = { shroom: 2 };
+export const attacksFor = (mk, star, on = v2On()) => {
+  if (!on) return ATTACKS_OPEN[mk] || [];
+  return star < (ATTACK_FROM[mk] || 1) ? [] : (ATTACKS_V2[mk] || []);
+};
+export const attackMul = (mk, on = v2On()) => (on && ATTACK_DMG[mk]) || 1;
+/* 血量、預警、出招節奏：V2 不看層級（一律 B／3.0 秒） */
+export const nwTier = (tier, on = v2On()) => (on ? 'B' : tier);
+export const nwLaneW = (tier, on = v2On()) => (on ? NW_V2.laneW : (LANE_W[tier] || LANE_W.B));
+export const nwMaxHp = (mk, lv, tier, players = 1, on = v2On()) => monMaxHp(mk, lv, nwTier(tier, on), players);
+/* 標準時間（秒）：中位學生（11 字/分）、沒裝備、一般打法的打完時間（SPEC-BALANCE-V2 §1.1）。「比標準快」才有 ⚡。
+   用 tools/nw-sim/curves.mjs 的 parV2（--preset v2＋§9）算出來；改了血量、攻擊表、裝備數值要重算。★1～★5 */
+export const STD_SECS = {
+  'grass:coo': [106, 120, 133, 142, 161], 'grass:frog': [124, 140, 156, 167, 190], 'grass:shroom': [123, 140, 156, 167, 189],
+  'forest:shroom': [176, 196, 213, 232, 268], 'forest:coo': [151, 166, 182, 197, 229], 'forest:wolf': [206, 227, 251, 273, 316]
+};
+export const stdSecs = (rk, mk, star) => { const r = STD_SECS[rk + ':' + mk]; return (r && r[Math.min(5, Math.max(1, star)) - 1]) || 0; };
+/* 輸／逃走／撤退的獎勵比例＝0.3a＋0.7f（§1.2）。a＝這場「有在打字的時間」比例，f＝打掉的血比例（流派打掉的只算一半，所以呼叫端傳的是已經折過的 f）；
+   贏＝1。0.3 只按「有在打字的時間」給，掛著不打字拿不到 */
+export function rewardRatio(win, live, secs, f) {
+  if (win) return 1;
+  const a = Math.max(0, Math.min(1, (+live || 0) / Math.max(1, +secs || 0))), ff = Math.max(0, Math.min(1, +f || 0));
+  return NW_V2.failBase * a + (1 - NW_V2.failBase) * ff;
+}
+/* 一天的帳（nw.day＝{ d: twDay, n: 今天第幾場有效的, work: 今天已拿幾個勤勞, ws: 勤勞累積的秒數（不滿 10 分鐘的零頭） }）。
+   第 5 場起材料減半、沒有 ⚡、也不再累積勤勞（§2.4：回家一直刷擋這條）；勤勞只算「有在打字的秒數」，所以掛機 10 分鐘＝0。
+   純函式：回新的 day 與這場的結果，不改傳進來的物件 */
+export function dayStep(prev, d, o) {
+  const p = prev && typeof prev === 'object' ? prev : {}, same = p.d === d;
+  const day = { d, n: same ? (+p.n || 0) : 0, work: same ? (+p.work || 0) : 0, ws: Math.max(0, Math.min(NW_V2.workEvery - 1, +p.ws || 0)) };
+  day.n++;
+  const full = day.n <= NW_V2.dayFull;
+  let fast = false, work = 0;
+  if (full) {
+    fast = !!o.fastWin;
+    day.ws += Math.max(0, +o.live || 0);
+    const k = Math.floor(day.ws / NW_V2.workEvery);
+    day.ws -= k * NW_V2.workEvery;
+    work = Math.max(0, Math.min(k, NW_V2.workMax - day.work)); day.work += work;
+    if (day.work >= NW_V2.workMax) day.ws = 0;
+  }
+  return { day, full, fast, work };
+}
+
 export const hrNeed = hr => 20 + 15 * (hr - 1);
 export const HR_MAX = 50;
 export function addHrExp(nw, exp) {
@@ -394,7 +472,7 @@ export function valueText(slot, v) {
 export const itemText = it => { const d = gearDef(it.k); return d ? valueText(d.slot, itemValue(it)) : ''; };
 /* 現在會攻擊玩家的魔物（從 ATTACKS_OPEN 算：之後開放更多攻擊，說明文字自動更新）。名字去掉「（閃避測試）」 */
 export const monShortName = k => (MONSTERS[k] ? MONSTERS[k].name.replace(/（.*?）/g, '') : k);
-export const attackingMons = () => Object.keys(ATTACKS_OPEN).filter(k => MONSTERS[k] && ATTACKS_OPEN[k].length);
+export const attackingMons = () => { const T = v2On() ? ATTACKS_V2 : ATTACKS_OPEN; return Object.keys(T).filter(k => MONSTERS[k] && T[k].length); };
 /* 防具／武器的一句話說明；防具一律多一行「對會攻擊的魔物才有用」 */
 export function slotNote(slot) {
   if (slot === 'weapon') return '打對的字，傷害會變多。';

@@ -1,4 +1,4 @@
-import { BAL, TIERS, MONSTERS, GIFT_WEAPONS, weaponBase, curWeapon, hpPlayersMul, ATTACKS_OPEN, LANE_W, gearStats, gearMul, RANK_MIN_ACC, SUS, qBand, MAX_CHARS, CHANT_MAX, SHORT_CHANTS, regionLv, monMaxHp, monDmg, strikeDamage, atkInterval, castTime, STATUS } from './nw-data.js';
+import { BAL, TIERS, MONSTERS, GIFT_WEAPONS, weaponBase, curWeapon, hpPlayersMul, ATTACKS_OPEN, LANE_W, gearStats, gearMul, RANK_MIN_ACC, SUS, qBand, MAX_CHARS, CHANT_MAX, SHORT_CHANTS, regionLv, monMaxHp, monDmg, strikeDamage, atkInterval, castTime, STATUS, NW_V2 } from './nw-data.js';
 
 const CSS = `
 #nwb-root{position:fixed;inset:0;z-index:70;display:flex;flex-direction:column;background:#000;color:var(--ink);font-size:clamp(13px,1.5vmin + 7px,21px);font-weight:700}
@@ -142,6 +142,9 @@ export function startBattle(env, cfg, done) {
     keys: 0, qKeys: 0, qLog: [],
     gauge: 0, sharp: 0, mag: 0,
     dodgeOk: 0, dodgeAll: 0, defOk: 0, defAll: 0,
+    /* 遙測與「有在打字」（SPEC-BALANCE-V2 §3.4、§5）：lastCorrectAt＝最近一次打對字的時間，live＝累計「有在打字」的秒數；
+       dmgType／dmgFlow＝打字與流派各打掉多少血（輸／逃走時流派只算一半）；guards／vines／dodgeReal／react 給 mg_nw_runs 校準用 */
+    lastCorrectAt: T0, live: 0, dmgType: 0, dmgFlow: 0, guards: 0, vines: 0, dodgeReal: 0, react: [],
     flags: { fast: 0, paste: 0, wrong: 0 }, fx: [], hits: [], volley: null, bubUntil: 0, sporeUntil: 0, lastUi: 0
   };
   host.dataset.mode = mode;
@@ -256,11 +259,13 @@ export function startBattle(env, cfg, done) {
       g.fillStyle = `rgba(170,100,240,${(1 - k) * .9})`; g.fillRect(x, y, 1, 1);
     });
   }
-  function hitMonster(dmg, note, color, small) {
+  function hitMonster(dmg, note, color, small, flow) {
     if (dmg <= 0 || S.over) return;
     /* 裝備攻擊力 × 屬性：只放大打對的字（dmg 已經是打對的字算出來的，打錯是 0）。測試者之刃的 ×1.12 現在是攻擊力 112 */
     dmg = Math.max(1, Math.round(dmg * gearMul(GS, cfg.mk)));
     if (wmod && wmod.dark) darkBurst();
+    /* 記「真的打掉的血」（最後一下超出的不算），算 f 用；flow 是第 9 步的流派傷害 */
+    if (flow) S.dmgFlow += Math.min(dmg, S.mon.hp); else S.dmgType += Math.min(dmg, S.mon.hp);
     S.mon.hp = Math.max(0, S.mon.hp - dmg);
     S.mon.flashUntil = nowS() + .15;
     if (small) floatText(String(dmg), 66 + Math.random() * 28, 14 + Math.random() * 18, color || '#fff', false);
@@ -293,6 +298,10 @@ export function startBattle(env, cfg, done) {
       hurt(BAL.wrongHit, null, '亂打被反擊！');
       S.mon.lungeAt = T;
       nextQuestion(); updateUi(true); return;
+    }
+    if (res.correct > 0) {
+      /* 兩次打對之間最多算 afkWin 秒「有在打字」；超過的是在發呆或掛機 */
+      S.live += Math.min(T - S.lastCorrectAt, NW_V2.afkWin); S.lastCorrectAt = T;
     }
     S.combo = res.perfect ? S.combo + 1 : 0;
     S.maxCombo = Math.max(S.maxCombo, S.combo);
@@ -413,6 +422,7 @@ export function startBattle(env, cfg, done) {
     const dur = castTime(lv, tier) * (quick ? .75 : 1);
     S.cast = { atk, start: T, dur, hitAt: T + dur };
     Object.assign(S.cast, buildStrikes(atk, T + dur)); S.cast.hitAt = Math.max(...S.cast.strikes.map(x => x.hit));
+    S.cast.w0 = Math.min(...S.cast.strikes.map(x => x.warn));
     const rage = mon0.spKey === 'rage' && S.mon.angry;
     S.nextCast = T + atkInterval(lv, tier, rage) * (quick ? BAL.quickMul : 1);
     const box = $q('nwb-cast');
@@ -444,13 +454,16 @@ export function startBattle(env, cfg, done) {
     const c = S.cast;
     for (const st of c.strikes) {
       if (st.done) continue;
-      if (st.cancel && T >= st.cancel) { st.done = true; continue; }
-      if (T >= st.hit) { st.done = true; resolveStrike(st, T); }
+      /* 「真的躲開」＝預警一出現你就站在這條線上、出手前換走了（站著不動剛好沒被打到不算，SPEC-BALANCE-V2 §3.1） */
+      if (st.thr === undefined && T >= st.warn) st.thr = !st.slam && S.lane === st.lane;
+      if (st.cancel && T >= st.cancel) { st.done = true; if (st.thr && S.lane !== st.lane) c.real = true; continue; }
+      if (T >= st.hit) { st.done = true; if (st.thr && S.lane !== st.lane) c.real = true; resolveStrike(st, T); }
     }
     if (!c.strikes.every(x => x.done)) return;
     S.cast = null; $q('nwb-cast').style.display = 'none';
     if (S.me.down) return;
-    if (c.kind === 'slam') { S.defAll++; if (!c.hurt) S.defOk++; } else { S.dodgeAll++; if (!c.hurt) S.dodgeOk++; }
+    S.react.push(c.firstKey ? Math.round((c.firstKey - c.w0) * 1000) : -1);   // -1＝這招沒按過任何換線／舉盾鍵
+    if (c.kind === 'slam') { S.defAll++; if (!c.hurt) S.defOk++; } else { S.dodgeAll++; if (!c.hurt) { S.dodgeOk++; if (c.real) S.dodgeReal++; } }
     if (!c.hurt) { banner(c.kind === 'slam' ? '🛡 擋下來了！' : '✨ 躲開了！', '#8ec96b'); floatText('成功！', 80, 56, '#8ec96b', true); }
   }
   function laneStance(T, stEl, nm, ht, fl, mkr) {
@@ -600,6 +613,8 @@ export function startBattle(env, cfg, done) {
   const laneKey = e => {
     if (S.over) return;
     const alt = e.code === 'AltLeft' || e.code === 'AltRight';
+    /* 預警出現後第一次按 Ctrl／Alt 花了多久（只記，校準護腳與預警秒數用） */
+    if ((alt || e.code === 'ControlLeft' || e.code === 'ControlRight') && S.cast && !S.cast.firstKey && nowS() >= S.cast.w0) S.cast.firstKey = nowS();
     if (alt) { e.preventDefault(); if (!S.me.down) S.shieldUntil = Math.max(S.shieldUntil, nowS() + 1.5 + GS.shield); return; }
     if (S.me.down || e.repeat) return;
     if (e.code === 'ControlLeft') S.lane = Math.max(0, S.lane - 1);
@@ -621,12 +636,14 @@ export function startBattle(env, cfg, done) {
     if (S.over) return;
     S.over = true; S.volley = null; S.hits = []; cancelAnimationFrame(raf);
     removeEventListener('keydown', laneKey); removeEventListener('keyup', laneKeyUp);
-    const secs = Math.min(BAL.timeLimit, nowS() - S.T0);
+    const tEnd = nowS(), secs = Math.min(BAL.timeLimit, tEnd - S.T0);
     inp.disabled = true;
     const win = result === 'win';
     banner(win ? '🎉 討伐成功！' : result === 'fail' ? '狩獵失敗…' : '撤退', win ? '#ffd24a' : '#e5705f');
     updateUi(true); draw(nowS());
     const acc = S.typed ? S.correct / S.typed : 0;
+    const live = Math.min(secs, Math.round((S.live + Math.min(Math.max(0, tEnd - S.lastCorrectAt), NW_V2.afkWin)) * 10) / 10);
+    const frac = win ? 1 : clamp(1 - S.mon.hp / S.mon.max, 0, 1), fEff = clamp((S.dmgType + NW_V2.escFlow * S.dmgFlow) / S.mon.max, 0, 1);
     const act = S.qLog.reduce((a, x) => a + x[2], 0) / 1000;   // 各題作答時間加總（秒）；cpm＝打對的字 ÷ act × 60
     const res = {
       rk: cfg.rk, mk: cfg.mk, star: cfg.star, result, secs, accuracy: acc, answered: S.answered,
@@ -636,7 +653,11 @@ export function startBattle(env, cfg, done) {
       /* 這場正確率夠不夠算進「精準」（>= 90%）。以前寫死 true，等於沒擋（SPEC F2） */
       lvAcc: acc >= RANK_MIN_ACC,
       lv, qb: qBand(cfg.star, lv), ans: S.answered, cor: S.correct, typ: S.typed, keys: S.keys, nokey: S.keys === 0 && S.answered > 0 ? 1 : 0,
-      act: Math.round(act * 10) / 10, cpm: act > 0 ? Math.round(S.correct / act * 600) / 10 : 0, q: S.qLog
+      act: Math.round(act * 10) / 10, cpm: act > 0 ? Math.round(S.correct / act * 600) / 10 : 0, q: S.qLog,
+      /* 以下給 V2 的獎勵比例與 mg_nw_runs 遙測用（沒開 V2 時只是多帶著，不影響結算）。
+         live＝有在打字的秒數（最後一次打對後再算 afkWin 秒）；frac＝打掉的血比例；fEff＝折過的 f（流派只算一半，贏＝1） */
+      live, idle: Math.max(0, Math.round((secs - live) * 10) / 10), frac: Math.round(frac * 1000) / 1000, fEff: win ? 1 : Math.round(fEff * 1000) / 1000,
+      flow: 'normal', guards: S.guards, vines: S.vines, dodgeReal: S.dodgeReal, react: S.react.slice(0, 40)
     };
     if (!res.valid) res.invalidWhy = '還沒打幾題就結束了，這場不算數。';
     setTimeout(() => { root.remove(); done(res); }, 1500);

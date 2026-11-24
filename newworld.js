@@ -5,7 +5,7 @@ import {
   COLOR_NAME, COLOR_HEX, HR_MAX, VILLAGE, doorTile, buildingOpen, goalOf, TEST_TAGS, FB_COINS, FB_MINLEN, BUG_COINS, bugCoins, BUG_REWARD_MAX, LESSON_COINS, TESTER_MISSIONS, checkMissions, GIFT_WEAPONS, weaponInfo, weaponBase, curWeapon, WORDS, WORD_GROUPS, checkWords, setTitleParts, wordById, normName, ITEM_DEFS, displayName, NOTICES, MAT_INFO, isBpId, isMatId, TUT_LESSONS, ZONE_STAR_MAX
 } from './nw-data.js';
 import { injectUi } from './nw-ui.js';
-import { setStarter, gearDef, gearItem, doEquip, equippedItem, rollBlueprints, giveGear, giftGearOk, itemName, itemText, forgeHint, stageOpen, GEAR_MAX, wordOpen, newGearId, syncLegacy, giveClothBps, craftList, BP_DUP_COINS, susCheck, SUS } from './nw-data.js';
+import { setStarter, gearDef, gearItem, doEquip, equippedItem, rollBlueprints, giveGear, giftGearOk, itemName, itemText, forgeHint, stageOpen, GEAR_MAX, wordOpen, newGearId, syncLegacy, giveClothBps, craftList, BP_DUP_COINS, susCheck, SUS, NW_V2, v2On, rewardRatio, dayStep, stdSecs, twDay } from './nw-data.js';
 import { openForge, gearTab, matsTab, bpTab } from './nw-forge.js';
 import { tierOf, EQUIP_LEFT, EQUIP_RIGHT, chibiOf, heroOf, titleBadgeHtml, darkDots, equipSlotHtml, mountSprites as mountSpritesPx, CARD_CSS } from './nw-card.js';
 import { mountVillage } from './nw-village.js';
@@ -1888,11 +1888,22 @@ export function initNewWorld(C) {
     const t = Date.now(), rid = `${ME.docId}_${t}`;
     const run = JSON.parse(JSON.stringify({
       id: ME.docId, cls: ME.className, seat: Number(ME.seat) || 0, uid: (C.uid && C.uid()) || '', t, v: 1, app: C.appVersion || '',
-      mk: res.mk, rk: res.rk, star: res.star, lv: res.lv, qb: res.qb, res: res.result === 'win' ? 'win' : res.result === 'fail' ? 'fail' : 'retreat',
+      mk: res.mk, rk: res.rk, star: res.star, lv: res.lv, qb: res.qb, res: res.result === 'win' ? 'win' : res.result === 'fail' ? 'fail' : res.result === 'escape' ? 'escape' : 'retreat',
       secs: round(res.secs, 1), acc: round(res.accuracy, 3), ans: res.ans, cor: res.cor, typ: res.typ, keys: res.keys, nokey: res.nokey, act: res.act, cpm: res.cpm,
       fl: { fast: (res.flags || {}).fast || 0, paste: (res.flags || {}).paste || 0, wrong: (res.flags || {}).wrong || 0 },
       sus: sum.sus || [], w: res.wk || res.weapon, atk: res.atk, pw: res.pw, tier: res.tier, q: [].concat(...res.q)   // 平的數字陣列、每 4 個一題；Firestore 不能存「陣列裡的陣列」（NW.runQ 也會存進 mg_scores）
     }));
+    /* V2 遙測（SPEC-BALANCE-V2 §5、§7 第 4 步）：校準 k、狼 ×0.7、流派、40 秒用。V2 沒開就不寫，規則白名單的欄位全部可省略。
+       frac＝打掉的血比例（逃走／倒下的場次看這個）；flow＝流派代號（現在只有 'normal'）；guards／vines／dodgeReal＝次數；idle＝沒在打字的秒數；
+       react＝每次出招「預警→第一次按換線／舉盾鍵」的毫秒（-1＝沒按），平的數字陣列；t0＝這場開始的時間（本機＋校正，毫秒） */
+    if (v2On()) {
+      const n = (x, max) => Math.max(0, Math.min(max, Math.round(+x || 0)));
+      Object.assign(run, {
+        frac: round(Math.max(0, Math.min(1, +res.frac || 0)), 3), flow: String(res.flow || 'normal').slice(0, 12),
+        guards: n(res.guards, 999), vines: n(res.vines, 999), dodgeReal: n(res.dodgeReal, 999), idle: round(Math.max(0, Math.min(NW_V2.cap + 10, +res.idle || 0)), 1),
+        react: (Array.isArray(res.react) ? res.react : []).slice(0, 40).map(x => Math.max(-1, Math.min(60000, Math.round(+x || 0)))), t0: Math.max(0, Math.round(+res.t0 || 0))
+      });
+    }
     const flag = (sum.sus || []).length ? { type: 'run', status: 'pending', docId: ME.docId, cls: ME.className, seat: ME.seat, name: ME.name, runId: rid, why: sum.sus, mk: res.mk, star: res.star, t } : null;
     NW.runQ.push({ rid, run, flag });
     while (NW.runQ.length > 5) NW.runQ.shift();

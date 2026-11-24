@@ -164,6 +164,20 @@ describe('正式規則 firestore-rules.txt', () => {
       await assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID + '1'), run({ idle: -1 })));
       await assertSucceeds(setDoc(doc(d.stu, 'mg_nw_runs/' + RID + '2'), run({ idle: 490 })));
     });
+    /* 第 4 步補的兩個欄位（規格只寫「預警→第一次按鍵毫秒」「開始時間戳」，沒有欄位名）：react＝平的數字陣列、最多 40 個；t0＝這場開始的毫秒 */
+    test('帶 react（每次出招的預警→按鍵毫秒，-1＝沒按）與 t0 → 過；不帶 → 過', async () => {
+      await assertSucceeds(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ react: [820, -1, 1500], t0: 1763499900000 })));
+      await assertSucceeds(setDoc(doc(d.stu, 'mg_nw_runs/' + RID + '1'), run({ react: [] })));
+    });
+    test('react 超過 40 個、不是陣列 → 不過；剛好 40 個 → 過', async () => {
+      await assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ react: Array.from({ length: 41 }, () => 900) })));
+      await assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID + '1'), run({ react: '900' })));
+      await assertSucceeds(setDoc(doc(d.stu, 'mg_nw_runs/' + RID + '2'), run({ react: Array.from({ length: 40 }, () => 900) })));
+    });
+    test('t0 負數、不是數字 → 不過', async () => {
+      await assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ t0: -1 })));
+      await assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID + '1'), run({ t0: '1763499900000' })));
+    });
     test('acc 超過 1 → 不過', () => assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ acc: 1.5 }))));
     test('star 不是 1～5 → 不過', () => assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ star: 6 }))));
     test('q 超過 120 題（平的陣列 480 個數字）→ 不過', () => assertFails(setDoc(doc(d.stu, 'mg_nw_runs/' + RID), run({ q: Array.from({ length: 121 }, () => [2, 5, 2000, 2]).flat() }))));
