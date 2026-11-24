@@ -23,6 +23,7 @@ import { BAL, TIERS, MONSTERS, REGIONS, regionLv, monMaxHp, monDmg, atkInterval,
   ATTACKS_OPEN, MAX_CHARS, hrNeed, huntExp, huntCoins, HR_MAX, LANE_W, GEAR_TB, POWER_BASE } from '../../nw-data.js';
 import { readFileSync } from 'node:fs';
 import { DEFAULT_ASSUME } from './sim.mjs';
+import { NW_V2, FLOWS as NW_FLOWS, ATTACK_FROM, ATTACK_DMG, ATTACKS_V2 } from './rules-v2.mjs';   // 遊戲端的 NW_V2／FLOWS 等還沒加時用 rules-v2.mjs 的後備值（同名同值）
 
 /* ───────── 假設（全部可用 --set 改） ───────── */
 export const P = {
@@ -63,31 +64,31 @@ export const P = {
   N: 200, seed: 2026,
   /* V2：新世界拿掉層級（docs/SPEC-BALANCE-V2.md）。只有 v2 一節會讀；其他章節照舊。 */
   v2: {
-    k: 0.5,                 // 單一血量倍率，取代 HP_TIER（＝現行 B）
-    cap: 480,               // 8 分鐘：魔物逃走（不算輸，照打掉的血給獎勵）
-    laneW: 3.0,             // 單一紅線預警（現行 A 層的值；真實反應 2.5～3 秒）
-    attacks: { coo: ['single', 'pair'], frog: ['slam', 'single'], shroom: ['single', 'slam'], wolf: ['single', 'pair', 'sweep', 'fake', 'slam'] },
-    shroomFrom: 2,          // 跳跳菇從 ★2 開始攻擊（★1 留給完全不想被打的人）
+    k: NW_V2.k,             // 單一血量倍率，取代 HP_TIER（＝現行 B）。以下標「NW_V2」的值都是 nw-data.js 的 NW_V2（還沒有就用 rules-v2.mjs 的後備值）
+    cap: NW_V2.cap,         // 8 分鐘：魔物逃走（不算輸，照打掉的血給獎勵）
+    laneW: NW_V2.laneW,     // 單一紅線預警（現行 A 層的值；真實反應 2.5～3 秒）
+    attacks: ATTACKS_V2,    // { coo: ['single', 'pair'], frog: ['slam', 'single'], shroom: ['single', 'slam'], wolf: [全開] }
+    shroomFrom: ATTACK_FROM.shroom,   // 跳跳菇從 ★2 開始攻擊（★1 留給完全不想被打的人）
     attendDodge: 0.11, attendDef: 0.73,   // 真實閃避 53%／防禦 63% 的擬合（BALANCE-2B-ANALYSIS §3.1 的 att）：沒注意＝站著不動；null＝人人都注意
     slamHits: 3, slamMul: 1,  // 重壓沒擋住打幾下、每下倍率。遊戲現況 3×1（resolveStrike 三條線各 hurt 一次）；V2 建議 1×1.5
     armorCeil: false,         // 盔甲減傷用無條件進位（每下至少少 1 點）；遊戲現況四捨五入
     gCap: null,               // 武器×屬性的硬上限（V2 建議 1.37＝藍 +5 130 × 屬性 1.05）；null＝不封頂（現況）
-    afkWin: 40,               // 防掛機：流派只在「最近 40 秒內打對過 1 個字」時有作用（最慢 p5 每字約 31 秒）
-    flowCap: 1,               // 防掛機：一場的流派傷害最多＝打字傷害的 1 倍（打字永遠是主要輸出，流派占比 ≤50%）
-    escFlowHalf: true,        // 逃走／輸的獎勵比例 f 裡，流派傷害只算一半
-    dmgMul: { coo: 1, frog: 1, shroom: 1, wolf: 0.7 },   // 狼的招式 ×0.7：時間到不再輸，倒下 3 次是唯一的輸法；「完全不換線」壓力測試下 ×1 會讓中位學生狼★5 輸 84%
+    afkWin: NW_V2.afkWin,     // 防掛機：流派只在「最近 40 秒內打對過 1 個字」時有作用（最慢 p5 每字約 31 秒）
+    flowCap: NW_V2.flowCap,   // 防掛機：一場的流派傷害最多＝打字傷害的 1 倍（打字永遠是主要輸出，流派占比 ≤50%）
+    escFlowHalf: NW_V2.escFlow < 1,   // 逃走／輸的獎勵比例 f 裡，流派傷害只算一半
+    dmgMul: { coo: 1, frog: 1, shroom: 1, wolf: ATTACK_DMG.wolf != null ? ATTACK_DMG.wolf : 1 },   // 狼的招式 ×0.7：時間到不再輸，倒下 3 次是唯一的輸法；「完全不換線」壓力測試下 ×1 會讓中位學生狼★5 輸 84%
     flows: {                // 流派（出發前選，免費換）
       none: {},
       steady: { tau: 25, max: 1.6, noWrongHit: true },          // （第二波，先不開）穩打：全對的題目蓄力＝1＋（這題每個字平均花的秒數 ÷25），最多 ×1.6，取代連擊；亂打不被反擊
-      guard: { rho: 0.05, typeMul: 0.85, shield: 0.5 },          // 守護：真的躲開或舉盾擋下（線上的攻擊擋一半）→ 反擊 5% 魔物血量×攻擊倍率；打字傷害 ×0.85；舉盾 +0.5 秒
-      vine: { rho: 0.005, n: 4, every: 10, typeMul: 0.85 }       // 藤蔓：每題全對種 1 根（最多 4 根），每根每 10 秒扣 0.5% 魔物血量×攻擊倍率；打字傷害 ×0.85
+      guard: { ...NW_FLOWS.guard },          // 守護：真的躲開或舉盾擋下（線上的攻擊擋一半）→ 反擊 5% 魔物血量×攻擊倍率；打字傷害 ×0.85；舉盾 +0.5 秒
+      vine: { ...NW_FLOWS.vine }       // 藤蔓：每題全對種 1 根（最多 4 根），每根每 10 秒扣 0.5% 魔物血量×攻擊倍率；打字傷害 ×0.85
     },
     play: 900, over: 180, startPad: 60,   // 一節課新世界約 15 分鐘；每場前後（委託板、結算、鐵匠鋪）3 分鐘；剩下的時間 < 預計時長+60 秒就不開新的一場
-    dayFull: 4,             // 一天前 4 場拿完整材料；第 5 場起材料減半、沒有快手獎勵
-    failBase: 0.3,          // 倒下 3 次／魔物逃走：獎勵 ×(0.3＋0.7×打掉的血比例)
+    dayFull: NW_V2.dayFull, // 一天前 4 場拿完整材料；第 5 場起材料減半、沒有快手獎勵
+    failBase: NW_V2.failBase, // 倒下 3 次／魔物逃走：獎勵 ×(0.3＋0.7×打掉的血比例)
     parV: 11, parAcc: 0.97, // 標準時間＝中位學生（11 字/分）無裝備、不用流派的時間
-    bonusMat: 1,            // 比標準時間快：多 1 個綠材料（快手獎勵，是「額外」的）
-    workEvery: 600, workMax: 2,   // 勤勞獎勵：戰鬥時間每累積 10 分鐘（輸贏都算）多 1 個綠材料，一天最多 2 個——只看花的時間，不看速度
+    bonusMat: NW_V2.bonusMat, // 比標準時間快：多 1 個綠材料（快手獎勵，是「額外」的）
+    workEvery: NW_V2.workEvery, workMax: NW_V2.workMax,   // 勤勞獎勵：戰鬥時間每累積 10 分鐘（輸贏都算）多 1 個綠材料，一天最多 2 個——只看花的時間，不看速度
     dt: 1, N: 40
   }
 };

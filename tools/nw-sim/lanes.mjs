@@ -30,15 +30,15 @@ function pickPattern(r, star, enabled) {
   return p[Math.floor(r() * p.length)];
 }
 
-/* 同 buildStrikes。T＝開始讀條的時間；warnBonus＝護腳 */
-export function buildCast(r, { mk, lv, star, tier, enabled, T, warnBonus = 0, mood }) {
+/* 同 buildStrikes。T＝開始讀條的時間；warnBonus＝護腳；laneW＝預警秒數整個換掉（V2 拿掉層級＝一律 3.0；沒給就看層級） */
+export function buildCast(r, { mk, lv, star, tier, enabled, T, warnBonus = 0, mood, laneW }) {
   const m = MONSTERS[mk];
   const usable = usableAttacks(mk, enabled);
   if (!usable.length) return null;
   const atk = usable[Math.floor(r() * usable.length)];
   const quick = m.spKey === 'quick';
   const dur = castTime(lv, tier) * (quick ? .75 : 1);
-  const H = T + dur, W = LANE_W[tier] || 2.5, B = warnBonus, rl = () => Math.floor(r() * 3);
+  const H = T + dur, W = laneW != null ? laneW : (LANE_W[tier] || 2.5), B = warnBonus, rl = () => Math.floor(r() * 3);
   const kind = atk.type === 'defend' ? 'slam' : pickPattern(r, star, enabled);
   let strikes = [];
   if (kind === 'slam') strikes = [0, 1, 2].map(l => ({ lane: l, warn: H - W * 1.1 - B, hit: H, slam: true, mul: 1 }));
@@ -118,5 +118,29 @@ export function respond(r, cast, pl, exp, gear, A = REACT) {
   }
   // 沒被 continue 過濾掉、站在危險線但假動作的情況不會有傷害；其餘已在迴圈內處理
   pl.lane = lane;
+  return out;
+}
+
+/* 守護流（SPEC-BALANCE-V2 §3.1）：舉盾擋下或真的躲開 → out.guard＝true（sim.mjs 會自動反擊）。
+   - 重壓：照一般的舉盾，盾多 A.guardShield 秒（預設 0.5）；擋住＝成功。
+   - 線上的攻擊：先決定有沒有舉盾（attendDef，真實防禦 63% ≈ 3/4 的人有舉）。舉了：盾蓋得到出手那一刻就只受一半傷害，算成功（站著不動剛好沒被打到不算）；
+     沒舉：退回一般的換線（attendDodge），真的站在危險線、出手前換走才算成功。
+   「按住 Alt」會一直刷新盾（laneKey 的 Alt 在 e.repeat 檢查之前就 return），所以盾提早沒了還有 hold 的機率再按（跟重壓同一個假設）。 */
+export function respondGuard(r, cast, pl, exp, gear, A = REACT) {
+  const g2 = { ...gear, shield: (gear.shield || 0) + (A.guardShield != null ? A.guardShield : 0.5) };
+  if (cast.kind === 'slam') { const o = respond(r, cast, pl, exp, g2, A); o.guard = o.need && o.ok; return o; }
+  const aS = A.attendDef != null ? A.attendDef : A.attend;
+  if (!(aS == null || r() < aS)) { const o = respond(r, cast, pl, exp, gear, A); o.guard = o.need && o.ok; return o; }
+  const mu = lerp(A.react[0], A.react[1], exp), hold = lerp(A.hold[0], A.hold[1], exp), kl = A.keyLag;
+  const t1 = Math.min(...cast.strikes.map(s => s.warn)) + Math.max(A.floor, mu + gauss(r) * A.reactSd) + kl;
+  const dur = 1.5 + g2.shield, holdOk = r() < hold;
+  const out = { hits: [], moves: 1, need: false, ok: true, guard: false };
+  for (const s of cast.strikes) {
+    if (s.cancel != null || s.lane !== pl.lane) continue;   // 假動作那一條從來不會打中；別條線打不到站在這裡的人
+    out.need = true;
+    if (t1 <= s.hit && (t1 + dur >= s.hit || holdOk)) out.hits.push({ at: s.hit, mul: s.mul, half: true });
+    else { out.ok = false; out.hits.push({ at: s.hit, mul: s.mul }); }
+  }
+  out.guard = out.need && out.ok;
   return out;
 }

@@ -1,5 +1,12 @@
 /* 2b 一學期進度預測（docs/research/BALANCE-2B-ANALYSIS.md §7）：逐人、逐場的「代理人」模擬。
    用法：node tools/nw-sim/bal2b-term.mjs [--sessions 14] [--per 2] [--reps 3] [--policy pref|goal] [--spend greedy|craft] [--tier real|infer] [--scen att|spec] [--floor 4] [--file 匯出檔]
+   V2 選項（SPEC-BALANCE-V2；全部沒給＝舊行為，輸出逐字不變）：
+     --rules v2          用 V2 規則逐場模擬（拿掉層級、8 分鐘逃走、攻擊表、守護／藤蔓、防掛機）與 V2 獎勵（輸／逃走按 0.3a＋0.7f、一天前 4 場完整材料、⚡快手、🔨勤勞）；裝備數值是 nw-data.js 現在的值
+     --flow none|guard|vine|pick   流派策略：固定一種；pick＝一開始不用，連續 2 場沒贏就試還沒試過的（守護→藤蔓），之後挑近期獎勵最高的
+     --budget 15         每節課新世界的分鐘數（不給＝照 --per 固定場數）。規格 §4.1：一節課 40 分鐘，其中新世界約 15 分鐘；給了就用時間決定這節打幾場
+     --over 3 --pad 60   每場前後（委託板、結算、鐵匠鋪）花幾分鐘、剩下時間要比「預計時長＋pad 秒」多才開新的一場（預計時長＝這個學生最近 3 場實際花的）
+     --sigma-b 0.2       每場手感差（ln 標準差；--rules v2 預設 0.2＝解析模型的 σ_b，沒有就沒有場間差）
+     --progress          多印「逐節進度」（每組中位的最高過關、戰力、每節場數），回答「一學期 14 節走到哪」
    --spend greedy＝戰力優先（新做的比現在穿的戰力高才做；有錢就強化）；craft＝有圖紙有材料就先做更高顏色的（即使戰力暫時比較低），為了做而存錢（不強化）
    做法：每個真實學生（匯出檔的速度、層級、慣用武器）從零開始，每節課 2 場、共 14 節；每場開打前照一套「合理的貪心策略」
         打造／強化（用 nw-data.js 真正的 craftCheck／doCraft／upCheck／doUpgrade，所以配方、費用、材料先用誰都跟遊戲一樣），
@@ -11,7 +18,10 @@ import {
   MONSTERS, REGIONS, MAIN_QUESTS, GEAR_DEFS, defaultNw, setStarter, giveClothBps, craftCheck, doCraft, upCheck, doUpgrade, doEquip, gearStats, equippedItem, gearDef,
   weaponBase, rollBlueprints, huntCoins, regionLv, zoneOpen, starOpen, itemPower, gearPowerOf, MAT_INFO, bpKnown, GEAR_SLOTS
 } from '../../nw-data.js';
+import * as ND from '../../nw-data.js';
 import { simulate, DEFAULT_ASSUME } from './sim.mjs';
+import { v2Rules, NW_V2 } from './rules-v2.mjs';
+import { parV2, P as CP, V2PRESET } from './curves.mjs';
 
 /* 讓 nw-data.js 的 stageOpen('2b') 為真（只在 node、只影響任務 1-5、1-6 的 hold） */
 globalThis.window = { __NW_STAGES__: ['1', '2b'] };
@@ -22,6 +32,10 @@ const opt = (k, d) => { const i = args.indexOf(k); return i < 0 ? d : args[i + 1
 const SESSIONS = +opt('--sessions', 14), PER = +opt('--per', 2), REPS = +opt('--reps', 3);
 const SPEND = opt('--spend', 'greedy'), FLOOR = opt('--floor', null);
 const POLICY = opt('--policy', 'pref'), TIERRULE = opt('--tier', 'real'), SCEN = opt('--scen', 'att');
+const RULES_ON = opt('--rules', null) === 'v2', FLOWPOL = opt('--flow', 'none');
+const BUDGET = opt('--budget', null) === null ? null : +opt('--budget'), OVER = +opt('--over', 3), PAD = +opt('--pad', 60), MAXPER = 12;
+const SIGMA_B = opt('--sigma-b', null) !== null ? +opt('--sigma-b') : (RULES_ON ? 0.2 : null), PROGRESS = args.includes('--progress');
+if (RULES_ON && !['none', 'guard', 'vine', 'pick'].includes(FLOWPOL)) { console.error('--flow 只能是 none | guard | vine | pick'); process.exit(2); }
 const FILE = opt('--file', null) || new URL('../../data-public/typehero-speed-20261120.json', import.meta.url);
 const raw = JSON.parse(readFileSync(FILE, 'utf8'));
 const ok = v => typeof v === 'number' && Number.isFinite(v);
@@ -33,7 +47,17 @@ const STUDENTS = raw.rows.filter(r => (ok(r.bestWpm) ? r.bestWpm : ok(r.lastWpm)
   return { wpm, acc: ok(r.bestAcc) ? r.bestAcc : ok(r.lastAcc) ? r.lastAcc : 97, tier: TIERRULE === 'infer' ? (t || tierFromWpm(wpm)) : (t || 'B'), weapon: WEAPONS.includes(r.lastWeapon) ? r.lastWeapon : 'staff' };
 });
 /* 閃避／防禦成功率的兩種假設：att＝bal2b.mjs fit 的結果（attendDodge 0.11、attendDef 0.73）；spec＝人人都躲 */
-const ASSUME = { ...DEFAULT_ASSUME, ...(SCEN === 'att' ? { attendDodge: 0.11, attendDef: 0.73 } : {}), ...(FLOOR != null ? { cpmFloor: +FLOOR } : {}) };
+const ASSUME = { ...DEFAULT_ASSUME, ...(SCEN === 'att' ? { attendDodge: 0.11, attendDef: 0.73 } : {}), ...(FLOOR != null ? { cpmFloor: +FLOOR } : {}), ...(SIGMA_B ? { sigmaB: SIGMA_B } : {}) };
+
+/* 標準時間（⚡快手獎勵的門檻）：遊戲端有 stdSecs() 就用它（nw-data.js 的 STD_SECS＝解析模型 parV2 算的），沒有就用解析模型現算 */
+const STD_CACHE = new Map();
+const stdSecs = (rk, mk, star) => {
+  if (typeof ND.stdSecs === 'function') { const v = ND.stdSecs(rk, mk, star); if (v) return v; }
+  const k = rk + mk + star;
+  if (!STD_CACHE.has(k)) { const p = structuredClone(CP); Object.assign(p, structuredClone(V2PRESET(true))); STD_CACHE.set(k, parV2(rk, mk, star, p)); }
+  return STD_CACHE.get(k);
+};
+const greenOf = mk => { const d = MONSTERS[mk].drops.find(x => x[2] === 'green'); return d ? d[0] : MONSTERS[mk].drops[0][0]; };
 
 function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 
@@ -152,19 +176,55 @@ function runStudent(st, seed) {
   const log = { session: 0, coinsIn: 0, coinsOut: 0, questCoins: 0, huntCoins: 0, craftCoins: 0, upCoins: 0, matsIn: { gray: 0, green: 0, blue: 0 }, matsOut: { gray: 0, green: 0, blue: 0 }, crafted: 0, ups: 0, firstGreen: null, wins: 0, hunts: 0, forestWins: 0, downs: 0, bpGot: 0, firstForest: null, wp3: null, wp5: null, snap: {} };
   checkQuests(nw, log);
   let lossStreak = 0;
+  /* V2：每個流派的近期獎勵（pick 策略用）、這個學生最近幾場實際花的秒數（預估一場要多久） */
+  const fscore = {}, recent = []; let flowNow = FLOWPOL === 'pick' ? 'none' : FLOWPOL;
+  log.games = []; log.prog = []; log.esc = 0; log.lost = 0; log.invalid = 0; log.fast = 0; log.work = 0; log.flowN = { none: 0, guard: 0, vine: 0 }; log.act = 0;
   for (let s = 1; s <= SESSIONS; s++) {
     log.session = s;
-    for (let h = 0; h < PER; h++) {
+    let left = (BUDGET || 0) * 60, played = 0; const day = { n: 0, workT: 0, work: 0 };
+    for (let h = 0; ; h++) {
+      if (BUDGET !== null) { const est = recent.length ? mean(recent.slice(-3)) : 0; if (played >= MAXPER || (played > 0 && left < est + PAD)) break; }
+      else if (h >= PER) break;
       spend(nw, st, log);
       const t = pickTarget(nw, st, r, lossStreak), lv = regionLv(t.rk, t.star), gs = gearStats(nw), w = equippedItem(nw, 'weapon');
       const wb = w ? weaponBase(gearDef(w.k).wk) : st.weapon;
       const exp = Math.min(1, 0.2 + 0.05 * s);
-      const res = simulate(st, t.mk, t.rk, t.star, exp, seed * 1009 + s * 31 + h, ASSUME, { gear: gs, weapon: wb });
+      if (RULES_ON && FLOWPOL === 'pick' && lossStreak >= 2) {
+        const untried = ['guard', 'vine'].find(f => fscore[f] === undefined);
+        if (untried) flowNow = untried;
+        else flowNow = ['none', 'guard', 'vine'].reduce((b, f) => ((fscore[f] ?? -1) > (fscore[b] ?? -1) ? f : b), flowNow);
+      }
+      const res = simulate(st, t.mk, t.rk, t.star, exp, seed * 1009 + s * 31 + h, RULES_ON ? { ...ASSUME, rules: v2Rules({ flow: flowNow }) } : ASSUME, { gear: gs, weapon: wb });
       const win = res.result === 'win';
+      played++; log.games[s] = played;
+      if (BUDGET !== null) { left -= res.secs + OVER * 60; recent.push(res.secs); }
       log.hunts++; log.downs += res.downs;
       nw.stat.dodgeOk += res.dodgeOk; nw.stat.dodgeAll += res.dodgeAll; nw.stat.defOk += res.defOk; nw.stat.defAll += res.defAll;
       if (win) { log.wins++; lossStreak = 0; nw.dex[t.mk] = (nw.dex[t.mk] || 0) + 1; if (t.star > (nw.zone[t.rk] || 0)) nw.zone[t.rk] = t.star; if (t.rk === 'forest') { log.forestWins++; if (log.firstForest === null) log.firstForest = s; } }
       else lossStreak++;
+      if (RULES_ON) {
+        /* V2 獎勵（SPEC §1.2、§2）：贏＝全額；輸／逃走＝0.3a＋0.7f；答不到 3 題又沒贏＝不算 */
+        day.n++; const full = day.n <= NW_V2.dayFull, fr = res.reward;
+        log.flowN[flowNow]++; log.act += res.a;
+        if (!win) { if (res.result === 'escape') log.esc++; else log.lost++; }
+        if (!res.valid) { log.invalid++; fscore[flowNow] = fscore[flowNow] === undefined ? 0 : 0.6 * fscore[flowNow] + 0.4 * 0; continue; }
+        fscore[flowNow] = fscore[flowNow] === undefined ? fr : 0.6 * fscore[flowNow] + 0.4 * fr;
+        const c = Math.round(huntCoins(lv, true) * fr); nw.coins += c; log.coinsIn += c; log.huntCoins += c;
+        MONSTERS[t.mk].drops.forEach(([id, , color, lo, hi]) => {
+          const n = Math.max(1, Math.round((lo + Math.floor(r() * (hi - lo + 1))) * fr * (full ? 1 : NW_V2.dayHalf)));
+          nw.mats[id] = (nw.mats[id] || 0) + n; log.matsIn[color] += n;
+        });
+        const gid = greenOf(t.mk), plus = k => { nw.mats[gid] = (nw.mats[gid] || 0) + k; log.matsIn.green += k; };
+        if (win && full && res.secs < stdSecs(t.rk, t.mk, t.star)) { plus(NW_V2.bonusMat); log.fast++; }
+        if (full) {   // 勤勞：只算有在打字的秒數；一天最多 workMax 個
+          day.workT += res.secs * res.a;
+          while (day.workT >= NW_V2.workEvery && day.work < NW_V2.workMax) { day.workT -= NW_V2.workEvery; day.work++; plus(1); log.work++; }
+          if (day.work >= NW_V2.workMax) day.workT = 0;
+        }
+        if (win) log.bpGot += rollBlueprints(nw, t.mk, r).length;
+        checkQuests(nw, log);
+        continue;
+      }
       const c = huntCoins(lv, win); nw.coins += c; log.coinsIn += c; log.huntCoins += c;
       const rolls = win ? 1 : 0.5;
       MONSTERS[t.mk].drops.forEach(([id, , color, lo, hi]) => {
@@ -174,6 +234,7 @@ function runStudent(st, seed) {
       if (win) log.bpGot += rollBlueprints(nw, t.mk, r).length;
       checkQuests(nw, log);
     }
+    log.prog[s] = { top: (nw.zone.forest || 0) ? 5 + nw.zone.forest : (nw.zone.grass || 0), pw: gearStats(nw).pw, games: log.games[s] || 0 };
     if (s === Math.ceil(SESSIONS / 2) || s === SESSIONS) log.snap[s] = { coins: nw.coins, mats: matsBy(nw), pw: gearStats(nw).pw };
   }
   spend(nw, st, log);   // 最後一節下課前也能買
@@ -197,6 +258,7 @@ STUDENTS.forEach((st, i) => { for (let k = 0; k < REPS; k++) runs.push(runStuden
 
 console.log(`## term：${STUDENTS.length} 個真實學生 × ${REPS} 次、${SESSIONS} 節 × 每節 ${PER} 場；挑魔物＝${POLICY}、花錢＝${SPEND}、速度下限＝${FLOOR == null ? 4 : FLOOR}、層級＝${TIERRULE}、閃避假設＝${SCEN}`);
 console.log(`（模擬打字速度不成長；每節只打這麼多場；以上都是假設）\n`);
+if (RULES_ON || BUDGET !== null) console.log(`V2 選項：規則＝${RULES_ON ? 'v2（拿掉層級、8 分鐘逃走、V2 攻擊表、屬性 1.05／封頂 1.37、防掛機）' : '舊'}、流派＝${RULES_ON ? FLOWPOL : '—'}、每節＝${BUDGET !== null ? `${BUDGET} 分鐘（每場外加 ${OVER} 分鐘、剩餘 < 預計時長＋${PAD} 秒就不開新的一場、最多 ${MAXPER} 場）` : `${PER} 場`}、場間手感差 σ_b＝${SIGMA_B || 0}\n`);
 const row = (name, f) => console.log(`${name.padEnd(14)}` + GROUPS.map((g, gi) => { const rs = runs.filter(r => groupOf(r.st.wpm) === gi); return String(f(rs)).padEnd(26); }).join(''));
 console.log(''.padEnd(14) + GROUPS.map((g, gi) => `${g[0]}（${new Set(STUDENTS.filter(s => groupOf(s.wpm) === gi)).size}人）`.padEnd(26)).join(''));
 const med = (rs, f) => f0(q(rs.map(f), .5)), iqr = (rs, f) => `${f0(q(rs.map(f), .25))}～${f0(q(rs.map(f), .75))}`;
@@ -237,3 +299,24 @@ row('字元≥300且材料缺', rs => {
   const open = rs.filter(r => ['weapon', 'armor', 'helm', 'boots', 'gloves'].some(sl => r.eq[sl] && r.eq[sl].p < 5));
   const x = open.filter(r => r.nw.coins >= 300).length; return `${pct(x / (open.length || 1))}（未滿 ${open.length} 人中）`;
 });
+
+if (RULES_ON || BUDGET !== null || PROGRESS) {
+  console.log('\n### V2 補充');
+  row('每節場數(平均)', rs => f1(mean(rs.map(r => r.log.hunts / SESSIONS))));
+  if (RULES_ON) {
+    row('逃走%（8 分鐘）', rs => pct(mean(rs.map(r => r.log.esc / r.log.hunts))));
+    row('輸%（倒下 3 次）', rs => pct(mean(rs.map(r => r.log.lost / r.log.hunts))));
+    row('不算%（答不到 3 題）', rs => pct(mean(rs.map(r => r.log.invalid / r.log.hunts))));
+    row('有在打字的時間 a', rs => f1(mean(rs.map(r => r.log.act / r.log.hunts))));
+    row('流派使用 守/藤/無%', rs => { const t = x => mean(rs.map(r => r.log.flowN[x] / r.log.hunts)); return `${pct(t('guard'))}/${pct(t('vine'))}/${pct(t('none'))}`; });
+    row('⚡快手獎勵(個/學期)', rs => f1(mean(rs.map(r => r.log.fast))));
+    row('🔨勤勞獎勵(個/學期)', rs => f1(mean(rs.map(r => r.log.work))));
+  }
+  row('進森林%（草原★5 過）', rs => pct(mean(rs.map(r => (r.zone.grass || 0) >= 5 ? 1 : 0))));
+  row('打贏過森林魔物%', rs => pct(mean(rs.map(r => r.log.forestWins > 0 ? 1 : 0))));
+  row('第一次進森林(節,中位)', rs => { const a = rs.map(r => r.log.firstForest).filter(v => v !== null); return `${pct(a.length / rs.length)} 做到，中位第${f0(q(a, .5))}節`; });
+  console.log('\n### 逐節進度（每組中位；最高過關：草原★n 或 森林★n；戰力；本節場數）');
+  const top = t => t === 0 ? '—' : t <= 5 ? `草${t}` : `森${t - 5}`;
+  console.log(''.padEnd(8) + GROUPS.map(g => g[0].padEnd(24)).join(''));
+  for (const l of [1, 2, 3, 4, 6, 8, 10, 12, 14].filter(l => l <= SESSIONS)) console.log(`第${String(l).padStart(2)}節  ` + GROUPS.map((g, gi) => { const rs = runs.filter(r => groupOf(r.st.wpm) === gi); return `${top(med(rs, r => r.log.prog[l].top))} ・戰力${med(rs, r => r.log.prog[l].pw)} ・${f1(mean(rs.map(r => r.log.prog[l].games)))}場`.padEnd(24); }).join(''));
+}

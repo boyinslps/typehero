@@ -350,7 +350,7 @@ p90 第 10 節全身綠 +5，之後只進不出；**第 2 段接受**，排水�
 
 | 步 | 做什麼 | 驗收 |
 |---|---|---|
-| 1 | **模擬器先升級**：`sim.mjs` 加守護、藤蔓、§3.4 防掛機、屬性 1.05／封頂 1.37、`ATTACK_FROM`、V2 獎勵（a、f）；`bal2b-term.mjs` 加每節時間預算；`curves.mjs` 的 `v2` 改讀 `nw-data.js` 的 `NW_V2`／`FLOWS` | `curves.mjs --preset v2 v2` V2～V7 過；逐場與解析勝率差 ≤5pp、秒數差 ≤10%；`bal2b-term --floor 1` 的 ≤4 字/分組用流派後**進森林 ≥50%**；掛機策略獎勵 ≤40% |
+| 1 ✅ | **模擬器先升級**：`sim.mjs` 加守護、藤蔓、§3.4 防掛機、屬性 1.05／封頂 1.37、`ATTACK_FROM`、V2 獎勵（a、f）；`bal2b-term.mjs` 加每節時間預算；`curves.mjs` 的 `v2` 改讀 `nw-data.js` 的 `NW_V2`／`FLOWS` | `curves.mjs --preset v2 v2` V2～V7 過；逐場與解析勝率差 ≤5pp、秒數差 ≤10%；`bal2b-term --floor 1` 的 ≤4 字/分組用流派後**進森林 ≥50%**；掛機策略獎勵 ≤40% |
 | 2 ✅ | **測試與規則先對齊新值**：①`tools/browser-test/nw12.test.js:132` 的「炎牙刀藍色攻擊力 110」改 120（其他寫死的裝備數字一起找）；②`nw16.test.js` 補「`res: 'escape'` 不算最快、算打字速度」；③`firestore-rules.txt` 白名單加新欄位、`secs ≤ 490`，跑 `tools/rules-test` | 這三處改完，`nw12`～`nw16` 全過；rules-test 全過 |
 | 3 ✅ | **§9 裝備數值**（`nw-data.js` 常數、`resolveStrike` 三行、`gearMul`、`elemMulOf`） | 純函式測試：`slotValue` 對照 §9.1；`gearPowerOf('green',0) > gearPowerOf('gray',5)`；重壓沒擋住只扣一次 ×1.5；5 點攻擊穿灰盔甲 +0 → 4；`ceil(50×0.14 − 1e-9)`＝7；炎牙刀藍 +5 打咕咕鳥 `gearMul`＝1.365 |
 | 4 ✅ | 遙測（第 2 步的欄位寫進 `mg_nw_runs`） | 三種結果都寫對 |
@@ -364,6 +364,7 @@ p90 第 10 節全身綠 +5，之後只進不出；**第 2 段接受**，排水�
 
 **進度**：
 - ✅ 第 2 步（2026-11-24）：`firestore-rules.txt`（`secs ≤ 490`＋六個新欄位）＋ rules-test 142 條全過、`nw16` 補 `escape` 測試、`rank-calc` 的 `secs` 上限 310→490（規格漏了：不改的話 480 秒的逃走場次在老師端會被當壞資料丟掉）、假資料庫對齊。規則改動說明在 `SPEC-STAGE2.md` §10 最後一節，**規則還沒貼上線，要老師點頭**。`nw12:132` 的 110→120 與其他寫死的裝備數字改成跟第 3 步同一個 commit（期望值先改、程式還是舊值，`nw12` 會變紅；每個 commit 都要全綠）。
+- ✅ 第 1 步（2026-11-24，模擬器升級做完，**驗收只過一部分**）：`sim.mjs` 加守護／藤蔓／§3.4／屬性 1.05／封頂 1.37／`ATTACK_FROM`／V2 獎勵（`A.rules`＝`rules-v2.mjs`），`bal2b-term.mjs` 加每節時間預算與 V2 獎勵，`curves.mjs` 的 `v2` 改讀 `NW_V2`／`FLOWS`（遊戲端沒有就用後備值）；舊指令輸出逐字不變。驗收：解析 V2～V7 過；**逐場 vs 解析勝率 ≤5pp、秒數 ≤10% 不過**（逐場慢 12～47%，原因是解析的整題／連擊爬升／題長近似）；**≤4 字/分組進森林 ≥50% 不到**（每節 15 分鐘 22～33%，每節 ≥3 場＋藤蔓 57%）；掛機獎勵最高 42%（綠武器+5 時 40%）。**逐場下 V5（p10 綠全身+5＋守護狼★5 11%、無裝備＋藤蔓跳跳菇★5 45%）與 V6（p50 狼★5 倒下 1.66、輸 12%）不過**。完整數字、規格有出入的逐項、真實資料的一學期進度：`research/BALANCE-V2-SIM.md`。這些要老師看過再決定要不要重定 k 或慢手條件，**規格內文的解析數字沒有改**。
 - ✅ 第 3 步（2026-11-24）：§9.1 常數、`strikeDamage`（盔甲 ceil、重壓 ×1.5，`resolveStrike` 呼叫它）、`ELEM_UP`／`ELEM_DOWN`／`GEAR_CAP`；`nw12`、`nw14`、`t4` 的期望值對齊，新增 `nw18.test.js`（純函式 48 條）與 `nw14` 兩條重壓實戰；`NW_PATCH=v2,gear,slam` 的 `curves.mjs`、`bal2b.mjs` 輸出改前改後完全相同。記錄在 `SPEC-STAGE2.md` §10 最後一節。
 - ✅ 第 4 步（2026-11-24）：V2 旗標 `NW_V2`／`v2On()`（2b 開放＝V2 開放，測試用 `window.__NW_V2__`）、`queueRun` 寫 `frac`／`flow`／`guards`／`vines`／`dodgeReal`／`idle`，另補 `react`（預警→第一次按鍵毫秒，平的數字陣列 ≤40）與 `t0`（開始時間戳）兩個欄位進規則白名單與 rules-test（145 條）；`nw19.test.js`。細節與「第 3 步對第 1 段玩家的影響」在 `SPEC-STAGE2.md` §10 最後一節。
 - ✅ 第 5 步（2026-11-24）：`nwMaxHp`／`nwLaneW`／`nwTier`，血量、預警 3.0、節奏 B 都不看層級（只在 V2 開著時；旗標關舊行為不變）；`nw20.test.js`。
