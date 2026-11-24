@@ -11,8 +11,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 /* ═══ 瀏覽器那一半（教師頁 teacher/tab-rank.js、總覽、舊控制台背景更新）寫在檔案最後的 browserHalf()，純函式測完才開瀏覽器 ═══
    需要靜態伺服器（python3 -m http.server 8765）與 playwright；沒有 playwright 時只印 SKIP。
-   還沒做的（下一塊，學生端 nw-rank.js 重寫完成後才加）：學生端只讀 1 份 mg_nw_board/{年級}、前 10＋自己、榜外不顯示名次、▲／🆕、
-   下降不顯示、hideNick＝「神秘獵人」、讀不到／還沒更新過的文字、手機 390 寬。
+   學生端 nw-rank.js（只讀 1 份 mg_nw_board/{年級}、前 10＋自己、榜外不顯示名次、▲／🆕、神秘獵人、讀不到、手機）的測試在 nw17.test.js。
    假資料庫 mock/fs.js 不會擋巢狀陣列、undefined、單文件 1 MB：頁面寫出去的 mg_nw_board*／mg_nw_board_private* 用 R.checkDoc 再掃一遍。 */
 
 (async () => {

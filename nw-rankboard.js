@@ -32,7 +32,9 @@
    outText     我不在榜上時，只說還差多少，例如「再快 3 秒就上榜」。**不要寫第幾名**
    emptyText   rows 是空的時候說的話
    badges      false＝前 3 名也用數字（預設 true）
-   updatedAt   毫秒；畫「更新時間 12:34」
+   updatedAt   毫秒；畫「更新時間 12:34」。傳 null＝這個榜還沒更新過，不畫時間（mountRankBoard 也不會補現在的時間）
+   updatedWithDate  true＝畫「更新時間 11 月 18 日 12:34」。每週才更新的榜（榮譽碑）只有時分看不出是哪一天
+   footText    榜單列的下面、「我不在榜上」那句的上面，一行小字，例如「還有 37 人也很準！」
    refresh     false＝不畫「重新整理」按鈕（預設 true；沒有 updatedAt 的靜態榜請關掉）
    loadingText、errorText   覆寫載入中與讀取失敗的字
 
@@ -64,7 +66,7 @@ export const fmtScore = (score, unit) => {
   return `${score}${u === '%' || !u ? '' : ' '}${u}`;
 };
 
-const hhmm = ms => { const d = new Date(ms); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+const hhmm = (ms, withDate) => { const d = new Date(ms); return `${withDate ? `${d.getMonth() + 1} 月 ${d.getDate()} 日 ` : ''}${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
 
 const GOLD = '#ffd98a', MUTE = '#aab0d8', GREEN = '#8ec96b';
 
@@ -94,9 +96,10 @@ export function rankBoardHtml(spec) {
     body = rows.length
       ? `<div data-rb-rows style="display:flex;flex-direction:column;gap:6px;margin-top:8px">${rows.map(r => rowHtml(r, spec)).join('')}</div>`
       : `<div class="px-panel in px-text" data-rb-empty style="margin-top:8px;padding:14px;text-align:center;color:${MUTE}">${esc(spec.emptyText || '還沒有人上榜，你可以當第一個！')}</div>`;
+    if (spec.footText) body += `<div class="px-text" data-rb-foot style="margin-top:8px;text-align:center;color:${MUTE};font-size:.9em;overflow-wrap:anywhere">${esc(spec.footText)}</div>`;
     if (spec.outText) body += `<div class="px-panel in px-text" data-rb-out style="margin-top:8px;padding:10px;text-align:center;color:${GOLD};overflow-wrap:anywhere">${esc(spec.outText)}</div>`;
     if (spec.updatedAt || spec.refresh !== false) {
-      body += `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:8px"><span class="px-text" data-rb-time style="color:${MUTE};font-size:.82em">${spec.updatedAt ? `更新時間 ${hhmm(spec.updatedAt)}` : ''}</span>${spec.refresh !== false ? '<button class="px-btn" data-rb-refresh style="padding:5px 12px;font-size:.9em">🔄 重新整理</button>' : ''}</div>`;
+      body += `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:8px"><span class="px-text" data-rb-time style="color:${MUTE};font-size:.82em">${spec.updatedAt ? `更新時間 ${hhmm(spec.updatedAt, spec.updatedWithDate)}` : ''}</span>${spec.refresh !== false ? '<button class="px-btn" data-rb-refresh style="padding:5px 12px;font-size:.9em">🔄 重新整理</button>' : ''}</div>`;
     }
   }
   return `<div data-rankboard="${esc(spec.id || '')}" data-rb-state="${state}" style="max-width:100%;min-width:0;box-sizing:border-box">${head}${mine}${body}</div>`;
@@ -119,7 +122,7 @@ export function mountRankBoard(el, opt) {
       const data = await opt.load(!!force);
       if (!alive()) return;
       const spec = opt.toSpec(data);
-      if (!spec.updatedAt) spec.updatedAt = (data && data.at) || Date.now();
+      if (!spec.updatedAt && spec.updatedAt !== null) spec.updatedAt = (data && data.at) || Date.now();
       el.innerHTML = rankBoardHtml(spec); shown = true;
       if (opt.onData) opt.onData(data);
     } catch (err) {

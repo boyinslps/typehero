@@ -126,25 +126,28 @@ const seed = {
   await p.keyboard.press('Enter'); await p.waitForSelector('#nwbd-board', { timeout: 3000 });
   ok(true, '按 Enter 才進去');
 
+  /* 榮譽碑（2a）已重寫成只讀 mg_nw_board/{年級} 一份；完整測試在 nw17.test.js，這裡只確認從村莊走得進去 */
   await p.evaluate(() => {
-    const mk = (name, hr, dex, fast, accN, accSum) => ({ className: '五年級4班', seat: 1, name, nw: { hr, hrExp: 3, dex, zone: { grass: 5 }, fastest: { 'grass:1': fast }, stat: { accN, accSum }, hunts: 3 } });
-    window.__FS['mg_scores/a'] = mk('小華', 7, { coo: 2, frog: 1 }, 41.5, 12, 1080);
-    window.__FS['mg_scores/b'] = mk('小美', 4, { coo: 1 }, 30.2, 3, 300);
+    window.__FS['mg_nw_board/5'] = { v: 1, g: '5', t: Date.now() - 3600000, week: 1,
+      improve: [{ c: '504', s: 1, n: '小華', v: 31.2, qb: '6:0', r: 1, up: 0 }, { c: '504', s: 2, n: '小美', v: 12, qb: '4:0', r: 2, up: -1 }],
+      fast: { 'coo:1': [{ c: '504', s: 2, n: '小美', v: 30.2, w: 'dagger', pw: 45, r: 1, up: 0 }] }, acc: { list: [{ c: '504', s: 1, n: '小華', at: Date.now() - 86400000 }], more: 0 }, cut: {} };
+    window.__READS = [];
   });
   await p.evaluate(() => { window.__NW_STAGES__ = ['1', '2a']; });
   await p.click('[data-act="hub"]'); await p.waitForTimeout(900);
   ok(!(await p.$eval('.vb[data-bld="rank"]', e => e.textContent.includes('第 2 段'))) , '階段 2 開了以後榮譽碑不再灰');
   await p.click('.vb[data-bld="rank"]'); await p.waitForSelector('#nw-rank', { timeout: 4000 }); await p.waitForTimeout(500);
   const rk1 = await p.textContent('#nw-rank');
-  ok(rk1.indexOf('小華') > -1 && rk1.indexOf('小華') < rk1.indexOf('小美'), '榮譽碑：獵人等級榜依 HR 排序');
-  await p.click('[data-tab="fast"]'); await p.waitForTimeout(200);
+  ok(rk1.indexOf('小華') > -1 && rk1.indexOf('小華') < rk1.indexOf('小美') && rk1.includes('打字變快 31.2%'), '榮譽碑：預設是「進步」榜，依分數排序');
+  await p.click('[data-rk-tab="fast"]'); await p.waitForTimeout(200);
   const rk2 = await p.textContent('#nw-rank');
-  ok(rk2.indexOf('小美') > -1 && rk2.indexOf('小美') < rk2.indexOf('小華') && rk2.includes('30.2 秒'), '最快討伐榜：秒數少的在前');
-  await p.click('[data-tab="acc"]'); await p.waitForTimeout(200);
+  ok(rk2.includes('小美') && rk2.includes('30.2 秒'), '最快討伐榜：看得到秒數');
+  await p.click('[data-rk-tab="acc"]'); await p.waitForTimeout(200);
   const rk3 = await p.textContent('#nw-rank');
-  ok(rk3.includes('小華') && !rk3.includes('小美'), '精準獵人：沒打滿 10 場的不上榜');
+  ok(rk3.includes('小華') && !rk3.includes('小美'), '神準名單：只有達標的人');
+  ok((await p.evaluate(() => window.__READS.filter(r => r.path.startsWith('mg_scores') && r.op === 'list').length)) === 0 && (await p.evaluate(() => window.__READS.filter(r => r.path === 'mg_nw_board/5').length)) === 1, '榮譽碑只讀 1 份榜單、不讀整個 mg_scores');
   await p.click('[data-x]'); await p.waitForTimeout(150);
-  ok(await p.$('#nw-rank') === null, '排行榜關得掉');
+  ok(await p.$('#nw-rank') === null, '榮譽碑關得掉');
 
   ok(errs.length === 0, '沒有 JS 錯誤 ' + errs.join(' | '));
   await b.close(); process.exit(fails ? 1 : 0);

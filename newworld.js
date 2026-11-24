@@ -837,6 +837,7 @@ export function initNewWorld(C) {
       { icon: '✨', title: '會發亮的圖紙', text: '材料夠了，圖紙就會發亮 ✨。帽子、衣服、手套、鞋子，對「會攻擊你的魔物」才有用喔。打造一定會成功，強化也一定會成功，不會壞掉。' },
       { icon: '📜', title: '先做一件試試看', text: '鐵匠送你一套布裝圖紙：布帽、布衣、布手套、布鞋。用灰色的材料就能做，先做一件試試看！' }
     ],
+    rank: [{ icon: '🏆', title: '榮譽碑', text: '這裡是榮譽碑。🌱 進步：跟以前的自己比；⚡ 最快討伐：配裝也算；🎯 神準：夠準就上名單。正確率要 90% 以上才會算喔！' }],
     storage: [{ icon: '📦', title: '倉庫', text: '你的材料和圖紙都放在這裡，一目了然。點一下材料，會告訴你哪裡掉、可以做什麼。做好的裝備放在「裝備背包」。' }],
     gift: [{ icon: '🎁', title: '序號禮物', text: '老師會發序號給你。在這裡輸入（輸入的字會藏起來），就能領禮物，領到會跳出通知。每組序號每個人只能領一次。' }]
   };
@@ -1963,7 +1964,7 @@ export function initNewWorld(C) {
     sheet.querySelectorAll('[data-n]').forEach(el => { const to = +el.dataset.n, t0 = performance.now(); const tick = now => { const k = Math.min(1, (now - t0) / 800); el.textContent = Math.round(to * k); if (k < 1 && el.isConnected) requestAnimationFrame(tick); }; requestAnimationFrame(tick); });
   }
 
-  function openRank() { openNwRank(C, ME.docId, escHtml); }
+  function openRank() { openNwRank(C, ME, { fastMk: () => NW.fastMk }); }
 
   function env() {
     return {
