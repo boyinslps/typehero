@@ -5,7 +5,7 @@
 > 老師是黃博胤（國小資訊老師）。遊戲「打字勇者」給四～六年級，「新世界」是裡面的 RPG 模式。
 
 ## 1. 一句話現況
-新世界第 1 段（討伐看板、背包、稱號）已對學生開放。**第 2 段的 2b（鐵匠鋪＋倉庫）程式與測試都做完、已在 `main`，但沒開放**（`nw-data.js` 的 `OPEN_STAGES` 預設仍是 `['1']`）。2a（榮譽碑）還沒做。開放與貼 Firestore 規則都要老師點頭，**你不能自己開放**。
+新世界第 1 段（討伐看板、背包、稱號）已對學生開放。**第 2 段的 2b（鐵匠鋪＋倉庫）已開放（v3.15.0，2026-11-24，`nw-data.js` 的 `OPEN_STAGES = ['1', '2b']`）。** 2a（榮譽碑）還沒做、也沒開放。開放某一段與貼 Firestore 規則都要老師點頭，**你不能自己開放**。
 
 ## 2. 開工前依序讀
 1. `CLAUDE.md`（發版清單、文字與美術規範，必守）
@@ -29,8 +29,8 @@
 | 項目 | 狀態 | 在哪 |
 |---|---|---|
 | 第 1 段（看板、背包、稱號） | ✅ 已開放 | — |
-| 2b 鐵匠鋪＋倉庫 | ✅ 做完、測試過、**沒開放** | `nw-data.js`（資料）、`nw-forge.js`（畫面）、`nw-battle.js`、`pixel.js`、`newworld.js`、`teacher/*` |
-| 每場紀錄 `mg_nw_runs`、可疑偵測 | ✅ 做完，`stageOpen('2b')` 才會寫 | `newworld.js` 的 `queueRun`／`flushRuns`、`nw-data.js` 的 `susCheck` |
+| 2b 鐵匠鋪＋倉庫 | ✅ 做完、測試過、**已開放（v3.15.0）** | `nw-data.js`（資料）、`nw-forge.js`（畫面）、`nw-battle.js`、`pixel.js`、`newworld.js`、`teacher/*` |
+| 每場紀錄 `mg_nw_runs`、可疑偵測 | ✅ 做完，2b 開放後學生每場都會寫（2a 開放前沒人讀） | `newworld.js` 的 `queueRun`／`flushRuns`、`nw-data.js` 的 `susCheck` |
 | Firestore 新規則（`mg_nw_runs`、`mg_nw_flags` 加 `run`、`mg_nw_board`） | ⚠ 寫好在 `firestore-rules.txt`，**老師還沒貼**；規則測試案例**沒有實際跑過**（開發那台沒有 Java） | `firestore-rules.txt`、`tools/rules-test/` |
 | 2a 榮譽碑（老師端彙總、教師頁審核、學生端重寫） | ⬜ **沒做**，要等 2b 開放 4 週以上才有資料 | 規格 §2、§5 的 2a-1／2a-2 |
 | 2c 劍盾、拳套 | ⬜ 延後 | 規格 §8 第 6 題 |

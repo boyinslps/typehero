@@ -71,9 +71,9 @@
 - `nw4.test.js` 偶爾（約 1/3 次，同時跑多個瀏覽器時）逾時或「補算 100 字元」失敗，單獨重跑會過，判斷是時序問題；若要根治，去看補算 toast 與 `showGift` 的等待。
 - git 在這台電腦要加 `-c user.email=noreply@anthropic.com` 才能 commit。
 
-## 第 2 段 2b 鐵匠鋪＋倉庫：怎麼接（2026-11-23，程式做好、沒開放）
+## 第 2 段 2b 鐵匠鋪＋倉庫：怎麼接（2026-11-23 做好，2026-11-24 v3.15.0 開放）
 
-> 規格 [`SPEC-STAGE2.md`](SPEC-STAGE2.md)（§3 裝備、§5 實作順序）。**`OPEN_STAGES` 預設仍是 `['1']`，學生看不到。** 老師要做的事見 [`RELEASE-STAGES.md`](RELEASE-STAGES.md)「第 2 段 2b」：先貼 Firestore 規則、決定哪天把 `'2b'` 加進 `OPEN_STAGES`。2a 榮譽碑（`teacher/rank-calc.js`、`tab-rank.js`、`nw-rank.js` 重寫、F3）是**下一輪**，要等 2b 開放 4 週以上。
+> 規格 [`SPEC-STAGE2.md`](SPEC-STAGE2.md)（§3 裝備、§5 實作順序）。**v3.15.0 起 `OPEN_STAGES = ['1', '2b']`，學生看得到。** 開放前老師要做的事（貼規則等）見 [`RELEASE-STAGES.md`](RELEASE-STAGES.md)「第 2 段 2b」：先貼 Firestore 規則、決定哪天把 `'2b'` 加進 `OPEN_STAGES`。2a 榮譽碑（`teacher/rank-calc.js`、`tab-rank.js`、`nw-rank.js` 重寫、F3）是**下一輪**，要等 2b 開放 4 週以上。
 
 | 要改什麼 | 在哪 |
 |---|---|

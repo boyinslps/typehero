@@ -5,9 +5,9 @@
 
 ---
 
-## 未發版 — 2026-11-23 — 第 2 段 2b：鐵匠鋪＋倉庫（藏在 `OPEN_STAGES` 後面，學生看不到）
+## v3.15.0 — 2026-11-24 — 第 2 段 2b：鐵匠鋪＋倉庫（開放）
 
-> 老師決定先開 2b、2a 至少 4 週後再開。`OPEN_STAGES` 預設仍是 `['1']`，**這一批不發版、不寫對外公告**（草稿在 `docs/SPEC-STAGE2.md` §4），等老師決定開放時一起發。規格 `docs/SPEC-STAGE2.md` §3、§5。
+> 老師決定先開 2b、2a 至少 4 週後再開。`OPEN_STAGES` 改成 `['1', '2b']`，`NOTICES`、`VERSION_LOG` 已寫（pcclass `TYPEHERO_UPDATES` 要另外改）。規格 `docs/SPEC-STAGE2.md` §3、§5。
 
 - **2b-1 模擬器升級**：`tools/nw-sim/sim.mjs` 換成三線戰鬥（新檔 `lanes.mjs`：單線／夾擊／橫掃／假動作／重壓、反應時間、換線與舉盾）、防具效果、屬性、真實詞庫題長；新檔 `personas.mjs`（規格 6 個樣本＋真實匯出的 P25／P50／P90）、`gear.mjs`（G1～G8，`--n 1000 --md`）、`calib.mjs`（用真實閃避／防禦成功率校正）。結果 `docs/BALANCE-GEAR-2B.md`。`LANE_W` 搬到 `nw-data.js`；`FASTEST_FLOOR` 依穿最強裝備重算成 `{coo:9, frog:12, shroom:12, wolf:14}`。**沒有動魔物血量、武器數字、攻擊設定**（老師說平衡先不調）。
 - **2b-2 資料（`nw-data.js`，純函式）**：`GEAR_DEFS`（13 種配方）、`EXTRA_WEAPONS`（炎牙刀）、`gearStats`／`gearLook`／`gearMul`／`attackingMons`、打造（`craftCheck`／`doCraft`，任意材料先扣最多的、孩子可換）、強化（`upCheck`／`doUpgrade`，字元 20/35/55/80/110 × 顏色倍率、材料 1/1/2/2/3、同色以上）、`rollBlueprints`（圖紙 30%＋每隻魔物保底 5 場）、新圖紙 7 張（布裝 4 張鐵匠送；羽毛護手、蛙皮背心、炎狼皮甲怪物掉）。存檔 `gearV`／`gear`／`eq`／`forge`／`bpDry`；舊存檔 `normalizeNw` 只搬一次，`equip`／`gw` 照寫（舊分頁、教師頁舊程式不會壞）。

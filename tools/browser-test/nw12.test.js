@@ -27,7 +27,7 @@ async function open(browser, o = {}) {
     window.__NW_CODE_HASH__ = a.hash; localStorage.setItem('mg_nw_code', a.hash); window.__NW_NOGIFT__ = true; window.__NW_NOINTRO__ = !a.intro;
     if (a.stages) window.__NW_STAGES__ = a.stages;
     window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas');
-  }, { s: seed, hash, stages: o.stages === undefined ? ['1', '2b'] : o.stages, intro: !!o.intro });
+  }, { s: seed, hash, stages: o.stages === undefined ? ['1', '2b'] : (o.stages || ['1']), intro: !!o.intro });
   await p.route('**/*', r => {
     const u = r.request().url();
     if (u.startsWith('http://localhost')) return r.continue();
@@ -54,7 +54,7 @@ const heroSig = (p, sel) => p.evaluate(s => { const c = document.querySelector(s
   const D = await import('../../nw-data.js');
 
   /* ───── 純函式：配方、扣料、強化成本、戰力、上限 ───── */
-  ok(JSON.stringify(D.OPEN_STAGES) === JSON.stringify(['1']), 'OPEN_STAGES 預設只有 [\'1\']（2b 還沒開放）');
+  ok(JSON.stringify(D.OPEN_STAGES) === JSON.stringify(['1', '2b']), 'OPEN_STAGES 是 [\'1\', \'2b\']（2b 開放；2a 榮譽碑還沒開）');
   const t = D.normalizeNw({ starter: 'staff', coins: 1000, mats: { coo_feather: 5, shroom_cap: 2, frog_slime: 9, coo_down: 3 }, bp: [...D.CLOTH_BPS] });
   const ck = D.craftCheck(t, 'cloth_vest', 'gray');   // 任意灰 ×4 ＋ 30 字元
   ok(ck.ok && JSON.stringify(ck.use) === JSON.stringify({ frog_slime: 4 }), `任意材料先扣數量最多的（泡泡黏液 9 > 咕咕羽毛 5）：${JSON.stringify(ck.use)}`);

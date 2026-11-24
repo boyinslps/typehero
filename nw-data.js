@@ -791,7 +791,7 @@ export const starOpen = (nw, rk, star) => star <= 1 || (nw.zone[rk] || 0) >= sta
 
 /* 段號是字串，開了哪幾段用清單表示，可以跳著開（2b 鐵匠鋪先開，2a 榮譽碑 4 週後再開；SPEC-STAGE2 §1）。
    收回：從清單拿掉、重新發版，學生資料不刪。測試在 localhost 用 window.__NW_STAGES__ 覆寫 */
-export const OPEN_STAGES = ['1'];
+export const OPEN_STAGES = ['1', '2b'];
 export const openStages = () => (typeof location !== 'undefined' && location.hostname === 'localhost' && window.__NW_STAGES__) || OPEN_STAGES;
 export const stageOpen = s => openStages().includes(String(s));
 export const buildingOpen = b => !!b.act && (!b.wip || stageOpen(b.wip));
@@ -921,7 +921,13 @@ export const EVENT_TEMPLATES = [
 /* 改版公告（新的放最前面；寫法照 docs/ANNOUNCEMENT-GUIDE.md）。
    放在這裡而不放 newworld.js：教師頁「公告」分頁要唯讀列出最近 3 則，newworld.js 是學生端程式、不能被教師頁 import。 */
 export const NOTICES = [
-  { id: '2026-11-23-2', date: '11 月 23 日', title: '回報字元照大小給', items: [
+  { id: '2026-11-24', date: '11 月 24 日', title: '鐵匠鋪開張了！', items: [
+    '⚒ 市集的鐵匠鋪開了。用打到的材料，做武器和裝備。',
+    '🎁 第一次進去，鐵匠會送你一套布裝圖紙。',
+    '✨ 圖紙會發亮，就是材料夠了，可以做。',
+    '👒 帽子、衣服、手套、鞋子，穿上去角色也會變。它們對會攻擊你的魔物才有用。',
+    '💪 強化一定會成功，不會壞掉。'
+  ] },  { id: '2026-11-23-2', date: '11 月 23 日', title: '回報字元照大小給', items: [
     '🪙 回報被老師確認，字元照問題大小給：小問題 15、中問題 30、大問題 45。前 5 個有字元。',
     '✉ 老師回信時，會寫出你回報的內容，你就知道老師在說哪一個。',
     '📓 「測試員手冊」的「我的回報」，看得到你自己寫了什麼。'

@@ -22,7 +22,7 @@ async function open(browser, o = {}) {
     window.__NW_CODE_HASH__ = a.hash; localStorage.setItem('mg_nw_code', a.hash); window.__NW_NOGIFT__ = true; window.__NW_NOINTRO__ = true;
     window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas');
     if (a.stages) window.__NW_STAGES__ = a.stages;
-  }, { s: seed, hash, stages: o.stages === undefined ? ['1', '2b'] : o.stages });
+  }, { s: seed, hash, stages: o.stages === undefined ? ['1', '2b'] : (o.stages || ['1']) });
   await p.route('**/*', r => {
     const u = r.request().url();
     if (u.startsWith('http://localhost')) return r.continue();

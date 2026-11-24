@@ -8,7 +8,7 @@
 
 **先讀（照順序，讀完再動手）**：`docs/HANDOFF-CLOUD.md`（入口，現況、規則、可以做的事、環境與測試、踩過的坑）→ `CLAUDE.md` → `docs/HANDOFF.md` 最上面「第 2 段 2b」那節 → `docs/SPEC-STAGE2.md`（以 §10 為準）→ `docs/RELEASE-STAGES.md`。用到再讀：`docs/UI-ART-SPEC.md`、`docs/ANNOUNCEMENT-GUIDE.md`、`docs/BALANCE-GEAR-2B.md`、`tools/browser-test/README.md`、`tools/nw-sim/README.md`。
 
-**現況**：第 1 段已對學生開放。第 2 段的 2b（鐵匠鋪＋倉庫、五格裝備、每場紀錄）程式與測試都在 `main`，但**沒開放**（`nw-data.js` 的 `OPEN_STAGES` 是 `['1']`）。2a 榮譽碑還沒做。
+**現況**：第 1 段已對學生開放。第 2 段的 2b（鐵匠鋪＋倉庫、五格裝備、每場紀錄）已開放（`nw-data.js` 的 `OPEN_STAGES` 是 `['1', '2b']`）。2a 榮譽碑還沒做、沒開放。
 
 **絕對不能做**：
 1. 不要改 `OPEN_STAGES`、不要自己決定開放某一段、不要發對外公告（`NOTICES`、`VERSION_LOG`、pcclass）。
