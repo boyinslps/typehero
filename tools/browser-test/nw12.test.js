@@ -76,9 +76,9 @@ const heroSig = (p, sel) => p.evaluate(s => { const c = document.querySelector(s
   const mkIt = (k, c, p) => { const it = { id: 'x' + k + c, k, c, p, t: 1 }; full.gear.push(it); D.doEquip(full, it.id); return it; };
   mkIt('flame_dagger', 'blue', 5); mkIt('coo_hat', 'green', 5); mkIt('wolf_mail', 'blue', 5); mkIt('coo_gloves', 'green', 5); mkIt('frog_boots', 'green', 5);
   const gm = D.gearStats(full);
-  ok(gm.atk === 120 && gm.hp === 30 && gm.cut === 0.15 && gm.shield === 0.5 && Math.abs(gm.warn - 0.35) < 1e-9 && gm.elem === 'fire', `滿裝備：攻擊力 120、生命 +30、減傷 15%、舉盾 +0.5、預警 +0.35（${JSON.stringify(gm)}）`);
-  ok(D.gearMul(gm, 'coo') <= 1.32 + 1e-9 && Math.abs(D.gearMul(gm, 'coo') - 1.32) < 1e-9 && D.gearMul(gm, 'frog') < 1.1 && D.gearMul(gm, 'wolf') === 1.2, `武器＋屬性上限 ×1.32：打怕火的咕咕鳥 ${D.gearMul(gm, 'coo').toFixed(2)}、泡泡蛙 ${D.gearMul(gm, 'frog').toFixed(2)}、炎牙狼 ${D.gearMul(gm, 'wolf').toFixed(2)}`);
-  ok(gm.pw === (30 + 10) + (20 + 10) + (30 + 10) + (20 + 10) + (20 + 10), `戰力是五格加總（每件 灰 10／綠 20／藍 30，每 +1 再 +2）：${gm.pw}`);
+  ok(gm.atk === 130 && gm.hp === 40 && Math.abs(gm.cut - 0.20) < 1e-9 && Math.abs(gm.shield - 0.6) < 1e-9 && Math.abs(gm.warn - 0.35) < 1e-9 && gm.elem === 'fire', `滿裝備（SPEC-BALANCE-V2 §9：藍武器 +5 130、綠頭盔 +5 +40、藍盔甲 +5 減 20%、綠護手 +5 舉盾 +0.6、綠護腳 +5 預警 +0.35）（${JSON.stringify(gm)}）`);
+  ok(D.gearMul(gm, 'coo') <= 1.37 && Math.abs(D.gearMul(gm, 'coo') - 1.365) < 1e-9 && Math.abs(D.gearMul(gm, 'frog') - 1.235) < 1e-9 && D.gearMul(gm, 'wolf') === 1.3, `武器＋屬性：打怕火的咕咕鳥 ${D.gearMul(gm, 'coo').toFixed(3)}（130 × 1.05，沒碰到上限 1.37）、泡泡蛙 ${D.gearMul(gm, 'frog').toFixed(3)}（× 0.95）、炎牙狼 ${D.gearMul(gm, 'wolf').toFixed(3)}（沒屬性）`);
+  ok(gm.pw === (34 + 10) + (22 + 10) + (34 + 10) + (22 + 10) + (22 + 10), `戰力是五格加總（每件 灰 10／綠 22／藍 34，每 +1 再 +2）：${gm.pw}`);
   const hint = D.forgeHint(D.normalizeNw({ starter: 'staff', coins: 500, mats: { coo_down: 1, coo_feather: 3 }, bp: ['bp_coo_hat'] }));
   ok(hint && hint.can === 0 && /再 \d+ 個.*就能做/.test(hint.text), `結算提示：「${hint && hint.text}」`);
   const dry = D.normalizeNw({ starter: 'dagger' }); let guard = 0;
@@ -129,7 +129,7 @@ const heroSig = (p, sel) => p.evaluate(s => { const c = document.querySelector(s
   const txt = await p.textContent('#nw-forge [data-right]');
   ok(btn.dis && btn.t.includes('還差 50 字元') && txt.includes('狼毛') && /0\.?\d*\/|\/250/.test(txt) && !!(await p.$('#nw-forge [data-right] .px-bar')), `炎牙刀字元不夠：按鈕灰、寫「${btn.t}」、有進度條`);
   const ftxt = await p.textContent('#nw-forge [data-right]');
-  ok(ftxt.includes('對會攻擊') === false && ftxt.includes('打對的字') && ftxt.includes('攻擊力 110') && ftxt.includes('藍'), '武器說明寫「打對的字傷害變多」、炎牙刀藍色攻擊力 110');
+  ok(ftxt.includes('對會攻擊') === false && ftxt.includes('打對的字') && ftxt.includes('攻擊力 120') && ftxt.includes('藍'), '武器說明寫「打對的字傷害變多」、炎牙刀藍色攻擊力 120（SPEC-BALANCE-V2 §9：藍 +0 ＝ 綠 +5）');
   await p.click('#nw-forge [data-craft="cloth_hat:gray"]'); await p.waitForTimeout(200);
   const hatTxt = await p.textContent('#nw-forge [data-right]');
   ok(hatTxt.includes('生命 +10') && hatTxt.includes('對會攻擊你的魔物才有用') && hatTxt.includes('咕咕鳥、泡泡蛙') && hatTxt.includes('會用掉'), `布帽：生命 +10、說明「對會攻擊的魔物才有用，現在是咕咕鳥、泡泡蛙」、列出會用掉的材料`);
@@ -273,7 +273,7 @@ const heroSig = (p, sel) => p.evaluate(s => { const c = document.querySelector(s
     ok(got && got.c === 'green' && got.p === 2 && nn.gear.length === 2, '領裝備信：背包多一件綠色咕咕帽 +2');
     await q.click('#nw-mail [data-claim="w1"]'); await q.waitForSelector('#nw-gift'); await dismissGifts(q);
     nn = await nwOf(q);
-    ok(nn.gear.some(g => g.k === 'flame_dagger' && g.c === 'blue' && g.p === 1) && D.gearStats({ ...nn, eq: { ...nn.eq, weapon: nn.gear.find(g => g.k === 'flame_dagger').id } }).atk === 112, '炎牙刀（藍 +1）：攻擊力 112');
+    ok(nn.gear.some(g => g.k === 'flame_dagger' && g.c === 'blue' && g.p === 1) && D.gearStats({ ...nn, eq: { ...nn.eq, weapon: nn.gear.find(g => g.k === 'flame_dagger').id } }).atk === 122, '炎牙刀（藍 +1）：攻擊力 122（藍 +0 是 120，SPEC-BALANCE-V2 §9）');
     await q.click('#nw-mail [data-claim="b1"]'); await q.waitForSelector('#nw-gift'); await dismissGifts(q);
     nn = await nwOf(q);
     ok(nn.coins === c0 + D.BP_DUP_COINS && nn.bp.filter(x => x === 'bp_coo_hat').length === 1, `已經會的圖紙：換成 ${D.BP_DUP_COINS} 字元，不重複放`);

@@ -67,14 +67,14 @@ async function hitDmg(p) {
 (async () => {
   const D = await import('../../nw-data.js');
   const b = await chromium.launch();
-  const MAX = { ...G0, atk: 120, elem: 'fire' };
+  const MAX = { ...G0, atk: 130, elem: 'fire' };   // 藍炎牙刀 +5＝130（SPEC-BALANCE-V2 §9）
 
   /* ── 攻擊力與屬性：只放大打對的字；打錯是 0 ── */
   {
     const [p0, p1, p2] = await Promise.all([open(b, { gear: G0 }), open(b, { gear: MAX }), open(b, { gear: MAX })]);
     await Promise.all([goHunt(p0, 'grass', 'coo', 1), goHunt(p1, 'grass', 'coo', 1), goHunt(p2, 'grass', 'frog', 1)]);
     const d0 = await hitDmg(p0), d1 = await hitDmg(p1), d2 = await hitDmg(p2);
-    ok(d0 === 18 && d1 === Math.round(18 * 1.32) && d2 === Math.round(18 * 1.08), `傷害：沒裝備 ${d0}、炎牙刀 +5（120）打怕火的咕咕鳥 ${d1}（×1.32）、打不怕火的泡泡蛙 ${d2}（×1.08＝1.2×0.9）`);
+    ok(d0 === 18 && d1 === Math.round(18 * 1.365) && d2 === Math.round(18 * 1.235), `傷害：沒裝備 ${d0}、炎牙刀 +5（130）打怕火的咕咕鳥 ${d1}（×1.365）、打不怕火的泡泡蛙 ${d2}（×1.235＝1.3×0.95）`);
     await Promise.all([p0.close(), p1.close(), p2.close()]);
   }
 
@@ -87,7 +87,7 @@ async function hitDmg(p) {
     const dt = await hitDmg(pt), df = await hitDmg(pf);
     const base = Math.round(9 * 2 * 0.95 * 1.02);   // 雙刀 ×0.95、第 1 連擊 ×1.02
     ok(dt === Math.round(base * 1.12), `測試者之刃：攻擊力 112，傷害 ${dt}（雙刀基本 ${base} × 1.12，沒有重複乘）`);
-    ok(df === Math.round(base * 1.32), `存檔裡的炎牙刀（藍 +5＝120，火）打咕咕鳥：傷害 ${df}（${base} × 1.32）`);
+    ok(df === Math.round(base * 1.365), `存檔裡的炎牙刀（藍 +5＝130，火）打咕咕鳥：傷害 ${df}（${base} × 1.365）`);
     await Promise.all([pt.close(), pf.close()]);
   }
 
@@ -119,6 +119,26 @@ async function hitDmg(p) {
     const [a, c] = await Promise.all([run(G0), run({ ...G0, cut: 0.5 })]);
     ok(a.wrong === 10 && c.wrong === 10, `亂打被反擊：沒裝備 −${a.wrong}、盔甲 50% 也是 −${c.wrong}（盔甲不減反擊）`);
     ok(a.hit === 12 && c.hit === 6, `咕咕鳥★5 衝刺啄：沒裝備 −${a.hit}、盔甲減傷 50% −${c.hit}`);
+  }
+
+  /* ── 重壓沒擋住：只扣一次、×1.5（SPEC-BALANCE-V2 §9；以前三條線各扣一次＝×3）；盔甲照樣減 ── */
+  {
+    const run = async gear => {
+      const p = await open(b, { gear, pattern: 'slam', attacks: ['slam'] });
+      await goHunt(p, 'grass', 'frog', 5);
+      const full = await hp(p);
+      await waitDanger(p);   // 整排藍色，什麼都不做＝沒擋住
+      await waitEnd(p); await p.waitForTimeout(250);
+      const lost = full - await hp(p);
+      const errs = p.errs.slice();
+      await p.close();
+      return { lost, errs };
+    };
+    const [a, c] = await Promise.all([run(G0), run({ ...G0, cut: 0.10 })]);
+    const base = D.monDmg(D.regionLv('grass', 5), D.MONSTERS.frog.attacks.find(x => x.type === 'defend').mul);
+    ok(a.lost === Math.round(base * 1.5) && a.lost !== Math.round(base * 1.5) * 3 && a.lost !== base, `重壓沒擋住：泡泡蛙★5 泡泡雨（${base} 點）只扣一次 ×1.5＝−${a.lost}（以前會是 −${Math.round(base * 1.5) * 3}）`);
+    ok(c.lost === D.strikeDamage(base, 1, true, 0.10) && c.lost < a.lost, `重壓＋盔甲 10%：−${c.lost}（先 ×1.5 再無條件進位地減）`);
+    ok(a.errs.length === 0 && c.errs.length === 0, '重壓沒有 JS 錯誤 ' + a.errs.concat(c.errs).join(' | '));
   }
 
   /* ── 護手：舉盾多幾秒 ── */

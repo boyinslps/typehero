@@ -163,7 +163,7 @@ const seed = () => Object.fromEntries([
     ok(await p.$('[data-econ]') !== null && (await T(p, '[data-econ]')).includes('戰力') && (await T(p, '[data-econ]')).includes('503'), '總覽：各班平均持有字元與戰力（通膨的早期訊號）');
     await tab(p, 'students');
     ok((await p.$$eval('#main th', ths => ths.map(t => t.textContent))).some(t => t.includes('戰力')), '學生表格有「戰力」欄');
-    ok((await T(p, `tr[data-id="${ID5}"] [data-power]`)) === '76', '小明的戰力 76（小刀 10＋綠咕咕帽 +3 26＋藍炎狼皮甲 +5 40）');
+    ok((await T(p, `tr[data-id="${ID5}"] [data-power]`)) === '82', '小明的戰力 82（小刀 10＋綠咕咕帽 +3 28＋藍炎狼皮甲 +5 44）');
     await p.click('th[data-sort="power"]'); await p.waitForTimeout(150);
     const first = await p.$eval('#main tbody tr', e => e.dataset.id);
     await p.click('th[data-sort="power"]'); await p.waitForTimeout(150);
@@ -171,7 +171,7 @@ const seed = () => Object.fromEntries([
     await openPc(p, ID5);
     const slots = await p.$$eval('[data-pc-card] .bp-slot', els => els.map(e => ({ s: e.dataset.slot, on: e.classList.contains('on'), canvas: !!e.querySelector('canvas'), up: (e.querySelector('.bp-up') || {}).textContent || '' })));
     ok(slots.find(s => s.s === 'helm').on && slots.find(s => s.s === 'helm').canvas && slots.find(s => s.s === 'helm').up === '+3' && slots.find(s => s.s === 'armor').up === '+5' && slots.find(s => s.s === 'weapon').canvas && !slots.find(s => s.s === 'gloves').on, '人物卡：頭盔、盔甲、武器有圖示與 +N，護手、護腳是空格');
-    ok((await T(p, '[data-pc-power]')).includes('戰力 76') && (await T(p, '[data-pc-power]')).includes('做過 4 件') && (await T(p, '[data-pc-power]')).includes('最高 +5'), '人物卡：戰力 76｜做過 4 件｜最高 +5');
+    ok((await T(p, '[data-pc-power]')).includes('戰力 82') && (await T(p, '[data-pc-power]')).includes('做過 4 件') && (await T(p, '[data-pc-power]')).includes('最高 +5'), '人物卡：戰力 82｜做過 4 件｜最高 +5');
     ok((await T(p, '[data-pc-own="gears"]')).includes('咕咕帽 +3') && (await T(p, '[data-pc-own="gears"]')).includes('炎狼皮甲 +5'), '「他有什麼」多一行裝備');
     await p.keyboard.press('Escape');
     noErr(p); await p.close();

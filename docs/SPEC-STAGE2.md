@@ -849,3 +849,40 @@ nw: {
 - 同步改的：`teacher/rank-calc.js` 的 `secs > 310` 也改成 `> 490`（不然 480 秒的逃走場次會在老師端被當壞資料丟掉，打字速度算不到）；假資料庫 `tools/browser-test/mock/fs.js` 照規則改。
 - `res: 'escape'`：`rank-calc` 只認 `res === 'win'` 為贏，所以逃走自動不算最快、算打字速度，程式不用改，`nw16.test.js` 補了 5 條證明（收得進來且 `win` 為 false、算進步、答不到 3 題略過、不上最快榜、旁邊打贏的人照常上榜）。
 - 新增的規則測試（`tools/rules-test/rules.test.mjs`）：`secs` 480／490 過、491／負數擋；帶全部新欄位過、不帶過；`frac`、`flow`、`guards`、`vines`、`dodgeReal`、`idle` 超界、型別錯各擋一條。
+
+### SPEC-BALANCE-V2 第 3 步：裝備數值改成 §9（2026-11-24）
+
+裝備數值已改成 [`SPEC-BALANCE-V2.md`](SPEC-BALANCE-V2.md) §9（本文 §3.2 的舊數字作廢）。`OPEN_STAGES` 沒動、2b 沒開放、沒發公告、沒改 `APP_VERSION`／`CHANGELOG.md`（整個 V2 同一版上線）。`BALANCE-GEAR-2B.md` 沒手改，重產留給第 10 步。
+
+| 項目 | 舊 → 新 |
+|---|---|
+| 武器（灰／綠／藍，每 +1） | 100／105／110 → **100／110／120**（每 +1 仍加 2） |
+| 頭盔 | 10／20／30，每 +1 加 2 → **10／25／40，每 +1 加 3** |
+| 盔甲 | 4／7／10% → **5／10／15%**（每 +1 仍加 1%） |
+| 護手 | 0.2／0.3／0.4 秒 → **0.2／0.4／0.6 秒**（每 +1 仍加 0.04） |
+| 護腳 | 不變（0.10／0.20／0.30） |
+| 戰力（每件，灰／綠／藍） | 10／20／30 → **10／22／34**（每 +1 仍加 2） |
+| 屬性 | ×1.1／×0.9 → **×1.05／×0.95**（`ELEM_UP`／`ELEM_DOWN`） |
+| 武器×屬性封頂 | 不封頂 → **1.37**（`GEAR_CAP`；藍 +5 打怕火＝1.365，碰不到） |
+| 盔甲取整 | 四捨五入 → **減的那一部分無條件進位**（`ceil(dmg×cut − 1e-9)`，每下至少少 1 點、最低剩 1） |
+| 重壓沒擋住 | 三條線各扣一次（×3）→ **只扣一次、×1.5**（三條線照樣閃光） |
+| 不動 | 強化費用、材料掉落、`FASTEST_FLOOR`、測試者之刃（固定 112） |
+
+**跟規格 §9.1 的差別**：把「傷害怎麼算」抽成純函式 `strikeDamage(base, mul, slam, cut)`（`nw-data.js`），`nw-battle.js` 的 `resolveStrike` 呼叫它；規格寫的是直接改 `resolveStrike` 裡三行，數學一樣，抽出來是為了能不開瀏覽器直接測。重壓只扣一次用 `c.slamHit`（同規格）。
+
+**沒有存檔需要補償**（§9.4，`nw18.test.js` 第 5 節，純函式）：
+- `OPEN_STAGES = ['1']`、`stageOpen('2b')` 為假：鐵匠鋪（`nw-forge.js` 兩處）與 `mg_nw_runs`（`newworld.js`）都擋住，沒有人做得出或強化裝備，也沒有人寫過新欄位。
+- 存檔只存 `{ id, k, c, p, t }`，數字隨表即時算，沒有舊數字要搬；`gearV` 仍是 1。
+- 15 種舊存檔（4 把初心武器 × 有沒有測試者之刃 × 穿不穿，加沒選武器、亂寫、空的）搬完：`forge` 全 0、裝備只有「灰 +0 初心武器」與「綠 +0 測試者之刃」；攻擊力跟舊表完全一樣（100、112）；戰力只有測試者之刃 20 → 22（變高）；存了再讀完全一樣，`equip`／`gw`／`starter` 舊欄位（`syncLegacy`）照寫。
+- 五格×三色×+0～+5 的新表每一格都不比舊表低（59 格變強、護腳全部一樣）：就算有人（例如老師信箱送過裝備）有 2b 裝備，也只會變強。
+- 上線前要對真資料確認一次（§9.4 ①②③）：`node tools/browser-test/nw18.test.js --scores <成績匯出 json>`（匯出檔放 repo 外面；只印人數）。`mg_nw_runs` 是否為空要老師在主控台看。
+
+**跟模擬器對照**（`NW_PATCH=v2,gear,slam` 會把同一組數字套進行程；改完常數後套不套結果要一樣）：
+```
+NW_PATCH=v2,gear,slam node tools/nw-sim/curves.mjs --preset v2 v2          # 改之前與改之後的輸出 diff：完全相同（197 行）
+NW_PATCH=v2,gear,slam node --import ./tools/nw-sim/curves.mjs tools/nw-sim/bal2b.mjs slam --n 200   # 舊版 nw-data.js（git archive HEAD）vs 新版：完全相同
+NW_PATCH=v2,slam      node --import ./tools/nw-sim/curves.mjs tools/nw-sim/bal2b.mjs slam --n 200   # 不套 gear（直接讀新的 nw-data.js）：跟上一行完全相同
+```
+另外 `nw18.test.js` 直接比 `curves.mjs` 的 `GEAR_V2` 與 `nw-data.js` 的 `GEAR_TB`／`POWER_BASE`／屬性。
+
+**測試對齊**：`nw12`（滿裝備攻擊力 130、生命 +40、減傷 20%、舉盾 +0.6、戰力加總、炎牙刀藍 +0 攻擊力 120、藍 +1 122）、`nw14`（炎牙刀 +5 130×1.365；新增「重壓沒擋住只扣一次 ×1.5」＋盔甲 10% 兩條真的打一場）、`t4`（教師頁戰力 76 → 82）。新檔 `nw18.test.js` 純函式 48 條。

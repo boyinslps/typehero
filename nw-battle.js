@@ -1,4 +1,4 @@
-import { BAL, TIERS, MONSTERS, GIFT_WEAPONS, weaponBase, curWeapon, hpPlayersMul, ATTACKS_OPEN, LANE_W, gearStats, gearMul, RANK_MIN_ACC, SUS, qBand, MAX_CHARS, CHANT_MAX, SHORT_CHANTS, regionLv, monMaxHp, monDmg, atkInterval, castTime, STATUS } from './nw-data.js';
+import { BAL, TIERS, MONSTERS, GIFT_WEAPONS, weaponBase, curWeapon, hpPlayersMul, ATTACKS_OPEN, LANE_W, gearStats, gearMul, RANK_MIN_ACC, SUS, qBand, MAX_CHARS, CHANT_MAX, SHORT_CHANTS, regionLv, monMaxHp, monDmg, strikeDamage, atkInterval, castTime, STATUS } from './nw-data.js';
 
 const CSS = `
 #nwb-root{position:fixed;inset:0;z-index:70;display:flex;flex-direction:column;background:#000;color:var(--ink);font-size:clamp(13px,1.5vmin + 7px,21px);font-weight:700}
@@ -432,9 +432,9 @@ export function startBattle(env, cfg, done) {
     S.mon.lungeAt = T; S.laneFlash.push({ lane: st.lane, t0: T });
     if (S.me.down) return;
     const shielded = S.shieldUntil > T;
-    let dmg = Math.max(1, Math.round(c.base * st.mul));
-    if (GS.cut) dmg = Math.max(1, Math.round(dmg * (1 - GS.cut)));   // 盔甲只減魔物招式，亂打反擊、燃燒、中毒不減
-    if (st.slam) { if (shielded) return; }
+    let dmg = strikeDamage(c.base, st.mul, st.slam, GS.cut);   // 盔甲只減魔物招式，亂打反擊、燃燒、中毒不減
+    /* 重壓三條線同時閃光，但沒擋住只扣一次（slamHit 記第一條已經扣過） */
+    if (st.slam) { if (shielded || c.slamHit) return; c.slamHit = true; }
     else if (S.lane !== st.lane) return;
     else if (shielded) { dmg = Math.ceil(dmg / 2); banner('盾只擋了一部分…', '#ffd24a', true); }
     c.hurt = true;

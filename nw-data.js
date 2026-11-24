@@ -308,19 +308,21 @@ export const SHOP_ITEMS = [{ key: 'renameCard', price: 300 }];
    一格一個數字（GDD §2.1）。全部是純函式，戰鬥（nw-battle.js）、人物卡（nw-card.js）、鐵匠鋪（nw-forge.js）、
    教師頁、tools/nw-sim 共用；存檔欄位：gearV、gear（每件 { id, k, c, p, t }）、eq（五格各指向一件的 id）、forge、bpDry。
    數值怎麼來的、為什麼比 GDD §14.12 小：docs/SPEC-STAGE2.md §3.2 與 docs/BALANCE-GEAR-2B.md（tools/nw-sim/gear.mjs 的結果）。
-   武器＋屬性合起來最高 ×1.32（120 × 1.1）；防具只對「會攻擊的魔物」有用（attackingMons）。 */
+   武器＋屬性合起來最高 ×1.37（GEAR_CAP；藍 +5 的 130 × 屬性 1.05＝1.365）；防具只對「會攻擊的魔物」有用（attackingMons）。
+   2026-11-24 起的數值是 docs/SPEC-BALANCE-V2.md §9（下一色 +0 ＝ 上一色 +5）。 */
 export const GEAR_SLOTS = [['weapon', '武器'], ['helm', '頭盔'], ['armor', '盔甲'], ['gloves', '護手'], ['boots', '護腳']];
 export const GEAR_MAX = 60;          // 裝備最多幾件（存檔大小的保險；分解要第 3 段才開）
 export const GEAR_MAX_P = 5;
 export const BP_DUP_COINS = 30;     // 老師寄的圖紙已經會了：換成這麼多字元（GDD §12.5）         // 2b 強化最高 +5
 export const GEAR_COLORS = ['gray', 'green', 'blue'];   // 2b 的魔物只掉灰、綠、藍；紫以上第 3 段才有
 export const colorRank = c => GEAR_COLORS.indexOf(c);
-/* 每一格的數字：[灰, 綠, 藍]、每 +1 加多少（SPEC §3.2） */
+/* 每一格的數字：[灰, 綠, 藍]、每 +1 加多少（SPEC-BALANCE-V2 §9.1）。
+   色階規則「下一色 +0 ＝ 上一色 +5」：強化到頂再換顏色不吃虧、換了還能繼續長。護腳不動（模擬看不出效果，等遙測） */
 export const GEAR_TB = {
-  weapon: { base: [100, 105, 110], per: 2 },
-  helm: { base: [10, 20, 30], per: 2 },
-  armor: { base: [.04, .07, .10], per: .01 },
-  gloves: { base: [.2, .3, .4], per: .04 },
+  weapon: { base: [100, 110, 120], per: 2 },
+  helm: { base: [10, 25, 40], per: 3 },
+  armor: { base: [.05, .10, .15], per: .01 },
+  gloves: { base: [.2, .4, .6], per: .04 },
   boots: { base: [.10, .20, .30], per: .03 }
 };
 const r2 = x => Math.round(x * 100) / 100;
@@ -330,7 +332,8 @@ export function slotValue(slot, c, p, fixed) {
   const base = (fixed != null) ? fixed : t.base[i];
   return r2(base + t.per * p);
 }
-export const POWER_BASE = { gray: 10, green: 20, blue: 30 };
+/* 綠 +0（22）要嚴格高於灰 +5（20），鐵匠鋪的「穿上」金色按鈕才有誘因去做綠的 */
+export const POWER_BASE = { gray: 10, green: 22, blue: 34 };
 export const gearPowerOf = (c, p) => (POWER_BASE[c] || 10) + 2 * p;
 
 const ANY = (c, n, coins) => ({ any: [c, n], coins });
@@ -416,12 +419,24 @@ export function gearStats(nw) {
   return s;
 }
 /* 打到某隻魔物時武器的總倍率（攻擊力 × 屬性） */
+/* 屬性只有 ×1.05／×0.95：×1.1 的話藍 +0（120）就頂到舊上限 1.32，+1～+5 打怕火的魔物完全沒效果（SPEC-BALANCE-V2 §9.1 第 2 項）。
+   GEAR_CAP 只是保險：現在最高 130 × 1.05＝1.365，碰不到；以後新武器加屬性不會不小心超過 */
+export const ELEM_UP = 1.05, ELEM_DOWN = 0.95, GEAR_CAP = 1.37;
 export function elemMulOf(elem, mk) {
   const m = MONSTERS[mk];
   if (!elem || !m) return 1;
-  return m.fear === elem ? 1.1 : m.resist === elem ? 0.9 : 1;
+  return m.fear === elem ? ELEM_UP : m.resist === elem ? ELEM_DOWN : 1;
 }
-export const gearMul = (gs, mk) => gs.atk / 100 * elemMulOf(gs.elem, mk);
+export const gearMul = (gs, mk) => Math.min(GEAR_CAP, gs.atk / 100 * elemMulOf(gs.elem, mk));
+
+/* 魔物一個招式打到玩家的傷害：重壓沒擋住只扣一次但 ×1.5（以前三條線各扣一次＝×3，沒有時限後倒下變成唯一的輸法，太痛）；
+   盔甲「無條件進位」地減（低星的招式每下至少少 1 點）；-1e-9 擋浮點誤差：0.14 × 50 會算成 7.000000000000001 而進位成 8。
+   純函式，nw-battle.js 的 resolveStrike 用它，測試也直接測它 */
+export function strikeDamage(base, mul, slam, cut) {
+  let dmg = Math.max(1, Math.round(base * mul * (slam ? 1.5 : 1)));
+  if (cut) dmg = Math.max(1, dmg - Math.ceil(dmg * cut - 1e-9));
+  return dmg;
+}
 
 /* 外觀：給 heroLook(look, weapon, gear) 的 gear 參數。沒穿的格子不寫，用 heroLook 的預設（灰盔甲、沒頭盔）。
    花邊：+0～+2 比主色深一點、+3～+4 稀有度色、+5 金色（SPEC §3.9） */
