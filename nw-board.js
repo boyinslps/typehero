@@ -108,7 +108,7 @@ export function mountBoard(host, env) {
         <div class="nwbd-sign">冒險者公會・委託板</div>
         ${goal ? `<div class="nwbd-goal">📌 現在的任務：<b>${goal.text}</b>　${rot && goal.building && goal.building !== 'board' ? `→ 去村莊的「${BLD_NAME[goal.building] || '建築'}」` : '→ 選有紅色「任務目標」標籤的委託單'}</div>` : ''}
         ${rot ? [env.cleared ? '<div class="nwbd-note">🏆 迷霧森林的委託你都打完了！新的地方還在蓋。</div>' : '', ...(env.notes || []).map(t => `<div class="nwbd-note">${t}</div>`), env.evAny ? '<div class="nwbd-note">🎪 活動中：打贏哪一張都算</div>' : ''].join('') : ''}
-        ${rot && env.progress && env.progress.total ? `<div class="nwbd-bar"><div class="nwbd-prog" data-prog>完成 ${env.progress.ok}／${env.progress.total}，全部完成就送來新的一批！</div><button class="px-btn nwbd-swap" data-swap disabled>🔄 刷新</button></div>` : ''}
+        ${rot && env.progress && env.progress.total ? `<div class="nwbd-bar"><div class="nwbd-prog" data-prog>完成 ${env.progress.ok}／${env.progress.total}，🔥 挑戰單不用打也行，其他都完成就送來新的一批！</div><button class="px-btn nwbd-swap" data-swap disabled>🔄 刷新</button></div>` : ''}
         <div class="nwbd-tabs"><button class="nwbd-tab" data-tab="quests">📜 委託單</button><button class="nwbd-tab" data-tab="rooms">🚪 房間 <span id="nwbd-rc">0</span></button></div>
         <div class="nwbd-sheets${rot ? ' rot' : ''}" id="nwbd-list"></div>
       </div>

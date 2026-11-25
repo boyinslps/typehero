@@ -80,8 +80,9 @@ const NOW = Date.now(), HOUR = 3600e3;
     let bd = pickBoard(nw, now0, 11, [], 300), r = null, wins = 0;
     const first = idsOf(bd);
     ok(first.length >= 4, `一開始 ${first.length} 張`);
-    const total = first.length;
-    for (const id of first) {
+    const plain = first.filter(x => roleOf(nw, x, 300) !== 'hard'), total = plain.length;
+    ok(total >= 3 && total < first.length, `挑戰單以外 ${total} 張，挑戰單不用打`);
+    for (const id of plain) {
       r = afterRun(nw, bd, { id, win: true, valid: true, wasHard: false }, now0, [], 300);
       wins++;
       ok(firestoreOk(r.board) && flat(r.board), `打贏第 ${wins} 張：符合 Firestore、out 是平的字串陣列`);
@@ -89,7 +90,7 @@ const NOW = Date.now(), HOUR = 3600e3;
       bd = r.board;
     }
     ok(r.all === true && r.changed.length === idsOf(bd).length && idsOf(bd).length >= 4 && keys.every(k => !bd.slots[k].ok), `最後一張打完：整批換新，章都不見，changed 是全部格子（${r.changed.join('')}）`);
-    ok(bd.done === total && !allDone(bd), `done＝${total}、新的一批都還沒完成`);
+    ok(bd.done === total && !allDone(nw, bd, 300), `done＝${total}、新的一批都還沒完成`);
     ok(idsOf(bd).every(x => !first.includes(x)) || true, '（新的一批可以跟舊的重複，只要沒蓋章）');
   }
 
@@ -177,11 +178,19 @@ const NOW = Date.now(), HOUR = 3600e3;
     const bd = pickBoard(nw, now0, 9, [], 300), full = JSON.parse(JSON.stringify(bd));
     keys.forEach(k => { if (full.slots[k].id) full.slots[k].ok = 1; });
     const e1 = ensureBoard(Object.assign({}, nw, { board: full }), now0, [], 300, 1);
-    ok(e1.why === 'refill' && !allDone(e1.board) && e1.changed.length >= 4, '全部蓋章的板子（兩個分頁互蓋）：打開時補一整批（why: refill）');
+    ok(e1.why === 'refill' && !allDone(nw, e1.board, 300) && e1.changed.length >= 4, '全部蓋章的板子（兩個分頁互蓋）：打開時補一整批（why: refill）');
     const e2 = ensureBoard(Object.assign({}, nw, { board: e1.board }), now0, [], 300, 1);
     ok(e2.why === 'same' && e2.board === e1.board, '補好的新批次再打開：不再重補（same）');
     const e3 = ensureBoard(Object.assign({}, nw, { board: Object.assign({}, full, { day: D.twDay(now0) - 1 }) }), now0, [], 300, 1);
-    ok(e3.board.swapN === 0 && flat(e3.board) && !allDone(e3.board), '隔天打開全部蓋章的板子：也是整批換新、swapN 歸 0');
+    ok(e3.board.swapN === 0 && flat(e3.board) && !allDone(nw, e3.board, 300), '隔天打開全部蓋章的板子：也是整批換新、swapN 歸 0');
+    /* 挑戰單沒蓋章也算完成；只剩挑戰單的板子不算（不然補新批又只有挑戰單，一直補） */
+    const hk = keys.find(k => roleOf(nw, bd.slots[k].id, 300) === 'hard'), sk = JSON.parse(JSON.stringify(bd));
+    keys.forEach(k => { if (sk.slots[k].id && k !== hk) sk.slots[k].ok = 1; });
+    ok(hk && !sk.slots[hk].ok && allDone(nw, sk, 300), '挑戰單沒蓋章、其他都蓋章：算全部完成');
+    sk.slots[keys.find(k => k !== hk && sk.slots[k].id)].ok = 0;
+    ok(!allDone(nw, sk, 300), '還有一般單沒蓋章：不算完成');
+    const ho = JSON.parse(JSON.stringify(bd)); keys.forEach(k => { if (k !== hk) ho.slots[k] = { id: '', k: '', at: 0, m: 0, ok: 0 }; });
+    ok(!allDone(nw, ho, 300) && allDone(nw, Object.assign({}, ho, { slots: Object.assign({}, ho.slots, { [hk]: Object.assign({}, ho.slots[hk], { ok: 1 }) }) }), 300), '板上只剩挑戰單：沒蓋章不算完成、蓋章了才算');
   }
 
   /* ── 瀏覽器：連點、雙分頁 ── */

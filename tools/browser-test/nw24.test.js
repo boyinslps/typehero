@@ -138,7 +138,7 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
   const ndy = ensureBoard(Object.assign({}, nw1, { board: sw3.board }), now + 86400e3, [], 300);
   ok(ndy.board.swapN === 0 && Array.isArray(ndy.board.out) && ndy.board.out.length === 0, '換日：swapN 歸 0、out 清成 []');
   const allOk = JSON.parse(JSON.stringify(a.board)); BOARD.keys.forEach(k => { if (allOk.slots[k].id) allOk.slots[k].ok = 1; });
-  ok(allDone(allOk) && !allDone(a.board) && refillAll(nw1, allOk, now, [], 300, 'swap').refused === 'none' && swapState(nw1, allOk, now, [], 300).why === 'none', '全部蓋章：allDone；沒有可以換的 → 刷新拒絕（none）、不扣次數');
+  ok(allDone(nw1, allOk, 300) && !allDone(nw1, a.board, 300) && refillAll(nw1, allOk, now, [], 300, 'swap').refused === 'none' && swapState(nw1, allOk, now, [], 300).why === 'none', '全部蓋章：allDone；沒有可以換的 → 刷新拒絕（none）、不扣次數');
 
   /* ── normalizeBoard ── */
   const nb = D.normalizeBoard(Object.assign(JSON.parse(JSON.stringify(e1.board)), { lose: 99, recent: ['grass:coo:1', 'bad', 'grass:frog:2', 'grass:coo:3', 'grass:coo:4'] }));

@@ -146,7 +146,8 @@ const evDoc = (o = {}) => Object.assign({ type: 'ranking', metric: 'kills', titl
     await toBoard(p);
     cs = await cardsOf(p);
     ok(cs.length >= 4 && (await p.$$('.qs-wrap.stamped')).length === 1 && !!(await p.$(`.qs-wrap.stamped .qs[data-q="${hard.id}"]`)), '挑戰單有「✅ 完成」章、卡片變暗');
-    ok((await p.textContent('.qs-wrap.stamped .qs-done')).includes('完成') && (await p.textContent('[data-prog]')).includes('完成 1／' + cs.length), `看板上方寫「完成 1／${cs.length}」`);
+    const plainN = cs.filter(c => !c.role.includes('挑戰')).length, plainOk = await p.$$eval('.qs-wrap.stamped .qs[data-q]', els => els.filter(e => !((e.querySelector('.qs-role') || {}).textContent || '').includes('挑戰')).length);
+    ok((await p.textContent('.qs-wrap.stamped .qs-done')).includes('完成') && (await p.textContent('[data-prog]')).includes(`完成 ${plainOk}／${plainN}`) && (await p.textContent('[data-prog]')).includes('挑戰單不用打也行'), `看板上方寫「完成 ${plainOk}／${plainN}」，分母不含挑戰單`);
     await p.click(`.qs[data-q="${hard.id}"]`);
     ok(await p.$eval('[data-go]', e => e.disabled) && (await p.textContent('#nwbd-info')).includes('把其他單子打完，就會送來新的一批'), '點蓋章的單子：「狩獵」灰掉，寫「完成了！把其他單子打完…」');
     const nNew = cs.filter(c => c.isNew).length;
@@ -184,7 +185,7 @@ const evDoc = (o = {}) => Object.assign({ type: 'ranking', metric: 'kills', titl
     const goal = cs.find(c => c.tag), plain = cs.filter(c => !c.tag);
     ok((await p.textContent('[data-swap]')).includes('今天免費 1 次') && !(await p.$eval('[data-swap]', e => e.disabled)), '看板上方的按鈕：「🔄 刷新（今天免費 1 次）」亮著');
     ok(!(await p.textContent('.nwbd-wrap')).includes('換一張') && !(await p.textContent('.nwbd-wrap')).includes('明天才能再換'), '舊字「換一張」「明天才能再換」都沒有了');
-    ok((await p.textContent('[data-prog]')).includes('完成 0／4，全部完成就送來新的一批'), '看板上方：「完成 0／4，全部完成就送來新的一批！」');
+    ok((await p.textContent('[data-prog]')).includes('完成 0／3，🔥 挑戰單不用打也行，其他都完成就送來新的一批'), '看板上方：「完成 0／3」（4 張裡 1 張挑戰單不算）');
     await p.evaluate(() => { window.__NWG.nw.coins = 300; });
     const coins0 = await p.evaluate(() => window.__NWG.nw.coins);
     await p.click('[data-swap]'); await p.waitForTimeout(400);

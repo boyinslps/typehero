@@ -1,4 +1,4 @@
-/* 委託板「一次 4 張、打贏蓋章、全部完成才補一整批」的規則（docs/SPEC-BOARD-ROTATION.md §1～§2，刷新與蓋章改版見 docs/SPEC-SHOP-BOARD2.md B）。
+/* 委託板「一次 4 張、打贏蓋章、挑戰單以外都完成才補一整批」的規則（docs/SPEC-BOARD-ROTATION.md §1～§2，刷新與蓋章改版見 docs/SPEC-SHOP-BOARD2.md B）。
    純函式：同樣的 nw、now、seed 一定排出同樣的板子。參考實作與驗算在 tools/nw-sim/board.mjs（nw24.test.js 逐字比對）。
    常數 BOARD、旗標 BOARD_ROT、normalizeBoard 放在 nw-data.js（normalizeNw 要用，放這裡會循環引用）。 */
 import { REGIONS, MONSTERS, MAIN_QUESTS, boardQuests, stdSecs, twDay, BOARD } from './nw-data.js';
@@ -236,7 +236,7 @@ export function ensureBoard(nw, now, events, tlim, seedIfNew) {
   if (!nw.board || nw.board.v !== 1) return { board: pickBoard(nw, now, seedIfNew, events, tlim), changed: BOARD.keys, why: 'new' };
   const newDay = nw.board.day !== dayOf(now), b0 = newDay ? Object.assign({}, nw.board, { day: dayOf(now), out: [], swapN: 0 }) : nw.board;
   /* 全部蓋章卻還沒換新（兩個分頁互蓋、或打完那場沒存到）：補一整批 */
-  if (allDone(b0)) { const r = refillAll(nw, b0, now, events, tlim, 'all'); return { board: r.board, changed: r.changed, why: 'refill' }; }
+  if (allDone(nw, b0, tlim)) { const r = refillAll(nw, b0, now, events, tlim, 'all'); return { board: r.board, changed: r.changed, why: 'refill' }; }
   if (newDay) { const r = repair(nw, b0, now, events, tlim, Infinity); return { board: r.board, changed: r.changed, why: 'day' }; }
   /* 同一天：只修壞掉的格子（重複、已經不開放；例如兩個分頁互蓋），其他一張都不動 */
   const cs = cands(nw).map(q => q.id), seen = [], bad = BOARD.keys.filter(k => { const id = nw.board.slots[k].id; if (!id) return false; const b = !cs.includes(id) || seen.includes(id); seen.push(id); return b; });
@@ -258,7 +258,7 @@ export function afterRun(nw, board, run, now, events, tlim) {
     b.done++; b.last = run.id; b.recent = [run.id, ...(b.recent || []).filter(x => x !== run.id)].slice(0, BOARD.recentN);
     if (run.wasHard) b.lose = 0;
     b.slots[key].ok = 1;
-    if (allDone(b)) return refillAll(nw, b, now, events, tlim, 'all');
+    if (allDone(nw, b, tlim)) return refillAll(nw, b, now, events, tlim, 'all');
     return postGoal(nw, b, now, events, tlim);
   }
   b.slots[key].m = (b.slots[key].m || 0) + 1;
@@ -273,10 +273,14 @@ export function afterRun(nw, board, run, now, events, tlim) {
   return { board: b, changed: [] };
 }
 
-/* 有單子的格子至少 1 個、而且每一個都蓋章了 */
-export function allDone(board) {
+/* 挑戰單（🔥）以外的單子都蓋章就算全部完成：挑戰單打不贏不該卡住整塊板子（老師 2026-11-25 決定）。
+   板上只剩挑戰單時，除非它也蓋章了才算完成；不然一補新批又只有挑戰單，會一直補。
+   角色現算（band）而不是看存的 k：目標單也可能剛好是挑戰單。 */
+export function allDone(nw, board, tlim = 480) {
   const used = BOARD.keys.map(k => board.slots[k]).filter(s => s && s.id);
-  return used.length >= 1 && used.every(s => s.ok === 1);
+  if (!used.length) return false;
+  const F = frontier(nw, tlim), rest = used.filter(s => band(nw, parseId(s.id), F) !== 'hard');
+  return rest.length ? rest.every(s => s.ok === 1) : used.every(s => s.ok === 1);
 }
 
 /* 打贏後主線（或活動）的新目標如果不在沒蓋章的單子裡，直接貼進空格，不用等整批換新、也不算刷新。
@@ -369,5 +373,5 @@ export function boardView(nw, board, events, tlim, today) {
     const rk = open[open.length - 1], min = Math.max(1, ev.minStar || 1), top = Math.min(5, ((nw.zone || {})[rk] || 0) + 1);
     if (min > top) notes.push(`🎪 活動「${ev.title || '活動'}」要打 ★${min} 的${name}，先把${REGIONS[rk].name}打到 ★${min - 1} 喔`);
   });
-  return { cards, locks, notes, cleared: F.cleared, goals: ctx.goals, progress: { ok: cards.filter(c => c.stamped).length, total: cards.length } };
+  return { cards, locks, notes, cleared: F.cleared, goals: ctx.goals, progress: { ok: cards.filter(c => c.role !== 'hard' && c.stamped).length, total: cards.filter(c => c.role !== 'hard').length } };
 }
