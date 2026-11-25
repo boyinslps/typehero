@@ -22,7 +22,19 @@
 | 新世界預告＋提名投票頁 | **完成，v3.6.0（11 個關鍵字、16 頁、不捲動；投票有三步驟說明）** | `nw-preview.js`（頁面資料、投票）、`index.html` 的 `#nw-modal` 與 `.nwp-*` 樣式，見 [`../CHANGELOG.md`](../CHANGELOG.md) |
 | 第 1 段：獵人村開幕 | **大部分完成（搶先體驗中，用通關密語進）**：獵人村、造型、4 把初心武器、委託板、房間（只能開、不能加入）、戰鬥、HR、稱號、榮譽碑排行 | `newworld.js`、`nw-*.js`、`pixel.js` |
 
-## 2026-11-25 商店（階段 3s）與委託板刷新改版（都還關著）
+## 2026-11-25 開放 2b、3s 與委託板新規則（v3.15.0）
+
+> 老師決定「全部完成不含挑戰卡」：`OPEN_STAGES＝['1','2b','3s']`、`BOARD_ROT＝true`、不開 2a。**分支 `claude/gracious-pasteur-773n2t`，沒推 main，要老師點頭。**
+
+- 委託板：`allDone(nw, board, tlim)` 現算挑戰單並排除；板上只剩挑戰單時要它蓋章才算完成（避免一直補）。畫面進度「完成 x／y」不含挑戰單。`tools/nw-sim/board.mjs`、`SPEC-SHOP-BOARD2.md` 同步。
+- 開放前檢查逐項結果在 `RELEASE-STAGES.md`（2b、V2 核對、3s）。**老師要做**：貼 `firestore-rules.txt`（先備份舊規則；`rules-test` 145 條全過）、在真 Firebase 走一遍鐵匠鋪與商店、到 pcclass 改 `TYPEHERO_UPDATES`、手機真機看一眼。
+- 還沒做（不擋開放）：下課時間資料（`hist.classEnd` 沒人寫，下課提示不會出現）、鐵匠鋪換材料（由商店取代）、小範圍先試名單、2a 榮譽碑、第 11 步用 `mg_nw_runs` 重算。
+- 留意：`BALANCE-GEAR-2B.md` 重跑後總表有 ❌（G1 最快 49.6 秒、G3a、G4、G6a、G6b）；老師說平衡先不調。`potion` 說明還寫「要等商店開張」但商店不賣回復藥。
+- 測試：預設階段改了，舊測試用覆寫固定在舊前置；新增 `nw28`。
+
+### 以下是開放前（2026-11-25 早些時候）的紀錄
+
+## 2026-11-25 商店（階段 3s）與委託板刷新改版（開放前的紀錄）
 
 > 規格 [`SPEC-SHOP-BOARD2.md`](SPEC-SHOP-BOARD2.md)。**`OPEN_STAGES` 沒動、`BOARD_ROT` 仍是 `false`、沒有寫任何對外公告**；旗標關著時行為跟以前一樣。
 
@@ -31,7 +43,7 @@
 | 委託板改版（B）：打贏蓋「完成」章、全部完成整批換新、刷新付費（免費／40／80、一天最多 3 次） | 做好，旗標關著；`nw24`、`nw25`、`nw27` | `nw-board-rot.js`（`refillAll`、`postGoal`、`swapState`、`allDone`）、`nw-board.js`、`newworld.js` 的 `viewBoard`；價格 `nw-data.js` 的 `BOARD.swapCost`；參考實作 `tools/nw-sim/board.mjs` |
 | 商店（A）：灰 40（一天 3 個）、綠 200（一天 1 個）、改名卡 300（一天 1 張） | 做好，階段 `'3s'` 沒開；`nw26` | `nw-shop.js`、`nw-data.js` 的 `SHOP`／`normalizeShop`、`NW.shop`、教師頁學生卡一行商店紀錄 |
 
-- 規範裡「待老師決定」三題先用預設值：全部完成含挑戰單（只改 `allDone` 一行可以排除）、綠材料 200 字元一天 1 個、刷新 免費／40／80。
+- 規範裡「待老師決定」三題先用預設值：全部完成含挑戰單（後來老師決定不含，已改）、綠材料 200 字元一天 1 個、刷新 免費／40／80。
 - 規範沒寫到的細節：看板卡片的「蓋章」欄位叫 `stamped`（`q.done` 已經是「討伐過」的意思）；打贏後主線新目標貼進第 5 格，所以板上可能暫時有 5 張（規範 B1-6）；打贏後的排行榜活動單蓋章留著，要整批換新才會再貼回來。
 - 開商店前：照 `RELEASE-STAGES.md`「第 3s 段」檢查；開委託板新版前：把 `BOARD_ROT` 改 `true`，並照 `SPEC-BOARD-ROTATION.md` §9 發公告（草稿已同步新規則，還沒發）。
 
