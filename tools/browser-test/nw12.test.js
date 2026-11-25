@@ -54,7 +54,7 @@ const heroSig = (p, sel) => p.evaluate(s => { const c = document.querySelector(s
   const D = await import('../../nw-data.js');
 
   /* ───── 純函式：配方、扣料、強化成本、戰力、上限 ───── */
-  ok(JSON.stringify(D.OPEN_STAGES) === JSON.stringify(['1']), 'OPEN_STAGES 預設只有 [\'1\']（2b 還沒開放）');
+  ok(JSON.stringify(D.OPEN_STAGES) === JSON.stringify(['1', '2b', '3s']) && !D.stageOpen('2a'), 'OPEN_STAGES 預設是 [\'1\',\'2b\',\'3s\']（2b、商店開放；2a 榮譽碑沒開）');
   const t = D.normalizeNw({ starter: 'staff', coins: 1000, mats: { coo_feather: 5, shroom_cap: 2, frog_slime: 9, coo_down: 3 }, bp: [...D.CLOTH_BPS] });
   const ck = D.craftCheck(t, 'cloth_vest', 'gray');   // 任意灰 ×4 ＋ 30 字元
   ok(ck.ok && JSON.stringify(ck.use) === JSON.stringify({ frog_slime: 4 }), `任意材料先扣數量最多的（泡泡黏液 9 > 咕咕羽毛 5）：${JSON.stringify(ck.use)}`);
@@ -84,13 +84,15 @@ const heroSig = (p, sel) => p.evaluate(s => { const c = document.querySelector(s
   const dry = D.normalizeNw({ starter: 'dagger' }); let guard = 0;
   while (D.rollBlueprints(dry, 'coo', () => 0.99).length === 0 && guard < 20) guard++;
   ok(guard === 5 && dry.bp.length === 1 && dry.bpDry.coo === 0, `圖紙保底：連續 5 場沒掉，第 6 場一定掉一張（第 ${guard + 1} 場）`);
-  ok(D.attackingMons().join() === 'coo,frog' && D.slotNote('armor').includes('咕咕鳥、泡泡蛙') && !D.slotNote('weapon').includes('魔物才有用'), '防具說明從 ATTACKS_OPEN 自動列出會攻擊的魔物');
+  const withV2Off = fn => { const l = globalThis.location, w = globalThis.window; globalThis.location = { hostname: 'localhost' }; globalThis.window = { __NW_V2__: false }; try { return fn(); } finally { if (l === undefined) delete globalThis.location; else globalThis.location = l; if (w === undefined) delete globalThis.window; else globalThis.window = w; } };   // node 沒有 location，要測「V2 關著」的舊行為只能暫時假裝是 localhost
+  ok(withV2Off(() => D.attackingMons().join() === 'coo,frog' && D.slotNote('armor').includes('咕咕鳥、泡泡蛙')) && !D.slotNote('weapon').includes('魔物才有用'), '防具說明從 ATTACKS_OPEN 自動列出會攻擊的魔物（V2 關著）');
+  ok(D.attackingMons().join() === 'coo,frog,shroom,wolf' && D.slotNote('armor').includes('炎牙狼'), '預設（V2 開）：防具說明列出 4 種會攻擊的魔物');
 
   const b = await chromium.launch();
 
   /* ───── 2b 還沒開放（預設）：鐵匠鋪是施工中 ───── */
   {
-    const p = await open(b, { stages: null });
+    const p = await open(b, { stages: ['1'] });
     await p.evaluate(() => window.__NWV.teleport('forge')); await p.waitForTimeout(250); await p.click('[data-bld="forge"]'); await p.waitForTimeout(500);
     ok(!(await p.$('#nw-forge')) && (await p.textContent('.nw-sheet')).includes('施工中'), '沒開放 2b：進鐵匠鋪看到「施工中」，不會打開鐵匠鋪');
     ok(!(await p.$('[data-forge-fx]')) && !(await p.$('[data-forge-bang]')), '沒開放：鐵匠鋪不冒煙、沒有「！」');

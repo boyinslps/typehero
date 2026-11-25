@@ -13,7 +13,7 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
   const roleOf = (nw, id, T = 480) => band(nw, parseId(id), frontier(nw, T));
   const mk = o => D.normalizeNw(Object.assign({ starter: 'staff', tut: { dodge: 1, defend: 1, attack: 1 } }, o));
 
-  ok(D.BOARD_ROT === false && D.boardRotOn() === false, '旗標 BOARD_ROT 預設是 false（node 裡沒有 window，也是 false）');
+  ok(D.BOARD_ROT === true && D.boardRotOn() === true, '旗標 BOARD_ROT 預設是 true（2026-11-25 老師同意開；node 裡沒有 window，也是 true）');
   ok(D.defaultNw().board === null && D.normalizeNw({}).board === null, '全新存檔與舊存檔：board 是 null');
   ok(D.normalizeNw({ board: [] }).board === null && D.normalizeNw({ board: { v: 2 } }).board === null && D.normalizeNw({ board: 'x' }).board === null, '看不懂的 board（陣列、v:2、字串）→ null');
 

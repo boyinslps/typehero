@@ -16,7 +16,7 @@ async function open(browser, o = {}) {
   const hash = await sha256Hex('Test-Pass_9!x');
   const seed = { ['mg_scores/' + ID]: { className: CLS, seat: 5, name: '小明', bestLevel: 10, bestScore: 20, scoreVer: 2, plays: 9, tutorialDone: true, talentIntroDone: true, tier: o.tier || 'B', balanceVer: 3, punctDone: true,
     nw: Object.assign({ v: 1, savedAt: 5, look: { style: 1, hair: 2, skin: 1 }, starter: 'dagger', hunts: 5, quest: { done: ['1-0', '1-0a'] }, zone: { grass: 5 }, dex: { coo: 1, frog: 1, shroom: 1 }, tm: { m_dodge: 1, m_defend: 1, m_attack: 1 }, intro: { hub: 1, notice: 1 }, seenNotice: NOTICE_ID, nameSet: 1 }, o.nw || {}) } };
-  await p.addInitScript(a => {
+  await p.addInitScript(a => {window.__NW_STAGES__ = ['1']; window.__BOARD_ROT__ = false; 
     window.__FS = a.s; window.__RULES = true; localStorage.clear(); localStorage.setItem('mg_nw_fast', '1');
     window.__NW_CODE_HASH__ = a.hash; localStorage.setItem('mg_nw_code', a.hash); window.__NW_NOGIFT__ = true; window.__NW_NOINTRO__ = true;
     window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas');
@@ -94,7 +94,7 @@ const castTiming = p => p.evaluate(() => new Promise(res => {
   const wolfs = [10, 13, 16, 19, 22].flatMap(lv => D.MONSTERS.wolf.attacks.map(a => [lv, a.mul]));
   ok(wolfs.every(([lv, m]) => D.monDmg(lv, m * 0.5) === Math.max(4, Math.round((D.BAL.atkBase + D.BAL.atkPerLv * lv) * m * 0.5)) && D.monDmg(lv, m * 0.5) > 4 && Math.abs(D.monDmg(lv, m * 0.5) - 0.5 * D.monDmg(lv, m)) <= 1), '狼＝monDmg(lv, mul×0.5)：每一招都高於下限 4 點，跟「先算再 ×0.5」最多差 1');
   ok(D.monDmg(1, 0.01) === 4 && D.monDmg(1, 0.01 * 0.5) === 4, '最低 4 點的保證仍在（乘在 mul 上、monDmg 之前，不會被打折）');
-  ok(D.attackingMons().join() === 'coo,frog', '（node 沒開 V2）attackingMons 仍是咕咕鳥、泡泡蛙');
+  ok((() => { const l = globalThis.location, w = globalThis.window; globalThis.location = { hostname: 'localhost' }; globalThis.window = { __NW_V2__: false }; try { return D.attackingMons().join() === 'coo,frog'; } finally { if (l === undefined) delete globalThis.location; else globalThis.location = l; if (w === undefined) delete globalThis.window; else globalThis.window = w; } })(), '（V2 關著）attackingMons 仍是咕咕鳥、泡泡蛙');
 
   const b = await chromium.launch();
 

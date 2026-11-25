@@ -211,7 +211,7 @@ export const castTime = (lv, tier) => {
 };
 
 /* ══ 平衡 V2（docs/SPEC-BALANCE-V2.md v2.1）══
-   所有 V2 行為都用 v2On() 包起來：沒開的時候（現在的 OPEN_STAGES＝['1']）戰鬥與結算跟 V2 之前逐項相同——血量依層級、時間到就輸、
+   所有 V2 行為都用 v2On() 包起來：沒開的時候（OPEN_STAGES 沒有 '2b' 的時候）戰鬥與結算跟 V2 之前逐項相同——血量依層級、時間到就輸、
    只有咕咕鳥與泡泡蛙會攻擊。這樣第 2～9 步沒做完的分支不會動到已經上線的學生；整個 V2 要同一版一起開（規格 §7「上線順序」：
    拿掉層級讓原 A 層血量 +43%，不能沒有流派就上）。
    開關：2b 開放（stageOpen('2b')）就是 V2 開放；測試在 localhost 用 window.__NW_V2__ = true／false 強制。
@@ -929,7 +929,7 @@ export const starOpen = (nw, rk, star) => star <= 1 || (nw.zone[rk] || 0) >= sta
 
 /* 段號是字串，開了哪幾段用清單表示，可以跳著開（2b 鐵匠鋪先開，2a 榮譽碑 4 週後再開；SPEC-STAGE2 §1）。
    收回：從清單拿掉、重新發版，學生資料不刪。測試在 localhost 用 window.__NW_STAGES__ 覆寫 */
-export const OPEN_STAGES = ['1'];
+export const OPEN_STAGES = ['1', '2b', '3s'];
 export const openStages = () => (typeof location !== 'undefined' && location.hostname === 'localhost' && window.__NW_STAGES__) || OPEN_STAGES;
 export const stageOpen = s => openStages().includes(String(s));
 export const buildingOpen = b => !!b.act && (!b.wip || stageOpen(b.wip));
@@ -1105,7 +1105,7 @@ export const NOTICES = [
    純函式在 nw-board-rot.js。這裡放常數、旗標與存檔整理（normalizeNw 要用，放在那邊會循環引用）。
    旗標關掉＝完全是現在的畫面（全部列出），存檔裡的 board 欄位留著也無害。老師點頭後才改 true；
    測試在 localhost 用 window.__BOARD_ROT__ = true／false 強制。不跟 OPEN_STAGES 綁（第 1 段已經開了）。 */
-export const BOARD_ROT = false;
+export const BOARD_ROT = true;
 export const boardRotOn = () => (typeof location !== 'undefined' && location.hostname === 'localhost' && typeof window !== 'undefined' && typeof window.__BOARD_ROT__ === 'boolean') ? window.__BOARD_ROT__ : BOARD_ROT;
 export const BOARD = {
   keys: ['a', 'b', 'c', 'd', 'e'],      // a 目標／剛好、b 挑戰、c 剛好、d 輕鬆、e 第二個目標（平常空著）

@@ -846,7 +846,7 @@ async function browserHalf(R, D) {
 
   /* ═══ F. 總覽的榮譽碑列 ═══ */
   {
-    const q0 = await teacher(b, mkSeed({ empty: true }), {});
+    const q0 = await teacher(b, mkSeed({ empty: true }), { stages: ['1'] });
     const t0 = await T(q0, '[data-card="rank"]');
     ok(t0.includes('榮譽碑') && t0.includes('還沒開放'), 'F 2a／2b 都還沒開放：總覽榮譽碑卡片寫「還沒開放」，不是空白（' + t0 + '）');
     ok(!(await T(q0, '[data-todolist]')).includes('榜單') && !(await T(q0, '[data-todolist]')).includes('榮譽碑'), 'F 還沒開放時，今天要做的事不會叫老師更新榜單');

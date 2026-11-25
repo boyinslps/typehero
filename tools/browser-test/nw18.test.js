@@ -97,7 +97,7 @@ const COLORS = ['gray', 'green', 'blue'];
   ok(D.gearMul({ atk: 100, elem: null }, 'coo') === 1 && near(D.gearMul({ atk: 112, elem: null }, 'coo'), 1.12), '沒裝備 ×1、測試者之刃 ×1.12 不變');
 
   /* ═══ 5. 沒有存檔需要補償（§9.4） ═══ */
-  ok(same(D.OPEN_STAGES, ['1']) && D.stageOpen('2b') === false && D.stageOpen('2a') === false, 'OPEN_STAGES 還是 [\'1\']，stageOpen(\'2b\')／(\'2a\') 為假：鐵匠鋪沒開，沒有人做得出或強化裝備');
+  ok(same(D.OPEN_STAGES, ['1', '2b', '3s']) && D.stageOpen('2b') === true && D.stageOpen('2a') === false, 'OPEN_STAGES＝[\'1\',\'2b\',\'3s\']：2b 開、2a 沒開（開放當天沒有人做過或強化過裝備，舊存檔用 gearV 搬移，不需補償）');
   const oldVal = (slot, c, p, fixed) => r2((fixed != null ? fixed : OLD.tb[slot].base[Math.max(0, COLORS.indexOf(c))]) + OLD.tb[slot].per * p);
   let neverWeaker = true, strictlyStronger = 0;
   for (const slot of Object.keys(OLD.tb)) for (const c of COLORS) for (let p = 0; p <= 5; p++) {

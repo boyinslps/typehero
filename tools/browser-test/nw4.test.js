@@ -19,7 +19,7 @@ async function open(browser, o = {}) {
       nw: Object.assign({ v: 1, savedAt: 5, look: { style: 1, hair: 2, skin: 1 }, starter: 'dagger', quest: { done: ['1-0', '1-0a'] }, items: { potion: 3 } }, o.nw || {}) }
   };
   if (o.gift) { const h = await sha256Hex('gift:' + cleanCode(o.gift.code)); seed['mg_config/gift_codes'] = { codes: { [h]: Object.assign({ used: 0, label: '測試' }, o.gift.entry) } }; }
-  await p.addInitScript(a => { window.__FS = a.s; window.__RULES = true; localStorage.clear(); localStorage.setItem('mg_nw_fast', '1'); window.__NW_CODE_HASH__ = a.hash; localStorage.setItem('mg_nw_code', a.hash); if (!a.intro) window.__NW_NOINTRO__ = true; if (a.nogift) window.__NW_NOGIFT__ = true; if (a.atk) window.__NW_ATTACKS__ = []; window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas'); }, { s: seed, hash, nogift: !o.early, atk: o.noattack, intro: o.intro });
+  await p.addInitScript(a => { window.__NW_STAGES__ = ['1']; window.__BOARD_ROT__ = false; window.__FS = a.s; window.__RULES = true; localStorage.clear(); localStorage.setItem('mg_nw_fast', '1'); window.__NW_CODE_HASH__ = a.hash; localStorage.setItem('mg_nw_code', a.hash); if (!a.intro) window.__NW_NOINTRO__ = true; if (a.nogift) window.__NW_NOGIFT__ = true; if (a.atk) window.__NW_ATTACKS__ = []; window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas'); }, { s: seed, hash, nogift: !o.early, atk: o.noattack, intro: o.intro });
   await p.route('**/*', r => {
     const u = r.request().url();
     if (u.startsWith('http://localhost')) return r.continue();

@@ -18,7 +18,7 @@ async function open(browser, o = {}) {
   const hash = await sha256Hex('Test-Pass_9!x');
   const seed = { ['mg_scores/' + ID]: { className: CLS, seat: 5, name: '小明', bestLevel: 10, bestScore: 20, scoreVer: 2, plays: 9, tutorialDone: true, talentIntroDone: true, tier: 'B', balanceVer: 3, punctDone: true,
     nw: Object.assign({ v: 1, savedAt: 5, look: { style: 1, hair: 2, skin: 1 }, starter: 'dagger', hunts: 5, quest: { done: ['1-0', '1-0a'] }, zone: { grass: 5 }, dex: { coo: 1, frog: 1, shroom: 1 }, tm: { m_dodge: 1, m_defend: 1, m_attack: 1 }, intro: { hub: 1, notice: 1 }, seenNotice: NOTICE_ID, nameSet: 1 }, o.nw || {}) } };
-  await p.addInitScript(a => {
+  await p.addInitScript(a => {window.__NW_STAGES__ = ['1']; window.__BOARD_ROT__ = false; 
     window.__FS = a.s; window.__RULES = true; localStorage.clear(); localStorage.setItem('mg_nw_fast', '1');
     window.__NW_CODE_HASH__ = a.hash; localStorage.setItem('mg_nw_code', a.hash); window.__NW_NOGIFT__ = true; window.__NW_NOINTRO__ = true;
     window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas');
@@ -65,9 +65,10 @@ const goHunt = async (p, region, mon, star) => {
   const D = await import('../../nw-data.js');
 
   /* ── 純函式：旗標與常數（node 裡沒有 location，v2On 回 false＝預設沒開） ── */
-  ok(D.v2On() === false && D.NW_V2.on === false, '沒有瀏覽器環境、OPEN_STAGES 沒有 2b：V2 預設沒開');
+  ok(D.v2On() === true && D.NW_V2.on === true, '沒有瀏覽器環境、OPEN_STAGES 有 2b：V2 預設開著');
+  ok((() => { const l = globalThis.location, w = globalThis.window; globalThis.location = { hostname: 'localhost' }; globalThis.window = { __NW_STAGES__: ['1'] }; try { return D.v2On() === false; } finally { if (l === undefined) delete globalThis.location; else globalThis.location = l; if (w === undefined) delete globalThis.window; else globalThis.window = w; } })(), 'localhost 用 __NW_STAGES__ = [\'1\'] 覆寫：V2 關著');
   ok(D.NW_V2.ver === 2.3 && D.NW_V2.uFloor === 300 && D.NW_V2.submitWin === 120 && D.NW_V2.k === 0.4 && D.NW_V2.cap === 600 && D.NW_V2.warnAt === 540 && D.NW_V2.starsPerDay === 2 && D.NW_V2.laneW === 3 && D.NW_V2.dayFull === 4 && D.NW_V2.failBase === 0.3 && D.NW_V2.workEvery === 600 && D.NW_V2.workMax === 2 && D.NW_V2.bonusMat === 1 && D.NW_V2.afkWin === 40 && D.NW_V2.flowCap === 1, 'NW_V2 常數照規格 v2.3 參數表');
-  ok(D.OPEN_STAGES.join() === '1', 'OPEN_STAGES 沒動（還是只有第 1 段）');
+  ok(D.OPEN_STAGES.join() === '1,2b,3s', 'OPEN_STAGES＝第 1 段、2b、3s（2a 沒開）');
 
   const b = await chromium.launch();
 

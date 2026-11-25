@@ -70,7 +70,7 @@ const hunt = (p, res) => p.evaluate(r => { r.t0 = Date.now(); return window.__NW
   const b = await chromium.launch();
   /* 2b 沒開放時不寫紀錄（規則要先貼好；開放 2b 才開始寫） */
   {
-    const c = await open(b, { stages: null });
+    const c = await open(b, { stages: ['1'] });
     await hunt(c, fakeRes()); await c.waitForTimeout(500);
     ok((await runsOf(c)).length === 0 && (await c.evaluate(() => window.__NWG.nw.runQ.length)) === 0 && Object.keys(await c.evaluate(() => window.__NWG.nw.cpmHist)).length === 0, '2b 沒開放（預設）：不寫 mg_nw_runs、不排佇列、不記 cpmHist');
     await c.close();
