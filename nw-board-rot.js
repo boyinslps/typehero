@@ -1,4 +1,4 @@
-/* 委託板「一次 4 張、打完才補」的規則（docs/SPEC-BOARD-ROTATION.md §1～§2）。
+/* 委託板「一次 4 張、打贏蓋章、全部完成才補一整批」的規則（docs/SPEC-BOARD-ROTATION.md §1～§2，刷新與蓋章改版見 docs/SPEC-SHOP-BOARD2.md B）。
    純函式：同樣的 nw、now、seed 一定排出同樣的板子。參考實作與驗算在 tools/nw-sim/board.mjs（nw24.test.js 逐字比對）。
    常數 BOARD、旗標 BOARD_ROT、normalizeBoard 放在 nw-data.js（normalizeNw 要用，放這裡會循環引用）。 */
 import { REGIONS, MONSTERS, MAIN_QUESTS, boardQuests, stdSecs, twDay, BOARD } from './nw-data.js';
@@ -136,7 +136,7 @@ function pick(list, ws, r) { const tot = ws.reduce((a, b) => a + b, 0); let x = 
 
 /* 一格要放的單子。taken＝其他格已經有的 id（不重複）；回 id 或 '' */
 export function fillOne(nw, kind, ctx, taken, r) {
-  const F = ctx.F, cs = cands(nw).filter(q => !taken.includes(q.id) && q.id !== ctx.board.out);
+  const F = ctx.F, cs = cands(nw).filter(q => !taken.includes(q.id) && !(ctx.board.out || []).includes(q.id));
   if (kind === 'goal0' || kind === 'goal1') {
     const g = ctx.goals[kind === 'goal0' ? 0 : 1];
     return g && !taken.includes(g.id) ? g.id : fillOne(nw, 'mid', ctx, taken, r);
@@ -178,13 +178,13 @@ function fits(nw, id, role, ctx, others) {
   return b === 'mid' || (b === 'easy' && !cs.some(c => band(nw, c, F) === 'mid' && !others.includes(c.id)));
 }
 
-const emptySlot = () => ({ id: '', k: '', at: 0, m: 0 });
+const emptySlot = () => ({ id: '', k: '', at: 0, m: 0, ok: 0 });
 export const ctxOf = (nw, board, now, events, tlim) => { const F = frontier(nw, tlim), phi = phiHat(nw); const c = { F, phi, tlim, board }; c.goals = goalCards(nw, events, c); return c; };
 export const dayOf = twDay;   // 台灣時間的日曆日，電腦時區設錯也一樣
 
 /* 從頭排一塊板子（新存檔、舊存檔第一次打開、格式壞掉）。純函式：同樣的 nw、now、seed 一定排出同樣的板子 */
 export function pickBoard(nw, now, seed, events = [], tlim = 480) {
-  const board = { v: 1, seed: seed >>> 0, day: dayOf(now), n: 0, done: 0, swap: 0, lose: 0, last: '', recent: [], out: '', slots: {} };
+  const board = { v: 1, seed: seed >>> 0, day: dayOf(now), n: 0, done: 0, swap: 0, swapN: 0, swapCoin: 0, lose: 0, last: '', recent: [], out: [], slots: {} };
   BOARD.keys.forEach(k => { board.slots[k] = emptySlot(); });
   return repair(nw, board, now, events, tlim, Infinity).board;
 }
@@ -198,6 +198,17 @@ export function repair(nw, board0, now, events, tlim, max, force = []) {
   const K = BOARD.keys, ids = () => K.map(k => board.slots[k].id).filter(Boolean), changed = [];
   force.forEach(k => { if (board.slots[k].id) changed.push(k); board.slots[k] = emptySlot(); });
   const own = {}, free = [];
+  /* 蓋章的單子先認領自己的角色（不再適合也不撕：打贏的單子要留到整批換新）。蓋章的目標單不占名額、另外多算一格：
+     目標已經往前走了，新的目標單會貼在別格（postGoal），舊的章不該擋住它，也不該讓一般單子少一張 */
+  let total = roles.length;
+  K.forEach(k => {
+    const s = board.slots[k];
+    if (!s.id || !s.ok) return;
+    own[k] = s.k || 'mid';
+    if (/^goal/.test(s.k)) { total++; return; }
+    let i = roles.indexOf(s.k || 'mid'); if (i < 0) i = roles.indexOf('mid');
+    if (i >= 0) roles.splice(i, 1);
+  });
   for (const role of roles) {
     const k = K.find(k => board.slots[k].id && !own[k] && fits(nw, board.slots[k].id, role, ctx, ids().filter(x => x !== board.slots[k].id)));
     if (k) { own[k] = role; board.slots[k].k = role; } else free.push(role);
@@ -206,24 +217,27 @@ export function repair(nw, board0, now, events, tlim, max, force = []) {
   let budget = max;
   for (const role of free) {
     let k;
-    if (ids().length < roles.length) k = [...force, ...K].find(x => !board.slots[x].id);
+    if (ids().length < total) k = [...force, ...K].find(x => !board.slots[x].id);
     else if (budget > 0 && misfit.length) { k = misfit.shift(); budget--; }
     if (!k) continue;
     const r = mulberry(hash32(`${board.seed}|${board.n}|${k}`));
     const old = board.slots[k].id;
     board.slots[k] = emptySlot();
     const id = fillOne(nw, role, ctx, ids(), r);
-    if (id) { board.slots[k] = { id, k: role, at: dayOf(now), m: 0 }; own[k] = role; }
+    if (id) { board.slots[k] = { id, k: role, at: dayOf(now), m: 0, ok: 0 }; own[k] = role; }
     if (id !== old && !changed.includes(k)) changed.push(k);
   }
-  for (const k of misfit) if (budget > 0 && ids().length > roles.length) { board.slots[k] = emptySlot(); budget--; changed.push(k); }
+  for (const k of misfit) if (budget > 0 && ids().length > total) { board.slots[k] = emptySlot(); budget--; changed.push(k); }
   return { board, changed, ctx };
 }
 
 /* 進看板時呼叫：沒有板子就排一塊；換日（twDay）就整理（只換不適合的） */
 export function ensureBoard(nw, now, events, tlim, seedIfNew) {
   if (!nw.board || nw.board.v !== 1) return { board: pickBoard(nw, now, seedIfNew, events, tlim), changed: BOARD.keys, why: 'new' };
-  if (nw.board.day !== dayOf(now)) { const b = Object.assign({}, nw.board, { day: dayOf(now), out: '' }); const r = repair(nw, b, now, events, tlim, Infinity); return { board: r.board, changed: r.changed, why: 'day' }; }
+  const newDay = nw.board.day !== dayOf(now), b0 = newDay ? Object.assign({}, nw.board, { day: dayOf(now), out: [], swapN: 0 }) : nw.board;
+  /* 全部蓋章卻還沒換新（兩個分頁互蓋、或打完那場沒存到）：補一整批 */
+  if (allDone(b0)) { const r = refillAll(nw, b0, now, events, tlim, 'all'); return { board: r.board, changed: r.changed, why: 'refill' }; }
+  if (newDay) { const r = repair(nw, b0, now, events, tlim, Infinity); return { board: r.board, changed: r.changed, why: 'day' }; }
   /* 同一天：只修壞掉的格子（重複、已經不開放；例如兩個分頁互蓋），其他一張都不動 */
   const cs = cands(nw).map(q => q.id), seen = [], bad = BOARD.keys.filter(k => { const id = nw.board.slots[k].id; if (!id) return false; const b = !cs.includes(id) || seen.includes(id); seen.push(id); return b; });
   /* 空格也試一次補（兩個分頁互蓋後 normalizeBoard 清掉重複會留下空格；參考實作沒做，這裡補上）：補不出東西就原樣不動，不白白加 n */
@@ -234,17 +248,18 @@ export function ensureBoard(nw, now, events, tlim, seedIfNew) {
   return { board: r.board, changed: r.changed, why: 'fix' };
 }
 
-/* 一場打完（finishHunt 更新 zone、dex、fastMk、任務之後才呼叫）。只有「有效而且打贏」才撕單子 */
+/* 一場打完（finishHunt 更新 zone、dex、fastMk、任務之後才呼叫）。只有「有效而且打贏」才蓋章；蓋過章的單子再打什麼都不變（兩個分頁） */
 export function afterRun(nw, board, run, now, events, tlim) {
   if (!run.valid) return { board, changed: [] };
   const key = BOARD.keys.find(k => board.slots[k].id === run.id);
-  if (!key) return { board, changed: [] };
+  if (!key || board.slots[key].ok) return { board, changed: [] };
   const b = JSON.parse(JSON.stringify(board));
   if (run.win) {
     b.done++; b.last = run.id; b.recent = [run.id, ...(b.recent || []).filter(x => x !== run.id)].slice(0, BOARD.recentN);
     if (run.wasHard) b.lose = 0;
-    b.slots[key] = emptySlot();
-    return repair(nw, b, now, events, tlim, 1, [key]);
+    b.slots[key].ok = 1;
+    if (allDone(b)) return refillAll(nw, b, now, events, tlim, 'all');
+    return postGoal(nw, b, now, events, tlim);
   }
   b.slots[key].m = (b.slots[key].m || 0) + 1;
   if (run.wasHard) {
@@ -258,15 +273,69 @@ export function afterRun(nw, board, run, now, events, tlim) {
   return { board: b, changed: [] };
 }
 
-/* 手動「換一張」：一天一次；目標單不能換；換來的跟原本同一種 */
-export function swapCard(nw, board, key, now, events, tlim) {
-  const s = board.slots[key];
-  if (!s || !s.id || s.k === 'goal0' || s.k === 'goal1' || board.swap === dayOf(now)) return { board, changed: [], refused: true };
+/* 有單子的格子至少 1 個、而且每一個都蓋章了 */
+export function allDone(board) {
+  const used = BOARD.keys.map(k => board.slots[k]).filter(s => s && s.id);
+  return used.length >= 1 && used.every(s => s.ok === 1);
+}
+
+/* 打贏後主線（或活動）的新目標如果不在沒蓋章的單子裡，直接貼進空格，不用等整批換新、也不算刷新。
+   沒有空格：目標單是挑戰、板上另有一張沒蓋章的挑戰，就換掉那一張（板上挑戰最多 1 張）；再沒有就等全部完成（最多再打 3 張） */
+export function postGoal(nw, board, now, events, tlim) {
+  const b = JSON.parse(JSON.stringify(board)), ctx = ctxOf(nw, b, now, events, tlim), K = BOARD.keys, changed = [];
+  const live = k => b.slots[k].id && !b.slots[k].ok;
+  ctx.goals.forEach((g, gi) => {
+    if (K.some(k => b.slots[k].id === g.id || (live(k) && g.match(parseId(b.slots[k].id))))) return;
+    let k = K.find(x => !b.slots[x].id);
+    if (!k && band(nw, parseId(g.id), ctx.F) === 'hard') k = K.find(x => live(x) && band(nw, parseId(b.slots[x].id), ctx.F) === 'hard' && !ctx.goals.some(h => h.match(parseId(b.slots[x].id))));
+    if (!k) return;
+    b.slots[k] = { id: g.id, k: 'goal' + gi, at: dayOf(now), m: 0, ok: 0 }; changed.push(k);
+  });
+  return { board: b, changed };
+}
+
+/* 這塊板子上「刷新會換掉」的格子：有單子、沒蓋章、而且現在不是目標單（目標用現算的，舊的 goal 標籤不算） */
+function swappable(nw, board, ctx) {
+  return BOARD.keys.filter(k => { const s = board.slots[k]; return s.id && !s.ok && !ctx.goals.some(g => g.match(parseId(s.id))); });
+}
+
+/* 整批換新。why＝'all'（全部完成：章全部撕掉、照現在的進度排一整批）或 'swap'（手動刷新：沒蓋章、不是目標的全換）。
+   不碰 nw.coins：扣字元由呼叫端（newworld.js）做，這裡只回 cost */
+export function refillAll(nw, board, now, events, tlim, why) {
   const b = JSON.parse(JSON.stringify(board));
-  b.out = s.id; b.swap = dayOf(now); b.slots[key] = emptySlot();
-  const r = repair(nw, b, now, events, tlim, 0, [key]);
-  if (!r.board.slots[key].id) return { board, changed: [], refused: true };   // 沒有別張可以換：不扣次數
-  return r;
+  if (why === 'all') {
+    BOARD.keys.forEach(k => { b.slots[k] = emptySlot(); });
+    const r = repair(nw, b, now, events, tlim, Infinity, BOARD.keys);
+    return { board: r.board, changed: r.changed, cost: 0, all: true };
+  }
+  const today = dayOf(now), n = b.swap === today ? b.swapN : 0, none = refused => ({ board, changed: [], refused, cost: 0 });
+  if (n >= BOARD.swapCost.length) return none('used');
+  const ctx = ctxOf(nw, b, now, events, tlim), force = swappable(nw, b, ctx);
+  if (!force.length) return none('none');
+  const olds = {}, hardOld = {};
+  force.forEach(k => { olds[k] = b.slots[k]; hardOld[k] = band(nw, parseId(b.slots[k].id), ctx.F) === 'hard'; });
+  b.out = [...(b.out || []), ...force.map(k => b.slots[k].id)].slice(-BOARD.outN);
+  const r = repair(nw, b, now, events, tlim, 0, force);
+  /* 換不到別張（沒有別的可放）：那一格留原樣。挑戰單換完要還是挑戰（位置可以不同）；沒有挑戰了就把原本那張放回去，不讓刷新變成逃避難關 */
+  const restore = k => { r.board.slots[k] = olds[k]; r.board.out = r.board.out.filter(x => x !== olds[k].id); };
+  const hardLive = except => BOARD.keys.some(x => { const t = r.board.slots[x]; return x !== except && t.id && !t.ok && band(nw, parseId(t.id), ctx.F) === 'hard'; });
+  force.forEach(k => { if (!r.board.slots[k].id && !(hardOld[k] && hardLive(k))) restore(k); });
+  const hOld = force.find(k => hardOld[k]);
+  if (hOld && !hardLive(hOld) && !(r.board.slots[hOld].id && band(nw, parseId(r.board.slots[hOld].id), ctx.F) === 'hard')) restore(hOld);
+  const moved = force.filter(k => r.board.slots[k].id !== olds[k].id);
+  if (!moved.length) return none('none');
+  const cost = BOARD.swapCost[n];
+  r.board.swap = today; r.board.swapN = n + 1; r.board.swapCoin = (r.board.swapCoin || 0) + cost;
+  return { board: r.board, changed: r.changed.filter(k => moved.includes(k)), cost };
+}
+
+/* 刷新按鈕用：{ ok, cost, left, why }。why＝''、'used'（今天 3 次用完）、'none'（沒有可以換的）；字元夠不夠由呼叫端比 */
+export function swapState(nw, board, now, events = [], tlim = 480) {
+  const n = board.swap === dayOf(now) ? board.swapN : 0, left = Math.max(0, BOARD.swapCost.length - n);
+  if (!left) return { ok: false, cost: 0, left: 0, why: 'used' };
+  const ctx = ctxOf(nw, board, now, events, tlim);
+  if (!swappable(nw, board, ctx).length) return { ok: false, cost: BOARD.swapCost[n], left, why: 'none' };
+  return { ok: true, cost: BOARD.swapCost[n], left, why: '' };
 }
 
 /* Firestore 不收：undefined、陣列裡的陣列（測試與開發時檢查用） */
@@ -289,7 +358,7 @@ export function boardView(nw, board, events, tlim, today) {
     const s = board.slots[key], q = s && s.id && byId[s.id];
     if (!q) return;
     const gi = s.k === 'goal0' ? 0 : s.k === 'goal1' ? 1 : -1, g = gi >= 0 ? ctx.goals[gi] : null, hit = g && g.match(q);
-    cards.push(Object.assign({}, q, { key, role: band(nw, q, F), tag: hit ? (g.kind === 'event' ? 'event' : g.why === 'path' ? 'path' : 'quest') : '', both: !!(hit && g.kind === 'quest' && g.ev) }));
+    cards.push(Object.assign({}, q, { key, role: band(nw, q, F), tag: hit ? (g.kind === 'event' ? 'event' : g.why === 'path' ? 'path' : 'quest') : '', both: !!(hit && g.kind === 'quest' && g.ev), stamped: !!s.ok }));   // q.done 已經是「討伐過」的意思，蓋章另外叫 stamped
   });
   const locks = all.filter(q => q.locked).map(q => ({ rk: q.rk, needs: REGIONS[q.rk].needs }));
   const notes = [], cs = all.filter(q => !q.locked);
@@ -300,5 +369,5 @@ export function boardView(nw, board, events, tlim, today) {
     const rk = open[open.length - 1], min = Math.max(1, ev.minStar || 1), top = Math.min(5, ((nw.zone || {})[rk] || 0) + 1);
     if (min > top) notes.push(`🎪 活動「${ev.title || '活動'}」要打 ★${min} 的${name}，先把${REGIONS[rk].name}打到 ★${min - 1} 喔`);
   });
-  return { cards, locks, notes, cleared: F.cleared, goals: ctx.goals };
+  return { cards, locks, notes, cleared: F.cleared, goals: ctx.goals, progress: { ok: cards.filter(c => c.stamped).length, total: cards.length } };
 }

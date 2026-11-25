@@ -1,4 +1,4 @@
-/* 委託板「一次 4 張」第 2～4 步：畫面、補單、換一張、主線／活動、組隊房間、手機（docs/SPEC-BOARD-ROTATION.md §3、§4、§8）。旗標用 window.__BOARD_ROT__ 強制；
+/* 委託板「一次 4 張」第 2～4 步：畫面、蓋章、整批刷新、主線／活動、組隊房間、手機（docs/SPEC-BOARD-ROTATION.md §3、§4、§8；蓋章與刷新改版見 docs/SPEC-SHOP-BOARD2.md B）。旗標用 window.__BOARD_ROT__ 強制；
    假結果用 finishHunt（跟 nw22 同一種做法）。純函式與存檔格式見 nw24。截圖放 /tmp/board-*.png。 */
 const { chromium } = require('playwright'); const fs = require('fs');
 const path = require('path'); const M = path.join(__dirname, 'mock') + '/'; const OUT = process.argv[2] || require('os').tmpdir();
@@ -73,7 +73,7 @@ const evDoc = (o = {}) => Object.assign({ type: 'ranking', metric: 'kills', titl
     await toBoard(p);
     const n = (await p.$$('.qs[data-q]')).length;
     ok(n === 3 * 3 + 1 + 0 || n >= 10, `旗標關：全部列出（${n} 張，含鎖住的森林）`);
-    ok((await p.$$('.qs-role')).length === 0 && !(await p.$('[data-swap]')) && !(await p.$('.nwbd-sheets.rot')), '旗標關：沒有角色布條、沒有「換一張」、沒有 4 張的排版');
+    ok((await p.$$('.qs-role')).length === 0 && !(await p.$('[data-swap]')) && !(await p.$('.nwbd-sheets.rot')), '旗標關：沒有角色布條、沒有「刷新」、沒有 4 張的排版');
     ok((await p.$$('.qs.lock')).length === 1, '旗標關：鎖住的森林還是一張單子');
     await hunt(p, 'grass:coo:3');
     ok((await board(p)) === null, '旗標關：打完一場 NW.board 還是 null（完全不讀寫）');
@@ -120,7 +120,7 @@ const evDoc = (o = {}) => Object.assign({ type: 'ranking', metric: 'kills', titl
     await p.close();
   }
 
-  /* ── 打贏補單、輸不補、不算數 ── */
+  /* ── 打贏蓋章（不補單）、輸不動、不算數 ── */
   {
     const p = await open(b, { rot: true, nw: G3 });
     await toBoard(p);
@@ -140,11 +140,17 @@ const evDoc = (o = {}) => Object.assign({ type: 'ranking', metric: 'kills', titl
     const coins0 = await p.evaluate(() => window.__NWG.nw.coins);
     await hunt(p, hard.id);
     b1 = await board(p);
-    ok(b1.done === 1 && b1.last === hard.id && !ids(b1).includes(hard.id) && ids(b1).length === 4, `打贏挑戰單：撕掉、補一張新的、done＝1（${ids(b1).join('、')}）`);
-    ok(ids(b1).some(x => /^grass:\w+:4$/.test(x)), '下一顆星（草原 ★4）貼上來了');
+    const hk = ['a', 'b', 'c', 'd', 'e'].find(k => b1.slots[k].id === hard.id);
+    ok(b1.done === 1 && b1.last === hard.id && hk && b1.slots[hk].ok === 1 && ids(b1).length >= 4 && ids(b1).length <= 5, `打贏挑戰單：留在板上蓋章、不補單、done＝1（${ids(b1).join('、')}）`);
+    ok(ids(b1).some(x => /^grass:\w+:5$/.test(x)), '主線往前走了：新的任務單（草原 ★5）直接貼進空格，不用等整批換新');
     await toBoard(p);
     cs = await cardsOf(p);
-    ok(cs.length === 4 && cs.filter(c => c.isNew).length >= 1 && cs.filter(c => c.isNew).every(c => c.tagNew === '✨ 新的！'), `補上來的單子有「✨ 新的！」小牌子（${cs.filter(c => c.isNew).length} 張）`);
+    ok(cs.length >= 4 && (await p.$$('.qs-wrap.stamped')).length === 1 && !!(await p.$(`.qs-wrap.stamped .qs[data-q="${hard.id}"]`)), '挑戰單有「✅ 完成」章、卡片變暗');
+    ok((await p.textContent('.qs-wrap.stamped .qs-done')).includes('完成') && (await p.textContent('[data-prog]')).includes('完成 1／' + cs.length), `看板上方寫「完成 1／${cs.length}」`);
+    await p.click(`.qs[data-q="${hard.id}"]`);
+    ok(await p.$eval('[data-go]', e => e.disabled) && (await p.textContent('#nwbd-info')).includes('把其他單子打完，就會送來新的一批'), '點蓋章的單子：「狩獵」灰掉，寫「完成了！把其他單子打完…」');
+    const nNew = cs.filter(c => c.isNew).length;
+    ok(nNew >= 1 && cs.filter(c => c.isNew).every(c => c.tagNew === '✨ 新的！'), `貼上來的新任務單有「✨ 新的！」小牌子（${nNew} 張）`);
     await p.waitForTimeout(600);
     await p.screenshot({ path: '/tmp/board-refill.png' });
     await toBoard(p);
@@ -170,26 +176,49 @@ const evDoc = (o = {}) => Object.assign({ type: 'ranking', metric: 'kills', titl
     await p.close();
   }
 
-  /* ── 換一張 ── */
+  /* ── 刷新：沒蓋章、不是目標的整批換新；免費／40／80，一天最多 3 次 ── */
   {
     const p = await open(b, { rot: true, nw: G3 });
     await toBoard(p);
-    const cs = await cardsOf(p), goal = cs.find(c => c.tag), plain = cs.filter(c => !c.tag);
-    if (goal) { await p.click(`.qs[data-q="${goal.id}"]`); ok(await p.$eval('[data-swap]', e => e.disabled) && (await p.textContent('[data-swap]')).includes('任務要用'), '目標單：「換一張」灰掉，寫「任務要用，不能換」'); }
-    else ok(true, '（這份進度沒有目標單）');
-    const t = plain.find(c => /輕鬆/.test(c.role)) || plain[0];
-    await p.click(`.qs[data-q="${t.id}"]`);
-    ok(!(await p.$eval('[data-swap]', e => e.disabled)) && (await p.textContent('[data-swap]')).includes('今天還能換 1 次'), '一般單：按鈕亮著，寫「今天還能換 1 次」');
-    await p.click('[data-swap]'); await p.waitForTimeout(300);
-    const after = await cardsOf(p), b1 = await board(p);
-    ok(after.length === 4 && !after.some(c => c.id === t.id) && b1.swap > 0 && b1.out === t.id, `換掉了 ${t.id}，記在 board.out，今天不會又換回來`);
-    ok(after.filter(c => c.isNew).length === 1 && after.find(c => c.isNew).role.trim() === t.role.trim(), '換來的跟原本同一種角色，有「新的」小牌子');
-    const other = after.find(c => !c.tag && !c.isNew);
-    await p.click(`.qs[data-q="${other.id}"]`);
-    ok(await p.$eval('[data-swap]', e => e.disabled) && (await p.textContent('[data-swap]')).includes('明天才能再換'), '第二次：灰掉，寫「明天才能再換」');
+    let cs = await cardsOf(p);
+    const goal = cs.find(c => c.tag), plain = cs.filter(c => !c.tag);
+    ok((await p.textContent('[data-swap]')).includes('今天免費 1 次') && !(await p.$eval('[data-swap]', e => e.disabled)), '看板上方的按鈕：「🔄 刷新（今天免費 1 次）」亮著');
+    ok(!(await p.textContent('.nwbd-wrap')).includes('換一張') && !(await p.textContent('.nwbd-wrap')).includes('明天才能再換'), '舊字「換一張」「明天才能再換」都沒有了');
+    ok((await p.textContent('[data-prog]')).includes('完成 0／4，全部完成就送來新的一批'), '看板上方：「完成 0／4，全部完成就送來新的一批！」');
+    await p.evaluate(() => { window.__NWG.nw.coins = 300; });
+    const coins0 = await p.evaluate(() => window.__NWG.nw.coins);
+    await p.click('[data-swap]'); await p.waitForTimeout(400);
+    let after = await cardsOf(p), b1 = await board(p);
+    ok(after.length === 4 && plain.every(c => !after.some(x => x.id === c.id)) && (!goal || after.some(x => x.id === goal.id)), '未完成、不是目標的單子全換掉，目標單還在');
+    ok(b1.swapN === 1 && b1.swap > 0 && Array.isArray(b1.out) && plain.every(c => b1.out.includes(c.id)) && b1.out.every(x => typeof x === 'string') && fsOk(b1), '存檔：swapN＝1、out 是平的字串陣列、符合 Firestore');
+    ok((await p.evaluate(() => window.__NWG.nw.coins)) === coins0, '第 1 次免費：字元沒扣');
+    ok(after.filter(c => c.isNew).length === plain.length && after.filter(c => /挑戰/.test(c.role)).length === cs.filter(c => /挑戰/.test(c.role)).length, '被換的格子有「新的」小牌子，🔥 挑戰還是挑戰');
+    /* 第 2 次：要 40，先問 */
+    ok((await p.textContent('[data-swap]')).includes('🪙 40'), '第 2 次按鈕：「🔄 刷新（🪙 40）」');
+    await p.click('[data-swap]'); await p.waitForSelector('#nwbd-ask');
+    ok((await p.textContent('#nwbd-ask')).includes('花 40 字元，把還沒完成的單子全部換新？') && (await p.textContent('#nwbd-ask')).includes('任務單會留著'), '跳確認小視窗：「花 40 字元，把還沒完成的單子全部換新？📌 任務單會留著。」');
+    await p.screenshot({ path: '/tmp/board-swap-ask.png' });
+    await p.click('[data-ask-no]'); await p.waitForTimeout(200);
+    ok((await board(p)).swapN === 1 && (await p.evaluate(() => window.__NWG.nw.coins)) === coins0, '按「不要」：沒換、沒扣');
+    /* 連點 5 下：只成交 1 次 */
+    await p.click('[data-swap]'); await p.waitForSelector('#nwbd-ask');
+    await p.evaluate(() => { const y = document.querySelector('[data-ask-yes]'); for (let i = 0; i < 5; i++) y.click(); });
+    await p.waitForTimeout(500);
+    b1 = await board(p);
+    ok(b1.swapN === 2 && b1.swapCoin === 40 && (await p.evaluate(() => window.__NWG.nw.coins)) === coins0 - 40, '按「換新」連點 5 下：只換 1 次、只扣 40');
+    /* 字元不夠 */
+    await p.evaluate(() => { window.__NWG.nw.coins = 10; });
+    await toBoard(p);
+    ok(await p.$eval('[data-swap]', e => e.disabled) && (await p.textContent('[data-swap]')).includes('刷新要 80 字元'), '字元不夠：灰掉，寫「🔄 刷新要 80 字元」');
     await p.screenshot({ path: '/tmp/board-swap.png' });
-    await toBoard(p); await p.click(`.qs[data-q="${other.id}"]`);
-    ok(await p.$eval('[data-swap]', e => e.disabled), '離開再進來還是灰的（重整不會回復）');
+    await p.evaluate(() => { window.__NWG.nw.coins = 500; });
+    await toBoard(p);
+    await p.click('[data-swap]'); await p.waitForSelector('#nwbd-ask'); await p.click('[data-ask-yes]'); await p.waitForTimeout(500);
+    b1 = await board(p);
+    ok(b1.swapN === 3 && b1.swapCoin === 120 && (await p.evaluate(() => window.__NWG.nw.coins)) === 420, '第 3 次扣 80：swapN＝3、swapCoin＝120、字元 500→420');
+    ok(await p.$eval('[data-swap]', e => e.disabled) && (await p.textContent('[data-swap]')).includes('今天刷新完了'), '第 3 次後：灰掉，寫「今天刷新完了，明天再來」');
+    await toBoard(p);
+    ok(await p.$eval('[data-swap]', e => e.disabled) && (await p.textContent('[data-swap]')).includes('今天刷新完了'), '離開再進來還是灰的（重整不會回復）');
     await p.close();
   }
 
@@ -225,7 +254,7 @@ const evDoc = (o = {}) => Object.assign({ type: 'ranking', metric: 'kills', titl
     await toBoard(q);
     const c0 = await cardsOf(q);
     ok(c0.length === 3 && c0.every(c => /:1$/.test(c.id)) && c0.some(c => c.id === 'grass:frog:1' && /任務目標/.test(c.tag)), `全新存檔：3 張草原 ★1，泡泡蛙有「📌 任務目標」（${c0.map(c => c.id).join('、')}）`);
-    ok((await p_text(q, '.qs-blank')).includes('打贏一張，這裡就會貼新的單子'), '第 4 格是空白舊紙：「打贏一張，這裡就會貼新的單子」');
+    ok((await p_text(q, '.qs-blank')).includes('全部完成，這裡就會貼新的單子'), '第 4 格是空白舊紙：「全部完成，這裡就會貼新的單子」');
     ok(/輕鬆|剛好|挑戰/.test(c0[0].role) && !c0.some(c => /輕鬆/.test(c.role) && false), '全新存檔每張也有角色');
     await q.close();
     const r = await open(b, { rot: true, nw: { zone: { grass: 1, forest: 0 }, dex: { coo: 1, frog: 1, shroom: 1 }, quest: { done: ['1-0'] }, tut: {} } });
@@ -256,7 +285,7 @@ const evDoc = (o = {}) => Object.assign({ type: 'ranking', metric: 'kills', titl
     const rw = cs.find(c => /活動/.test(c.tag));
     ok(!!rw && /wolf/.test(rw.id), '活動排行榜（最快討伐）：炎牙狼貼在板上');
     await hunt(q, rw.id); await toBoard(q);
-    ok((await cardsOf(q)).some(c => c.id === rw.id && /活動/.test(c.tag)), '排行榜活動打贏後貼回同一張（可以一直刷自己的紀錄）');
+    ok((await cardsOf(q)).some(c => c.id === rw.id && /活動/.test(c.tag)), '排行榜活動打贏後：單子蓋章留在板上（整批換新以後又會貼回來，可以繼續刷自己的紀錄）');
     await q.close();
     const r = await open(b, { rot: true, nw: Object.assign({}, G3), docs: { 'mg_events/hw': evDoc({ type: 'hunt', mk: 'wolf', minStar: 3, goal: 3, items: [], title: '獵狼週' }), 'mg_events/bs': evDoc({ type: 'boost', what: 'exp', mul: 2, title: '加倍', items: [] }) } });
     await r.evaluate(() => window.__NWG.events.load(true)); await r.waitForTimeout(300);
@@ -323,8 +352,8 @@ const evDoc = (o = {}) => Object.assign({ type: 'ranking', metric: 'kills', titl
     ok(await noOverflow(p), '手機 390：沒有橫向捲動');
     ok(!(await overlap(p)) && (await cardsOf(p)).length === 4, '手機 390：4 張不重疊');
     const cs = await cardsOf(p); await p.click(`.qs[data-q="${cs.find(c => !c.tag).id}"]`); await p.waitForTimeout(200);
-    const vis = await p.evaluate(() => ['[data-go]', '[data-swap]'].map(s => { const e = document.querySelector(s), r = e.getBoundingClientRect(); return r.width > 80 && r.right <= window.innerWidth + 1 && r.left >= -1; }));
-    ok(vis[0] && vis[1], '手機 390：「狩獵」與「換一張」按鈕完整看得到');
+    const vis = await p.evaluate(() => ['[data-go]', '[data-swap]', '[data-prog]'].map(s => { const e = document.querySelector(s), r = e.getBoundingClientRect(); return r.width > 80 && r.right <= window.innerWidth + 1 && r.left >= -1; }));
+    ok(vis[0] && vis[1] && vis[2], '手機 390：「狩獵」、看板上方的「刷新」與進度完整看得到');
     await p.screenshot({ path: '/tmp/board-mobile.png', fullPage: true });
     await p.close();
   }

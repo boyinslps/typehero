@@ -6,7 +6,7 @@ import {
 } from './nw-data.js';
 import { injectUi } from './nw-ui.js';
 import { setStarter, gearDef, gearItem, doEquip, equippedItem, rollBlueprints, giveGear, giftGearOk, itemName, itemText, forgeHint, stageOpen, GEAR_MAX, wordOpen, newGearId, syncLegacy, giveClothBps, craftList, BP_DUP_COINS, susCheck, SUS, NW_V2, v2On, rewardRatio, dayStep, stdSecs, twDay, newStarLocked, FLOWS, FLOW_INFO, flowOf, BAL, boardRotOn } from './nw-data.js';
-import { ensureBoard, afterRun, swapCard, boardView, band, frontier, parseId, hash32 } from './nw-board-rot.js';
+import { ensureBoard, afterRun, refillAll, swapState, boardView, band, frontier, parseId, hash32 } from './nw-board-rot.js';
 import { openForge, gearTab, matsTab, bpTab } from './nw-forge.js';
 import { flowText, tierOf, EQUIP_LEFT, EQUIP_RIGHT, chibiOf, heroOf, titleBadgeHtml, darkDots, equipSlotHtml, mountSprites as mountSpritesPx, CARD_CSS } from './nw-card.js';
 import { mountVillage } from './nw-village.js';
@@ -828,7 +828,7 @@ export function initNewWorld(C) {
     ],
     academy: [{ icon: '🏫', title: '教學大樓', text: '這裡有閃避、防禦、打字三堂課。每一堂都是先看示範，再自己一步一步做；沒做對會一直等你，做對才換下一步；最後還要把稻草魔物打倒（打 5 下）。學會一堂送 200 字元！' }],
     board: [{ icon: '📜', title: '委託板', text: '選一張委託單，右邊的大地圖會亮起魔物住的地方。有紅色「任務目標」標籤的，就是現在任務要打的魔物。按「狩獵」開房間，再按「出發」就開打。★ 越多越難，打贏低星才會開高星。' }],
-    board2: [{ icon: '📜', title: '委託板改版了', text: '委託板一次只貼 4 張單子，每張上面寫著「輕鬆」「剛好」「挑戰」。🔥 挑戰是你還沒打過的星級，打贏就開放下一顆星。打贏一張，那個位置就會貼上新的單子；不想打的單子，每天可以按「🔄 換一張」換 1 次。' }],
+    board2: [{ icon: '📜', title: '委託板改版了', text: '委託板一次只貼 4 張單子，每張上面寫著「輕鬆」「剛好」「挑戰」。🔥 挑戰是你還沒打過的星級，打贏就開放下一顆星。打贏的單子會蓋上「完成」章，全部蓋滿就會送來新的一批。不想打的單子，可以按「🔄 刷新」整批換新：每天第 1 次免費，一天最多 3 次。' }],
     bag: [{ icon: '🎒', title: '背包', text: '左邊是你的角色和 5 個裝備格，點名字下面的稱號可以自己拚稱號。右邊的分頁看裝備、道具、材料、圖紙、任務、圖鑑。拿到新武器，點格子裡的武器就能換上。' }],
     title: [{ icon: '🏅', title: '自己拚稱號', text: '稱號是用「詞條」拚的：一次選 1～3 個，順序自己決定。灰色的詞條還沒解鎖，會寫怎麼拿。打贏魔物、完成任務、抓蟲都能解鎖新詞條。' }],
     book: [{ icon: '📓', title: '測試員手冊', text: '新世界還在試玩，你是第一批冒險者！每完成一個任務就蓋一個章，拿字元和稱號詞條。字元是新世界的貨幣，之後可以買東西、打造裝備。' }],
@@ -1724,7 +1724,7 @@ export function initNewWorld(C) {
   /* ── 委託板一次 4 張（BOARD_ROT，docs/SPEC-BOARD-ROTATION.md）──
      旗標關著：viewBoard 跟以前一樣全部列出，完全不讀寫 NW.board。 */
   const boardT = () => (v2On() ? NW_V2.cap : BAL.timeLimit);
-  let boardChanged = {}, boardTok = 0;   // 剛貼上的格子（只在記憶體，下次打開就沒有）
+  let boardChanged = {}, boardTok = 0, boardToast = '';   // 剛貼上的格子、要跳的一句話（只在記憶體，下次打開就沒有）
   /* 交給看板的活動：進行中、自己班看得到（activeEvents 已經篩過）、有指定魔物、而且自己還沒達標；沒有指定魔物的（加倍等）只要提示一行 */
   function boardEvents() {
     const out = { list: [], any: false };
@@ -1749,6 +1749,7 @@ export function initNewWorld(C) {
     const tok = ++boardTok, T = boardT(), evs = boardEvents();
     const e = ensureBoard(NW, now(), evs.list, T, boardSeed());
     if (e.why !== 'same') { NW.board = e.board; saveNw(); }
+    if (e.why === 'refill') boardToast = '🎉 全部完成！新的委託單送來了';
     const changed = Object.assign({}, boardChanged); boardChanged = {};
     if (e.why !== 'new') e.changed.forEach(k => { changed[k] = changed[k] || 'new'; });
     const bv = boardView(NW, NW.board, evs.list, T, twDay(now()));
@@ -1756,21 +1757,25 @@ export function initNewWorld(C) {
     setView('board', `${topbar('📜 冒險者公會', 'hub')}<div id="board"></div>`, el => {
       village = mountBoard(el.querySelector('#board'), { PX, NW, today: twDay(now()), classLeft, goal: goalOf(NW), selected: boardSel, loadRooms, onSelect: id => { boardSel = id; }, onHunt: q => openRoom(q),
         cards: bv.cards, locks: bv.locks, notes: bv.notes, cleared: bv.cleared, evAny: evs.any, changed,
-        canSwap: key => {
-          const c = bv.cards.find(x => x.key === key);
-          if (!c) return { ok: false, why: 'none' };
-          if (c.tag) return { ok: false, why: 'goal' };
-          if (NW.board.swap === twDay(now())) return { ok: false, why: 'used' };
-          return swapCard(NW, NW.board, key, now(), evs.list, T).refused ? { ok: false, why: 'none' } : { ok: true, why: '' };
-        },
-        onSwap: key => {
-          const r = swapCard(NW, NW.board, key, now(), evs.list, T);
-          if (r.refused) return;
-          NW.board = r.board; r.changed.forEach(k => { boardChanged[k] = 'new'; }); saveNwNow();
-          boardSel = (r.board.slots[key] || {}).id || null;
+        progress: bv.progress,
+        swapInfo: () => { const st = swapState(NW, NW.board, now(), evs.list, T); return Object.assign({ coins: NW.coins }, st); },
+        /* 刷新：先看雲端有沒有比較新的存檔（兩個分頁），再算次數與價錢、扣字元、存好才重畫。價錢跟確認框上寫的不一樣就不扣，重畫讓孩子重看 */
+        onSwap: async seen => {
+          const did = C.online() ? await syncGear().catch(() => false) : false;
+          const t2 = boardT(), ev2 = boardEvents().list;
+          if (did) { const e2 = ensureBoard(NW, now(), ev2, t2, boardSeed()); if (e2.why !== 'same') { NW.board = e2.board; e2.changed.forEach(k => { boardChanged[k] = 'new'; }); } viewBoard(true); return; }   // 雲端比較新：板子可能已經換過，先讓孩子看新的再決定
+          const st = swapState(NW, NW.board, now(), ev2, t2);
+          if (!st.ok || st.cost !== seen || NW.coins < st.cost) { viewBoard(true); return; }
+          const r = refillAll(NW, NW.board, now(), ev2, t2, 'swap');
+          if (r.refused) { toast('現在沒有可以換的單子。', 2200); viewBoard(true); return; }
+          NW.board = r.board; NW.coins -= r.cost; r.changed.forEach(k => { boardChanged[k] = 'new'; });
+          boardToast = '換好了！';
+          await saveNwNow();
+          boardSel = null;
           viewBoard(true);
         } });
     });
+    if (boardToast) { toast(boardToast, 2400); boardToast = ''; }
     /* 兩個分頁同時開：雲端存檔比自己新就先換成雲端的再整理（比照 syncGear）。先用本機畫出來，有換才重畫 */
     if (noSync !== true && C.online()) syncGear().then(did => { if (did && tok === boardTok && view === 'board') viewBoard(true); }).catch(() => {});
   }
@@ -1992,7 +1997,7 @@ export function initNewWorld(C) {
     /* 看板不給任何獎勵：只決定下次貼哪一張。打贏才撕單子；輸、逃走、撤退、不算數都留著 */
     if (rotOn && res.valid) {
       const r = afterRun(NW, NW.board, { id: boardId, win: sum.win, valid: true, wasHard }, now(), boardEvents().list, boardT());
-      if (r.board !== NW.board) { NW.board = r.board; r.changed.forEach(k => { boardChanged[k] = sum.win ? 'new' : 'ladder'; }); }
+      if (r.board !== NW.board) { NW.board = r.board; r.changed.forEach(k => { boardChanged[k] = sum.win ? 'new' : 'ladder'; }); if (r.all) boardToast = '🎉 全部完成！新的委託單送來了'; }
     }
     saveNw();
     flushRuns();

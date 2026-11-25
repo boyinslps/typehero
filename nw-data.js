@@ -1102,22 +1102,29 @@ export const BOARD = {
   sig: 0.25,                            // 預估的不確定（場與場 0.2 加上估計誤差）
   loseSoft: 2,                          // 挑戰單連續 2 次沒贏 → 換成那一星最好打的
   recentN: 3,                           // 記最近幾張打贏的單子（避免馬上又出現）
-  easyAge: 4                            // 輕鬆單最多比你打過的最高星低 4 星（草原 ★1 不會在森林 ★3 時還掛著）
+  easyAge: 4,                           // 輕鬆單最多比你打過的最高星低 4 星（草原 ★1 不會在森林 ★3 時還掛著）
+  /* 刷新（docs/SPEC-SHOP-BOARD2.md B1）：第 1 次免費，之後每次收字元；一天最多 swapCost.length 次，擋「一直換到出現想要的」。要調價改這兩個數字 */
+  swapCost: [0, 40, 80],
+  outN: 8                               // 今天刷新換掉的單子最多記幾張（當天不會又出現）
 };
 const BOARD_ID_RE = /^[a-z]+:[a-z]+:[1-5]$/;
 /* 格式不對就丟掉（下次打開看板重排）；五個鍵一定都在：存檔是 merge 寫入，本機刪掉的鍵雲端刪不掉；重複的第二張清空 */
 export function normalizeBoard(d) {
   if (!d || typeof d !== 'object' || Array.isArray(d) || d.v !== 1) return null;
   const int = x => (Number.isFinite(+x) ? Math.max(0, Math.floor(+x)) : 0);
-  const empty = () => ({ id: '', k: '', at: 0, m: 0 });
-  const o = { v: 1, seed: int(d.seed) >>> 0, day: int(d.day), n: int(d.n), done: int(d.done), swap: int(d.swap), lose: Math.min(9, int(d.lose)),
+  const empty = () => ({ id: '', k: '', at: 0, m: 0, ok: 0 });
+  /* 舊存檔的 out 是字串（只換一張的年代）、沒有 swapN：今天換過＝已經用掉 1 次 */
+  const out = BOARD_ID_RE.test(d.out) ? [d.out] : Array.isArray(d.out) ? d.out.filter((x, i, a) => BOARD_ID_RE.test(x) && a.indexOf(x) === i).slice(0, BOARD.outN) : [];
+  const o = { v: 1, seed: int(d.seed) >>> 0, day: int(d.day), n: int(d.n), done: int(d.done), swap: int(d.swap),
+    swapN: 'swapN' in d ? Math.min(BOARD.swapCost.length, int(d.swapN)) : (int(d.swap) > 0 && int(d.swap) === int(d.day) ? 1 : 0), swapCoin: int(d.swapCoin),
+    lose: Math.min(9, int(d.lose)),
     last: BOARD_ID_RE.test(d.last) ? d.last : '', recent: Array.isArray(d.recent) ? d.recent.filter(x => BOARD_ID_RE.test(x)).slice(0, BOARD.recentN) : [],
-    out: BOARD_ID_RE.test(d.out) ? d.out : '', slots: {} };
+    out, slots: {} };
   const seen = [];
   BOARD.keys.forEach(k => {
     const s = d.slots && d.slots[k], id = s && BOARD_ID_RE.test(s.id) && !seen.includes(s.id) ? s.id : '';
     if (id) seen.push(id);
-    o.slots[k] = id ? { id, k: typeof s.k === 'string' ? s.k.slice(0, 8) : '', at: int(s.at), m: Math.min(99, int(s.m)) } : empty();
+    o.slots[k] = id ? { id, k: typeof s.k === 'string' ? s.k.slice(0, 8) : '', at: int(s.at), m: Math.min(99, int(s.m)), ok: int(s.ok) ? 1 : 0 } : empty();
   });
   return o;
 }

@@ -1,5 +1,5 @@
 /* 委託板「一次 4 張」第 1 步：純函式（nw-board-rot.js）與存檔格式（docs/SPEC-BOARD-ROTATION.md §1、§2、§5、§8）。純 node，不開瀏覽器。
-   涵蓋：旗標預設關、跟參考實作 tools/nw-sim/board.mjs 逐字比對（500 個隨機進度的 pickBoard／afterRun／swapCard／ensureBoard）、
+   涵蓋：旗標預設關、跟參考實作 tools/nw-sim/board.mjs 逐字比對（500 個隨機進度的 pickBoard／afterRun／refillAll／ensureBoard）、
    規格 §6.2 的自我檢查、強的上限、全新／舊存檔／全破、活動與主線一定在板上、normalizeBoard 與 Firestore 限制。 */
 let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++; };
 
@@ -7,7 +7,7 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
   const D = await import('../../nw-data.js');
   const R = await import('../../nw-board-rot.js');
   const S = await import('../nw-sim/board.mjs');
-  const { BOARD, pickBoard, afterRun, swapCard, ensureBoard, repair, band, frontier, ctxOf, parseId, firestoreOk, hash32 } = R;
+  const { BOARD, pickBoard, afterRun, refillAll, swapState, allDone, ensureBoard, repair, band, frontier, ctxOf, parseId, firestoreOk, hash32 } = R;
   const now = Date.UTC(2026, 10, 24, 3);
   const ids = b => BOARD.keys.map(k => b.slots[k].id).filter(Boolean);
   const roleOf = (nw, id, T = 480) => band(nw, parseId(id), frontier(nw, T));
@@ -35,15 +35,15 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
   ok(oi.some(x => /^grass:\w+:4$/.test(x)), '主線 1-7（草原 ★5）的下一步：草原 ★4 在板上');
   ok(ensureBoard(Object.assign({}, old, { board: e1.board }), now, [], 300).why === 'same', '同一天再打開：什麼都不動');
 
-  /* ── 打贏補單、輸不補、不算數不動 ── */
+  /* ── 打贏蓋章（不補單）、輸不動、不算數不動 ── */
   const nw1 = JSON.parse(JSON.stringify(old)); nw1.board = e1.board;
   const hk = BOARD.keys.find(k => nw1.board.slots[k].id && roleOf(nw1, nw1.board.slots[k].id, 300) === 'hard'), hid = nw1.board.slots[hk].id;
   nw1.zone.grass = 4; nw1.dex[parseId(hid).mk]++;
   const a = afterRun(nw1, nw1.board, { id: hid, win: true, valid: true, wasHard: true }, now, [], 300);
-  ok(a.changed.includes(hk) && a.changed.length <= 2 && a.board.done === 1 && a.board.last === hid && a.board.recent[0] === hid, `打贏挑戰單 → 那一格補新的、done＋1（換了 ${a.changed.join('、')}）`);
-  ok(ids(a.board).length === 4 && new Set(ids(a.board)).size === 4 && firestoreOk(a.board), '補完還是 4 張、沒有重複、符合 Firestore');
-  ok(ids(a.board).some(x => /^grass:\w+:5$/.test(x)), '補上來的挑戰單是草原 ★5');
-  const ck = BOARD.keys.find(k => a.board.slots[k].id && roleOf(nw1, a.board.slots[k].id, 300) !== 'hard');
+  ok(a.changed.every(k => a.board.slots[k].k === 'goal0' && a.board.slots[k].id !== hid) && a.board.slots[hk].ok === 1 && a.board.slots[hk].id === hid && a.board.done === 1 && a.board.last === hid && a.board.recent[0] === hid, '打贏挑戰單 → 蓋章、單子留在原位、done＋1；只可能多貼一張新的任務目標（主線往前走了）');
+  ok(ids(a.board).length >= 4 && ids(a.board).length <= 5 && new Set(ids(a.board)).size === ids(a.board).length && firestoreOk(a.board), '4～5 張、沒有重複、符合 Firestore');
+  ok(afterRun(nw1, a.board, { id: hid, win: true, valid: true, wasHard: true }, now, [], 300).board === a.board, '已經蓋章的單子再打贏（兩個分頁）→ 什麼都不變');
+  const ck = BOARD.keys.find(k => a.board.slots[k].id && !a.board.slots[k].ok && roleOf(nw1, a.board.slots[k].id, 300) !== 'hard');
   const lost = afterRun(nw1, a.board, { id: a.board.slots[ck].id, win: false, valid: true, wasHard: false }, now, [], 300);
   ok(lost.changed.length === 0 && lost.board.slots[ck].id === a.board.slots[ck].id && lost.board.slots[ck].m === 1, '輸／逃走／撤退 → 單子留著（m＋1）');
   ok(afterRun(nw1, a.board, { id: a.board.slots[ck].id, win: true, valid: false }, now, [], 300).board === a.board, '不算數的場次 → 什麼都不變');
@@ -81,13 +81,18 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
       const A2 = afterRun(nw, A, run, now, ev, T), B2 = S.afterRun(nw, B, run, now, ev, T);
       total++; if (JSON.stringify(A2) === JSON.stringify(B2)) same++;
       if (!firestoreOk(A2.board)) bad++;
-      const S1 = swapCard(nw, A, BOARD.keys.find(k => A.slots[k].id === id), now, ev, T), S2 = S.swapCard(nw, B, BOARD.keys.find(k => B.slots[k].id === id), now, ev, T);
+      const S1 = refillAll(nw, A, now, ev, T, 'swap'), S2 = S.refillAll(nw, B, now, ev, T, 'swap');
       total++; if (JSON.stringify(S1) === JSON.stringify(S2)) same++;
+      /* 板上全部打贏 → 整批換新（兩邊也要一樣） */
+      let X1, X2;
+      BOARD.keys.forEach(k => { if (A.slots[k].id) { X1 = afterRun(nw, X1 ? X1.board : A, { id: A.slots[k].id, win: true, valid: true, wasHard: false }, now, ev, T); X2 = S.afterRun(nw, X2 ? X2.board : B, { id: B.slots[k].id, win: true, valid: true, wasHard: false }, now, ev, T); } });
+      total++; if (JSON.stringify(X1) === JSON.stringify(X2)) same++;
+      if (X1 && !firestoreOk(X1.board)) bad++;
       const E1 = ensureBoard(Object.assign({}, nw, { board: A }), now + 7 * 86400e3, ev, T), E2 = S.ensureBoard(Object.assign({}, nw, { board: B }), now + 7 * 86400e3, ev, T);
       total++; if (JSON.stringify(E1) === JSON.stringify(E2)) same++;
     }
   }
-  ok(same === total, `跟 tools/nw-sim/board.mjs 逐字相同：${same}／${total}（500 個隨機進度的 pickBoard、afterRun、swapCard、ensureBoard）`);
+  ok(same === total, `跟 tools/nw-sim/board.mjs 逐字相同：${same}／${total}（500 個隨機進度的 pickBoard、afterRun、refillAll 刷新與整批換新、ensureBoard）`);
   ok(bad === 0, '每一步都符合 Firestore 限制（無 undefined、無陣列裡的陣列）');
   ok(many === 0, `挑戰單一次最多 1 張（${n} 塊板子，2 張以上 ${many} 次）`);
   ok(noMid === 0, `板上永遠有「剛好」或「輕鬆」可打（沒有的 ${noMid} 次）`);
@@ -116,11 +121,24 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
   ok(ids(ab).length === 4 && ids(ab).filter(x => roleOf(all, x) === 'hard').length <= 1, `全破：照樣 4 張（${ids(ab).join('、')}）`);
   ok(frontier(all, 480).cleared === true, '全破：frontier.cleared＝true');
 
-  /* ── 換一張 ── */
-  const s1 = swapCard(nw1, a.board, ck, now, [], 300), other = BOARD.keys.find(k => k !== ck && s1.board.slots[k].id && !/^goal/.test(s1.board.slots[k].k));
-  ok(!s1.refused && s1.board.swap === D.twDay(now) && s1.board.out === a.board.slots[ck].id && s1.board.slots[ck].id !== a.board.slots[ck].id, '換一張：換掉那一格、記 swap 與 out');
-  ok(other && swapCard(nw1, s1.board, other, now, [], 300).refused === true, '同一天第二次換 → 拒絕');
-  ok(!swapCard(nw1, s1.board, other, now + 86400e3, [], 300).refused || true, '隔天又可以換');
+  /* ── 刷新：沒蓋章、不是目標的全換；免費／40／80，一天最多 3 次 ── */
+  ok(JSON.stringify(BOARD.swapCost) === '[0,40,80]' && BOARD.outN === 8, '刷新價格常數：[0, 40, 80]、out 最多 8 個');
+  const st0 = swapState(nw1, a.board, now, [], 300);
+  ok(st0.ok && st0.cost === 0 && st0.left === 3, '刷新狀態：今天免費、還有 3 次');
+  const sw1 = refillAll(nw1, a.board, now, [], 300, 'swap'), gslots = k => /^goal/.test(a.board.slots[k].k) || a.board.slots[k].ok;
+  const kept = BOARD.keys.filter(k => a.board.slots[k].id && gslots(k)), moved = BOARD.keys.filter(k => a.board.slots[k].id && !gslots(k));
+  ok(!sw1.refused && sw1.cost === 0 && sw1.board.swapN === 1 && sw1.board.swap === D.twDay(now) && sw1.board.swapCoin === 0, '第 1 次：免費、swapN＝1');
+  ok(kept.every(k => sw1.board.slots[k].id === a.board.slots[k].id), '蓋章的與目標單不動');
+  ok(moved.length > 0 && moved.every(k => sw1.board.slots[k].id !== a.board.slots[k].id && sw1.board.out.includes(a.board.slots[k].id)), '沒蓋章、不是目標的全部換掉，被換的 id 記在 out（平的陣列）');
+  ok(firestoreOk(sw1.board) && sw1.board.out.every(x => typeof x === 'string'), '刷新後的板子符合 Firestore');
+  const sw2 = refillAll(nw1, sw1.board, now, [], 300, 'swap'), sw3 = refillAll(nw1, sw2.board, now, [], 300, 'swap'), sw4 = refillAll(nw1, sw3.board, now, [], 300, 'swap');
+  ok(sw2.cost === 40 && sw2.board.swapN === 2 && sw2.board.swapCoin === 40 && sw3.cost === 80 && sw3.board.swapN === 3 && sw3.board.swapCoin === 120, '第 2 次 40、第 3 次 80，swapCoin 累計 120');
+  ok(sw4.refused === 'used' && sw4.board === sw3.board && swapState(nw1, sw3.board, now, [], 300).why === 'used', '第 4 次：拒絕（used），狀態是用完了');
+  ok(refillAll(nw1, sw3.board, now + 86400e3, [], 300, 'swap').board.swapN === 1, '隔天重新算（swapN 從 0 起算到 1）');
+  const ndy = ensureBoard(Object.assign({}, nw1, { board: sw3.board }), now + 86400e3, [], 300);
+  ok(ndy.board.swapN === 0 && Array.isArray(ndy.board.out) && ndy.board.out.length === 0, '換日：swapN 歸 0、out 清成 []');
+  const allOk = JSON.parse(JSON.stringify(a.board)); BOARD.keys.forEach(k => { if (allOk.slots[k].id) allOk.slots[k].ok = 1; });
+  ok(allDone(allOk) && !allDone(a.board) && refillAll(nw1, allOk, now, [], 300, 'swap').refused === 'none' && swapState(nw1, allOk, now, [], 300).why === 'none', '全部蓋章：allDone；沒有可以換的 → 刷新拒絕（none）、不扣次數');
 
   /* ── normalizeBoard ── */
   const nb = D.normalizeBoard(Object.assign(JSON.parse(JSON.stringify(e1.board)), { lose: 99, recent: ['grass:coo:1', 'bad', 'grass:frog:2', 'grass:coo:3', 'grass:coo:4'] }));
@@ -131,13 +149,13 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
   const dupFix = ensureBoard(Object.assign({}, old, { board: nd }), now, [], 300);
   ok(dupFix.why === 'fix' && ids(dupFix.board).length === 4, '同一天再打開：只把被清掉的那格補回來（why: fix）');
   const miss = D.normalizeBoard({ v: 1, slots: { a: { id: 'grass:coo:1' } } });
-  ok(BOARD.keys.every(k => miss.slots[k] && miss.slots[k].m === 0 && miss.slots[k].at === 0) && miss.slots.a.id === 'grass:coo:1', '缺欄位補預設值');
+  ok(BOARD.keys.every(k => miss.slots[k] && miss.slots[k].m === 0 && miss.slots[k].at === 0 && miss.slots[k].ok === 0) && miss.slots.a.id === 'grass:coo:1', '缺欄位補預設值');
   ok(D.normalizeNw(JSON.parse(JSON.stringify(Object.assign({}, old, { board: e1.board })))).board.day === e1.board.day, 'normalizeNw 保留合法的 board');
   ok(D.normalizeBoard({ v: 1, slots: { a: { id: 'rm -rf' } } }).slots.a.id === '', '不合法的 id 清掉');
 
   /* ── 換日整理：適合的留著 ── */
   const d1 = ensureBoard(Object.assign({}, nw1, { board: a.board }), now + 7 * 86400e3, [], 300);
-  ok(d1.why === 'day' && d1.changed.length <= 1 && d1.board.day === D.twDay(now + 7 * 86400e3), `隔週打開：進度沒變最多換 1 張（換了 ${d1.changed.length} 張）`);
+  ok(d1.why === 'day' && d1.changed.length <= 1 && d1.board.slots[hk].ok === 1 && d1.board.day === D.twDay(now + 7 * 86400e3), `隔週打開：進度沒變最多換 1 張、蓋章的留著（換了 ${d1.changed.length} 張）`);
 
   console.log(fails ? `\n${fails} 項失敗` : '\n全部通過');
   process.exit(fails ? 1 : 0);
