@@ -5,7 +5,7 @@ export {
   EVENT_TEMPLATES, EVENT_DEFAULTS, FASTEST_FLOOR, IMPROVE_SANE_MAX,
   GIFT_WEAPONS, ITEM_DEFS, WORDS, WORD_GROUPS, wordById, MONSTERS, REGIONS, STARTERS,
   MAIN_QUESTS, currentQuest, normalizeNw, curWeapon, weaponInfo,
-  BUG_COINS, bugCoins, BUG_REWARD_MAX, NOTICES, SUS_WHY, stageOpen
+  BUG_COINS, bugCoins, BUG_REWARD_MAX, NOTICES, SUS_WHY, stageOpen, MAT_INFO
 } from '../nw-data.js';
 export { gearPower, gearDef, GEAR_DEFS, GEAR_SLOTS, GEAR_MAX_P, itemName, itemText, gearItem, defColors } from '../nw-data.js';
 export { toMs, normalizeEvent, phaseOf, GRACE_MS, timeText, scoreText, sortDir, saneScore, saneFloor, clsMatch, pctOf, classReached, awardTierOf, ruleLines, finalRows, awardList, dateText, METRIC_NAME, METRIC_UNIT, runsNeed } from '../nw-events.js';

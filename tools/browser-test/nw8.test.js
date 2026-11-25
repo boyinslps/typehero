@@ -155,7 +155,7 @@ const others = (evId, scores, o = {}) => scores.map((s, i) => mkScore(o.cls || '
   ok(E.classReached({ goalPct: 60 }, 3, 5) && !E.classReached({ goalPct: 60 }, 2, 5) && !E.classReached({ goalPct: 60 }, 0, 0), 'classReached：3/5＝60% 達標、2/5 不達標、人數 0 不達標');
 
   /* 改名卡 */
-  ok(D.ITEM_DEFS.renameCard.name === '改名卡' && D.SHOP_ITEMS.some(x => x.key === 'renameCard' && x.price === 300), 'ITEM_DEFS／SHOP_ITEMS：改名卡 300（商店開張時用）');
+  ok(D.ITEM_DEFS.renameCard.name === '改名卡' && D.SHOP.renameCard.price === 300, 'ITEM_DEFS／SHOP：改名卡 300（商店開張時用）');
 
   /* 預設值與範本 */
   ok(D.EVENT_DEFAULTS.classwar.per === 3 && D.EVENT_DEFAULTS.classwar.goalPct > 0 && D.EVENT_DEFAULTS.days === 14, 'EVENT_DEFAULTS：每人 3 隻、兩週');

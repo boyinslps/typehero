@@ -349,6 +349,7 @@ export const defaultNw = () => ({
   mail: {}, nameLog: [], nameSet: 0, ev: {}, fastMk: {}, cpmHist: {}, runQ: [],
   gearV: 0, gear: [], eq: { weapon: null, helm: null, armor: null, gloves: null, boots: null }, bpDry: {}, forge: { made: 0, ups: 0, top: 0, gift: 0 },
   board: null,   // 委託板（BOARD_ROT 開著才用，格式見 normalizeBoard）
+  shop: { day: 0, buy: {}, spent: 0, n: 0 },   // 商店（格式見 normalizeShop）
   flow: '', esc: {}   // 上次選的流派（''＝一般打法）；esc＝「怪物:星級」逃走了幾次（打贏就清掉），結算提示藤蔓流用
 });
 
@@ -374,6 +375,7 @@ export function normalizeNw(d) {
   /* 已領的信是物件不是陣列：兩個分頁各自合併存檔時，不會整份蓋掉對方領過的紀錄 */
   o.mail = (d.mail && typeof d.mail === 'object' && !Array.isArray(d.mail)) ? d.mail : {};
   o.board = normalizeBoard(d.board);
+  o.shop = normalizeShop(d.shop);
   /* 舊的詞庫暱稱不再使用，丟掉；nameLog＝用改名卡改過的名字（老師在學生卡看得到） */
   delete o.nick; delete o.nickAt;
   o.flow = FLOWS[d.flow] ? d.flow : '';
@@ -411,8 +413,20 @@ export const ITEM_DEFS = {
   potion: { name: '回復藥', desc: '要等商店開張才能在戰鬥中使用，先幫你存著。', icon: '🧪' },
   renameCard: { name: '改名卡', desc: '可以改一次名字。', pixel: 'renameCard' }
 };
-/* 商店開張時用（現在 OPEN_STAGES 沒有 '3b'，商店還沒開，沒有購買流程；改名卡先由信箱寄） */
-export const SHOP_ITEMS = [{ key: 'renameCard', price: 300 }];
+/* 商店（docs/SPEC-SHOP-BOARD2.md A1）：價格與上限是模擬定的，要調先重跑 bal2b-term.mjs --exchange。
+   day＝每天（twDay）最多買幾個（灰、綠是「同顏色合計」）；blue: false＝不賣（藍是最緊的資源）。階段 '3s' 沒開放前商店關著 */
+export const SHOP = { gray: { price: 40, day: 3 }, green: { price: 200, day: 1 }, blue: false, renameCard: { price: 300, day: 1 } };
+/* NW.shop：day＝上次買東西的 twDay；buy＝這天每種買了幾個（換日把每個鍵歸 0，不刪鍵：存檔是 merge 寫入，本機刪的鍵雲端刪不掉）。
+   只留認得的 id、整數 0～99，沒有 undefined、沒有陣列 */
+export function normalizeShop(d) {
+  const int = (x, max = 1e9) => (Number.isFinite(+x) ? Math.min(max, Math.max(0, Math.floor(+x))) : 0);
+  const o = { day: 0, buy: {}, spent: 0, n: 0 };
+  if (!d || typeof d !== 'object' || Array.isArray(d)) return o;
+  o.day = int(d.day); o.spent = int(d.spent); o.n = int(d.n);
+  if (d.buy && typeof d.buy === 'object' && !Array.isArray(d.buy))
+    for (const [id, v] of Object.entries(d.buy)) if (id === 'renameCard' || (Object.prototype.hasOwnProperty.call(MAT_INFO, id) && !id.startsWith('bp_'))) o.buy[id] = int(v, 99);
+  return o;
+}
 /* ══ 裝備（第 2 段 2b，docs/SPEC-STAGE2.md §3）══
    一格一個數字（GDD §2.1）。全部是純函式，戰鬥（nw-battle.js）、人物卡（nw-card.js）、鐵匠鋪（nw-forge.js）、
    教師頁、tools/nw-sim 共用；存檔欄位：gearV、gear（每件 { id, k, c, p, t }）、eq（五格各指向一件的 id）、forge、bpDry。
@@ -955,7 +969,7 @@ export const VILLAGE = {
     { id: 'academy', kind: 'academy', x: 3, y: 12, name: '教學大樓', act: 'academy', text: '閃避、防禦、攻擊的教學都在這裡，跟著做一遍就會了！' },
     { id: 'board', kind: 'board', x: 11, y: 13, name: '委託板', act: 'map', text: '選地方、選魔物，出發狩獵！' },
     { id: 'notice', kind: 'notice', x: 17, y: 13, name: '佈告欄', act: 'notice', text: '活動、老師的公告、抓蟲榜，都貼在這裡。' },
-    { id: 'shop', kind: 'shop', x: 24, y: 9, name: '商店', wip: '3b', text: '用字元買回復藥，也可以賣掉用不到的材料。' },
+    { id: 'shop', kind: 'shop', x: 24, y: 9, name: '商店', wip: '3s', act: 'shop', text: '用字元買材料和改名卡。' },
     { id: 'armor', kind: 'armor', x: 28, y: 10, name: '防具店', wip: '3b', text: '頭盔、鎧甲、手套、靴子，穿上就會出現在你身上！' },
     { id: 'forge', kind: 'forge', x: 24, y: 15, name: '鐵匠鋪', act: 'forge', wip: '2b', text: '用打到的材料，打造、強化自己的武器和裝備！' },
     { id: 'storage', kind: 'storage', x: 28, y: 16, name: '倉庫', act: 'storage', wip: '2b', text: '所有材料和圖紙都放在這裡，一目了然。' }

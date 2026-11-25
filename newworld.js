@@ -8,6 +8,7 @@ import { injectUi } from './nw-ui.js';
 import { setStarter, gearDef, gearItem, doEquip, equippedItem, rollBlueprints, giveGear, giftGearOk, itemName, itemText, forgeHint, stageOpen, GEAR_MAX, wordOpen, newGearId, syncLegacy, giveClothBps, craftList, BP_DUP_COINS, susCheck, SUS, NW_V2, v2On, rewardRatio, dayStep, stdSecs, twDay, newStarLocked, FLOWS, FLOW_INFO, flowOf, BAL, boardRotOn } from './nw-data.js';
 import { ensureBoard, afterRun, refillAll, swapState, boardView, band, frontier, parseId, hash32 } from './nw-board-rot.js';
 import { openForge, gearTab, matsTab, bpTab } from './nw-forge.js';
+import { openShop } from './nw-shop.js';
 import { flowText, tierOf, EQUIP_LEFT, EQUIP_RIGHT, chibiOf, heroOf, titleBadgeHtml, darkDots, equipSlotHtml, mountSprites as mountSpritesPx, CARD_CSS } from './nw-card.js';
 import { mountVillage } from './nw-village.js';
 import { mountBoard } from './nw-board.js';
@@ -373,7 +374,7 @@ export function initNewWorld(C) {
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     const d = doorTile(b);
     NW.pos = [d[0], d[1] + 1]; NW.posV = POS_V;
-    if (buildingOpen(b)) { const go = { map: viewBoard, rank: openRank, academy: openAcademyUI, notice: () => openNotice(false), forge: openForgeUI, storage: openStorageUI }[b.act] || (() => {}); introOnce(b.id === 'board' ? 'board' : b.id).then(() => (b.id === 'board' && boardRotOn() ? introOnce('board2') : null)).then(() => go()); return; }
+    if (buildingOpen(b)) { const go = { map: viewBoard, rank: openRank, academy: openAcademyUI, notice: () => openNotice(false), forge: openForgeUI, storage: openStorageUI, shop: openShopUI }[b.act] || (() => {}); introOnce(b.id === 'board' ? 'board' : b.id).then(() => (b.id === 'board' && boardRotOn() ? introOnce('board2') : null)).then(() => go()); return; }
     openWip(b);
   }
 
@@ -585,6 +586,9 @@ export function initNewWorld(C) {
     if (ws.length) parts.push(`新的稱號詞條：${ws.join('、')}`);
     return { note: parts.join('　') };
   }
+  /* 商店（階段 '3s'）：買之前先比雲端存檔（比照 syncGear），上限與字元用買的那一刻最新的存檔判斷 */
+  const shopCtx = () => ({ PX, NW: () => NW, saveNow: saveNwNow, toast, esc: escHtml, now, sync: syncGear });
+  function openShopUI() { openShop(shopCtx(), { onClose: () => { if (view === 'hub') viewHub(); } }); }
   async function openForgeUI() {
     await introOnce('forge');
     if (!NW.forge.gift) {

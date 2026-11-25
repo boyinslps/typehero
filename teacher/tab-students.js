@@ -3,7 +3,7 @@
    與 mg_bugboard_private（老師核可的真名，學生讀不到）。 */
 import { db, doc, setDoc, writeBatch } from './fb.js';
 import { loadScores, loadBoard, loadFlags, loadMails, loadClassSizes, invalidate, nameChanged, markNameWarn, nameBase, byClsSeat } from './data.js';
-import { clsShort, MONSTERS, REGIONS, MAIN_QUESTS, currentQuest, wordById, twDay, normName, sha256Hex, gearPower } from './nw.js';
+import { clsShort, MONSTERS, REGIONS, MAIN_QUESTS, currentQuest, wordById, twDay, MAT_INFO, normName, sha256Hex, gearPower } from './nw.js';
 import { ownedSummary } from './gifts.js';
 import { awardTitle } from './title-ui.js';
 import { openPersonCard } from './pc.js';
@@ -30,6 +30,13 @@ export default async function mount(el, ctx, params) {
   let sort = { key: 'cls', dir: 1 };
 
   const bd = s => board[s.id] || {};
+  /* 商店紀錄（nw.shop，SPEC-SHOP-BOARD2.md A6）：沒買過就不顯示這一行。補發、退款用信箱的禮物 */
+  const shopLine = nw => {
+    const sh = nw && nw.shop;
+    if (!sh || !(sh.n > 0)) return '';
+    const today = sh.day === twDay(Date.now()) ? Object.entries(sh.buy || {}).filter(([, v]) => v > 0).map(([k, v]) => `${esc(k === 'renameCard' ? '改名卡' : (MAT_INFO[k] || [k])[0])} ${v}`).join('、') : '';
+    return `<b>🏪 商店</b><span data-own="shop">總共花 ${sh.spent || 0} 字元、買 ${sh.n} 次；今天買了：${today || '沒有'}</span>`;
+  };
   const sortVal = {
     cls: s => clsShort(s.className), seat: s => s.seat, name: s => s.name, nick: s => s.nick, hr: s => s.hr, coins: s => s.coins,
     weapon: s => s.weapon, power: s => s.power, quest: s => s.nw ? s.nw.quest.done.length : -1, hunts: s => s.hunts, wins: s => s.wins, last: s => s.last, rep: s => +bd(s).n || 0
@@ -159,6 +166,7 @@ export default async function mount(el, ctx, params) {
           <b>戰力</b><span data-own="power">${gearPower(nw)}　<span class="dim">做過 ${(nw.forge || {}).made || 0} 件・最高 +${Math.max(0, ...(nw.gear || []).map(g => g.p || 0))}</span></span>
           <b>道具</b><span data-own="items">${esc(own.items.join('　')) || '—'}</span>
           <b>材料</b><span data-own="mats">${esc(own.mats.join('　')) || '—'}</span>
+          ${shopLine(nw)}
           <b>圖紙</b><span data-own="bps">${esc(own.bps.join('、')) || '—'}</span>
           <b>教學</b><span>${['dodge', 'defend', 'attack'].map(k => `${{ dodge: '閃避', defend: '防禦', attack: '打字' }[k]}${(nw.tut || {})[k] ? '✓' : '—'}`).join('　')}</span>
           <b>任務</b><span>完成 ${(nw.quest.done || []).length} / ${MAIN_QUESTS.length}・目前：${q ? esc(q.t) : '全部完成'}</span>
