@@ -6,9 +6,10 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 export function mountVillage(host, o) {
   const { PX, look, open, start, onEnter, scroller, fast, guide, mailN, noticeBang, forgeFx } = o;
   const V = VILLAGE, W = V.cols * T, H = V.rows * T;
-  /* 倍率照 UI-ART-SPEC §1：整數，桌機 3～4、手機 2。地圖比畫面大，所以不再縮到塞進一個畫面，改成容器兩個方向都能捲 */
+  /* 老師看實機覺得角色與建築太大：比原本（桌機 4／3、手機 2）縮約 25～33%，同一畫面看得到更多地圖。
+     手機用 1.5：整數 1 太小點不到、2 就是原本太大；1.5 在 2 倍螢幕上剛好是整數個裝置像素 */
   const mobile = innerWidth < 640;
-  const sc = mobile ? 2 : ((host.clientWidth || innerWidth) >= 940 ? 4 : 3);
+  const sc = mobile ? 1.5 : ((host.clientWidth || innerWidth) >= 940 ? 3 : 2);
   host.innerHTML = '';
   if (!document.getElementById('nw-vp-css')) {
     const st = document.createElement('style'); st.id = 'nw-vp-css';
@@ -179,7 +180,7 @@ export function mountVillage(host, o) {
 
   const prompt = document.createElement('div');
   prompt.className = 'px-panel';
-  prompt.style.cssText = 'position:absolute;display:none;padding:3px 10px;font-size:14px;font-weight:900;z-index:7;pointer-events:none;white-space:nowrap;transform:translateX(-50%)';
+  prompt.style.cssText = `position:absolute;display:none;padding:2px 8px;font-size:${Math.max(12, Math.round(3.5 * sc))}px;font-weight:900;z-index:7;pointer-events:none;white-space:nowrap;transform:translateX(-50%)`;   // 地圖縮小後提示字跟著縮，不然換算成地圖格會變太寬、擠不進郵筒旁邊
   stage.appendChild(prompt);
   const REACH = 26;
   function nearest() {

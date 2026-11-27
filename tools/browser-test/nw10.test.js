@@ -104,13 +104,13 @@ const rectsOverlap = (a, b) => a.left < b.right && a.right > b.left && a.top < b
       });
       ok(r.n === 12 && !r.bad.length, `${tag}：${r.n} 個名牌互不重疊、沒壓到別的熱區 ${r.bad.join(',')}`);
     };
-    await labelCheck('桌機（倍率 4）');
+    await labelCheck('桌機（倍率 3）');
 
     /* 鏡頭：兩個方向都能捲，不出界 */
     const cam = () => p.evaluate(() => { const h = document.querySelector('#vmap'); return { l: h.scrollLeft, t: h.scrollTop, mw: h.scrollWidth - h.clientWidth, mh: h.scrollHeight - h.clientHeight, cw: h.clientWidth, ch: h.clientHeight, sw: h.scrollWidth, sh: h.scrollHeight }; });
     let c0 = await cam();
-    const sc = await p.evaluate(() => Math.round(document.querySelector('#vmap canvas').getBoundingClientRect().width / 512));
-    ok(sc === 4, '桌機倍率是整數 4：' + sc);
+    const sc = await p.evaluate(() => document.querySelector('#vmap canvas').getBoundingClientRect().width / 512);
+    ok(sc === 3, '桌機倍率是整數 3（老師要求縮小，原本 4）：' + sc);
     ok(c0.mw > 0 && c0.mh > 0, `地圖容器橫向、直向都能捲（可捲 ${c0.mw}×${c0.mh}）`);
     ok(c0.ch < c0.sh && c0.cw < c0.sw, '地圖沒有被縮成一個畫面');
     ok(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth), '頁面沒有橫向捲動');
@@ -158,18 +158,18 @@ const rectsOverlap = (a, b) => a.left < b.right && a.right > b.left && a.top < b
 
     /* 捲動後點地面，角色走到那一格 */
     await p.evaluate(() => window.__NWV.teleport('board')); await p.waitForTimeout(300);
-    const clickTile = async (tx, ty) => { const r = await p.evaluate(() => { const c = document.querySelector('#vmap canvas').getBoundingClientRect(); return [c.left, c.top]; }); await p.mouse.click(r[0] + (tx * 16 + 8) * 4, r[1] + (ty * 16 + 8) * 4); };
-    const pickTile = (dx, dy) => p.evaluate(async ([dx, dy]) => {
+    const clickTile = async (tx, ty) => { const r = await p.evaluate(() => { const c = document.querySelector('#vmap canvas').getBoundingClientRect(); return [c.left, c.top]; }); await p.mouse.click(r[0] + (tx * 16 + 8) * sc, r[1] + (ty * 16 + 8) * sc); };
+    const pickTile = (dx, dy) => p.evaluate(async ([dx, dy, sc]) => {
       const V = (await import('./nw-data.js')).VILLAGE, [px, py] = window.__NWV.pos(), h = document.querySelector('#vmap'), c = document.querySelector('#vmap canvas').getBoundingClientRect(), hr = h.getBoundingClientRect();
       const far = (x, y) => V.buildings.every(b => x < b.x - 2 || x > b.x + 4 || y < b.y - 2 || y > b.y + 4) && Math.hypot(x - V.plaza.x, y - V.plaza.y) > 3 && Math.hypot(x - V.gate.x, y - 19) > 3;
       const mb = V.decor.find(d => d.k === 'mailbox');
       for (let r = 1; r < 8; r++) for (const [sx, sy] of [[dx, dy], [-dx, dy], [dx, -dy], [-dx, -dy]]) {
-        const x = px + sx * r, y = py + sy * r, sxp = c.left + (x * 16 + 8) * 4, syp = c.top + (y * 16 + 8) * 4;
+        const x = px + sx * r, y = py + sy * r, sxp = c.left + (x * 16 + 8) * sc, syp = c.top + (y * 16 + 8) * sc;
         if (x < 0 || y < 0 || x >= V.cols || y >= V.rows || V.blocked.has(x + ',' + y) || !far(x, y) || Math.abs(x - mb.x) < 2 && Math.abs(y - mb.y) < 3) continue;
         if (sxp > hr.left + 20 && sxp < hr.right - 20 && syp > hr.top + 20 && syp < hr.bottom - 20) return [x, y];
       }
       return null;
-    }, [dx, dy]);
+    }, [dx, dy, sc]);
     for (const [label, dx, dy] of [['出生點附近', 2, 0], ['往下', 0, 2]]) {
       const t = await pickTile(dx, dy);
       if (!t) { ok(false, label + '找不到可以點的格子'); continue; }
@@ -276,8 +276,8 @@ const rectsOverlap = (a, b) => a.left < b.right && a.right > b.left && a.top < b
   /* ── 手機 390×844 ── */
   {
     const p = await open(b, { vp: { width: 390, height: 844 } });
-    const sc = await p.evaluate(() => Math.round(document.querySelector('#vmap canvas').getBoundingClientRect().width / 512));
-    ok(sc === 2, '手機倍率是整數 2：' + sc);
+    const sc = await p.evaluate(() => document.querySelector('#vmap canvas').getBoundingClientRect().width / 512);
+    ok(sc === 1.5, '手機倍率 1.5（老師要求縮小，原本 2）：' + sc);
     ok(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth && document.body.scrollWidth <= innerWidth && document.querySelector('#nw-root').scrollWidth <= document.querySelector('#nw-root').clientWidth), '手機：頁面沒有橫向捲到畫面外');
     const h = await p.evaluate(() => { const e = document.querySelector('#vmap'); return [e.scrollWidth > e.clientWidth, e.scrollHeight > e.clientHeight]; });
     ok(h[0] && h[1], '手機：地圖容器兩個方向都能捲');
@@ -294,7 +294,7 @@ const rectsOverlap = (a, b) => a.left < b.right && a.right > b.left && a.top < b
       labels.forEach((a, i) => { labels.slice(i + 1).forEach(c => { if (O(a.r, c.r)) bad.push(a.id + '×' + c.id); }); hots.forEach(h => { if (h.dataset.bld !== a.id && O(a.r, h.getBoundingClientRect())) bad.push(a.id + '標籤×' + h.dataset.bld); }); });
       return bad;
     });
-    ok(!lab.length, '手機（倍率 2）：名牌互不重疊、沒壓到別的熱區 ' + lab.join(','));
+    ok(!lab.length, '手機（倍率 1.5）：名牌互不重疊、沒壓到別的熱區 ' + lab.join(','));
     const [x, y] = await miniXY(p, 4.5, 13.5); await p.mouse.click(x, y); await p.waitForTimeout(200);
     ok(same(await pos(p), D.doorTile(D.VILLAGE.buildings.find(q => q.id === 'academy'))), '手機：點小地圖的教學大樓，傳送到門口');
     await p.screenshot({ path: OUT + '/nw10-mobile.png' });
