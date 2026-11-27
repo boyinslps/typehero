@@ -46,6 +46,19 @@ const CSS = `
 .fg-cell .fg-up{position:absolute;right:3px;bottom:1px;font-weight:900;font-size:12px;color:#ffd24a;text-shadow:1px 1px 0 #000,-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000;font-style:normal}
 .fg-cell .fg-wear{position:absolute;left:3px;top:1px;font-size:11px;font-weight:900;color:#8ec96b;text-shadow:1px 1px 0 #000}
 .fg-cell.dark{overflow:visible}
+/* 背包格子（傳統 RPG）：固定欄數、每格正方形，空格也畫出來。欄數 10 或 6 都能整除 60 格，最後一列一定是滿的；
+   用容器寬度而不是視窗寬度判斷，因為人物卡擠在旁邊時右邊那塊會比視窗窄很多 */
+.fg-wrap{container-type:inline-size}
+.fg-grid{display:grid;grid-template-columns:repeat(var(--n,10),minmax(0,1fr));gap:4px;--n:10}
+@container (max-width:439px){.fg-grid{--n:6}}
+.fg-grid .fg-cell{border-width:3px;box-shadow:inset 0 0 0 2px #0a0714,inset 0 -4px 0 rgba(0,0,0,.35)}
+.fg-grid .fg-cell .px-img{display:grid;place-items:center;line-height:0;width:100%;height:100%}
+.fg-grid .fg-cell:hover{filter:brightness(1.25)}
+.fg-grid .fg-cell:focus-visible{outline:3px solid #fff;outline-offset:1px;z-index:1}
+.fg-grid .fg-cell.sel{box-shadow:inset 0 0 0 2px #fff,inset 0 -4px 0 rgba(0,0,0,.35)}
+.fg-grid .fg-cell.on{box-shadow:0 0 0 2px #8ec96b,inset 0 0 0 2px #0a0714}
+.fg-grid .fg-cell.on.sel{box-shadow:0 0 0 2px #8ec96b,inset 0 0 0 2px #fff}
+.fg-empty{aspect-ratio:1;background:#0a0814;border:3px solid #1d1840;box-shadow:inset 0 3px 0 rgba(0,0,0,.45)}
 @media (prefers-reduced-motion:reduce){.fg-big.hit,.fg-big.flash,.fg-big.gold,.fg-row .fg-spark{animation:none}}
 `;
 function css() {
@@ -308,6 +321,7 @@ export function bpSources(id) {
 
 /* 材料分頁：格子＋點一下看說明（倉庫建築打開背包就停在這一頁） */
 export function matsTab(ctx, sel) {
+  css();
   const nw = ctx.NW(), esc = ctx.esc;
   /* 2b 還沒開放：維持原本的樣子，不透露鐵匠鋪的配方 */
   if (!stageOpen('2b')) {
@@ -343,17 +357,21 @@ export function bpTab(ctx) {
 }
 /* 裝備分頁：4 欄格子（顏色邊框、右上小點、右下 +N），點一下就穿上。排序：顏色（預設）／種類／最新 */
 export function gearTab(ctx, sort, sel) {
+  css();   // 背包不一定先逛過鐵匠鋪，樣式要在這裡補上，不然格子是光禿禿的圖
   const nw = ctx.NW(), esc = ctx.esc, items = sortGear(nw, sort || 'color');
   const worn = new Set(Object.values(nw.eq || {}).filter(Boolean));
-  const cells = items.map(g => { const d = gearDef(g.k), dark = !!(d.wk && GIFT_WEAPONS[d.wk]);
-    return `<button class="fg-cell ${worn.has(g.id) ? 'on' : ''} ${dark ? 'dark' : ''}" data-equip="${g.id}" data-gear-k="${g.k}" title="${esc(itemName(g))}：${esc(itemText(g))}（點一下穿上）" style="border-color:${COLOR_HEX[g.c]}">${sprite(g.k, 3)}${dark ? darkDots() : ''}<i class="fg-dot" style="background:${COLOR_HEX[g.c]}"></i>${g.p ? `<i class="fg-up">+${g.p}</i>` : ''}${worn.has(g.id) ? '<span class="fg-wear">穿</span>' : ''}</button>`; }).join('');
+  /* 選中的格子要在算 cells 之前就決定（下面 detail 也用同一個 s） */
   const s = items.find(g => g.id === sel) || items.find(g => worn.has(g.id) && (gearDef(g.k) || {}).slot === 'weapon') || items[0];
+  const cells = items.map(g => { const d = gearDef(g.k), dark = !!(d.wk && GIFT_WEAPONS[d.wk]);
+    return `<button class="fg-cell ${worn.has(g.id) ? 'on' : ''} ${s && s.id === g.id ? 'sel' : ''} ${dark ? 'dark' : ''}" data-equip="${g.id}" data-gear-k="${g.k}" title="${esc(itemName(g))}：${esc(itemText(g))}（點一下穿上）" style="border-color:${COLOR_HEX[g.c]}">${sprite(g.k, 3)}${dark ? darkDots() : ''}<i class="fg-dot" style="background:${COLOR_HEX[g.c]}"></i>${g.p ? `<i class="fg-up">+${g.p}</i>` : ''}${worn.has(g.id) ? '<span class="fg-wear">穿</span>' : ''}</button>`; }).join('');
+  const empties = Array.from({ length: Math.max(0, GEAR_MAX - items.length) }, () => '<div class="fg-empty" aria-hidden="true"></div>').join('');
+  const grid = `<div class="fg-wrap"><div class="fg-grid" data-gear-cells>${cells}${empties}</div></div>`;
   const d = s && gearDef(s.k);
   const detail = s && d ? `<div class="px-panel in mt-3"><b class="px-title">${esc(itemName(s))}</b> <span class="px-chip" style="color:${COLOR_HEX[s.c]}">${COLOR_NAME[s.c]}</span> <small style="color:#aab0d8">${esc(SLOT_NAME[d.slot])}</small><br>
     <span class="px-text" style="font-weight:800">${esc(itemText(s))}　戰力 ${itemPower(s)}</span><br><span class="text-sm" style="color:#ffd98a">${esc(slotNote(d.slot))}</span></div>` : '';
   /* 2b 還沒開放：只有武器，不顯示排序、戰力、說明（維持原本的樣子） */
-  if (!stageOpen('2b')) return { html: `<h3 class="text-lg mb-2">裝備背包</h3><div class="fg-cells" style="max-width:420px" data-gear-cells>${cells}</div>`, current: s ? s.id : null };
+  if (!stageOpen('2b')) return { html: `<h3 class="text-lg mb-2">裝備背包</h3>${grid}`, current: s ? s.id : null };
   return { html: `<h3 class="text-lg mb-2">裝備背包 <small style="color:#aab0d8;font-size:.6em">${items.length}/${GEAR_MAX} 件　戰力 ${gearPower(nw)}</small></h3>
     <div class="flex gap-2 items-center mb-2 text-sm px-text" data-sorts>排序：${SORTS.map(([k, n]) => `<button class="fg-chip ${(sort || 'color') === k ? 'on' : ''}" data-sort="${k}">${n}</button>`).join('')}</div>
-    <div class="fg-cells" style="max-width:420px" data-gear-cells>${cells || '<p class="px-text">還沒有裝備。</p>'}</div>${detail}`, current: s ? s.id : null };
+    ${grid}${items.length ? '' : '<p class="px-text mt-2">還沒有裝備。</p>'}${detail}`, current: s ? s.id : null };
 }

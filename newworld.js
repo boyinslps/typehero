@@ -1688,7 +1688,7 @@ export function initNewWorld(C) {
       const mt = e.target.closest('[data-mat]');
       if (mt) { bagMat = mt.dataset.mat; render('mats'); return; }
       const eq = e.target.closest('[data-equip]');
-      if (eq) { doEquip(NW, eq.dataset.equip); bagSel = eq.dataset.equip; saveNw(); const fx = afterGear(); renderCard(); render('equip'); if (fx.note) toast(fx.note, 3600); return; }
+      if (eq) { doEquip(NW, eq.dataset.equip); bagSel = eq.dataset.equip; saveNw(); const fx = afterGear(); renderCard(); render('equip'); if (e.detail === 0) { const nb = sheet.querySelector(`[data-equip="${bagSel}"]`); if (nb) nb.focus(); } if (fx.note) toast(fx.note, 3600); return; }   // 鍵盤操作（Enter／空白鍵）重畫後把焦點放回同一格，不然要從頭 Tab
       const a = e.target.closest('[data-bag-act]');
       if (a) { closeBag(); if (a.dataset.bagAct === 'starter') viewStarter(); else viewCreator(false); }
     });
