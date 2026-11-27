@@ -19,7 +19,7 @@ async function open(browser, o = {}) {
       nw: Object.assign({ v: 1, savedAt: 5, look: { style: 1, hair: 2, skin: 1 }, starter: 'dagger', quest: { done: ['1-0', '1-0a'] }, items: { potion: 3 }, intro: { hub: 1 }, seenNotice: NOTICE_ID, name0: '小明', nameSet: 1 }, o.nw || {}) }
   }, o.seed || {});
   await p.addInitScript(a => {
-    window.__FS = a.s; window.__RULES = true; localStorage.clear(); localStorage.setItem('mg_nw_fast', '1');
+    window.__FS = a.s; window.__RULES = true; window.__NW_LVGATE__ = false; localStorage.clear(); localStorage.setItem('mg_nw_fast', '1');
     window.__NW_CODE_HASH__ = a.hash; localStorage.setItem('mg_nw_code', a.hash); window.__NW_NOGIFT__ = true;
     if (!a.intro) window.__NW_NOINTRO__ = true;
     if (a.nickprompt) window.__NW_NICKPROMPT__ = true;

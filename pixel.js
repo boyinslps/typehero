@@ -922,14 +922,22 @@ function villageCanvas(V, openIds) {
   return s;
 }
 
-function villageDraw(V, openIds) {
+function villageDraw(V, openIds, lockIds = []) {
   const T = 16, W = V.cols * T, H = V.rows * T;
   const grid = villageCanvas(V, openIds), c = blit(grid, 1, false), g = c.getContext('2d');
   (grid.__d || []).forEach(([gc, d]) => g.drawImage(gc, d.x * T - 1, d.y * T - 8));
   V.buildings.forEach(b => {
-    const bc = blit(buildingGrid(b.kind), 1, false), open = openIds.includes(b.id);
+    /* lockIds＝等級不夠的建築：維持正常顏色，只在右上角掛一個小鎖頭（跟灰色斜紋的「施工中」分開） */
+    const lock = lockIds.includes(b.id), open = openIds.includes(b.id) || lock;
+    const bc = blit(buildingGrid(b.kind), 1, false);
     if (!open) grayOut(bc);
     g.drawImage(bc, b.x * T, b.y * T);
+    if (lock) {
+      const lx = b.x * T + 36, ly = b.y * T + 2;
+      g.fillStyle = '#0a0714'; g.fillRect(lx - 1, ly + 4, 11, 10); g.fillRect(lx + 1, ly - 1, 7, 7);
+      g.fillStyle = '#c8ccd4'; g.fillRect(lx + 2, ly, 5, 5); g.fillStyle = '#0a0714'; g.fillRect(lx + 3, ly + 1, 3, 4);
+      g.fillStyle = '#e8b64c'; g.fillRect(lx, ly + 5, 9, 8); g.fillStyle = '#8f6416'; g.fillRect(lx, ly + 12, 9, 1); g.fillStyle = '#2a1a10'; g.fillRect(lx + 4, ly + 7, 2, 3);
+    }
     if (!open) {
       const x0 = b.x * T + 3, y0 = b.y * T + 14;
       for (let i = 0; i < 40; i += 2) { g.fillStyle = (i / 2) % 2 ? '#c8ccd4' : '#6a6f7a'; g.fillRect(x0 + i, y0 + i * .6, 2, 2); g.fillRect(x0 + i, y0 + 26 - i * .6, 2, 2); }
@@ -1143,7 +1151,7 @@ return {
   chibi: (look, dir, frame, scale) => blit(chibiGrid(look, dir, frame), scale || 1, false),
   door: (state, phase, scale) => blit(doorGrid(state, phase || 0), scale || 1, false),
   building: (kind, scale, gray) => { const c = blit(buildingGrid(kind), scale || 1, false); return gray ? grayOut(c) : c; },
-  village: (V, openIds) => villageDraw(V, openIds),
+  village: (V, openIds, lockIds) => villageDraw(V, openIds, lockIds),
   wood: () => blit(woodGrid(), 1, false),
   paper: tint => blit(paperGrid(tint), 1, false),
   pin: c => blit(pinGrid(c), 1, false),

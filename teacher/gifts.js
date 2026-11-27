@@ -8,7 +8,7 @@
 
    teacher/nw.js 是各分頁共用的入口、目前有別人在改；新加的幾個名稱先直接從 nw-data.js 拿（見下面第二個 import）。 */
 import { GIFT_WEAPONS, ITEM_DEFS, WORDS, WORD_GROUPS, MONSTERS, REGIONS, HR_MAX, weaponInfo, ownedWeapons } from './nw.js';
-import { MAT_INFO, isBpId, TUT_LESSONS, ZONE_STAR_MAX, COLOR_NAME, GEAR_DEFS, GEAR_SLOTS, GEAR_MAX_P, gearDef, defColors, giftGearOk, itemName } from '../nw-data.js';
+import { MAT_INFO, isBpId, TUT_LESSONS, ZONE_STAR_MAX, COLOR_NAME, GEAR_DEFS, GEAR_SLOTS, GEAR_MAX_P, gearDef, defColors, giftGearOk, itemName, lvBuildings, stageOpen } from '../nw-data.js';
 
 /* 材料與圖紙的名稱（顯示用，含圖紙）；每次現查 MAT_INFO，資料表之後加東西不用重開 */
 const matName = id => (MAT_INFO[id] || [id])[0];
@@ -59,6 +59,9 @@ export const GIFT_TYPES = [
     note: '補發用：★n 以下都算打贏，只往上不往下。★5 會開放下一個區域；「草原王」等詞條與主線任務也會跟著算達成。' },
   { type: 'dex', label: '📖 魔物圖鑑（標成打過）', pick: () => Object.keys(MONSTERS).filter(k => !MONSTERS[k].wip).map(k => ({ value: k, label: monName(k) })), qty: false, mailOnly: true,
     note: '補發用：圖鑑標成「打過」（至少 1 次）。不會改打倒次數，也不給字元。「博學」「測試員」等詞條會跟著算達成。' },
+  /* 直接解鎖建築：不用等獵人等級。只能解開老師已經開放的段，施工中的不會因此打開；解開就不會再鎖回去。全班請在寄件對象選「班級」 */
+  { type: 'unl', label: '🔓 直接解鎖建築', pick: () => [{ value: '*', label: '全部（已允許的）' }, ...lvBuildings().filter(b => b.act && (!b.wip || stageOpen(b.wip))).map(b => ({ value: b.id, label: b.name, hint: `獵人等級 ${b.lv}` }))], qty: false, mailOnly: true,
+    note: '不用等獵人等級。只能解開老師已經開放的段；施工中的不會因此打開。解開就不會再鎖回去。學生要打開郵筒領信才生效。' },
   { type: 'tut', label: '🏫 教學課（標成學會）', pick: () => TUT_LESSONS.map(([k, n]) => ({ value: k, label: `${n}課` })), qty: false, mailOnly: true,
     note: '補發用：標成學會，不給那堂課的 200 字元（要給請另外放字元）。三堂都學會，主線任務與測試員任務會自己往前。' }
 ];
@@ -115,6 +118,7 @@ export const itemLabel = it => !it ? '' : ({
   bp: () => `📜 圖紙「${matName(it.key)}」`, hr: () => `⭐ 獵人等級升到 ${it.n}`,
   zone: () => `🗺 ${zoneName(it.key)} ★${it.n} 以下都算過關`, dex: () => `📖 圖鑑：${monName(it.key)}`,
   tut: () => `🏫 教學大樓：${lessonName(it.key)}課學會了`,
+  unl: () => `🔓 直接解鎖：${it.key === '*' ? '全部（已允許的）' : (lvBuildings().find(b => b.id === it.key) || { name: '新地方' }).name}`,
   gear: () => `🛡 ${(gearDef(it.key) || { name: '新裝備' }).name}${it.p ? ' +' + it.p : ''}`
 }[it.type] || (() => '❓ 新東西'))();
 

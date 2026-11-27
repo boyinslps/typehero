@@ -100,16 +100,17 @@ export function goalCards(nw, events, ctx) {
      遇到第一個有目標的就是它；遇到「不是 soft、也沒有目標」的（例如 1-3 閃避防禦各 5 次）就停：那時候主線不需要特定單子 */
   let mq = null;
   for (const q of MAIN_QUESTS) {
-    if (done.includes(q.id) || (q.hold && q.hold())) continue;
-    if (q.target) { mq = q; break; }
+    if (done.includes(q.id) || (q.hold && q.hold(nw)) || (q.unlock && q.test(nw))) continue;   // 解鎖任務已經達成（還沒被 checkQuests 記成完成）就不擋後面的目標
+    if (q.target || q.targetOf) { mq = q; break; }
     if (!q.soft) break;
   }
   if (mq) {
-    const t = mq.target;
+    /* 解鎖任務（等級不夠）的目標是現算的補經驗目標；其他主線任務的目標是固定的 */
+    const t = mq.targetOf ? mq.targetOf(nw) : mq.target;
     for (const rk of t.rk ? [t.rk] : ORDER.filter(r => REGIONS[r].mons.includes(t.mk))) {
       const top = Math.min(5, ((nw.zone || {})[rk] || 0) + 1), star = Math.min(t.star || 1, top);
       const list = (t.mk ? [t.mk] : REGIONS[rk].mons).map(mk => parseId(`${rk}:${mk}:${star}`)).filter(q => open(q.id));
-      if (list.length) { out.push({ id: best(list).id, kind: 'quest', why: star === t.star ? 'target' : 'path', q: mq.id, match: x => x.rk === rk && x.star === star && (!t.mk || x.mk === t.mk) }); break; }
+      if (list.length) { out.push({ id: best(list).id, kind: 'quest', why: !t.path && star === t.star ? 'target' : 'path', q: mq.id, t, match: x => x.rk === rk && x.star === star && (!t.mk || x.mk === t.mk) }); break; }
     }
   }
   for (const ev of events || []) {
@@ -122,7 +123,7 @@ export function goalCards(nw, events, ctx) {
       /* 主線的路也在同一顆星：合成一張（改成活動指定的魔物），不讓板上出現 2 張挑戰 */
       const qg = out.find(g => g.kind === 'quest' && parseId(g.id).rk === rk && parseId(g.id).star === star);
       if (qg) {
-        if (!MAIN_QUESTS.find(m => m.id === qg.q).target.mk) { const m0 = qg.match; qg.id = `${rk}:${ev.mk}:${star}`; qg.ev = ev.id; qg.match = x => m0(x) && x.mk === ev.mk; break; }   // 主線只要「這一區 ★N」：合成一張，用活動的魔物
+        if (!qg.t.mk) { const m0 = qg.match; qg.id = `${rk}:${ev.mk}:${star}`; qg.ev = ev.id; qg.match = x => m0(x) && x.mk === ev.mk; break; }   // 主線只要「這一區 ★N」：合成一張，用活動的魔物
         if (star - 1 >= min) star--;                                                                                  // 主線指定了別隻：活動退一星
       } else if (hard && out.some(g => band(nw, parseId(g.id), F) === 'hard') && star - 1 >= min) star--;
       const id = `${rk}:${ev.mk}:${star}`;
@@ -429,7 +430,7 @@ function chooseAll(nw, style, lostLast, r, goals) {
 
 function questTick(nw) {   // 照 newworld.js 的 checkQuests：不是 soft 的沒做完就停
   for (const q of MAIN_QUESTS) {
-    if (nw.quest.done.includes(q.id) || (q.hold && q.hold())) continue;
+    if (nw.quest.done.includes(q.id) || (q.hold && q.hold(nw))) continue;
     if (!q.test(nw)) { if (q.soft) continue; break; }
     nw.quest.done.push(q.id);
   }
@@ -437,7 +438,9 @@ function questTick(nw) {   // 照 newworld.js 的 checkQuests：不是 soft 的�
 
 export function semester(v0, style, mode, seed, tlim = TLIM, trace = null) {
   const r = mulberry(seed), nw = normalizeNw(defaultNw());
-  nw.starter = 'staff'; nw.tut = { dodge: 1, defend: 1, attack: 1 }; questTick(nw);
+  nw.starter = 'staff'; nw.tut = { dodge: 1, defend: 1, attack: 1 };
+  nw.hr = 12;   // 這支模擬只看委託板，不模擬獵人等級；等級夠＝解鎖任務自動完成，主線不會卡在等級
+  questTick(nw);
   const st = { games: 0, wins: 0, hardSeen: 0, cardsSeen: 0, views: 0, viewsNoMid: 0, viewsHard2: 0, questMiss: 0, questOpen: 0, evMiss: 0, evOpen: 0,
     hardPlays: 0, hardWins: 0, sameMkRefill: 0, refills: 0, playedIds: new Set(), maxRun: 0, reach5: null, reach10: null, clearedViews: 0, viewsEmpty: 0, swaps: 0, lessonsCleared: 0, forestViews: 0, wolfViews: 0 };
   let lostLast = false, run = 0, prevId = '';

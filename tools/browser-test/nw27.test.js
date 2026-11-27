@@ -70,7 +70,7 @@ const NOW = Date.now(), HOUR = 3600e3;
   const { BOARD, pickBoard, afterRun, refillAll, swapState, allDone, ensureBoard, band, frontier, parseId, firestoreOk, mulberry, ctxOf } = R;
   const now0 = Date.UTC(2026, 10, 24, 3);
   const keys = BOARD.keys, idsOf = bd => keys.map(k => bd.slots[k].id).filter(Boolean);
-  const mkNw = o => D.normalizeNw(Object.assign({ starter: 'staff', tut: { dodge: 1, dodgeDone: 1 } }, o));
+  const mkNw = o => D.normalizeNw(Object.assign({ starter: 'staff', hr: 12, tut: { dodge: 1, dodgeDone: 1 } }, o));
   const roleOf = (nw, id, T = 480) => band(nw, parseId(id), frontier(nw, T));
   const flat = bd => Array.isArray(bd.out) && bd.out.every(x => typeof x === 'string');
 

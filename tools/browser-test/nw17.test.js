@@ -164,7 +164,7 @@ async function browserPart() {
       ['mg_nw_runs/五年級4班_1號_1']: { id: '五年級4班_1號', uid: 'uid-secret-1', q: [2, 5, 2400, 2] } };
     Object.keys(o.boards || {}).forEach(g => { if (o.boards[g] !== null) seed['mg_nw_board/' + g] = o.boards[g]; });
     await p.addInitScript(a => {
-      window.__FS = a.s; window.__RULES = true; localStorage.clear(); localStorage.setItem('mg_nw_fast', '1');
+      window.__FS = a.s; window.__RULES = true; window.__NW_LVGATE__ = false; localStorage.clear(); localStorage.setItem('mg_nw_fast', '1');
       window.__NW_CODE_HASH__ = a.hash; localStorage.setItem('mg_nw_code', a.hash); window.__NW_NOGIFT__ = true; if (!a.intro) window.__NW_NOINTRO__ = true;
       if (a.stages) window.__NW_STAGES__ = a.stages; if (a.deny) window.__DENY_READ = a.deny;
       window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas');

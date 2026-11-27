@@ -3,7 +3,7 @@
    與 mg_bugboard_private（老師核可的真名，學生讀不到）。 */
 import { db, doc, setDoc, writeBatch } from './fb.js';
 import { loadScores, loadBoard, loadFlags, loadMails, loadClassSizes, invalidate, nameChanged, markNameWarn, nameBase, byClsSeat } from './data.js';
-import { clsShort, MONSTERS, REGIONS, MAIN_QUESTS, currentQuest, wordById, twDay, MAT_INFO, normName, sha256Hex, gearPower } from './nw.js';
+import { clsShort, MONSTERS, REGIONS, MAIN_QUESTS, currentQuest, qText, unlockedNames, wordById, twDay, MAT_INFO, normName, sha256Hex, gearPower } from './nw.js';
 import { ownedSummary } from './gifts.js';
 import { awardTitle } from './title-ui.js';
 import { openPersonCard } from './pc.js';
@@ -18,7 +18,7 @@ const COLS = [
 const ONLINE_MS = 10 * 60 * 1000;
 const QUICK = [['', '全部'], ['online', '現在在線（10 分鐘內）'], ['today', '今天有上線'], ['notToday', '今天沒上線'], ['unplayed', '還沒進新世界'], ['lowwin', '勝率偏低（可能卡關）']];
 const lowWin = s => s.played && s.wins + s.fails >= 5 && s.wins / (s.wins + s.fails) < 0.4;
-const questText = s => { if (!s.played || !s.nw) return '—'; const q = currentQuest(s.nw); return q ? q.t : '全部完成'; };
+const questText = s => { if (!s.played || !s.nw) return '—'; const q = currentQuest(s.nw); return q ? qText(s.nw, q) : '全部完成'; };
 const gradeOf = c => { const m = /^(.+?年級)/.exec(c || ''); return m ? m[1] : ''; };
 const label = s => `${clsShort(s.className)}・${s.seat}號${s.name ? ' ' + s.name : ''}`;
 
@@ -169,7 +169,8 @@ export default async function mount(el, ctx, params) {
           ${shopLine(nw)}
           <b>圖紙</b><span data-own="bps">${esc(own.bps.join('、')) || '—'}</span>
           <b>教學</b><span>${['dodge', 'defend', 'attack'].map(k => `${{ dodge: '閃避', defend: '防禦', attack: '打字' }[k]}${(nw.tut || {})[k] ? '✓' : '—'}`).join('　')}</span>
-          <b>任務</b><span>完成 ${(nw.quest.done || []).length} / ${MAIN_QUESTS.length}・目前：${q ? esc(q.t) : '全部完成'}</span>
+          <b>任務</b><span>完成 ${(nw.quest.done || []).length} / ${MAIN_QUESTS.length}・目前：${q ? esc(qText(nw, q)) : '全部完成'}</span>
+          <b>解鎖</b><span data-unlocked>${esc(unlockedNames(nw).join('・')) || '—'}</span>
           <b>已領的信</b><span>${Object.keys(nw.mail || {}).length ? Object.keys(nw.mail).map(k => `<span class="chip" style="margin:1px">${esc(titleOf(k))}</span>`).join(' ') : '—'}</span></div>`;
       }
       box.innerHTML = `<div class="kv"><b>班級座號</b><span>${esc(s.className)}　${s.seat} 號</span>

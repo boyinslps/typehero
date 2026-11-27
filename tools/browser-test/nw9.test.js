@@ -24,7 +24,7 @@ async function open(browser, o = {}) {
       nw: Object.assign({ v: 1, savedAt: 5, look: { style: 1, hair: 2, skin: 1 }, starter: 'dagger', quest: { done: ['1-0', '1-0a'] }, items: { potion: 3 }, intro: { hub: 1 }, seenNotice: NOTICE_ID, nick: ['a_flash', 'b_coo'], nameSet: 1 }, o.nw || {}) }
   }, o.seed || {});
   await p.addInitScript(a => {
-    window.__FS = a.s; window.__RULES = true; localStorage.clear(); localStorage.setItem('mg_nw_fast', '1');
+    window.__FS = a.s; window.__RULES = true; window.__NW_LVGATE__ = false; localStorage.clear(); localStorage.setItem('mg_nw_fast', '1');
     window.__NW_CODE_HASH__ = a.hash; localStorage.setItem('mg_nw_code', a.hash); window.__NW_NOGIFT__ = true; if (!a.intro) window.__NW_NOINTRO__ = true;
     window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas');
   }, { s: seed, hash, intro: !!o.intro });
@@ -105,7 +105,7 @@ const dotOn = p => p.evaluate(() => { const e = document.querySelector('[data-no
   ok(new Set([...names, '除蟲員', '蟲蟲剋星', '職業除錯師']).size === 7 && names.every(n => n.startsWith('抓蟲')), '徽章名稱：' + names.join('、') + '（跟除蟲員、蟲蟲剋星、職業除錯師不重複）');
   ok(D.VILLAGE.npcs.find(n => n.id === 'elder').say.includes('廣場上的佈告欄會貼活動和公告，記得常常去看！'), '村長台詞加了佈告欄那句');
   const nb = D.VILLAGE.buildings.find(x => x.id === 'notice');
-  ok(nb && nb.kind === 'notice' && nb.act === 'notice' && !nb.wip && D.buildingOpen(nb), 'VILLAGE.buildings 有佈告欄（act: notice、不是施工中）');
+  ok(nb && nb.kind === 'notice' && nb.act === 'notice' && !nb.wip && D.buildingOpen(D.defaultNw(), nb), 'VILLAGE.buildings 有佈告欄（act: notice、不是施工中）');
 
   const b = await chromium.launch();
 

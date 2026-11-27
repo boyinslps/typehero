@@ -4,7 +4,7 @@ const T = 16;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 export function mountVillage(host, o) {
-  const { PX, look, open, start, onEnter, scroller, fast, guide, mailN, noticeBang, forgeFx } = o;
+  const { PX, look, open, locked = [], fresh = [], start, onEnter, scroller, fast, guide, mailN, noticeBang, forgeFx } = o;
   const V = VILLAGE, W = V.cols * T, H = V.rows * T;
   /* 老師看實機覺得角色與建築太大：比原本（桌機 4／3、手機 2）縮約 25～33%，同一畫面看得到更多地圖。
      手機用 1.5：整數 1 太小點不到、2 就是原本太大；1.5 在 2 倍螢幕上剛好是整數個裝置像素 */
@@ -32,7 +32,8 @@ export function mountVillage(host, o) {
   const g = cvs.getContext('2d');
   g.imageSmoothingEnabled = false;
 
-  const base = PX.village(V, open);
+  const lockOf = id => locked.find(l => l.id === id);
+  const base = PX.village(V, open, locked.map(l => l.id));
   const blocked = V.blocked;
   const gb = V.gateBlock;
   const inGate = (x, y) => x >= gb.x0 && x <= gb.x1 && y >= gb.y0 && y <= gb.y1;
@@ -81,8 +82,17 @@ export function mountVillage(host, o) {
   };
   let bang = null, bangShown = false, forgeBang = null, forgeEl = null, forgeOn = null, forgeAt = -9, forgeLast = false;
   V.buildings.forEach(b => {
-    const isOpen = open.includes(b.id);
-    const hot = addHot(b.id, b.name, b.x * T, b.y * T, 48, 48, !isOpen, isOpen ? '' : '施工中');
+    const lk = lockOf(b.id), isOpen = open.includes(b.id);
+    /* 🔒 Lv N（等級不夠）用正常的名牌；施工中（段沒開）才是灰的 */
+    const hot = addHot(b.id, b.name, b.x * T, b.y * T, 48, 48, !isOpen && !lk, lk ? `🔒 Lv ${lk.lv}` : isOpen ? '' : '施工中');
+    if (lk) hot.dataset.locked = lk.lv;
+    /* 剛解開、還沒進去過：名牌旁邊飄一個小小的 NEW（進去過就由 newworld.js 拿掉） */
+    if (fresh.includes(b.id)) {
+      const nw = document.createElement('span');
+      nw.dataset.newTag = b.id; nw.className = 'px-text';
+      nw.style.cssText = `position:absolute;right:-4px;top:${-Math.max(26, 8 * sc)}px;pointer-events:none;font-weight:900;font-size:${Math.max(11, 3 * sc)}px;padding:0 5px;background:#ffd24a;color:#2a1a10;border:2px solid #0a0714;transform:rotate(6deg)`;
+      nw.textContent = 'NEW'; hot.appendChild(nw);
+    }
     /* 佈告欄有新東西：木板上方彈跳「！」（data-notice-bang）。位置在屋簷上面，不蓋住建築名字的標籤 */
     if (b.id === 'notice' && noticeBang) {
       bang = document.createElement('span');
@@ -169,7 +179,8 @@ export function mountVillage(host, o) {
   function talk(n) {
     n.dir = Math.abs(P.fx - n.fx) > Math.abs(P.fy - n.fy) ? (P.fx > n.fx ? 'right' : 'left') : (P.fy > n.fy ? 'down' : 'up');
     n.goal = null; n.talkUntil = performance.now() + 3600;
-    const lines = (n.sayOpen && stageOpen('2b')) ? n.sayOpen : n.say;
+    const lk = n.openFor && lockOf(n.openFor);
+    const lines = lk ? [`等你升到 Lv ${lk.lv}，我就幫你打第一件裝備！`, '東邊過了小橋就是市集。'] : (n.sayOpen && (n.openFor ? open.includes(n.openFor) : stageOpen('2b'))) ? n.sayOpen : n.say;
     const text = lines[n.line++ % lines.length];
     bubble.innerHTML = `<b style="color:#ffd98a">${n.name}</b><br>${text}`;
     bubble.style.display = 'block'; bubble.dataset.who = n.id;
@@ -362,7 +373,10 @@ export function mountVillage(host, o) {
     if (ck) { R(ck.x0 * ms, ck.y0 * ms, (ck.x1 - ck.x0 + 1) * ms, (ck.y1 - ck.y0 + 1) * ms, '#3ca4d4'); R(ck.x0 * ms - 1, ck.bridge.y0 * ms, (ck.x1 - ck.x0 + 1) * ms + 2, (ck.bridge.y1 - ck.bridge.y0 + 1) * ms, '#a8763c'); }
     if (cl) { R(0, cl.y * ms, mw, ms, '#6a645a'); R(cl.stairs.x0 * ms, cl.y * ms, (cl.stairs.x1 - cl.stairs.x0 + 1) * ms, ms, '#c4bcab'); }
     const gt = V.gateBlock; R(gt.x0 * ms, gt.y0 * ms, (gt.x1 - gt.x0 + 1) * ms, (gt.y1 - gt.y0 + 1) * ms, '#7b4dff'); R(gt.x0 * ms + 1, gt.y0 * ms + 1, (gt.x1 - gt.x0 + 1) * ms - 2, 2, '#d9ccff');
-    V.buildings.forEach(b => { R(b.x * ms, b.y * ms, 3 * ms, 3 * ms, '#0a0714'); R(b.x * ms + 1, b.y * ms + 1, 3 * ms - 2, 3 * ms - 2, open.includes(b.id) ? '#e8b64c' : '#6a6f7a'); });
+    V.buildings.forEach(b => {
+      R(b.x * ms, b.y * ms, 3 * ms, 3 * ms, '#0a0714'); R(b.x * ms + 1, b.y * ms + 1, 3 * ms - 2, 3 * ms - 2, open.includes(b.id) || lockOf(b.id) ? '#e8b64c' : '#6a6f7a');
+      if (lockOf(b.id)) { R(b.x * ms + 3 * ms - ms, b.y * ms, ms, ms, '#0a0714'); R(b.x * ms + 3 * ms - ms + 1, b.y * ms + 1, Math.max(1, ms - 2), Math.max(1, ms - 2), '#f0eee8'); }   // 右上角的小鎖：等級不夠，但走得到門口
+    });
     const tileAt = e => { const r = c.getBoundingClientRect(); return [(e.clientX - r.left) / ms, (e.clientY - r.top) / ms]; };
     /* 點的位置落在建築外框加 1 格的範圍內才算點到；兩棟都沾到就選中心比較近的 */
     const bldAt = e => {

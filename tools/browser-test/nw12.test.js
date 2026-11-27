@@ -23,7 +23,7 @@ async function open(browser, o = {}) {
   const seed = { ['mg_scores/' + ID]: { className: CLS, seat: 5, name: '小明', bestLevel: 10, bestScore: 20, scoreVer: 2, plays: 9, tutorialDone: true, talentIntroDone: true, tier: 'B', balanceVer: 3, punctDone: true,
     nw: Object.assign(BASE_NW(), o.nw || {}) }, ...(o.seed || {}) };
   await p.addInitScript(a => {
-    window.__FS = a.s; window.__RULES = true; localStorage.clear(); localStorage.setItem('mg_nw_fast', '1');
+    window.__FS = a.s; window.__RULES = true; window.__NW_LVGATE__ = false; localStorage.clear(); localStorage.setItem('mg_nw_fast', '1');
     window.__NW_CODE_HASH__ = a.hash; localStorage.setItem('mg_nw_code', a.hash); window.__NW_NOGIFT__ = true; window.__NW_NOINTRO__ = !a.intro;
     if (a.stages) window.__NW_STAGES__ = a.stages;
     window.confetti = () => {}; window.html2canvas = async () => document.createElement('canvas');

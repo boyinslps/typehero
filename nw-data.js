@@ -325,17 +325,64 @@ export const huntCoins = (lv, win) => Math.round((20 + 6 * lv) * (win ? 1 : 0.5)
 export const COLOR_NAME = { gray: '灰', green: '綠', blue: '藍', purple: '紫' };
 export const COLOR_HEX = { gray: '#9aa3ad', green: '#6aa84f', blue: '#3f9be0', purple: '#a06ad8' };
 
+/* ── 解鎖任務（docs/SPEC-UNLOCK-ROUTE.md B）：等級不夠時任務自己變成「打倒 N 隻」。
+   完成條件永遠是「等級到了（或老師解開）」；畫面上的「打倒 N 隻」只是告訴孩子要做什麼，打什麼都算經驗，所以一定解得開 ── */
+const bldOf = id => VILLAGE.buildings.find(b => b.id === id);
+export const qText = (nw, q) => (q.tOf ? q.tOf(nw) : q.t);
+/* 補經驗目標：①借下一個主線任務的目標（現在打得到才借），往主線前進＝補經驗；②否則最新開放區域裡自己打贏過的最高星（不指定魔物）。
+   數量只會變少：缺口只減不增、換到更高星每場經驗變多；一次最多叫他打 3 隻 */
+export function unlockTarget(nw, q) {
+  const L = q.lv, D = expTotal(L) - expTotal(nw.hr || 1, nw.hrExp || 0), d = twDay(Date.now());
+  const done = (nw.quest && nw.quest.done) || [];
+  let t = null;
+  const nx = MAIN_QUESTS.slice(MAIN_QUESTS.indexOf(q) + 1).find(m => !done.includes(m.id) && m.target && !(m.hold && m.hold(nw)));
+  if (nx) {
+    const star = nx.target.star || 1, rks = nx.target.rk ? [nx.target.rk] : Object.keys(REGIONS).filter(r => !REGIONS[r].wip && REGIONS[r].mons.includes(nx.target.mk));
+    const rk = rks.find(r => zoneOpen(nw, r) && starOpen(nw, r, star) && !newStarLocked(nw, r, star, d));
+    if (rk) t = { rk, mk: nx.target.mk, star, path: false };
+  }
+  if (!t) {
+    const rk = Object.keys(REGIONS).filter(r => zoneOpen(nw, r)).pop() || 'grass';
+    t = { rk, mk: undefined, star: Math.max(1, (nw.zone && nw.zone[rk]) || 0), path: true };
+  }
+  const e = huntExp(regionLv(t.rk, t.star), true);
+  t.n = Math.max(1, Math.min(3, Math.ceil(Math.max(0, D) / e)));
+  t.X = t.mk ? MONSTERS[t.mk].name.replace(/（.*?）/g, '') :   // 名字後面的「（閃避測試）」是教學標籤，念起來很長
+    `${REGIONS[t.rk].name} ★${t.star} 的魔物`;
+  return t;
+}
+function unlockQuest(id, bid, lv, stage, ch) {
+  const q = {
+    id, ch, unlock: bid, lv, hold: nw => !stageOpen(stage),
+    /* 建築名稱用 getter 現查：VILLAGE 在這個檔案比 MAIN_QUESTS 晚宣告，建立任務時還讀不到 */
+    get t() { return `讓${bldOf(bid).name}開張`; },
+    get hint() { return `${bldOf(bid).name}要獵人等級 ${lv}。到委託板找有 📌 的單子；打更高星的經驗更多，打幾隻就會少幾隻。`; },
+    get rewardText() { return `${bldOf(bid).name}開張`; }, reward: {},
+    tOf: nw => { const g = unlockTarget(nw, q); return `再打倒 ${g.n} 隻${g.X}，${bldOf(bid).name}就開張！`; },
+    targetOf: nw => unlockTarget(nw, q),
+    prog: nw => { const need = hrNeed(lv - 1); return `經驗 ${Math.max(0, Math.min(need, expTotal(nw.hr || 1, nw.hrExp || 0) - expTotal(lv - 1)))}／${need}`; },
+    test: nw => buildingOpen(nw, bldOf(bid))
+  };
+  return q;
+}
 export const MAIN_QUESTS = [
   { id: '1-0', ch: 1, t: '選擇你的初心武器', hint: '在「裝備與造型」選一把武器', reward: { items: { potion: 3 } }, rewardText: '回復藥 ×3', test: nw => !!nw.starter },
   { id: '1-0a', ch: 1, soft: true, building: 'academy', t: '到教學大樓學會三堂課', hint: '村莊西邊的教學大樓：閃避、防禦、打字各一堂，跟著黃色箭頭走', rewardText: '字元 ×100', reward: { coins: 100 }, test: nw => !!(nw.tut && nw.tut.dodge && nw.tut.defend && nw.tut.attack) },
   { id: '1-1', ch: 1, target: { mk: 'frog', star: 1 }, t: '討伐泡泡蛙（草原 ★1）', hint: '到委託板，選草原的泡泡蛙', rewardText: '獵人經驗 +30', reward: { hrExp: 30 }, test: nw => (nw.dex.frog || 0) > 0 },
+  unlockQuest('1-1u', 'forge', 3, '2b', 1),
+  /* 2b 鐵匠鋪開張才會出現（hold）。soft：不擋 1-7，想先打 ★5 也行。獎勵字元不給強化石（2b 沒有強化石，SPEC §3.11） */
+  { id: '1-5', ch: 1, soft: true, building: 'forge', hold: nw => !buildingOpen(nw, bldOf('forge')), t: '打造任何一件裝備', hint: '市集的鐵匠鋪：選一張圖紙、材料夠就能做。跟著黃色箭頭走', rewardText: '字元 ×60', reward: { coins: 60 }, test: nw => ((nw.forge && nw.forge.made) || 0) >= 1 },
   { id: '1-2', ch: 1, target: { mk: 'coo', star: 1 }, t: '討伐咕咕鳥（草原 ★1）', hint: '到委託板，選草原的咕咕鳥', rewardText: '獵人經驗 +30', reward: { hrExp: 30 }, test: nw => (nw.dex.coo || 0) > 0 },
+  unlockQuest('1-2u', 'shop', 4, '3s', 1),
   { id: '1-3', ch: 1, hold: () => !attacksOn(), t: '閃避成功 5 次、防禦成功 5 次', hint: '狩獵時多試試閃避和防禦', rewardText: '稱號詞條「見習」', reward: {}, test: nw => nw.stat.dodgeOk >= 5 && nw.stat.defOk >= 5, prog: nw => `閃避 ${Math.min(5, nw.stat.dodgeOk)}/5　防禦 ${Math.min(5, nw.stat.defOk)}/5` },
   { id: '1-4', ch: 1, target: { rk: 'grass', star: 3 }, t: '討伐草原任何 ★3 的魔物', hint: '先打過 ★1、★2 才會開放 ★3', rewardText: '另外三把初心武器的圖紙', reward: { bp: ['bp_staff', 'bp_bow', 'bp_dagger', 'bp_crossbow'] }, test: nw => (nw.zone.grass || 0) >= 3 },
-  /* 2b 鐵匠鋪開張才會出現（hold）。soft：不擋 1-7，想先打 ★5 也行。獎勵字元不給強化石（2b 沒有強化石，SPEC §3.11） */
-  { id: '1-5', ch: 1, soft: true, building: 'forge', hold: () => !stageOpen('2b'), t: '打造任何一件裝備', hint: '市集的鐵匠鋪：選一張圖紙、材料夠就能做。跟著黃色箭頭走', rewardText: '字元 ×60', reward: { coins: 60 }, test: nw => ((nw.forge && nw.forge.made) || 0) >= 1 },
-  { id: '1-6', ch: 1, soft: true, building: 'forge', hold: () => !stageOpen('2b'), t: '把一件裝備強化到 +1', hint: '鐵匠鋪的「強化」分頁：選一件裝備，按強化。一定會成功', rewardText: '字元 ×100', reward: { coins: 100 }, test: nw => ((nw.forge && nw.forge.ups) || 0) >= 1 },
-  { id: '1-7', ch: 1, target: { rk: 'grass', star: 5 }, t: '討伐草原任何 ★5 的魔物', hint: '打倒 ★5 就會開放迷霧森林', rewardText: '開放迷霧森林', reward: {}, test: nw => (nw.zone.grass || 0) >= 5 }
+  { id: '1-6', ch: 1, soft: true, building: 'forge', hold: nw => !buildingOpen(nw, bldOf('forge')), t: '把一件裝備強化到 +1', hint: '鐵匠鋪的「強化」分頁：選一件裝備，按強化。一定會成功', rewardText: '字元 ×100', reward: { coins: 100 }, test: nw => ((nw.forge && nw.forge.ups) || 0) >= 1 },
+  { id: '1-7', ch: 1, target: { rk: 'grass', star: 5 }, t: '討伐草原任何 ★5 的魔物', hint: '打倒 ★5 就會開放迷霧森林', rewardText: '開放迷霧森林', reward: {}, test: nw => (nw.zone.grass || 0) >= 5 },
+  /* 第 2、3 章的解鎖任務：對應的段現在都沒開（hold），段開了才會出現。第 2 章程式還沒有，先放在 1-7 後面 */
+  unlockQuest('2-0u', 'rank', 7, '2a', 2),
+  unlockQuest('2-1u', 'rooms', 8, '3a', 2),
+  unlockQuest('2-3u', 'armor', 10, '3b', 2),
+  unlockQuest('3-0u', 'star', 12, '5', 3)
 ];
 
 export const defaultNw = () => ({
@@ -350,6 +397,7 @@ export const defaultNw = () => ({
   gearV: 0, gear: [], eq: { weapon: null, helm: null, armor: null, gloves: null, boots: null }, bpDry: {}, forge: { made: 0, ups: 0, top: 0, gift: 0 },
   board: null,   // 委託板（BOARD_ROT 開著才用，格式見 normalizeBoard）
   shop: { day: 0, buy: {}, spent: 0, n: 0 },   // 商店（格式見 normalizeShop）
+  unl: {}, unlV: 0,   // 解鎖路線（見 grantUnlock）；unlV＝舊存檔相容跑過了沒
   flow: '', esc: {}   // 上次選的流派（''＝一般打法）；esc＝「怪物:星級」逃走了幾次（打贏就清掉），結算提示藤蔓流用
 });
 
@@ -395,7 +443,20 @@ export function normalizeNw(d) {
   if (d.day && typeof d.day === 'object' && !Array.isArray(d.day) && [d.day.d, d.day.n, d.day.work, d.day.ws].every(x => Number.isFinite(+x))) o.day = { d: +d.day.d, n: Math.max(0, Math.floor(+d.day.n)), work: Math.max(0, Math.floor(+d.day.work)), st: Math.max(0, Math.floor(+d.day.st || 0)), ws: Math.max(0, +d.day.ws) };
   else delete o.day;
   o.runQ = Array.isArray(d.runQ) ? d.runQ.filter(x => x && typeof x.rid === 'string' && x.run && typeof x.run === 'object').slice(-5) : [];
+  /* unl 只留認得的建築、值 1 或 2（存檔是 merge 寫入，本機不會刪鍵，所以解開了就不會被收回） */
+  o.unl = {};
+  if (d.unl && typeof d.unl === 'object' && !Array.isArray(d.unl)) for (const b of lvBuildings()) { const v = +d.unl[b.id]; if (v === 1 || v === 2) o.unl[b.id] = v; }
+  o.unlV = d.unlV ? 1 : 0;
+  if (!o.unlV) { legacyUnlock(o); o.unlV = 1; }
   return o;
+}
+/* 舊存檔相容（只跑一次）：用過那個建築、或等級本來就夠的人，直接解開、不慶祝（他們升級時本來就看得到）。
+   裝備要排除初始武器（s＝1）：每個人都有它，不代表用過鐵匠鋪 */
+function legacyUnlock(o) {
+  const it = o.intro || {}, f = o.forge || {}, sh = o.shop || {};
+  const forgeUsed = !!(it.forge || f.made > 0 || f.ups > 0 || f.gift > 0 || (o.gear || []).some(g => g && !g.s));
+  const used = { storage: !!it.storage || forgeUsed, forge: forgeUsed, shop: !!(it.shop || sh.n > 0 || sh.spent > 0) };
+  for (const b of lvBuildings()) if (!o.unl[b.id] && (used[b.id] || !!it[b.id] || (o.hr || 1) >= b.lv)) o.unl[b.id] = 2;
 }
 
 /* 比對姓名前先統一：去掉空白（含全形空白）、全形英數標點轉半形、英文不分大小寫。
@@ -910,13 +971,13 @@ export function setTitleParts(nw, ids) {
   nw.title = seen.map(id => wordById(id).w).join('');
 }
 
-export const currentQuest = nw => MAIN_QUESTS.find(q => !nw.quest.done.includes(q.id) && !(q.hold && q.hold())) || null;
+export const currentQuest = nw => MAIN_QUESTS.find(q => !nw.quest.done.includes(q.id) && !(q.hold && q.hold(nw))) || null;
 
 export function goalOf(nw) {
   const q = currentQuest(nw);
-  if (!q || (!q.target && !q.building)) return null;
-  const t = q.target || {};
-  return { text: q.t, building: q.building || 'board', match: x => !!q.target && (!t.rk || t.rk === x.rk) && (!t.mk || t.mk === x.mk) && (!t.star || t.star === x.star) };
+  if (!q || (!q.target && !q.targetOf && !q.building)) return null;
+  const has = !!(q.target || q.targetOf), t = (q.targetOf ? q.targetOf(nw) : q.target) || {};
+  return { text: qText(nw, q), building: q.building || 'board', match: x => has && (!t.rk || t.rk === x.rk) && (!t.mk || t.mk === x.mk) && (!t.star || t.star === x.star) };
 }
 
 export function zoneOpen(nw, rk) {
@@ -932,7 +993,47 @@ export const starOpen = (nw, rk, star) => star <= 1 || (nw.zone[rk] || 0) >= sta
 export const OPEN_STAGES = ['1', '2b', '3s'];
 export const openStages = () => (typeof location !== 'undefined' && location.hostname === 'localhost' && window.__NW_STAGES__) || OPEN_STAGES;
 export const stageOpen = s => openStages().includes(String(s));
-export const buildingOpen = b => !!b.act && (!b.wip || stageOpen(b.wip));
+
+/* ── 解鎖路線（docs/SPEC-UNLOCK-ROUTE.md）：段開了（老師允許）還要獵人等級夠才打得開 ──
+   開關：測試與開發時 localhost 可用 window.__NW_LVGATE__ = true／false 強制；關掉＝跟沒有等級限制時一模一樣。
+   購買改名卡、委託板刷新不綁等級（老師 2026-11-27 決定），只看商店有沒有開與老師的階段。 */
+export const LV_GATE = true;
+export const lvGateOn = () => (typeof location !== 'undefined' && location.hostname === 'localhost' && typeof window !== 'undefined' && typeof window.__NW_LVGATE__ === 'boolean') ? window.__NW_LVGATE__ : LV_GATE;
+/* nw.unl[id]：1＝解開了還沒慶祝、2＝慶祝過。一旦解開永不收回，所以等級被改回去、存檔被蓋都不會鎖回去 */
+export const lvOk = (nw, id, lv) => !lvGateOn() || !lv || (nw.hr || 1) >= lv || !!(nw.unl && nw.unl[id]);
+export const buildingOpen = (nw, b) => !!b.act && (!b.wip || stageOpen(b.wip)) && lvOk(nw, b.id, b.lv);
+/* 🔒（等級不夠）跟「施工中」（段沒開）是兩回事：前者正常顏色加鎖頭，後者灰色斜紋 */
+export const buildingLocked = (nw, b) => !!b.act && (!b.wip || stageOpen(b.wip)) && !lvOk(nw, b.id, b.lv);
+export const lvBuildings = () => VILLAGE.buildings.filter(b => b.lv);
+export const expTotal = (hr, exp = 0) => { let t = exp; for (let l = 1; l < hr; l++) t += hrNeed(l); return t; };
+/* 等級夠了、段有開、還沒記下來的建築記成「解開了還沒慶祝」，回傳這次新解開的清單。純函式只動 nw.unl */
+export function syncUnlocks(nw) {
+  const got = [];
+  if (!lvGateOn()) return got;
+  if (!nw.unl || typeof nw.unl !== 'object') nw.unl = {};
+  for (const b of lvBuildings()) {
+    if (!b.act || (b.wip && !stageOpen(b.wip)) || nw.unl[b.id] || (nw.hr || 1) < b.lv) continue;
+    nw.unl[b.id] = 1; got.push(b.id);
+  }
+  return got;
+}
+/* 老師的信 `unl`：不用等級，直接解開。id＝建築 id 或 '*'（段有開的全部）；只動「段有開、有 act」的，施工中的不會因此打開 */
+export function grantUnlock(nw, id) {
+  const got = [];
+  if (!nw.unl || typeof nw.unl !== 'object') nw.unl = {};
+  for (const b of lvBuildings()) {
+    if (!b.act || (b.wip && !stageOpen(b.wip)) || (id !== '*' && id !== b.id) || nw.unl[b.id]) continue;
+    nw.unl[b.id] = 1; got.push(b.id);
+  }
+  return got;
+}
+/* 還沒解開、最近的一棟（村莊等級條下面的「下一個」） */
+export function nextLock(nw) {
+  const l = lvBuildings().filter(b => buildingLocked(nw, b)).sort((a, b) => a.lv - b.lv)[0];
+  return l ? { b: l, need: Math.max(0, expTotal(l.lv) - expTotal(nw.hr || 1, nw.hrExp || 0)) } : null;
+}
+/* 教師頁學生卡：這個學生現在打得開的建築名稱（跟學生端同一個判斷） */
+export const unlockedNames = nw => lvBuildings().filter(b => b.act && (!b.wip || stageOpen(b.wip)) && lvOk(nw, b.id, b.lv)).map(b => b.name);
 
 /* 村莊 32×22 格（docs/SPEC-TEACHER-ADMIN.md §9.2）。座標單位都是「格」，一格 16 像素。
    分區：高台（北）、學習區（西）、中央廣場（中央偏南，出生點）、市集（東，隔著小溪、小橋連過去）、傳送門（正南）。
@@ -963,16 +1064,16 @@ export const VILLAGE = {
     [[27, 14], [27, 19], [29, 19]], [[27, 18], [25, 18]]
   ],
   buildings: [
-    { id: 'rooms', kind: 'rooms', x: 5, y: 2, name: '組隊酒館', wip: '3a', text: '開房間或加入同學的房間，最多 4 個人一起打大魔物。' },
-    { id: 'star', kind: 'star', x: 15, y: 2, name: '星圖台', wip: '5', text: '升級拿到的星星，可以在這裡點亮，讓閃避和防禦變得更強。' },
-    { id: 'rank', kind: 'rank', x: 25, y: 2, name: '榮譽碑', act: 'rank', wip: '2a', text: '看看誰是最強獵人。' },
+    { id: 'rooms', kind: 'rooms', x: 5, y: 2, name: '組隊酒館', wip: '3a', lv: 8, uq: '2-1u', text: '開房間或加入同學的房間，最多 4 個人一起打大魔物。' },
+    { id: 'star', kind: 'star', x: 15, y: 2, name: '星圖台', wip: '5', lv: 12, uq: '3-0u', text: '升級拿到的星星，可以在這裡點亮，讓閃避和防禦變得更強。' },
+    { id: 'rank', kind: 'rank', x: 25, y: 2, name: '榮譽碑', act: 'rank', wip: '2a', lv: 7, uq: '2-0u', text: '看看誰是最強獵人。' },
     { id: 'academy', kind: 'academy', x: 3, y: 12, name: '教學大樓', act: 'academy', text: '閃避、防禦、攻擊的教學都在這裡，跟著做一遍就會了！' },
     { id: 'board', kind: 'board', x: 11, y: 13, name: '委託板', act: 'map', text: '選地方、選魔物，出發狩獵！' },
     { id: 'notice', kind: 'notice', x: 17, y: 13, name: '佈告欄', act: 'notice', text: '活動、老師的公告、抓蟲榜，都貼在這裡。' },
-    { id: 'shop', kind: 'shop', x: 24, y: 9, name: '商店', wip: '3s', act: 'shop', text: '用字元買材料和改名卡。' },
-    { id: 'armor', kind: 'armor', x: 28, y: 10, name: '防具店', wip: '3b', text: '頭盔、鎧甲、手套、靴子，穿上就會出現在你身上！' },
-    { id: 'forge', kind: 'forge', x: 24, y: 15, name: '鐵匠鋪', act: 'forge', wip: '2b', text: '用打到的材料，打造、強化自己的武器和裝備！' },
-    { id: 'storage', kind: 'storage', x: 28, y: 16, name: '倉庫', act: 'storage', wip: '2b', text: '所有材料和圖紙都放在這裡，一目了然。' }
+    { id: 'shop', kind: 'shop', x: 24, y: 9, name: '商店', wip: '3s', act: 'shop', lv: 4, uq: '1-2u', text: '用字元買材料和改名卡。' },
+    { id: 'armor', kind: 'armor', x: 28, y: 10, name: '防具店', wip: '3b', lv: 10, uq: '2-3u', text: '頭盔、鎧甲、手套、靴子，穿上就會出現在你身上！' },
+    { id: 'forge', kind: 'forge', x: 24, y: 15, name: '鐵匠鋪', act: 'forge', wip: '2b', lv: 3, uq: '1-1u', text: '用打到的材料，打造、強化自己的武器和裝備！' },
+    { id: 'storage', kind: 'storage', x: 28, y: 16, name: '倉庫', act: 'storage', wip: '2b', lv: 2, text: '所有材料和圖紙都放在這裡，一目了然。' }
   ],
   /* 郵筒（k:'mailbox'）也寫在 decor：村莊程式用 k 找它。站的位置是它正下方一格 */
   decor: [
@@ -989,7 +1090,7 @@ export const VILLAGE = {
   npcs: [
     { id: 'elder', name: '村長', x: 16, y: 10, look: { style: 'short', hair: '#e8e8e8', armor: '#8a4ad8', trim: '#e0c8ff' }, say: ['歡迎來到新世界！西邊的「教學大樓」可以學閃避、防禦和打字，先去學一學吧。', '廣場上的佈告欄會貼活動和公告，記得常常去看！', '按 B 或點右上角的背包，可以看你的東西和任務。', '右下角的小地圖可以點，點到哪棟房子就傳送過去！'] },
     { id: 'kid', name: '小朋友', x: 19, y: 12, look: { style: 'pony', hair: '#ff7aa8', armor: '#e0802a', trim: '#ffe2a8' }, say: ['灰色的店還沒開張，再等一等！', '打倒草原的魔物，就能去迷霧森林囉。'] },
-    { id: 'smith', name: '鐵匠', x: 21, y: 11, look: { style: 'spiky', hair: '#5a3a22', armor: '#6a4a3a', trim: '#b8b8b8' }, say: ['鐵匠鋪還在蓋，快好了！打到的材料先幫你存著。', '東邊過了小橋就是市集。'],
+    { id: 'smith', name: '鐵匠', x: 21, y: 11, openFor: 'forge', look: { style: 'spiky', hair: '#5a3a22', armor: '#6a4a3a', trim: '#b8b8b8' }, say: ['鐵匠鋪還在蓋，快好了！打到的材料先幫你存著。', '東邊過了小橋就是市集。'],
       /* 鐵匠鋪開張（2b）以後換這組 */ sayOpen: ['材料夠了，鐵匠鋪的圖紙會發亮！', '強化一定會成功，放心！', '帽子、衣服這些，對會攻擊你的魔物才有用喔。'] }
   ]
 };

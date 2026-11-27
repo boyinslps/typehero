@@ -4,6 +4,7 @@ import {
   regionLv, MAIN_QUESTS, normalizeNw, currentQuest, zoneOpen, starOpen, addHrExp, hrNeed, huntExp, huntCoins,
   COLOR_NAME, COLOR_HEX, HR_MAX, VILLAGE, doorTile, buildingOpen, goalOf, TEST_TAGS, FB_COINS, FB_MINLEN, BUG_COINS, bugCoins, BUG_REWARD_MAX, LESSON_COINS, lessonCoins, TESTER_MISSIONS, checkMissions, GIFT_WEAPONS, weaponInfo, weaponBase, curWeapon, WORDS, WORD_GROUPS, checkWords, setTitleParts, wordById, normName, ITEM_DEFS, displayName, NOTICES, MAT_INFO, isBpId, isMatId, TUT_LESSONS, ZONE_STAR_MAX
 } from './nw-data.js';
+import { buildingLocked, syncUnlocks, grantUnlock, nextLock, lvBuildings, qText, expTotal, lvGateOn } from './nw-data.js';
 import { injectUi } from './nw-ui.js';
 import { setStarter, gearDef, gearItem, doEquip, equippedItem, rollBlueprints, giveGear, giftGearOk, itemName, itemText, forgeHint, stageOpen, GEAR_MAX, wordOpen, newGearId, syncLegacy, giveClothBps, craftList, BP_DUP_COINS, susCheck, SUS, NW_V2, v2On, rewardRatio, dayStep, stdSecs, twDay, newStarLocked, FLOWS, FLOW_INFO, flowOf, BAL, boardRotOn } from './nw-data.js';
 import { ensureBoard, afterRun, refillAll, swapState, boardView, band, frontier, parseId, hash32 } from './nw-board-rot.js';
@@ -304,11 +305,14 @@ export function initNewWorld(C) {
   const tier = () => (C.getHist() && C.getHist().tier) || 'B';
   const myHero = (weapon, gear) => heroOf(NW, weapon, gear);
 
+  /* 等級夠、段有開的建築記成「解開了還沒慶祝」。任務獎勵的經驗也可能讓等級跳上去，所以每個任務前都算一次 */
   function checkQuests() {
     const got = [];
+    let unl = syncUnlocks(NW).length;
     for (const q of MAIN_QUESTS) {
       if (NW.quest.done.includes(q.id)) continue;
-      if (q.hold && q.hold()) continue;
+      if (q.hold && q.hold(NW)) continue;
+      unl += syncUnlocks(NW).length;
       if (!q.test(NW)) { if (q.soft) continue; break; }
       NW.quest.done.push(q.id);
       const r = q.reward || {};
@@ -318,7 +322,8 @@ export function initNewWorld(C) {
       if (r.bp) r.bp.forEach(b => { if (!NW.bp.includes(b)) NW.bp.push(b); });
       got.push(q);
     }
-    if (got.length) saveNw();
+    unl += syncUnlocks(NW).length;
+    if (got.length || unl) saveNw();
     return got;
   }
 
@@ -374,7 +379,8 @@ export function initNewWorld(C) {
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     const d = doorTile(b);
     NW.pos = [d[0], d[1] + 1]; NW.posV = POS_V;
-    if (buildingOpen(b)) { const go = { map: viewBoard, rank: openRank, academy: openAcademyUI, notice: () => openNotice(false), forge: openForgeUI, storage: openStorageUI, shop: openShopUI }[b.act] || (() => {}); introOnce(b.id === 'board' ? 'board' : b.id).then(() => (b.id === 'board' && boardRotOn() ? introOnce('board2') : null)).then(() => go()); return; }
+    if (buildingLocked(NW, b)) { openLocked(b); return; }
+    if (buildingOpen(NW, b)) { const go = { map: viewBoard, rank: openRank, academy: openAcademyUI, notice: () => openNotice(false), forge: openForgeUI, storage: openStorageUI, shop: openShopUI }[b.act] || (() => {}); introOnce(b.id === 'board' ? 'board' : b.id).then(() => (b.id === 'board' && boardRotOn() ? introOnce('board2') : null)).then(() => go()); return; }
     openWip(b);
   }
 
@@ -395,7 +401,8 @@ export function initNewWorld(C) {
               <div class="px-bar xp flex-1"><i style="width:${pct}%"></i></div>
               <span class="text-xs mono">${NW.hr >= HR_MAX ? '滿級' : `${NW.hrExp}/${need}`}</span></div>
             <div class="flex gap-4 mt-1 text-sm flex-wrap px-text"><span>🪙 ${NW.coins}</span><span>📦 ${matN}</span><span>⭐ ${NW.stars}</span>
-              ${q ? `<button class="px-chip" data-act="bagq" style="color:#ffd98a;cursor:pointer">📌 ${escHtml(q.t)}</button>` : ''}</div>
+              ${q ? `<button class="px-chip" data-act="bagq" style="color:#ffd98a;cursor:pointer">📌 ${escHtml(qText(NW, q))}</button>` : ''}</div>
+            ${(nl => nl && lvGateOn() ? `<div class="text-xs px-text mt-1" data-nextlock style="color:#aab0d8">下一個：🔒 ${nl.b.name} Lv ${nl.b.lv}（再 ${nl.need} 經驗）</div>` : '')(nextLock(NW))}
           </div>
           <button class="px-btn gold" data-act="bagopen" style="position:relative">🎒 背包<i data-bagdot style="display:${mailCount > 0 ? 'block' : 'none'};position:absolute;top:-5px;right:-5px;width:14px;height:14px;background:#d83a3a;border:2px solid #0a0714"></i></button>
           <button class="px-btn" data-act="gift">🎁 序號</button>
@@ -409,13 +416,80 @@ export function initNewWorld(C) {
       <p class="px-text text-sm mt-3 text-center" style="padding-right:min(190px,30vw)">電腦：用 WASD 或方向鍵走路，走到建築旁邊按 Enter 進去，也可以直接點建築。按 B 打開背包。手機：點建築或點地面。右下角的小地圖，點建築就傳送到它的門口。灰色的建築還在施工中。</p>`, el => {
       el.querySelector('[data-hero]').replaceChildren(PX.chibi(myChibi(), 'down', 0, 3));
       village = mountVillage(el.querySelector('#vmap'), {
-        PX, look: myChibi(), open: VILLAGE.buildings.filter(buildingOpen).map(b => b.id),
+        PX, look: myChibi(), open: VILLAGE.buildings.filter(b => buildingOpen(NW, b)).map(b => b.id),
+        locked: VILLAGE.buildings.filter(b => buildingLocked(NW, b)).map(b => ({ id: b.id, lv: b.lv })),
+        fresh: VILLAGE.buildings.filter(b => NW.unl && NW.unl[b.id] && !NW.intro[b.id] && buildingOpen(NW, b)).map(b => b.id),
         start: NW.posV === POS_V && NW.pos ? NW.pos : VILLAGE.start, scroller: root, fast: FAST, onEnter: enterBuilding, guide: guideBuilding(), mailN: () => mailCount, noticeBang: () => nflags.any, forgeFx: () => craftList(NW).some(x => x.can)
       });
       if (location.hostname === 'localhost') window.__NWV = village;   // 瀏覽器測試用（讀位置、傳送、走路）
       caught.forEach((q, i) => setTimeout(() => toast(`任務完成：${q.t}　獎勵：${q.rewardText}`, 3600), 600 + i * 3800));
       hubStart();
     });
+  }
+
+  /* 🔒 等級不夠：門口的提示。跟「施工中」（段沒開）不一樣，這個是自己努力就打得開的 */
+  const BLD_ICON = { forge: '⚒', shop: '🛒', storage: '📦', rank: '🏆', rooms: '🍻', armor: '🛡', star: '⭐' };
+  function openLocked(b) {
+    if (document.getElementById('nw-locked')) return;
+    const need = Math.max(0, expTotal(b.lv) - expTotal(NW.hr, NW.hrExp)), lvNeed = hrNeed(b.lv - 1);
+    const pct = Math.max(0, Math.min(100, (expTotal(NW.hr, NW.hrExp) - expTotal(b.lv - 1)) / lvNeed * 100));
+    const sheet = document.createElement('div');
+    sheet.id = 'nw-locked'; sheet.className = 'nw-sheet fixed inset-0 z-[80] grid place-items-center p-4';
+    sheet.style.background = 'rgba(9,8,18,.88)';
+    sheet.innerHTML = `<div class="px-panel w-full max-w-md text-center" style="max-width:min(28rem,100%)">
+      <div class="px-img mx-auto mb-3" data-bld style="display:inline-block;background:#0e0b16;padding:8px;border:3px solid #0a0714"></div>
+      <div class="text-2xl px-title">${BLD_ICON[b.id] || '🔒'} ${b.name}</div>
+      <div class="text-sm mb-3 px-text" style="color:#ffd98a">🔒 Lv ${b.lv} 才開張</div>
+      <p class="text-base px-text" data-lockmsg style="line-height:1.6">${b.name}要獵人等級 ${b.lv} 才開張。你現在 Lv ${NW.hr}，再拿 <b style="color:#ffd98a">${need}</b> 點經驗就好！</p>
+      <div class="px-bar xp mt-2"><i data-lockbar style="width:${pct}%"></i></div>
+      <div class="text-xs mono mt-1" style="color:#aab0d8">經驗 ${Math.max(0, Math.min(lvNeed, expTotal(NW.hr, NW.hrExp) - expTotal(b.lv - 1)))}／${lvNeed}</div>
+      <div class="flex gap-3 justify-center flex-wrap mt-4"><button class="px-btn gold" data-tobd>去委託板</button><button class="px-btn" data-close>好</button></div></div>`;
+    const close = () => { sheet.remove(); removeEventListener('keydown', kd); };
+    const kd = e => { if (e.key === 'Escape') close(); };
+    sheet.addEventListener('click', e => {
+      if (e.target.closest('[data-tobd]')) { close(); viewBoard(); return; }
+      if (e.target === sheet || e.target.closest('[data-close]')) close();
+    });
+    addEventListener('keydown', kd);
+    document.body.appendChild(sheet);
+    sheet.querySelector('[data-bld]').replaceChildren(PX.building(b.kind, 4));
+    const bt = sheet.querySelector('[data-tobd]'); if (bt) bt.focus();
+  }
+
+  /* 解鎖慶祝（SPEC-UNLOCK-ROUTE D）：回到村莊時跳一次，看完把 unl 記成 2。不跟教學、領信、導覽同時出現 */
+  const UNL_LINE = { forge: '用打到的材料做裝備，穿上就變強！', storage: '你打到的材料和圖紙都放在這裡。', shop: '用字元買材料。一天能買的數量有限喔。' };
+  const UNL_FIRST = ['forge', 'shop', 'storage'];
+  let guideNew = null;
+  const pendingUnl = () => lvBuildings().filter(b => NW.unl && NW.unl[b.id] === 1 && buildingOpen(NW, b)).sort((a, b) => a.lv - b.lv);
+  const overlayUp = () => !!document.querySelector('#nw-intro, #nw-gift, #nw-tour, #nw-unlock, #nw-locked, #nw-mail, #nw-bag, #nw-acad, #nw-fb, #nw-title, .nw-sheet');
+  async function unlockCelebrate() {
+    if (!lvGateOn() || !pendingUnl().length) return;
+    for (let i = 0; i < 100 && overlayUp(); i++) await new Promise(r => setTimeout(r, 300));
+    const list = pendingUnl();
+    if (!list.length || view !== 'hub' || overlayUp()) return;
+    const one = list.length === 1 ? list[0] : null;
+    const sheet = document.createElement('div');
+    sheet.id = 'nw-unlock'; sheet.className = 'nw-sheet fixed inset-0 grid place-items-center p-3'; sheet.style.zIndex = 99; sheet.style.background = 'rgba(9,8,18,.88)';
+    sheet.innerHTML = `<div class="px-panel text-center" style="max-width:min(460px,100%);width:100%;padding:20px">
+      <div data-arts style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap"></div>
+      <div class="px-title px-cursor mt-2" style="font-size:1.5em">🎉 ${one ? `${one.name}開張了！` : '新的地方開張了！'}</div>
+      <div class="px-text mt-3" style="font-size:1.05em;line-height:1.6;text-align:left">${list.map(b => `<p style="margin:4px 0">${one ? '' : `<b style="color:#ffd98a">🔓 ${b.name}</b>：`}${escHtml(UNL_LINE[b.id] || b.text)}</p>`).join('')}</div>
+      <div class="flex gap-3 justify-center flex-wrap mt-4"><button class="px-btn gold" data-go style="padding:8px 26px">現在就去</button><button class="px-btn" data-later style="padding:8px 26px">等一下</button></div></div>`;
+    const arts = sheet.querySelector('[data-arts]');
+    list.forEach(b => { const c = PX.building(b.kind, list.length > 1 ? 3 : 4); c.style.maxWidth = '100%'; arts.appendChild(c); });
+    const target = (UNL_FIRST.map(id => list.find(b => b.id === id)).find(Boolean) || list[0]).id;
+    const finish = go => {
+      removeEventListener('keydown', kd); sheet.remove();
+      list.forEach(b => { NW.unl[b.id] = 2; });
+      if (go) guideNew = target;
+      saveNw();
+      if (view === 'hub') viewHub();
+    };
+    const kd = e => { if (e.key === 'Enter') { e.preventDefault(); finish(true); } else if (e.key === 'Escape') finish(false); };
+    sheet.addEventListener('click', e => { if (e.target.closest('[data-go]')) finish(true); else if (e.target.closest('[data-later]')) finish(false); });
+    addEventListener('keydown', kd);
+    document.body.appendChild(sheet);
+    sheet.querySelector('[data-go]').focus();
   }
 
   function openWip(b) {
@@ -620,7 +694,7 @@ export function initNewWorld(C) {
     const q = currentQuest(NW), done = MAIN_QUESTS.filter(x => NW.quest.done.includes(x.id));
     return `
       <div class="label mb-1">主線 第 1 章　新芽草原</div>
-      ${q ? `<div class="text-2xl px-title">${escHtml(q.t)}</div>
+      ${q ? `<div class="text-2xl px-title">${escHtml(qText(NW, q))}</div>
         <p class="mt-2 px-text">${escHtml(q.hint)}</p>
         ${q.prog ? `<p class="mt-2 font-bold" style="color:#ffd98a">${q.prog(NW)}</p>` : ''}
         <p class="mt-2 text-sm px-text">獎勵：<b style="color:#ffd98a">${escHtml(q.rewardText)}</b></p>`
@@ -802,6 +876,16 @@ export function initNewWorld(C) {
       },
       label: r => `📖 圖鑑：${(MONSTERS[r.key] || { name: '新魔物' }).name}`
     },
+    /* 老師直接解開建築（不用等級）。key＝建築 id 或 '*'（老師已開放的全部）；施工中的（段沒開）不會因此打開，解開就不會再鎖回去 */
+    unl: {
+      known: r => r.key === '*' || lvBuildings().some(b => b.id === r.key),
+      apply: r => {
+        const got = grantUnlock(NW, r.key), names = got.map(id => VILLAGE.buildings.find(b => b.id === id).name).join('、');
+        stateGifted = true;
+        return { icon: '🔓', title: got.length ? `${names}開張了` : '沒有新的地方要開', note: got.length ? '老師幫你打開了，快去看看！' : '這些地方你本來就進得去，或是還在施工中。' };
+      },
+      label: r => `🔓 直接解鎖：${r.key === '*' ? '全部（已允許的）' : ((VILLAGE.buildings.find(b => b.id === r.key) || { name: '新地方' }).name)}`
+    },
     /* 只標「學會了」。不給那堂課的 200 字元（要給字元另外放）；任務與測試員任務會自己往前 */
     tut: {
       known: r => TUT_LESSONS.some(([k]) => k === r.key),
@@ -822,7 +906,7 @@ export function initNewWorld(C) {
     return rewardOf(r).apply(r);
   }
 
-  const guideBuilding = () => (goalOf(NW) ? goalOf(NW).building : null);
+  const guideBuilding = () => (guideNew && !NW.intro[guideNew] ? guideNew : (goalOf(NW) ? goalOf(NW).building : null));
 
   const INTROS = {
     hub: [
@@ -1196,7 +1280,7 @@ export function initNewWorld(C) {
     if (!news.length && !notice) return;
     await openNotice(true, { news, notice });
   }
-  async function hubStart() { const fresh = !NW.intro.hub; refreshMail(); await introOnce('hub'); await nameFirst(); await noticeOnce(fresh); await earlyGift(); refreshBoard(); }
+  async function hubStart() { const fresh = !NW.intro.hub; refreshMail(); await introOnce('hub'); await nameFirst(); await noticeOnce(fresh); await earlyGift(); await unlockCelebrate(); refreshBoard(); }
 
   async function awardMissions() {
     const ms = checkMissions(NW);
@@ -1997,6 +2081,7 @@ export function initNewWorld(C) {
       }
     }
     sum.quests = checkQuests();
+    sum.unlocked = pendingUnl().map(b => b.name);
     sum.words = checkWords(NW);
     /* 看板不給任何獎勵：只決定下次貼哪一張。打贏才撕單子；輸、逃走、撤退、不算數都留著 */
     if (rotOn && res.valid) {
@@ -2099,6 +2184,7 @@ export function initNewWorld(C) {
           <div class="flex gap-5 mt-3 px-text" style="font-size:1.1em"><span>🪙 字元 +<b data-n="${sum.coins}">0</b></span><span>⭐ 獵人經驗 +<b data-n="${sum.exp}">0</b></span></div>
           <div class="flex items-center gap-2 mt-2"><b class="px-text" style="color:#ffd98a">獵人 Lv ${NW.hr}</b><div class="px-bar xp flex-1"><i data-hr style="width:${p0}%"></i></div></div>
           ${sum.ups ? `<div class="px-title mt-2 px-cursor" style="font-size:1.2em">獵人等級升到 ${NW.hr}！拿到 ${sum.ups} 顆星星（星圖台施工中，先存著）</div>` : ''}
+          ${(sum.unlocked || []).length ? `<div class="px-title mt-2 px-cursor" data-unlock-line style="font-size:1.2em;color:#8ec96b">🔓 ${sum.unlocked.map(escHtml).join('、')}開張了！</div>` : ''}
           ${(sum.words || []).length ? `<div class="px-title mt-2 px-cursor" style="font-size:1.1em">${PX.badge(3, 2)} 新的稱號詞條：${sum.words.map(escHtml).join('、')}！到背包點名字下面的稱號，自己拚拚看</div>` : ''}
           ${stageOpen('2b') ? (fh => `<p class="px-text mt-2" data-forge-hint style="color:#ffd98a;font-weight:900">⚒ 鐵匠鋪：${escHtml(fh ? fh.text : '材料和圖紙先存著，打造和強化都在鐵匠鋪')}</p>`)(forgeHint(NW)) : '<p class="text-xs mt-2" style="color:#aab0d8">材料和圖紙先幫你存著，鐵匠鋪開張就能用。</p>'}` : ''}
         <div class="mt-5 text-right"><button class="px-btn gold" style="padding:10px 30px;font-size:1.1em" data-close>回公會</button></div>

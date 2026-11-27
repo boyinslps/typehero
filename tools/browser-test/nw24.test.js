@@ -28,7 +28,7 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
   ok(f0.includes('grass:frog:1'), '全新存檔：主線 1-1 泡泡蛙 ★1 一定在');
 
   /* ── 舊存檔：草原打到 ★3、沒有 board ── */
-  const old = mk({ zone: { grass: 3, forest: 0 }, dex: { frog: 2, coo: 2, shroom: 1 }, quest: { done: ['1-0', '1-0a', '1-1', '1-2', '1-3', '1-4'] }, fastMk: { 'frog:3': 150, 'coo:3': 120, 'shroom:3': 200 } });
+  const old = mk({ hr: 12, zone: { grass: 3, forest: 0 }, dex: { frog: 2, coo: 2, shroom: 1 }, quest: { done: ['1-0', '1-0a', '1-1', '1-2', '1-3', '1-4'] }, fastMk: { 'frog:3': 150, 'coo:3': 120, 'shroom:3': 200 } });
   const e1 = ensureBoard(old, now, [], 300, 99);
   const oi = ids(e1.board), orl = oi.map(x => roleOf(old, x, 300));
   ok(e1.why === 'new' && oi.length === 4 && orl.filter(x => x === 'hard').length === 1 && orl.includes('mid') && orl.includes('easy'), `舊存檔第一塊板子照進度排：4 張、1 張挑戰、有剛好與輕鬆（${oi.join('、')}）`);
@@ -63,7 +63,7 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
     const dex = {}; ['frog', 'coo', 'shroom', 'wolf'].forEach(m => { if (rnd() < 0.7) dex[m] = 1 + Math.floor(rnd() * 5); });
     const fastMk = {}; if (rnd() < 0.7) ['frog', 'coo', 'shroom'].forEach(m => { for (let s = 1; s <= Math.max(1, g); s++) if (rnd() < 0.6) fastMk[m + ':' + s] = 60 + Math.round(rnd() * 300); });
     const done = MQ.slice(0, Math.floor(rnd() * (MQ.length + 1)));
-    return mk({ zone: { grass: g, forest: f }, dex, fastMk, quest: { done } });
+    return mk({ hr: 1 + Math.floor(rnd() * 14), zone: { grass: g, forest: f }, dex, fastMk, quest: { done } });
   };
   const evs = [[], [{ id: 'h', mk: 'coo', minStar: 1 }], [{ id: 'w', mk: 'wolf', minStar: 1 }], [{ id: 'c', mk: 'shroom', minStar: 2 }]];
   let same = 0, total = 0;
@@ -116,7 +116,7 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
   ok(ids(pickBoard(qd, now, 2, [], 300)).includes('grass:frog:2') || ids(pickBoard(qd, now, 2, [], 300)).some(x => /:2$/.test(x)), '主線 1-4（草原 ★3）、才打到 ★1：「往任務前進」的 ★2 在板上');
 
   /* ── 全破 ── */
-  const all = mk({ zone: { grass: 5, forest: 5 }, dex: { frog: 9, coo: 9, shroom: 9, wolf: 3 }, fastMk: { 'wolf:5': 200, 'coo:5': 120, 'shroom:5': 150 }, quest: { done: MQ } });
+  const all = mk({ hr: 12, zone: { grass: 5, forest: 5 }, dex: { frog: 9, coo: 9, shroom: 9, wolf: 3 }, fastMk: { 'wolf:5': 200, 'coo:5': 120, 'shroom:5': 150 }, quest: { done: MQ } });
   const ab = pickBoard(all, now, 3, [], 480);
   ok(ids(ab).length === 4 && ids(ab).filter(x => roleOf(all, x) === 'hard').length <= 1, `全破：照樣 4 張（${ids(ab).join('、')}）`);
   ok(frontier(all, 480).cleared === true, '全破：frontier.cleared＝true');

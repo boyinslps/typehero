@@ -15,6 +15,7 @@
 | `load-real.mjs` | 把教師頁「匯出打字速度（匿名）」的檔轉成模擬器的學生列表（匯出檔放 `data-private/`，不進 repo） |
 | `bal2b-data.mjs` | 2b 分析：只讀匯出檔的統計（速度分位數、σ、閃避／防禦與信賴區間、層級缺口、裝備上限指標）。報告 `docs/research/BALANCE-2B-ANALYSIS.md` |
 | `bal2b.mjs` | 2b 分析：閃避／防禦假設反推（`fit`）、防具價值、重壓三倍 vs 只打一次、284 個真實學生逐人、層級影響、敏感度。`node tools/nw-sim/bal2b.mjs <fit\|gear\|def\|slam\|real\|quant\|tier\|armor\|sens\|g8\|thr>` |
+| `unlock-route.mjs` | **解鎖路線的時間模型**（`docs/SPEC-UNLOCK-ROUTE.md`）：每個等級（建築）要幾分鐘、第幾場。`node tools/nw-sim/unlock-route.mjs [每場外加秒=60] [開場秒=300] [--tut 0] [--lv forge=3,shop=4]`，用 `realPersonas()`＋V2 規則逐場模擬；改等級表或經驗獎勵後重跑 |
 | `bal2b-term.mjs` | 2b 分析：一學期（14 節×2 場）逐人逐場的進度預測，用 `nw-data.js` 真正的打造／強化函式。V2 選項見下 |
 | `rules-v2.mjs` | **平衡 V2 規則包**（`SPEC-BALANCE-V2`）：`NW_V2`、`FLOWS`、`ATTACK_FROM`、`ATTACK_DMG`、`ATTACKS_V2`。`nw-data.js` 有就讀、沒有用同名同值的後備值；`v2Rules({ flow })` 產生給 `sim.mjs` 的 `A.rules` |
 | `v2-validate.mjs` | 逐場模擬 vs 解析模型（`curves.mjs v2`）的勝率與秒數對照；`--ablate` 拆解差異從哪來 |
