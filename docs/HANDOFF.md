@@ -8,6 +8,8 @@
 
 ## 現在在哪裡
 
+> **2026-11-27：v3.16.0 發版（老師同意）。** 內容：解鎖路線（倉庫 Lv2／鐵匠鋪 Lv3／商店 Lv4）、委託板 4 張＋撤下規則＋刷新、新世界畫面縮小、反擊特效、背包方格；v3.15.0 公告的「蓋完成章」已更正。`OPEN_STAGES` 不變，**2a 榮譽碑仍未開放**。pcclass 的 `TYPEHERO_UPDATES` 另行更新。
+
 > **2026-11-27：委託板規則再改＋解鎖路線已實作（在分支上，未推 main）。** ① 委託板：打贏的單子直接撤下（不蓋章），板上只剩 📌 目標單與 🔥 挑戰單就補滿 4 張，刷新補滿非目標單（[`SPEC-SHOP-BOARD2.md`](SPEC-SHOP-BOARD2.md) B、[`SPEC-BOARD-ROTATION.md`](SPEC-BOARD-ROTATION.md)）。② 解鎖路線（[`SPEC-UNLOCK-ROUTE.md`](SPEC-UNLOCK-ROUTE.md)）：倉庫 Lv2、鐵匠鋪 Lv3、商店 Lv4（榮譽碑 7／酒館 8／防具店 10／星圖 12 段沒開）；`1-1u`／`1-2u` 補經驗任務、🔒 門口面板、慶祝窗、舊存檔相容（`nw.unl`、`unlV`）、老師信箱 `unl`、測試 `nw32`；不加 +10 經驗，鐵匠鋪與商店都在第 2 場開（`tools/nw-sim/unlock-route.mjs`）。刷新與改名卡不綁等級。尚未做：對外公告（`VERSION_LOG`／`NOTICES`／pcclass 的 `TYPEHERO_UPDATES` 發版時另寫；v3.15.0 的 NOTICES 還寫「蓋完成章」，發下一版時要更正）。
 
 > **2026-11-17：v3.14.0（教師管理頁、信箱、暱稱與改名卡、活動、佈告欄與抓蟲榜、村莊延伸、正式 Firestore 規則）程式與測試都做好了，在分支 `claude/gracious-pasteur-773n2t`，等老師照 [`LAUNCH-TEACHER.md`](LAUNCH-TEACHER.md) 一次上線**。規格 [`SPEC-TEACHER-ADMIN.md`](SPEC-TEACHER-ADMIN.md)（已實作，§13 記了跟規格不同的地方）、完整紀錄 [`../CHANGELOG.md`](../CHANGELOG.md)。下面「v3.14.0 各系統怎麼接」是接手必讀。
