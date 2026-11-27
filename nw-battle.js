@@ -256,6 +256,22 @@ export function startBattle(env, cfg, done) {
     ov.appendChild(f); setTimeout(() => f.remove(), 1000);
   }
   const addFx = (kind, o) => S.fx.push(Object.assign({ kind, t0: nowS(), dur: .3 }, o));
+  /* 反擊要「看得出來」：斬擊交叉、爆開的方塊、全場白閃、魔物抖動、短暫停格、大字。
+     減少動態效果的人：白閃、抖動、停格都不做（會閃的東西），斬擊與大字留著，所以仍看得出反擊發生了。
+     停格只停「畫面」不停計時：出招倒數、打字判定照走，不會拖慢輸入 */
+  const reduceMotion = () => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } };
+  function counterFx(T) {
+    const rm = reduceMotion();
+    if (!rm) addFx('cflash', { dur: .12 });   // 先加先畫：白閃墊在最底，斬擊疊在上面才不會被洗掉
+    addFx('cslash', { dur: .32 });
+    if (!rm) {
+      S.mon.shakeUntil = T + .28;
+      S.mon.flashUntil = Math.max(S.mon.flashUntil, T + .24);
+      S.hsUntil = T + .1; S.hsDrawn = false;
+    }
+    S.counters = (S.counters || 0) + 1;
+    floatText('反擊！', 30, 34, '#9fd8ff', true)   // 放在魔物左側：不蓋住頭上的傷害數字與「擋下來了」橫幅;
+  }
 
   S.dark = [];
   function darkBurst() { const T = nowS(); for (let i = 0; i < 12; i++) S.dark.push({ x: 80 + (Math.random() - .5) * 30, y: 30 + (Math.random() - .5) * 18, vx: (Math.random() - .5) * 1.6, vy: -.4 - Math.random() * 1.2, t0: T, life: .6 + Math.random() * .4 }); }
@@ -500,7 +516,7 @@ export function startBattle(env, cfg, done) {
     /* 守護成功＝擋下重壓、線上攻擊時舉著盾（擋一半）、或真的躲開（預警時站在那條線、出手前換走）；站著不動剛好沒被打到不算（§3.1）。
        沒在打字（§3.4）就不反擊：只按 Alt 不打字，反擊永遠是 0 */
     if (flow === 'guard' && (c.blocked || (c.real && !c.hurt))) {
-      if (flowActive(T)) { S.guards++; hitMonster(Math.max(1, Math.round(S.mon.max * FD.rho * gearMul(GS, cfg.mk))), '🛡 反擊！', '#9fd8ff', false, true); }
+      if (flowActive(T)) { S.guards++; hitMonster(Math.max(1, Math.round(S.mon.max * FD.rho * gearMul(GS, cfg.mk))), '', '#9fd8ff', false, true); counterFx(T); }
       else if (!S.afkHinted) { S.afkHinted = true; toast('守護成功！不過要一直打字才會反擊喔'); }
     }
   }
@@ -587,7 +603,8 @@ export function startBattle(env, cfg, done) {
     g.save(); g.translate(OX, EXTRA);
     g.fillStyle = 'rgba(0,0,0,.35)'; g.beginPath(); g.ellipse(80, 61, 32, 4, 0, 0, 7); g.fill();
     const lunge = T - S.mon.lungeAt < .35 ? Math.sin((T - S.mon.lungeAt) / .35 * Math.PI) * 9 : 0;
-    const mx = 40 + (S.mon.angry ? Math.round(Math.sin(T * 30)) : 0), my = -2 + Math.round(Math.sin(T * 2) * 1) + Math.round(lunge);
+    const jit = T < (S.mon.shakeUntil || 0) ? Math.round(Math.sin(T * 90) * 3 * ((S.mon.shakeUntil - T) / .28)) : 0;
+    const mx = 40 + (S.mon.angry ? Math.round(Math.sin(T * 30)) : 0) + jit, my = -2 + Math.round(Math.sin(T * 2) * 1) + Math.round(lunge);
     g.drawImage(S.mon.angry ? art.monA : art.mon, mx, my);
     if (T < S.mon.flashUntil) g.drawImage(art.monW, mx, my);
 
@@ -625,6 +642,19 @@ export function startBattle(env, cfg, done) {
         g.fillStyle = '#fff'; g.fillRect(Math.round(ax) - 1, Math.round(ay) - 1, 2, 2);
       }
       if (f.kind === 'muzzle') { g.fillStyle = '#fff6c0'; g.fillRect(sx - 1, sy - 2, 5, 4); g.fillStyle = '#ffb030'; g.fillRect(sx + 3, sy - 3, 3, 6); g.fillRect(sx + 1, sy - 4, 2, 2); g.fillRect(sx + 1, sy + 2, 2, 2); }
+      if (f.kind === 'cslash') {
+        const q = Math.min(1, .55 + p * 2.4);   // 停格那一幀 p≈0 就要看得到斬擊，所以不從 0 開始
+        [[62, 8, 98, 52], [98, 8, 62, 52]].forEach(([x0, y0, x1, y1], i) => {
+          const e = clamp(q * 2 - i * .5, 0, 1), ex = x0 + (x1 - x0) * e, ey = y0 + (y1 - y0) * e;
+          g.strokeStyle = `rgba(27,23,56,${1 - p * .5})`; g.lineWidth = 8; g.beginPath(); g.moveTo(x0, y0); g.lineTo(ex, ey); g.stroke();   // 深色外框：魔物閃白時斬擊才看得到
+          g.strokeStyle = `rgba(80,170,255,${1 - p * .6})`; g.lineWidth = 5; g.beginPath(); g.moveTo(x0, y0); g.lineTo(ex, ey); g.stroke();
+          g.strokeStyle = `rgba(255,255,255,${1 - p * .5})`; g.lineWidth = 2; g.stroke();
+        });
+        const r = 6 + p * 22;
+        g.fillStyle = `rgba(255,246,192,${1 - p})`;
+        for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4 + .4; g.fillRect(Math.round(80 + Math.cos(a) * r) - 1, Math.round(30 + Math.sin(a) * r) - 1, 3, 3); }
+      }
+      if (f.kind === 'cflash') { g.fillStyle = `rgba(255,255,255,${(1 - p) * .4})`; g.fillRect(-OX, -EXTRA, LW, 96 + EXTRA); }
       if (f.kind === 'spark') { g.fillStyle = '#fff'; g.fillRect(f.x, f.y - 2, 1, 5); g.fillRect(f.x - 2, f.y, 5, 1); g.fillStyle = '#ffd24a'; g.fillRect(f.x - 1, f.y - 1, 3, 3); }
     });
     g.restore();
@@ -656,7 +686,9 @@ export function startBattle(env, cfg, done) {
       if (d && !S.me.down) { S.me.hp -= d; floatText(`-${d}`, 80 + S.me.x, 64, '#c08aff'); if (S.me.hp <= 0) goDown(); }
     }
     if (T - S.T0 >= CAP) { finish(V2 ? 'escape' : 'retreat'); return; }
-    draw(T); updateUi(false);
+    /* 停格：反擊那一幀畫出來之後，畫面凍結約 0.1 秒（hit-stop），計時與輸入照常 */
+    if (!(T < (S.hsUntil || 0) && S.hsDrawn)) { draw(T); if (T < (S.hsUntil || 0)) S.hsDrawn = true; }
+    updateUi(false);
     raf = requestAnimationFrame(tick);
   }
 
