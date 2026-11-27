@@ -1,4 +1,4 @@
-/* 委託板「一次 4 張」第 2～4 步：畫面、蓋章、整批刷新、主線／活動、組隊房間、手機（docs/SPEC-BOARD-ROTATION.md §3、§4、§8；蓋章與刷新改版見 docs/SPEC-SHOP-BOARD2.md B）。旗標用 window.__BOARD_ROT__ 強制；
+/* 委託板「一次 4 張」第 2～4 步：畫面、打贏撤下、整批刷新、主線／活動、組隊房間、手機（docs/SPEC-BOARD-ROTATION.md §3、§4、§8；撤下與刷新改版見 docs/SPEC-SHOP-BOARD2.md B）。旗標用 window.__BOARD_ROT__ 強制；
    假結果用 finishHunt（跟 nw22 同一種做法）。純函式與存檔格式見 nw24。截圖放 /tmp/board-*.png。 */
 const { chromium } = require('playwright'); const fs = require('fs');
 const path = require('path'); const M = path.join(__dirname, 'mock') + '/'; const OUT = process.argv[2] || require('os').tmpdir();
@@ -120,7 +120,7 @@ const evDoc = (o = {}) => Object.assign({ type: 'ranking', metric: 'kills', titl
     await p.close();
   }
 
-  /* ── 打贏蓋章（不補單）、輸不動、不算數 ── */
+  /* ── 打贏撤下（不補單）、輸不動、不算數 ── */
   {
     const p = await open(b, { rot: true, nw: G3 });
     await toBoard(p);
@@ -141,15 +141,13 @@ const evDoc = (o = {}) => Object.assign({ type: 'ranking', metric: 'kills', titl
     await hunt(p, hard.id);
     b1 = await board(p);
     const hk = ['a', 'b', 'c', 'd', 'e'].find(k => b1.slots[k].id === hard.id);
-    ok(b1.done === 1 && b1.last === hard.id && hk && b1.slots[hk].ok === 1 && ids(b1).length >= 4 && ids(b1).length <= 5, `打贏挑戰單：留在板上蓋章、不補單、done＝1（${ids(b1).join('、')}）`);
+    ok(b1.done === 1 && b1.last === hard.id && !hk && ids(b1).length >= 3 && ids(b1).length <= 4, `打贏挑戰單：直接撤下、不補單、done＝1（剩 ${ids(b1).length} 張：${ids(b1).join('、')}）`);
     ok(ids(b1).some(x => /^grass:\w+:5$/.test(x)), '主線往前走了：新的任務單（草原 ★5）直接貼進空格，不用等整批換新');
     await toBoard(p);
     cs = await cardsOf(p);
-    ok(cs.length >= 4 && (await p.$$('.qs-wrap.stamped')).length === 1 && !!(await p.$(`.qs-wrap.stamped .qs[data-q="${hard.id}"]`)), '挑戰單有「✅ 完成」章、卡片變暗');
-    const plainN = cs.filter(c => !c.role.includes('挑戰')).length, plainOk = await p.$$eval('.qs-wrap.stamped .qs[data-q]', els => els.filter(e => !((e.querySelector('.qs-role') || {}).textContent || '').includes('挑戰')).length);
-    ok((await p.textContent('.qs-wrap.stamped .qs-done')).includes('完成') && (await p.textContent('[data-prog]')).includes(`完成 ${plainOk}／${plainN}`) && (await p.textContent('[data-prog]')).includes('挑戰單不用打也行'), `看板上方寫「完成 ${plainOk}／${plainN}」，分母不含挑戰單`);
-    await p.click(`.qs[data-q="${hard.id}"]`);
-    ok(await p.$eval('[data-go]', e => e.disabled) && (await p.textContent('#nwbd-info')).includes('把其他單子打完，就會送來新的一批'), '點蓋章的單子：「狩獵」灰掉，寫「完成了！把其他單子打完…」');
+    const leftN = cs.filter(c => !c.role.includes('挑戰') && !c.tag).length, prog = (await p.textContent('[data-prog]')) || '';
+    ok(cs.length >= 3 && (await p.$$('.qs-wrap.stamped, .qs-done')).length === 0 && !cs.some(c => c.id === hard.id), '板上沒有「完成」章，打贏的挑戰單不在板上');
+    ok(prog.includes(`還剩 ${leftN} 張，打完就送來新的一批！`) && !prog.includes('完成 '), `看板上方寫「還剩 ${leftN} 張，打完就送來新的一批！」（不含挑戰單與任務單）`);
     const nNew = cs.filter(c => c.isNew).length;
     ok(nNew >= 1 && cs.filter(c => c.isNew).every(c => c.tagNew === '✨ 新的！'), `貼上來的新任務單有「✨ 新的！」小牌子（${nNew} 張）`);
     await p.waitForTimeout(600);
@@ -177,7 +175,7 @@ const evDoc = (o = {}) => Object.assign({ type: 'ranking', metric: 'kills', titl
     await p.close();
   }
 
-  /* ── 刷新：沒蓋章、不是目標的整批換新；免費／40／80，一天最多 3 次 ── */
+  /* ── 刷新：不是目標的整批換新、補滿 4 張；免費／40／80，一天最多 3 次 ── */
   {
     const p = await open(b, { rot: true, nw: G3 });
     await toBoard(p);
@@ -185,19 +183,19 @@ const evDoc = (o = {}) => Object.assign({ type: 'ranking', metric: 'kills', titl
     const goal = cs.find(c => c.tag), plain = cs.filter(c => !c.tag);
     ok((await p.textContent('[data-swap]')).includes('今天免費 1 次') && !(await p.$eval('[data-swap]', e => e.disabled)), '看板上方的按鈕：「🔄 刷新（今天免費 1 次）」亮著');
     ok(!(await p.textContent('.nwbd-wrap')).includes('換一張') && !(await p.textContent('.nwbd-wrap')).includes('明天才能再換'), '舊字「換一張」「明天才能再換」都沒有了');
-    ok((await p.textContent('[data-prog]')).includes('完成 0／3，🔥 挑戰單不用打也行，其他都完成就送來新的一批'), '看板上方：「完成 0／3」（4 張裡 1 張挑戰單不算）');
+    ok((await p.textContent('[data-prog]')).includes('還剩 3 張，打完就送來新的一批！'), '看板上方：「還剩 3 張，打完就送來新的一批！」（4 張裡挑戰單與任務單不算）');
     await p.evaluate(() => { window.__NWG.nw.coins = 300; });
     const coins0 = await p.evaluate(() => window.__NWG.nw.coins);
     await p.click('[data-swap]'); await p.waitForTimeout(400);
     let after = await cardsOf(p), b1 = await board(p);
-    ok(after.length === 4 && plain.every(c => !after.some(x => x.id === c.id)) && (!goal || after.some(x => x.id === goal.id)), '未完成、不是目標的單子全換掉，目標單還在');
+    ok(after.length === 4 && plain.every(c => !after.some(x => x.id === c.id)) && (!goal || after.some(x => x.id === goal.id)), '不是目標的單子全換掉，目標單還在');
     ok(b1.swapN === 1 && b1.swap > 0 && Array.isArray(b1.out) && plain.every(c => b1.out.includes(c.id)) && b1.out.every(x => typeof x === 'string') && fsOk(b1), '存檔：swapN＝1、out 是平的字串陣列、符合 Firestore');
     ok((await p.evaluate(() => window.__NWG.nw.coins)) === coins0, '第 1 次免費：字元沒扣');
     ok(after.filter(c => c.isNew).length === plain.length && after.filter(c => /挑戰/.test(c.role)).length === cs.filter(c => /挑戰/.test(c.role)).length, '被換的格子有「新的」小牌子，🔥 挑戰還是挑戰');
     /* 第 2 次：要 40，先問 */
     ok((await p.textContent('[data-swap]')).includes('🪙 40'), '第 2 次按鈕：「🔄 刷新（🪙 40）」');
     await p.click('[data-swap]'); await p.waitForSelector('#nwbd-ask');
-    ok((await p.textContent('#nwbd-ask')).includes('花 40 字元，把還沒完成的單子全部換新？') && (await p.textContent('#nwbd-ask')).includes('任務單會留著'), '跳確認小視窗：「花 40 字元，把還沒完成的單子全部換新？📌 任務單會留著。」');
+    ok((await p.textContent('#nwbd-ask')).includes('花 40 字元，把板上的單子全部換新？') && (await p.textContent('#nwbd-ask')).includes('任務單會留著'), '跳確認小視窗：「花 40 字元，把板上的單子全部換新？📌 任務單會留著。」');
     await p.screenshot({ path: '/tmp/board-swap-ask.png' });
     await p.click('[data-ask-no]'); await p.waitForTimeout(200);
     ok((await board(p)).swapN === 1 && (await p.evaluate(() => window.__NWG.nw.coins)) === coins0, '按「不要」：沒換、沒扣');
@@ -255,7 +253,7 @@ const evDoc = (o = {}) => Object.assign({ type: 'ranking', metric: 'kills', titl
     await toBoard(q);
     const c0 = await cardsOf(q);
     ok(c0.length === 3 && c0.every(c => /:1$/.test(c.id)) && c0.some(c => c.id === 'grass:frog:1' && /任務目標/.test(c.tag)), `全新存檔：3 張草原 ★1，泡泡蛙有「📌 任務目標」（${c0.map(c => c.id).join('、')}）`);
-    ok((await p_text(q, '.qs-blank')).includes('全部完成，這裡就會貼新的單子'), '第 4 格是空白舊紙：「全部完成，這裡就會貼新的單子」');
+    ok((await q.$$('.qs-blank')).length === 0, '沒有「全部完成，這裡就會貼新的單子」的空白舊紙了');
     ok(/輕鬆|剛好|挑戰/.test(c0[0].role) && !c0.some(c => /輕鬆/.test(c.role) && false), '全新存檔每張也有角色');
     await q.close();
     const r = await open(b, { rot: true, nw: { zone: { grass: 1, forest: 0 }, dex: { coo: 1, frog: 1, shroom: 1 }, quest: { done: ['1-0'] }, tut: {} } });
@@ -286,7 +284,7 @@ const evDoc = (o = {}) => Object.assign({ type: 'ranking', metric: 'kills', titl
     const rw = cs.find(c => /活動/.test(c.tag));
     ok(!!rw && /wolf/.test(rw.id), '活動排行榜（最快討伐）：炎牙狼貼在板上');
     await hunt(q, rw.id); await toBoard(q);
-    ok((await cardsOf(q)).some(c => c.id === rw.id && /活動/.test(c.tag)), '排行榜活動打贏後：單子蓋章留在板上（整批換新以後又會貼回來，可以繼續刷自己的紀錄）');
+    ok((await cardsOf(q)).some(c => c.id === rw.id && /活動/.test(c.tag)), '排行榜活動打贏後：單子撤下又當新的活動目標貼回來（可以繼續刷自己的紀錄）');
     await q.close();
     const r = await open(b, { rot: true, nw: Object.assign({}, G3), docs: { 'mg_events/hw': evDoc({ type: 'hunt', mk: 'wolf', minStar: 3, goal: 3, items: [], title: '獵狼週' }), 'mg_events/bs': evDoc({ type: 'boost', what: 'exp', mul: 2, title: '加倍', items: [] }) } });
     await r.evaluate(() => window.__NWG.events.load(true)); await r.waitForTimeout(300);
@@ -325,7 +323,7 @@ const evDoc = (o = {}) => Object.assign({ type: 'ranking', metric: 'kills', titl
     await p.evaluate(() => { const d = window.__FS['mg_scores/五年級3班_5號']; const nw = JSON.parse(JSON.stringify(d.nw)); nw.savedAt = Date.now() + 5000; nw.board.slots.c = Object.assign({}, nw.board.slots.d); d.nw = nw; });
     await toBoard(p); await p.waitForTimeout(1500);
     const cs = await cardsOf(p), b1 = await board(p);
-    ok(new Set(ids(b1)).size === ids(b1).length && cs.length === 4 && new Set(cs.map(c => c.id)).size === 4, '兩格同一張（雙分頁互蓋）：整理後沒有重複、還是 4 張');
+    ok(new Set(ids(b1)).size === ids(b1).length && cs.length === 3 && new Set(cs.map(c => c.id)).size === 3, '兩格同一張（雙分頁互蓋）：整理後沒有重複（重複的那格清掉不補，板子本來就會變少）');
     ok(fsOk(b1), '整理後仍符合 Firestore');
     await p.close();
   }

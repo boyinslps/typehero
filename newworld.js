@@ -832,7 +832,7 @@ export function initNewWorld(C) {
     ],
     academy: [{ icon: '🏫', title: '教學大樓', text: '這裡有閃避、防禦、打字三堂課。每一堂都是先看示範，再自己一步一步做；沒做對會一直等你，做對才換下一步；最後還要把稻草魔物打倒（打 5 下）。學會一堂送 200 字元！' }],
     board: [{ icon: '📜', title: '委託板', text: '選一張委託單，右邊的大地圖會亮起魔物住的地方。有紅色「任務目標」標籤的，就是現在任務要打的魔物。按「狩獵」開房間，再按「出發」就開打。★ 越多越難，打贏低星才會開高星。' }],
-    board2: [{ icon: '📜', title: '委託板改版了', text: '委託板一次只貼 4 張單子，每張上面寫著「輕鬆」「剛好」「挑戰」。🔥 挑戰是你還沒打過的星級，打贏就開放下一顆星。打贏的單子會蓋上「完成」章，全部蓋滿就會送來新的一批。不想打的單子，可以按「🔄 刷新」整批換新：每天第 1 次免費，一天最多 3 次。' }],
+    board2: [{ icon: '📜', title: '委託板改版了', text: '委託板一次只貼 4 張單子，每張上面寫著「輕鬆」「剛好」「挑戰」。🔥 挑戰是你還沒打過的星級，打贏就開放下一顆星。打贏的單子會撤下來，只剩 📌 任務單和 🔥 挑戰單，就會送來新的一批。不想打的單子，可以按「🔄 刷新」整批換新：每天第 1 次免費，一天最多 3 次。' }],
     bag: [{ icon: '🎒', title: '背包', text: '左邊是你的角色和 5 個裝備格，點名字下面的稱號可以自己拚稱號。右邊的分頁看裝備、道具、材料、圖紙、任務、圖鑑。拿到新武器，點格子裡的武器就能換上。' }],
     title: [{ icon: '🏅', title: '自己拚稱號', text: '稱號是用「詞條」拚的：一次選 1～3 個，順序自己決定。灰色的詞條還沒解鎖，會寫怎麼拿。打贏魔物、完成任務、抓蟲都能解鎖新詞條。' }],
     book: [{ icon: '📓', title: '測試員手冊', text: '新世界還在試玩，你是第一批冒險者！每完成一個任務就蓋一個章，拿字元和稱號詞條。字元是新世界的貨幣，之後可以買東西、打造裝備。' }],
@@ -1753,7 +1753,7 @@ export function initNewWorld(C) {
     const tok = ++boardTok, T = boardT(), evs = boardEvents();
     const e = ensureBoard(NW, now(), evs.list, T, boardSeed());
     if (e.why !== 'same') { NW.board = e.board; saveNw(); }
-    if (e.why === 'refill') boardToast = '🎉 全部完成！新的委託單送來了';
+    if (e.why === 'refill') boardToast = '🎉 新的委託單送來了！';
     const changed = Object.assign({}, boardChanged); boardChanged = {};
     if (e.why !== 'new') e.changed.forEach(k => { changed[k] = changed[k] || 'new'; });
     const bv = boardView(NW, NW.board, evs.list, T, twDay(now()));
@@ -1761,7 +1761,7 @@ export function initNewWorld(C) {
     setView('board', `${topbar('📜 冒險者公會', 'hub')}<div id="board"></div>`, el => {
       village = mountBoard(el.querySelector('#board'), { PX, NW, today: twDay(now()), classLeft, goal: goalOf(NW), selected: boardSel, loadRooms, onSelect: id => { boardSel = id; }, onHunt: q => openRoom(q),
         cards: bv.cards, locks: bv.locks, notes: bv.notes, cleared: bv.cleared, evAny: evs.any, changed,
-        progress: bv.progress,
+        left: bv.left,
         swapInfo: () => { const st = swapState(NW, NW.board, now(), evs.list, T); return Object.assign({ coins: NW.coins }, st); },
         /* 刷新：先看雲端有沒有比較新的存檔（兩個分頁），再算次數與價錢、扣字元、存好才重畫。價錢跟確認框上寫的不一樣就不扣，重畫讓孩子重看 */
         onSwap: async seen => {
@@ -2001,7 +2001,7 @@ export function initNewWorld(C) {
     /* 看板不給任何獎勵：只決定下次貼哪一張。打贏才撕單子；輸、逃走、撤退、不算數都留著 */
     if (rotOn && res.valid) {
       const r = afterRun(NW, NW.board, { id: boardId, win: sum.win, valid: true, wasHard }, now(), boardEvents().list, boardT());
-      if (r.board !== NW.board) { NW.board = r.board; r.changed.forEach(k => { boardChanged[k] = sum.win ? 'new' : 'ladder'; }); if (r.all) boardToast = '🎉 全部完成！新的委託單送來了'; }
+      if (r.board !== NW.board) { NW.board = r.board; r.changed.forEach(k => { boardChanged[k] = sum.win ? 'new' : 'ladder'; }); if (r.all) boardToast = '🎉 新的委託單送來了！'; }
     }
     saveNw();
     flushRuns();

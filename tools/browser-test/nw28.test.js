@@ -59,7 +59,7 @@ async function open(browser, o = {}) {
   await p.evaluate(() => window.__NWV.teleport('board')); await p.waitForTimeout(250); await p.click('.vb[data-bld="board"]');
   await p.waitForSelector('#nwbd-board'); await p.waitForTimeout(400);
   const prog = await p.textContent('[data-prog]');
-  ok(/完成 \d／\d，🔥 挑戰單不用打也行/.test(prog), '看板：進度寫「' + prog + '」');
+  ok(/還剩 \d 張，打完就送來新的一批！/.test(prog) && !prog.includes('完成 '), '看板：進度寫「' + prog + '」');
   ok(!!(await p.$('[data-swap]')), '看板：有「🔄 刷新」按鈕');
   await p.screenshot({ path: path.join(OUT, 'nw28-board.png') });
   ok(p.errs.length === 0, '沒有 JS 錯誤 ' + p.errs.join('|'));

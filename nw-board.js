@@ -46,9 +46,6 @@ const CSS = `
 .nwbd-bar{position:relative;z-index:2;display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin:0 0 10px}
 .nwbd-prog{flex:1 1 180px;min-width:0;padding:5px 10px;background:#f4e6b8;color:#4a2a08;border:3px solid #b8903a;font-size:.88em;font-weight:800;line-height:1.4}
 .nwbd-swap{flex:none;max-width:100%;padding:8px 12px;font-size:.95em;white-space:normal}
-.qs-wrap.stamped .qs{filter:brightness(.72) saturate(.7)}
-.qs-done{position:absolute;left:50%;top:44%;z-index:6;display:flex;align-items:center;gap:6px;padding:4px 12px 4px 8px;transform:translate(-50%,-50%) rotate(-10deg);border:4px solid #c42a1a;background:rgba(255,236,210,.92);color:#c42a1a;font-weight:900;font-size:1.25em;letter-spacing:.1em;box-shadow:inset 0 0 0 2px #fff0d8,3px 3px 0 rgba(0,0,0,.45);pointer-events:none;white-space:nowrap}
-.qs-done canvas{width:20px;height:20px;image-rendering:pixelated}
 .nwbd-ask{position:fixed;inset:0;z-index:90;display:grid;place-items:center;padding:16px;background:rgba(9,8,18,.78)}
 .qs-newtag{position:absolute;top:-14px;right:-4px;z-index:5;max-width:150px;background:#ffe27a;color:#4a2a08;font-weight:900;font-size:12px;padding:2px 8px;border:2px solid #1c1008;transform:rotate(4deg)}
 .qs-wrap.new{animation:qsDrop .35s steps(4)}
@@ -56,7 +53,6 @@ const CSS = `
 @keyframes qsDrop{from{transform:translateY(-24px) rotate(-8deg) scale(1.1)}}
 @keyframes qsPinSnap{from{margin-top:-10px;opacity:.4}}
 @media (prefers-reduced-motion:reduce){.qs-wrap.new,.qs-wrap.new .qs-pin{animation:none}}
-.qs-blank{display:block;width:100%;padding:34px 12px;text-align:center;color:#6a5434;font-weight:800;font-size:.9em;line-height:1.5;opacity:.85}
 .nwbd-locks{margin-top:12px;display:flex;flex-direction:column;gap:6px}
 .nwbd-lock{padding:5px 10px;background:#cdbd98;color:#5a4a30;border:2px dashed #6a5434;font-size:.85em;font-weight:800;transform:rotate(-.4deg)}
 .nwbd-note{position:relative;z-index:2;margin:0 0 8px;padding:5px 10px;background:#f4e6b8;color:#4a2a08;border:3px solid #b8903a;font-size:.88em;line-height:1.4}
@@ -70,7 +66,6 @@ const ROLE = {
   mid: ['🎯', '剛好', '跟你打過的差不多'],
   hard: ['🔥', '挑戰', '你還沒打過的星級，打贏就開放下一顆星']
 };
-const TICK = ['......rr', '.....rR.', 'r...rR..', 'Rr.rR...', '.RrR....', '..R.....'];
 const SEAL = ['..rr..', '.rRRr.', 'rRrrRr', 'rRrrRr', '.rRRr.', '..rr..'];
 const hash = s => { let h = 7; for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
 const rnd = (h, i) => ((Math.sin(h * 0.001 + i * 12.9898) * 43758.5453) % 1 + 1) % 1;
@@ -91,7 +86,7 @@ export function mountBoard(host, env) {
   const rot = Array.isArray(env.cards);   // BOARD_ROT 開著：newworld.js 傳 4 張現成的單子；關著就跟以前一樣全部列出
   const quests = rot ? env.cards : boardQuests(NW, env.today);
   const goal = env.goal || null, isGoal = q => rot ? !!q.tag : !!goal && !q.locked && goal.match(q);
-  const live = quests.filter(q => !q.stamped);
+  const live = quests;
   const pickSel = () => rot ? ((live.find(q => q.tag === 'quest' || q.tag === 'path') || live.find(q => q.tag) || live.find(q => q.role === 'hard') || live[0] || quests[0]) || {}).id
     : ((quests.find(isGoal) || quests.find(q => !q.locked)) || {}).id;
   let tab = 'quests', sel = env.selected && quests.find(q => q.id === env.selected && !q.locked) ? env.selected : pickSel();
@@ -108,7 +103,7 @@ export function mountBoard(host, env) {
         <div class="nwbd-sign">冒險者公會・委託板</div>
         ${goal ? `<div class="nwbd-goal">📌 現在的任務：<b>${goal.text}</b>　${rot && goal.building && goal.building !== 'board' ? `→ 去村莊的「${BLD_NAME[goal.building] || '建築'}」` : '→ 選有紅色「任務目標」標籤的委託單'}</div>` : ''}
         ${rot ? [env.cleared ? '<div class="nwbd-note">🏆 迷霧森林的委託你都打完了！新的地方還在蓋。</div>' : '', ...(env.notes || []).map(t => `<div class="nwbd-note">${t}</div>`), env.evAny ? '<div class="nwbd-note">🎪 活動中：打贏哪一張都算</div>' : ''].join('') : ''}
-        ${rot && env.progress && env.progress.total ? `<div class="nwbd-bar"><div class="nwbd-prog" data-prog>完成 ${env.progress.ok}／${env.progress.total}，🔥 挑戰單不用打也行，其他都完成就送來新的一批！</div><button class="px-btn nwbd-swap" data-swap disabled>🔄 刷新</button></div>` : ''}
+        ${rot ? `<div class="nwbd-bar">${env.left > 0 ? `<div class="nwbd-prog" data-prog>還剩 ${env.left} 張，打完就送來新的一批！</div>` : ''}<button class="px-btn nwbd-swap" data-swap disabled>🔄 刷新</button></div>` : ''}
         <div class="nwbd-tabs"><button class="nwbd-tab" data-tab="quests">📜 委託單</button><button class="nwbd-tab" data-tab="rooms">🚪 房間 <span id="nwbd-rc">0</span></button></div>
         <div class="nwbd-sheets${rot ? ' rot' : ''}" id="nwbd-list"></div>
       </div>
@@ -132,13 +127,6 @@ export function mountBoard(host, env) {
     const c = document.createElement('canvas'); c.width = 6; c.height = 6; c.className = 'qs-seal'; c.setAttribute('aria-hidden', 'true');
     const x = c.getContext('2d'); SEAL.forEach((row, y) => [...row].forEach((ch, i) => { if (ch !== '.') { x.fillStyle = ch === 'R' ? '#d8503a' : '#8a1e12'; x.fillRect(i, y, 1, 1); } }));
     return c;
-  };
-  /* 「完成」章：打贏的單子留在板上不能再打，蓋這個章讓孩子一眼看出哪些還沒打 */
-  const doneStamp = () => {
-    const d = document.createElement('div'); d.className = 'qs-done'; d.setAttribute('role', 'img'); d.setAttribute('aria-label', '完成');
-    const c = document.createElement('canvas'); c.width = 8; c.height = 6; c.setAttribute('aria-hidden', 'true');
-    const x = c.getContext('2d'); TICK.forEach((row, y) => [...row].forEach((ch, i) => { if (ch !== '.') { x.fillStyle = ch === 'R' ? '#c42a1a' : '#8a1e12'; x.fillRect(i, y, 1, 1); } }));
-    d.appendChild(c); d.appendChild(document.createTextNode('完成')); return d;
   };
   const qOf = id => quests.find(q => q.id === id);
   const spotOf = q => BIGMAP.spots[q.rk + ':' + q.mk];
@@ -169,22 +157,13 @@ export function mountBoard(host, env) {
       const pin = document.createElement('img'); pin.className = 'qs-pin'; pin.src = pinURL; pin.style.cssText = 'width:27px;image-rendering:pixelated'; pin.alt = '';
       wrap.appendChild(b); wrap.appendChild(pin);
       if (isGoal(q)) { wrap.classList.add('goal'); const tg = document.createElement('div'); tg.className = 'qs-goal'; tg.textContent = rot ? TAG[q.tag] + (q.both ? '＋🎪 活動' : '') : '📌 任務目標'; wrap.appendChild(tg); }
-      if (rot && q.role === 'hard' && !q.locked && !q.stamped) { b.appendChild(sealOf()); }
-      if (rot && q.stamped && !q.locked) { wrap.classList.add('stamped'); wrap.appendChild(doneStamp()); }
+      if (rot && q.role === 'hard' && !q.locked) { b.appendChild(sealOf()); }
       if (rot && changed[q.key]) {
         wrap.classList.add('new');
         const nt = document.createElement('div'); nt.className = 'qs-newtag'; nt.textContent = changed[q.key] === 'ladder' ? '🪜 換一隻比較好打的' : '✨ 新的！'; wrap.appendChild(nt);
       }
       list.appendChild(wrap);
     });
-    if (rot && !env.cleared && quests.length < 4 && quests.some(q => !q.stamped)) {
-      const wrap = document.createElement('div'); wrap.className = 'qs-wrap'; wrap.style.cssText = '--r:1.5deg;--dy:4px;--m:0';
-      const b = document.createElement('div'); b.className = 'qs-blank';
-      b.style.cssText = `background-image:url(${papers[2]});background-size:96px 96px;image-rendering:pixelated;clip-path:${jagged(77)}`;
-      b.textContent = '全部完成，這裡就會貼新的單子';
-      const pin = document.createElement('img'); pin.className = 'qs-pin'; pin.src = pinURL; pin.style.cssText = 'width:27px;image-rendering:pixelated'; pin.alt = '';
-      wrap.appendChild(b); wrap.appendChild(pin); list.appendChild(wrap);
-    }
     if (rot && (env.locks || []).length) {
       const box = document.createElement('div'); box.className = 'nwbd-locks'; box.style.gridColumn = '1 / -1'; box.style.width = '100%';
       box.innerHTML = env.locks.map(l => `<div class="nwbd-lock">🔒 ${REGIONS[l.rk].name}：打倒${REGIONS[l.needs].name} ★5 就會出現</div>`).join('');
@@ -205,7 +184,7 @@ export function mountBoard(host, env) {
     });
   }
 
-  /* 刷新：沒蓋章、不是任務目標的單子整批換新。每天第 1 次免費，之後收字元（一天最多 3 次）。
+  /* 刷新：不是任務目標的單子整批換新、補滿 4 張。每天第 1 次免費，之後收字元（一天最多 3 次）。
      能不能按、要多少字元由 newworld.js 算（swapState 是純函式）；按鈕在處理完之前一直灰著，連點不會成交兩次 */
   const swapBtn = host.querySelector('[data-swap]');
   let busy = false;
@@ -223,7 +202,7 @@ export function mountBoard(host, env) {
     return new Promise(res => {
       const ov = document.createElement('div'); ov.className = 'nwbd-ask'; ov.id = 'nwbd-ask';
       ov.innerHTML = `<div class="px-panel text-center" style="max-width:380px;width:100%;padding:18px"><div class="px-title" style="font-size:1.3em">🔄 刷新</div>
-        <p class="px-text mt-3" style="line-height:1.7;text-align:left">花 ${cost} 字元，把還沒完成的單子全部換新？<br>📌 任務單會留著。</p>
+        <p class="px-text mt-3" style="line-height:1.7;text-align:left">花 ${cost} 字元，把板上的單子全部換新？<br>📌 任務單會留著。</p>
         <div class="mt-4 flex gap-3 justify-center flex-wrap"><button class="px-btn gold" data-ask-yes>換新</button><button class="px-btn" data-ask-no>不要</button></div></div>`;
       const done = v => { ov.remove(); res(v); };
       ov.addEventListener('click', e => { if (e.target.closest('[data-ask-yes]')) done(true); else if (e.target.closest('[data-ask-no]') || e.target === ov) done(false); });
@@ -242,11 +221,10 @@ export function mountBoard(host, env) {
       <div>${m.lean}　打中你會：${hits.length ? hits.join('、') : '沒有特別的'}</div>
       <div style="color:#ffd98a">${m.sp}</div>
       <div style="font-size:.88em">會掉：${drops}</div>`;
-    go.disabled = !!q.wait || !!q.stamped;
+    go.disabled = !!q.wait;
     /* 這節剩不到 3 分鐘：只提醒，不擋（SPEC-BALANCE-V2 §6.3）。沒有下課時間的資料就不顯示 */
     const left = env.classLeft ? env.classLeft() : null;
     host.querySelector('#nwbd-bell').style.display = left != null && left < 180 && left > -600 ? 'block' : 'none';
-    if (rot && q.stamped) info.innerHTML += '<div style="color:#ffd98a;margin-top:4px">✅ 完成了！把其他單子打完，就會送來新的一批。</div>';
     if (q.wait) info.innerHTML += '<div style="color:#ffd98a;margin-top:4px">今天已經開了新的一星，明天再來挑戰這一星！打贏過的星級隨時可以重打。</div>';
   }
 
@@ -301,7 +279,7 @@ export function mountBoard(host, env) {
         .catch(err => console.warn('刷新失敗', err)).finally(() => { busy = false; if (alive && host.isConnected) updateSwap(); });
       return;
     }
-    if (e.target.closest('[data-go]') && qOf(sel) && !qOf(sel).locked && !qOf(sel).wait && !qOf(sel).stamped) env.onHunt(qOf(sel));
+    if (e.target.closest('[data-go]') && qOf(sel) && !qOf(sel).locked && !qOf(sel).wait) env.onHunt(qOf(sel));
   });
 
   renderSheets(); renderInfo();

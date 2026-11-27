@@ -1133,7 +1133,7 @@ const BOARD_ID_RE = /^[a-z]+:[a-z]+:[1-5]$/;
 export function normalizeBoard(d) {
   if (!d || typeof d !== 'object' || Array.isArray(d) || d.v !== 1) return null;
   const int = x => (Number.isFinite(+x) ? Math.max(0, Math.floor(+x)) : 0);
-  const empty = () => ({ id: '', k: '', at: 0, m: 0, ok: 0 });
+  const empty = () => ({ id: '', k: '', at: 0, m: 0 });
   /* 舊存檔的 out 是字串（只換一張的年代）、沒有 swapN：今天換過＝已經用掉 1 次 */
   const out = BOARD_ID_RE.test(d.out) ? [d.out] : Array.isArray(d.out) ? d.out.filter((x, i, a) => BOARD_ID_RE.test(x) && a.indexOf(x) === i).slice(0, BOARD.outN) : [];
   const o = { v: 1, seed: int(d.seed) >>> 0, day: int(d.day), n: int(d.n), done: int(d.done), swap: int(d.swap),
@@ -1143,9 +1143,10 @@ export function normalizeBoard(d) {
     out, slots: {} };
   const seen = [];
   BOARD.keys.forEach(k => {
-    const s = d.slots && d.slots[k], id = s && BOARD_ID_RE.test(s.id) && !seen.includes(s.id) ? s.id : '';
+    /* 舊版「蓋完成章」的單子（ok＝1）現在視為已經打贏撤下，不留在板上 */
+    const s = d.slots && d.slots[k], id = s && !int(s.ok) && BOARD_ID_RE.test(s.id) && !seen.includes(s.id) ? s.id : '';
     if (id) seen.push(id);
-    o.slots[k] = id ? { id, k: typeof s.k === 'string' ? s.k.slice(0, 8) : '', at: int(s.at), m: Math.min(99, int(s.m)), ok: int(s.ok) ? 1 : 0 } : empty();
+    o.slots[k] = id ? { id, k: typeof s.k === 'string' ? s.k.slice(0, 8) : '', at: int(s.at), m: Math.min(99, int(s.m)) } : empty();
   });
   return o;
 }
