@@ -121,16 +121,16 @@ export function respond(r, cast, pl, exp, gear, A = REACT) {
   return out;
 }
 
-/* 守護流（SPEC-BALANCE-V2 §3.1）：舉盾擋下或真的躲開 → out.guard＝true（sim.mjs 會自動反擊）。
+/* 守護流（SPEC-BALANCE-V2 §3.1）：只有舉盾擋下（重壓、線上攻擊）→ out.guard＝true（sim.mjs 會自動反擊）。
    - 重壓：照一般的舉盾，盾多 A.guardShield 秒（預設 0.5）；擋住＝成功。
    - 線上的攻擊：先決定有沒有舉盾（attendDef，真實防禦 63% ≈ 3/4 的人有舉）。舉了：盾蓋得到出手那一刻就只受一半傷害，算成功（站著不動剛好沒被打到不算）；
-     沒舉：退回一般的換線（attendDodge），真的站在危險線、出手前換走才算成功。
+     沒舉：退回一般的換線（attendDodge），躲開了只算閃避成功、不反擊（2026-11-27）。
    「按住 Alt」會一直刷新盾（laneKey 的 Alt 在 e.repeat 檢查之前就 return），所以盾提早沒了還有 hold 的機率再按（跟重壓同一個假設）。 */
 export function respondGuard(r, cast, pl, exp, gear, A = REACT) {
   const g2 = { ...gear, shield: (gear.shield || 0) + (A.guardShield != null ? A.guardShield : 0.5) };
   if (cast.kind === 'slam') { const o = respond(r, cast, pl, exp, g2, A); o.guard = o.need && o.ok; return o; }
   const aS = A.attendDef != null ? A.attendDef : A.attend;
-  if (!(aS == null || r() < aS)) { const o = respond(r, cast, pl, exp, gear, A); o.guard = o.need && o.ok; return o; }
+  if (!(aS == null || r() < aS)) { const o = respond(r, cast, pl, exp, gear, A); o.guard = false; return o; }   // 沒舉盾：換線躲開成功不反擊（2026-11-27）
   const mu = lerp(A.react[0], A.react[1], exp), hold = lerp(A.hold[0], A.hold[1], exp), kl = A.keyLag;
   const t1 = Math.min(...cast.strikes.map(s => s.warn)) + Math.max(A.floor, mu + gauss(r) * A.reactSd) + kl;
   const dur = 1.5 + g2.shield, holdOk = r() < hold;

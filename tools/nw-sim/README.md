@@ -43,7 +43,7 @@ simulate(p, 'wolf', 'forest', 5, 0.5, seed, { ...DEFAULT_ASSUME, attendDodge: 0.
 | `attacks`／`attackFrom`／`atkMul` | V2 攻擊表、跳跳菇 ★2 起、狼 ×0.7（乘在 `atk.mul`，`monDmg` 最低 4 點之前） |
 | `elem`／`gCap` | 屬性 ×1.05／×0.95、武器×屬性封頂 1.37 |
 | `armorCeil`／`slam15` | 盔甲無條件進位、重壓沒擋住只扣一次 ×1.5（與 `nw-data.js` 的 `strikeDamage` 一致） |
-| `flow` | `guard`：重壓舉盾擋下、線上攻擊舉盾（擋一半）或真的躲開 → 自動反擊 5%×g、打字 ×0.85、盾 +0.5 秒（`lanes.mjs respondGuard`）；`vine`：全對題種藤蔓（最多 4 根），每根每 10 秒 0.5%×g、打字 ×0.85 |
+| `flow` | `guard`：重壓舉盾擋下、線上攻擊舉盾（擋一半）→ 自動反擊（換線躲開不反擊） 5%×g、打字 ×0.85、盾 +0.5 秒（`lanes.mjs respondGuard`）；`vine`：全對題種藤蔓（最多 4 根），每根每 10 秒 0.5%×g、打字 ×0.85 |
 | `afk` | §3.4：最近 40 秒內打對過字，流派才有效；流派傷害 ≤ 打字傷害；逃走時流派傷害算一半；保底 0.3 按有在打字的時間 `a` |
 | 結果欄位 | `reward`（贏 1；輸／逃走 `0.3a+0.7f`；答不到 3 題 0）、`a`、`f`、`valid`、`guards`、`vines`、`dType`、`dFlow`、`flowShare` |
 

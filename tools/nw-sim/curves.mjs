@@ -80,7 +80,7 @@ export const P = {
     flows: {                // 流派（出發前選，免費換）
       none: {},
       steady: { tau: 25, max: 1.6, noWrongHit: true },          // （第二波，先不開）穩打：全對的題目蓄力＝1＋（這題每個字平均花的秒數 ÷25），最多 ×1.6，取代連擊；亂打不被反擊
-      guard: { ...NW_FLOWS.guard },          // 守護：真的躲開或舉盾擋下（線上的攻擊擋一半）→ 反擊 5% 魔物血量×攻擊倍率；打字傷害 ×0.85；舉盾 +0.5 秒
+      guard: { ...NW_FLOWS.guard },          // 守護：舉盾擋下重壓或線上的攻擊（擋一半；換線躲開不算）→ 反擊 5% 魔物血量×攻擊倍率；打字傷害 ×0.85；舉盾 +0.5 秒
       vine: { ...NW_FLOWS.vine }       // 藤蔓：每題全對種 1 根（最多 4 根），每根每 10 秒扣 0.5% 魔物血量×攻擊倍率；打字傷害 ×0.85
     },
     play: 900, over: 180, startPad: 60,   // 一節課新世界約 15 分鐘；每場前後（委託板、結算、鐵匠鋪）3 分鐘；剩下的時間 < 預計時長+60 秒就不開新的一場
@@ -415,11 +415,11 @@ export function battleV2(v, a, rk, mk, star, gear = NOGEAR, p = P, flow = 'none'
       if (k === 'slam') { const ok = aS * s.ok; hitP = 1 - ok; dmg = V.slamHits * perHit(base * V.slamMul); sc = ok; }
       else if (flow === 'guard') {   // 守護流：線上的攻擊也可以舉盾（擋一半＋反擊），沒舉盾才換線
         const pSh = aS * s.ok, dg = aD * s.ok, d1 = perHit(base * (k === 'sweep' ? 0.5 : 1)) * (k === 'sweep' ? 1.5 : 1), hitIf = pSh + (1 - pSh) * (1 - dg);
-        hitP = s.threat * hitIf; dmg = d1 * (pSh * 0.5 + (1 - pSh) * (1 - dg)) / Math.max(1e-9, hitIf); sc = s.threat * (pSh + (1 - pSh) * dg);
+        hitP = s.threat * hitIf; dmg = d1 * (pSh * 0.5 + (1 - pSh) * (1 - dg)) / Math.max(1e-9, hitIf); sc = s.threat * pSh;
       } else { const dg = aD * s.ok; hitP = s.threat * (1 - dg); dmg = perHit(base * (k === 'sweep' ? 0.5 : 1)) * (k === 'sweep' ? 1.5 : 1); sc = s.threat * dg; }
       hitsE += w * hitP; dmgHit += w * hitP * dmg;
       act += w * s.act; okSum += w * (1 - hitP);
-      succ += w * sc; } }   // 反擊只算「真的有危險、而且躲開／擋下」，站著不動剛好沒被打到不算
+      succ += w * sc; } }   // 反擊只算「真的有危險、而且舉盾擋下」，站著不動沒被打到、換線躲開都不算
   const quick = m.spKey === 'quick', dur = castTime(lv, 'B') * (quick ? 0.75 : 1);
   const I1 = atkInterval(lv, 'B', false) * (quick ? BAL.quickMul : 1), I2 = atkInterval(lv, 'B', m.spKey === 'rage') * (quick ? BAL.quickMul : 1);
   // 積分到打倒（活動時間；倒下與換線的時間之後再加）

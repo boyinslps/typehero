@@ -1,4 +1,4 @@
-/* 平衡 V2 第 9 步：流派（SPEC-BALANCE-V2 §3、§7 第 9 步；編號 nw23）。守護流（擋下／真的躲開 → 反擊魔物最大血量 5%）、藤蔓流（全對種藤蔓、每根每 10 秒 0.5%）、
+/* 平衡 V2 第 9 步：流派（SPEC-BALANCE-V2 §3、§7 第 9 步；編號 nw23）。守護流（擋下重壓／舉盾擋下單線 → 反擊魔物最大血量 5%；真閃避不反擊）、藤蔓流（全對種藤蔓、每根每 10 秒 0.5%）、
    §3.4 防掛機（最近 40 秒內逐字打對才有效、流派傷害 ≤ 打字傷害、逃走時流派只算一半）、出發前選打法、教學大樓第 4 堂、結算提示、人物卡。旗標關（__NW_V2__=false）一律不生效。
    假時鐘：把 performance.now 加上 window.__tOff（毫秒）。戰鬥狀態用 localhost 專用的 window.__NWB。 */
 const { chromium } = require('playwright'); const fs = require('fs');
@@ -182,13 +182,21 @@ const snap = p => S(p, 'S => ({ g: S.guards, f: S.dmgFlow, t: S.dmgType, v: S.vi
     await cast(p, 'single', 'same'); await block(p, 'alt');
     const s6 = await snap(p);
     ok(s6.g === 3, `單線攻擊打在我這一線、舉著盾（擋一半）：算守護成功（guards ${s6.g}）`);
-    /* 真的躲開：預警時站在那條線、出手前換走 */
+    /* 真的躲開：預警時站在那條線、出手前換走。閃避另外會做成獨立的一套，守護流不反擊（老師 2026-11-27） */
     await ans(p, 1);
+    const c6 = await S(p, 'S => S.counters || 0'), s6b = await snap(p);   // 打字本身會扣魔物的血，所以基準取在打完字之後
     await cast(p, 'single', 'same'); await toWarn(p); await p.waitForTimeout(150);
     await p.keyboard.press(await S(p, 'S => S.lane') > 0 ? 'ControlLeft' : 'ControlRight'); await p.waitForTimeout(100);
     await toHit(p); await settle(p);
     const s7 = await snap(p);
-    ok(s7.g === 4 && (await S(p, 'S => S.dodgeReal')) >= 1, `預警時站在紅線上、出手前換線躲開：算守護成功（guards ${s7.g}）`);
+    ok(await S(p, 'S => S.dodgeReal') >= 1, `預警時站在紅線上、出手前換線躲開：dodgeReal 照常統計（${await S(p, 'S => S.dodgeReal')}）`);
+    ok(s7.g === 3 && s7.f === s6b.f && s7.hp === s6b.hp, `真閃避不反擊：guards 還是 ${s7.g}、魔物血量沒少（流派傷害 ${s7.f}）`);
+    ok(await S(p, 'S => S.counters || 0') === c6 && await S(p, 'S => !S.fx.some(x => x.kind === "cslash")'), '真閃避：沒有反擊特效');
+    /* 舉盾仍然反擊（回歸）：真閃避之後再擋一次單線，guards 會加 1 */
+    await ans(p, 1);
+    await cast(p, 'single', 'same'); await block(p, 'alt');
+    const s7b = await snap(p);
+    ok(s7b.g === 4 && s7b.f > s7.f && await S(p, 'S => S.counters || 0') === c6 + 1, `真閃避之後舉盾擋下單線：照常反擊（guards ${s7b.g}）`);
     /* 流派傷害不超過打字傷害 */
     await S(p, 'S => { S.dmgType = 3; S.dmgFlow = 0; }');
     for (let i = 0; i < 3; i++) { await ans(p, 1); await S(p, 'S => { S.dmgType = 3; }'); await cast(p, 'slam'); await block(p, 'alt'); }

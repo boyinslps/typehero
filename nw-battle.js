@@ -502,7 +502,7 @@ export function startBattle(env, cfg, done) {
     const c = S.cast;
     for (const st of c.strikes) {
       if (st.done) continue;
-      /* 「真的躲開」＝預警一出現你就站在這條線上、出手前換走了（站著不動剛好沒被打到不算，SPEC-BALANCE-V2 §3.1） */
+      /* 「真的躲開」（只做統計 dodgeReal，不觸發反擊）＝預警一出現你就站在這條線上、出手前換走了（站著不動剛好沒被打到不算，SPEC-BALANCE-V2 §3.1） */
       if (st.thr === undefined && T >= st.warn) st.thr = !st.slam && S.lane === st.lane;
       if (st.cancel && T >= st.cancel) { st.done = true; if (st.thr && S.lane !== st.lane) c.real = true; continue; }
       if (T >= st.hit) { st.done = true; if (st.thr && S.lane !== st.lane) c.real = true; resolveStrike(st, T); }
@@ -513,9 +513,9 @@ export function startBattle(env, cfg, done) {
     S.react.push(c.firstKey ? Math.round((c.firstKey - c.w0) * 1000) : -1);   // -1＝這招沒按過任何換線／舉盾鍵
     if (c.kind === 'slam') { S.defAll++; if (!c.hurt) S.defOk++; } else { S.dodgeAll++; if (!c.hurt) { S.dodgeOk++; if (c.real) S.dodgeReal++; } }
     if (!c.hurt) { banner(c.kind === 'slam' ? '🛡 擋下來了！' : '✨ 躲開了！', '#8ec96b'); floatText('成功！', 80, 56, '#8ec96b', true); }
-    /* 守護成功＝擋下重壓、線上攻擊時舉著盾（擋一半）、或真的躲開（預警時站在那條線、出手前換走）；站著不動剛好沒被打到不算（§3.1）。
+    /* 守護成功＝擋下重壓、或線上攻擊時舉著盾（擋一半）；換線躲開（c.real）不反擊——閃避之後會是獨立的一套，不併進守護流（老師 2026-11-27 決定，§3.1）。
        沒在打字（§3.4）就不反擊：只按 Alt 不打字，反擊永遠是 0 */
-    if (flow === 'guard' && (c.blocked || (c.real && !c.hurt))) {
+    if (flow === 'guard' && c.blocked) {
       if (flowActive(T)) { S.guards++; hitMonster(Math.max(1, Math.round(S.mon.max * FD.rho * gearMul(GS, cfg.mk))), '', '#9fd8ff', false, true); counterFx(T); }
       else if (!S.afkHinted) { S.afkHinted = true; toast('守護成功！不過要一直打字才會反擊喔'); }
     }
